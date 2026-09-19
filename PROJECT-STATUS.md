@@ -17,7 +17,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 5 — frames: body↔inertial rotation, 2D translation at fixed attitude.
+Phase 1, Step 6 — rotational dynamics (theta/omega become integrated states).
 
 ## Completed steps
 - Step 1 — scaffolding: `Params`/`State` containers, `run.py` prints them. Commit `4c3f836`.
@@ -35,6 +35,12 @@ Phase 1, Step 5 — frames: body↔inertial rotation, 2D translation at fixed at
   matrix at theta=pi/2 written inline, not yet in frames.py — that's Step 5). Constant axial drag
   `A_x` now lowers apogee (1650.70 m vs Step 3's 1839.43 m); regression-checked A_x=0 reproduces
   Step 3 exactly. Commit `68eb716`.
+- Step 5 — `sim/frames.py` (R_body_to_inertial, to_inertial, to_body — the only trig in the
+  codebase); `dynamics.py` refactored to use it instead of inline cos/sin. First tests added
+  (`tests/test_frames.py`, 4 passing: identity at theta=0, nose-to-up at theta=pi/2, orthogonality,
+  round-trip). `theta` still fixed (not yet integrated). Step 4 regression reproduced exactly;
+  tilted trajectory (theta0=60°) demonstrated non-zero downrange motion (throwaway check, not
+  committed to run.py). Commit `f794ec8`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything
