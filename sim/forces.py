@@ -67,9 +67,23 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     even when it does not coincide with the nose (e.g. tail-first descent).
     At alpha = 0 (nose-first into the relative wind), u_hat = (1, 0) and
     n_hat = (0, 1), so this reduces exactly to the Phase 1 `(-A_x, -A_z)`.
+
+    Step 13: two regimes:
+      * "constant": use the constant magnitudes p.A_x, p.A_z (Phase 1 behaviour)
+      * "coefficients": compute from dynamic pressure and coefficients:
+            A_x = q * S * C_A0
+            A_z = q * S * C_N_alpha * alpha
     """
     flow = flow_state(t, s, p)
-    return -p.A_x * flow.u_hat - p.A_z * flow.n_hat
+    if p.aero_model == "constant":
+        A_x = p.A_x
+        A_z = p.A_z
+    elif p.aero_model == "coefficients":
+        A_x = flow.q * p.S * p.C_A0
+        A_z = flow.q * p.S * p.C_N_alpha * flow.alpha
+    else:
+        raise ValueError(f"Unknown aero_model: {p.aero_model}")
+    return -A_x * flow.u_hat - A_z * flow.n_hat
 
 
 def aero_moment_y(t: float, s, p) -> float:
@@ -77,5 +91,17 @@ def aero_moment_y(t: float, s, p) -> float:
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
     until Step 6. Exposed now so that step just calls it.
+
+    Step 13: two regimes:
+      * "constant": use the constant magnitude p.A_m (Phase 1 behaviour)
+      * "coefficients": compute from dynamic pressure and coefficients:
+            A_m = q * S * d_ref * C_m_alpha * alpha
     """
-    return -p.A_m
+    flow = flow_state(t, s, p)
+    if p.aero_model == "constant":
+        A_m = p.A_m
+    elif p.aero_model == "coefficients":
+        A_m = flow.q * p.S * p.d_ref * p.C_m_alpha * flow.alpha
+    else:
+        raise ValueError(f"Unknown aero_model: {p.aero_model}")
+    return -A_m

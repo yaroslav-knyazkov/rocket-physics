@@ -15,8 +15,7 @@ atmosphere is not wired into anything yet").
 from typing import NamedTuple
 
 import numpy as np
-
-from sim.flow import altitude_msl
+from sim.state import Z
 
 
 class AirState(NamedTuple):
@@ -66,7 +65,8 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     whatever gravity model the scenario selected -- so this must NOT call
     gravity.g() (architecture.md SS14, roadmap.md Step 12 "Careful").
     """
-    h_msl = altitude_msl(y, p)
+    # Compute h_msl = -z + h0_m (z is down-positive)
+    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
     H = _R_ISA * h_msl / (_R_ISA + h_msl)
 
     H_b, L, T_b, p_b = _LAYERS[0]

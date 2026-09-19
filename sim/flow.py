@@ -18,6 +18,7 @@ import numpy as np
 
 from sim.frames import to_body
 from sim.state import THETA, VX, VZ, Z
+from sim.atmosphere import AirState, air_state
 
 
 class Flow(NamedTuple):
@@ -25,6 +26,10 @@ class Flow(NamedTuple):
     alpha: float      # angle of attack [rad], atan2(w, u)
     u_hat: np.ndarray  # (cos alpha, sin alpha) -- body-frame, main.tex u_hat
     n_hat: np.ndarray  # (-sin alpha, cos alpha) -- body-frame, main.tex n_hat
+    air: AirState      # local air state (density, pressure, temperature, speed of sound, viscosity)
+    q: float           # dynamic pressure [Pa]
+    M: float           # Mach number [-]
+    Re: float          # Reynolds number [-]
 
 
 def _wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -52,7 +57,16 @@ def flow_state(t: float, y: np.ndarray, p) -> Flow:
     u_hat = np.array([np.cos(alpha), np.sin(alpha)])
     n_hat = np.array([-np.sin(alpha), np.cos(alpha)])
 
-    return Flow(V=V, alpha=alpha, u_hat=u_hat, n_hat=n_hat)
+    # Get air state from atmosphere model
+    air = air_state(t, y, p)
+
+    # Compute derived quantities
+    q = 0.5 * air.rho * V**2
+    M = V / air.a if air.a != 0.0 else 0.0
+    Re = air.rho * V * p.l_ref / air.mu if air.mu != 0.0 else 0.0
+
+    return Flow(V=V, alpha=alpha, u_hat=u_hat, n_hat=n_hat,
+                air=air, q=q, M=M, Re=Re)
 
 
 def altitude_agl(y: np.ndarray) -> float:

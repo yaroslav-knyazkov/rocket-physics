@@ -32,6 +32,15 @@ class Params:
     A_z: float = 0.0  # normal aero force magnitude [N]
     A_m: float = 0.0  # aero pitching moment magnitude [N*m]
 
+    # Step 13: aerodynamic model parameters
+    S: float = 0.0      # reference area [m^2]
+    d_ref: float = 0.0  # reference diameter [m]
+    l_ref: float = 0.0  # reference length [m] (for Reynolds number)
+    C_A0: float = 0.0   # axial force coefficient at zero angle of attack
+    C_N_alpha: float = 0.0  # normal force coefficient slope [1/rad]
+    C_m_alpha: float = 0.0  # pitching moment coefficient slope [1/rad]
+    aero_model: str = "constant"  # "constant" or "coefficients"
+
     # model selection (architecture.md SS12)
     gravity_model: str = "constant"     # constant | linear | radial | wgs84
     atmosphere_model: str = "isa"       # isa | sounding | field
