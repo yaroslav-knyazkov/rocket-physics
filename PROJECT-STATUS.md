@@ -17,7 +17,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 3 — first plot (altitude/velocity vs. time).
+Phase 1, Step 4 — constant axial aerodynamic force.
 
 ## Completed steps
 - Step 1 — scaffolding: `Params`/`State` containers, `run.py` prints them. Commit `4c3f836`.
@@ -26,6 +26,10 @@ Phase 1, Step 3 — first plot (altitude/velocity vs. time).
   (`a = T/m - g`) to ~1e-7 relative error. Introduced a temporary `T_BURN = 2.0s` constant in
   `sim/dynamics.py` (Step-2-only device, to be replaced by the real thrust curve in Step 11).
   Commit `2024207`.
+- Step 3 — altitude and vertical-velocity plots vs. time (`sim/plotting.py`), sampled from the
+  dense `solve_ivp` interpolant. `run.py` saves `output.png` (gitignored) and calls `plt.show()`.
+  Trajectory shape confirmed numerically (monotonic climb, peak at apogee, monotonic descent to
+  impact). Added `.gitignore` (pycache, generated PNGs). Commit `3c5f261`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything
