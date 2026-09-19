@@ -17,7 +17,11 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 6 — rotational dynamics (theta/omega become integrated states).
+Phase 1, Step 7 — full Phase 1 output (trajectory + pitch plots, flight summary).
+
+## Milestone
+All of `main.tex` (as of Step 6) is now implemented: translation + rotation, all forces/moments,
+constants only. Confirmed by pytest + regression checks.
 
 ## Completed steps
 - Step 1 — scaffolding: `Params`/`State` containers, `run.py` prints them. Commit `4c3f836`.
@@ -41,6 +45,13 @@ Phase 1, Step 6 — rotational dynamics (theta/omega become integrated states).
   round-trip). `theta` still fixed (not yet integrated). Step 4 regression reproduced exactly;
   tilted trajectory (theta0=60°) demonstrated non-zero downrange motion (throwaway check, not
   committed to run.py). Commit `f794ec8`.
+- Step 6 — rotational dynamics: `theta`/`omega` are now real integrated states, moment
+  `M_y = cross_y(aB,T) + cross_y(aA,A_f) + A_m` about the CoG (cross products written explicitly,
+  not pre-simplified, so a future gimbal/misalignment drops in cleanly). 2 new tests
+  (`tests/test_forces.py`: thrust moment is exactly zero on-axis; moment matches closed form
+  `l1*A_z - A_m` to 1e-12). Regression: theta stays exactly constant when A_z=A_m=0 (current
+  placeholder), apogee/impact unchanged from Step 5. Demonstrated correct-direction pitch-over
+  (positive A_m -> nose down) via throwaway check. Commit `d5226ac`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything
