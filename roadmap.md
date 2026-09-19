@@ -4,13 +4,16 @@
 
 Step-by-step build plan, one small committable increment per step. Phase 1 (Steps 1-8) builds
 the complete 2D planar rigid-body simulator from `main.tex` with every force as a constant,
-ending with a working trajectory plot. Phase 2 (Steps 9-17) replaces those constants with real
-models one at a time — relative wind, ISA atmosphere, thrust curve, mass depletion, pressure
-correction, aero coefficients, wind, launch rail — each swap touching one function body.
-Phase 3 (Steps 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at
-pitch ±90°, a rocket's nominal attitude), reusing forces, params and plotting. Architecture
-reference: `architecture.md`. Rule for every step: re-read the relevant `main.tex` section
-first, because the user keeps extending the derivation.
+ending with a working trajectory plot — **DONE and committed**. Phase 2 (Steps 9-27) replaces
+those constants with real models: relative wind/α first (now unblocked by `main.tex`), then
+**four gravity models**, ISA atmosphere, thrust curve + mass + pressure correction, then the
+**real-data tiers** (single-station soundings, then multi-station spatial interpolation) for
+**atmosphere and wind alike**, and finally Mach/α-dependent aero coefficients. Phase 3 (Steps
+28-32, renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular
+at pitch ±90°, a rocket's nominal attitude). Launch rail and recovery are moved to
+**Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), **§11-§22
+(Phase 2)**. Rule for every step: re-read the relevant `main.tex` section first, because the
+user keeps extending the derivation.
 
 ---
 
@@ -25,8 +28,11 @@ first, because the user keeps extending the derivation.
 4. **No input validation, no config plumbing, no generality that is not needed now** — except
    the function signatures fixed in `architecture.md` §4, which exist precisely so Phase 2 does
    not become a refactor.
-5. If a step reveals a physics question (see `architecture.md` §9), stop and ask rather than
-   guessing a sign.
+5. If a step reveals a physics question (see `architecture.md` §9 for Phase 1, **§22 for
+   Phase 2**), stop and ask rather than guessing a sign.
+6. **Phase 2 additions must default to the previous step's behaviour.** Every new `Params` field
+   gets a default that reproduces the run before it, so the Phase 1 test suite keeps passing
+   unchanged through all of Phase 2 (`architecture.md` §18, §20).
 
 ---
 
@@ -71,8 +77,8 @@ Goal: every equation currently in `main.tex` implemented, integrated and plotted
 - **Check:** apogee is lower than in Step 3 with the same thrust; setting `A_x = 0` reproduces
   Step 3 exactly.
 - **Note:** a constant drag magnitude is unphysical (it does not vanish at `v = 0` and does not
-  reverse on descent). That is expected and intended at this stage — Step 10 fixes it. Just be
-  aware the descent leg is nonsense until then.
+  reverse on descent). That is expected and intended at this stage — Step 9 fixes the direction
+  and Step 13 the magnitude. Just be aware the descent leg is nonsense until then.
 - **Commit:** "Aerodynamic forces module, constant axial force"
 
 ### Step 5 — Frames: body↔inertial rotation, 2D translation at a fixed attitude
@@ -119,92 +125,256 @@ Goal: every equation currently in `main.tex` implemented, integrated and plotted
 
 ## Phase 2 — Real models, still 2D
 
-Each step replaces one constant with a model. The pattern is always the same: rewrite one
-function body in `forces.py`, add fields to `Params`, add a new module if the model is big
-enough to deserve one. `dynamics.py` should not need to change at all except in Step 12.
+Each step replaces one constant with a model, or adds one model variant. The pattern is always
+the same: rewrite one function body in `forces.py`, add fields to `Params` (always with a default
+that reproduces the previous step), add a new module when the model deserves one. **`dynamics.py`
+does not change in the whole of Phase 2 except in Step 15** (variable mass).
+
+Spec for this phase: `main.tex` §"Relative wind and angle of attack" and §Models > {Gravity,
+Atmosphere, Wind}; `architecture.md` **§11-§22**. Each step below names the exact section it
+needs — do not read the whole architecture document for a single step.
+
+**Approval gate before Step 10:** `architecture.md` §22 items 1-4 (the model-selection pattern,
+the sounding file format, no-pandas, no-live-API) must be answered by the user first. Step 9 is
+unaffected and can start immediately.
 
 **Before each step, re-read `main.tex`** — this phase is exactly where the user's derivation is
-still growing (`§Models > Thrust` is currently a stub).
+still growing (`§Models > Thrust` is still a stub).
 
-### Step 9 — Relative wind and angle of attack  ⚠ do this first
-- **Files:** `sim/forces.py`, `sim/frames.py`
-- **Why first:** `A_f = −A_x x̂_r − A_z ẑ_r` hard-codes the aero force direction against the body
-  axes. That is only valid nose-first with positive axial speed. Every later aero model
-  (`½ρV²S·C(α)`) needs `α` and `V_rel`, so this is the prerequisite for Steps 10 and 14 — and it
-  makes the descent leg physical for the first time.
-- **Do:** compute `v_rel` in the body frame (`to_body(v_inertial − v_wind, θ)`), speed
-  `V = ‖v_rel‖`, angle of attack `α = atan2(w_body, u_body)`. Aero force direction now follows
-  `v_rel` instead of being assumed.
-- **Blocked on:** a `main.tex` update defining `α` and the aero force in terms of relative wind.
-- **Check:** at `α = 0` the result reduces to Phase 1; drag now opposes motion on descent too.
-- **Commit:** "Relative wind and angle of attack"
+**After every step, re-run the full Phase 1 test suite.** With `gravity_model="constant"`,
+`aero_model="constant"` and `wind_model="none"` the Phase 1 results must stay bit-for-bit
+identical. That regression is what keeps 19 steps of model-building honest.
 
-### Step 10 — Atmosphere model
-- **Files:** `sim/atmosphere.py` (new), `sim/forces.py`, `sim/params.py`
-- **Do:** ISA troposphere + lower stratosphere: `T(h)`, `p(h)`, `ρ(h)`, speed of sound `a(h)`,
-  with `h = −z`. Aero forces become `½ρV²S·C_x`, `½ρV²S·C_z`, `½ρV²S·d·C_m` with the
-  coefficients still constant. Add `S`, `d`, `C_x`, `C_z`, `C_m` to `Params`.
-- **Check:** `ρ(0) ≈ 1.225 kg/m³`, `ρ(11 km) ≈ 0.364`; drag now falls with altitude and the
-  apogee rises relative to Step 9.
-- **Commit:** "ISA atmosphere, dynamic-pressure-based aero forces"
+### Step 9 — Relative wind and angle of attack  ⚠ do this first, now unblocked
+- **Files:** `sim/flow.py` (new), `sim/forces.py`, `tests/test_flow.py` (new)
+- **Spec:** `main.tex` §"Relative wind and angle of attack"; `architecture.md` §15
+- **Why first:** every later aero model needs `V`, `α`, `û`, `n̂`. Nothing else in Phase 2 can
+  start until this exists.
+- **Do:** `flow.flow_state(t, y, p) -> Flow` with `v_rel = to_body(v_i − v_w, θ)`,
+  `V = ‖v_rel‖`, `α = atan2(w, u)`, `û = (cos α, sin α)`, `n̂ = (−sin α, cos α)`. Wind is zero
+  for now (a stub `wind_inertial` returning zeros, or inline zeros — Step 21 fills it in).
+  Rewrite `aero_force_body` as `−A_x·û − A_z·n̂` with `A_x, A_z` still the `Params` constants.
+  Add `altitude_agl` / `altitude_msl` helpers.
+- **Optional tidy (behaviour-preserving):** in `dynamics.derivatives`, compute `thrust_body` and
+  `aero_force_body` once into locals and reuse them for the moment instead of calling them twice.
+  Identical numbers; halves the model evaluations for the rest of Phase 2.
+- **Check:** with zero wind and `θ` such that `α = 0`, the aero force equals `(−A_x, −A_z)` and
+  the whole Phase 1 test suite passes unchanged; on the descent leg drag now opposes the motion
+  instead of pointing at the nose.
+- **Commit:** "Relative wind, angle of attack and the aero force direction"
 
-### Step 11 — Thrust curve
-- **Files:** `sim/thrust_curve.py` (new), `data/<motor>.csv`, `sim/forces.py`
-- **Spec:** `main.tex` §Models > Thrust (check what the user has derived by then)
-- **Do:** load a (time, thrust) table, linear interpolation, `T = 0` after burnout. A `burnout`
-  event in `integrate.py`.
-- **Check:** the integral of the curve equals the motor's total impulse; the acceleration trace
-  shows ignition spike, tail-off and a clean cut at burnout.
-- **Commit:** "Thrust curve interpolation"
+### Step 10 — Gravity models: constant, linear, radial
+- **Files:** `sim/gravity.py` (new), `sim/params.py`, `sim/forces.py`, `tests/test_gravity.py`
+- **Spec:** `main.tex` §Models > Gravity; `architecture.md` §12 (the dispatch pattern) and §13
+- **Do:** `gravity.g(t, y, p) -> float` dispatching on `p.gravity_model` over three private
+  variants: `g₀`, `g₀(1 − 2h/R_e)`, `g₀(R_e/(R_e+h))²`, with `h = −z`. `weight_inertial` becomes
+  `[0, m·gravity.g(t, y, p)]`. Add `gravity_model` and `R_e` to `Params`.
+- **Check:** all three agree at `h = 0`; `linear` and `radial` agree to ~1e-6 relative at 10 km
+  and visibly diverge at 100 km; `"constant"` reproduces Step 9 exactly.
+- **Commit:** "Gravity models: constant, linear and radial"
 
-### Step 12 — Propellant depletion: variable mass
-- **Files:** `sim/state.py`, `sim/dynamics.py`, `sim/params.py`
-- **Do:** mass becomes the 7th state component with `ṁ = −T(t)/(I_sp·g₀)` (or a mass-flow table).
-  `I`, `l₁`, `l₂` become functions of the current propellant mass.
+### Step 11 — Gravity: the real-data (WGS84 normal gravity) variant
+- **Files:** `sim/gravity.py`, `sim/params.py`, `tests/test_gravity.py`
+- **Spec:** `architecture.md` §13 ("the `wgs84` variant" — the formula and constants are there)
+- **Do:** the Somigliana normal-gravity formula plus the second-order free-air correction,
+  `g(φ, h_msl)`, with `φ = p.lat0_deg` and `h_msl = p.h0_m − z`. Add `lat0_deg`, `lon0_deg`,
+  `h0_m`, `azimuth_deg` to `Params` (the site block; the last three are also used from Step 12
+  and Step 19 onward).
+- **Check:** 9.7803 m/s² at the equator, 9.8322 at the pole, 9.80665 near 45.5° at sea level;
+  the altitude dependence matches `radial` to ~1e-4 relative over 0-30 km.
+- **Commit:** "WGS84 normal gravity model"
+
+### Step 12 — ISA atmosphere
+- **Files:** `sim/atmosphere.py` (new), `sim/params.py`, `tests/test_atmosphere.py`
+- **Spec:** `main.tex` §Models > Atmosphere; `architecture.md` §14 (the layer table is there)
+- **Do:** `air_state(t, y, p) -> AirState(rho, p, T, a, mu)` dispatching on
+  `p.atmosphere_model`, with the `"isa"` variant implemented: geopotential altitude, the 7-layer
+  table, hydrostatic pressure, gas-law density, `a = √(γR_dT)`, Sutherland viscosity. Uses
+  `h_msl`. No force changes in this step — the atmosphere is not wired into anything yet.
+- **Careful:** the `g = 9.80665` inside the pressure integral is part of the ISA definition and
+  must **not** come from `gravity.g()` (`architecture.md` §14).
+- **Check:** `ρ(0)=1.225`, `p(11 km)=22632 Pa`, `T(20 km)=216.65 K`, `a(0)=340.29 m/s`,
+  `μ(288.15 K)=1.789e-5 Pa·s`; ρ monotone decreasing to 80 km.
+- **Commit:** "ISA atmosphere model"
+
+### Step 13 — Dynamic-pressure aero forces, Reynolds and Mach
+- **Files:** `sim/flow.py`, `sim/forces.py`, `sim/params.py`, `tests/test_flow.py`
+- **Spec:** `main.tex` §Models > Atmosphere (the `Re`, `M` definitions), §Forces;
+  `architecture.md` §15, §12 (`aero_model`)
+- **Do:** `Flow` gains `air`, `q = ½ρV²`, `M = V/a`, `Re = ρVl_ref/μ`. Add `aero_model` to
+  `Params` with `"constant"` (Phase 1 behaviour) and `"coefficients"`
+  (`A_x = qS·C_A0`, `A_z = qS·C_Nα·α`, `A_m = qS·d_ref·C_mα·α`). Add `S`, `d_ref`, `l_ref`,
+  `C_A0`, `C_N_alpha`, `C_m_alpha`.
+- **Check:** `aero_model="constant"` reproduces Step 12 exactly; with `"coefficients"` drag now
+  vanishes at `V = 0`, reverses on descent and falls with altitude, and the apogee moves in the
+  expected direction. Sanity-check `Re ~ 10⁵-10⁷` and `M < 1` for a small rocket.
+- **Commit:** "Dynamic-pressure aerodynamic forces with Reynolds and Mach numbers"
+
+### Step 14 — Thrust curve
+- **Files:** `sim/thrust_curve.py` (new), `data/motors/<motor>.csv` (new), `sim/forces.py`,
+  `sim/integrate.py`, `sim/params.py`
+- **Spec:** `main.tex` §Models > Thrust (check what the user has derived by then);
+  `architecture.md` §19
+- **Do:** load a `t_s,thrust_N` table through an `lru_cache`d loader, `np.interp`, zero after the
+  last point. Removes the `T_BURN` hack from `forces.py`. Add a `burnout` event to
+  `integrate.py`.
+- **Check:** the trapezoidal integral of the curve equals the motor's stated total impulse; the
+  acceleration trace shows the ignition spike, the tail-off and a clean cut at burnout.
+- **Commit:** "Thrust curve interpolation and burnout event"
+
+### Step 15 — Propellant depletion: variable mass
+- **Files:** `sim/state.py`, `sim/dynamics.py`, `sim/params.py`, `tests/test_dynamics.py`
+- **Spec:** `architecture.md` §4 (7th state component), §19
 - **Blocked on:** `main.tex` — "CoG doesn't change" in §Current assumptions directly contradicts
-  this step. Needs the user's derivation of `I(t)` and the CoG shift before implementation.
-- **Check:** final mass equals dry mass; with `l₁, l₂` held fixed the trajectory changes only
-  through `m(t)`, which isolates the effect.
-- **Commit:** "Propellant depletion: mass, inertia and CoG as states"
+  this step. Needs the user's derivation of `I(t)` and the CoG shift first
+  (`architecture.md` §22 item 6).
+- **Do:** `m` becomes the 7th state component, `ṁ = −T(t)/(I_sp·g₀)` (or a mass-flow table).
+  This is the **only** step in Phase 2 that touches `dynamics.py`'s equations.
+- **Check:** the final mass equals the dry mass; with `I`, `l₁`, `l₂` held fixed the trajectory
+  changes only through `m(t)`, isolating the effect.
+- **Commit:** "Propellant depletion: mass as a state"
 
-### Step 13 — Pressure correction to thrust
+### Step 16 — Pressure correction to thrust
 - **Files:** `sim/thrust_curve.py`, `sim/params.py`
-- **Spec:** `main.tex` §Models > Thrust — the pressure-effect derivation the user is planning
-- **Do:** `T(t, h) = T_ref(t) + A_e·(p_ref − p_amb(h))` (exact form per the LaTeX), using the
-  atmosphere from Step 10.
-- **Check:** thrust rises a few percent with altitude; at sea level it reproduces Step 11.
+- **Spec:** `main.tex` §Models > Thrust — the pressure-effect derivation; `architecture.md` §19
+- **Do:** `T(t, h) = T_ref(t) + A_e·(p_ref − p_amb)` with `p_amb` from `atmosphere.air_state`.
+  First consumer of the atmosphere outside the aero forces — and it will work unchanged with the
+  real-data tiers added in Steps 18 and 20.
+- **Check:** thrust rises a few percent with altitude; `A_e = 0` reproduces Step 15.
 - **Commit:** "Altitude pressure correction on thrust"
 
-### Step 14 — Aerodynamic coefficients as functions
-- **Files:** `sim/aero.py` (new), `sim/forces.py`, `data/aero.csv`
-- **Do:** `C_x(M, α)`, `C_z(α)`, `C_m(α)` from tables or polynomials, with `M = V/a(h)`. Centre
-  of pressure travel makes `l₁` a function of `(α, M)` — which couples straight back into the
-  moment equation from Step 6.
-- **Check:** static margin `(l₁ > 0)` produces a restoring moment; the rocket weathercocks into
-  the relative wind instead of tumbling.
+### Step 17 — Sounding data: format, loader, altitude interpolation
+- **Files:** `sim/soundings.py` (new), `data/soundings/<case>/*.csv` (new, one worked example),
+  `tests/test_soundings.py`
+- **Spec:** `architecture.md` §17 (file format, loading rules, interpolation table)
+- **Requires:** `architecture.md` §22 items 2-4 approved (format, no pandas, no live API).
+- **Do:** the shared data layer for **both** atmosphere and wind tiers 2-3, and nothing else —
+  no physics changes in this step. `np.genfromtxt` + a comment-header metadata parser →
+  `Sounding` NamedTuple (wind stored as ENU `u`, `v` components, converted at load time);
+  `load_case()` behind `lru_cache`; altitude interpolation with `T` linear, `ln p` linear,
+  `u`/`v` linear, `ρ`/`a`/`μ` derived; ISA-anchored extrapolation above the top level and
+  lapse-rate extrapolation below the bottom.
+- **Check:** generate a synthetic sounding CSV **from the ISA model itself**, load it back and
+  interpolate — the result must match ISA to within 0.5 % in ρ, p and T across 0-20 km. That one
+  test covers the format, the loader and the interpolation at once.
+- **Commit:** "Sounding data format, loader and altitude interpolation"
+
+### Step 18 — Atmosphere tier 2: single-station real data
+- **Files:** `sim/atmosphere.py`, `sim/params.py`, `tests/test_atmosphere.py`
+- **Spec:** `main.tex` §Models > Atmosphere item 2; `architecture.md` §14, §17
+- **Do:** the `"sounding"` variant — `air_state` reads the single sounding in
+  `p.sounding_case` and returns the same `AirState`. Add `sounding_case` to `Params`.
+- **Check:** with the ISA-derived synthetic case from Step 17, the trajectory matches the
+  `"isa"` run to within the interpolation error; with a real sounding, sea-level density and
+  apogee shift in a physically sensible direction.
+- **Commit:** "Atmosphere tier 2: single-station sounding data"
+
+### Step 19 — Horizontal interpolation core (stations → local tangent plane, IDW)
+- **Files:** `sim/soundings.py`, `sim/params.py`, `tests/test_soundings.py`
+- **Spec:** `architecture.md` §17 ("Interpolation in horizontal position")
+- **Do:** again pure infrastructure, no physics change. Equirectangular projection of station
+  `(lat, lon)` into a launch-site-centred tangent plane; the rocket's ground position as
+  `(x·sin A, x·cos A)`; resampling of all stations onto a common altitude grid at load time;
+  inverse-distance weighting with `idw_epsilon_m`, plus the optional `"rbf"` path through
+  `scipy.interpolate.RBFInterpolator`. Add `horizontal_interp`, `grid_top_m`, `grid_step_m`,
+  `idw_epsilon_m`.
+- **Check:** one station ⇒ the tier-2 profile exactly; a query at a station's own coordinates ⇒
+  that station's profile; two identical stations ⇒ the same profile everywhere; projected
+  station distances match a great-circle reference to <0.1 % inside 100 km.
+- **Commit:** "Horizontal station interpolation: tangent-plane projection and IDW"
+
+### Step 20 — Atmosphere tier 3: multi-station spatial interpolation
+- **Files:** `sim/atmosphere.py`, `tests/test_atmosphere.py`, `data/soundings/<case>/` (a
+  multi-station example)
+- **Spec:** `main.tex` §Models > Atmosphere item 3; `architecture.md` §14, §17
+- **Do:** the `"field"` variant — combine stations horizontally at the rocket's current ground
+  position, then interpolate in altitude. This is the first model whose output depends on `x`.
+- **Check:** a case folder with a single station reproduces Step 18 exactly; with two stations
+  differing in sea-level pressure, the sampled density varies monotonically along the ground
+  track.
+- **Commit:** "Atmosphere tier 3: multi-station spatially interpolated data"
+
+### Step 21 — Wind tier 1: analytic model
+- **Files:** `sim/wind.py` (new), `sim/flow.py`, `sim/params.py`, `tests/test_wind.py`
+- **Spec:** `main.tex` §Models > Wind item 1; `architecture.md` §16
+- **Note on ordering:** this step depends only on Step 13, not on Steps 17-20. Pull it forward
+  to straight after Step 13 if you want a non-zero `α` early; it is placed here only to keep the
+  shared-data-layer steps adjacent.
+- **Do:** `wind_inertial(t, y, p)` dispatching on `p.wind_model`, with `"none"` (zeros, the
+  default) and `"analytic"` (power-law shear + constant direction) implemented, and the
+  meteorological-direction → downrange-component conversion of `architecture.md` §16. Wire it
+  into `flow.flow_state`. Optional gusts **must** be a deterministic, seeded, frozen-phase
+  sinusoid sum — never a per-call random draw (it would break the adaptive solver).
+- **Check:** `"none"` reproduces Step 20 bit-for-bit; a pure headwind raises `V` by exactly the
+  wind speed; the four cardinal wind directions map to the expected downrange sign; a tailwind
+  and a headwind of the same speed bracket the still-air apogee.
+- **Commit:** "Wind tier 1: analytic shear profile"
+
+### Step 22 — Wind tier 2: single-station real data
+- **Files:** `sim/wind.py`, `tests/test_wind.py`
+- **Spec:** `main.tex` §Models > Wind item 2; `architecture.md` §16, §17
+- **Do:** the `"sounding"` variant, reading `u(h)`, `v(h)` from the same `p.sounding_case` files
+  the atmosphere already uses — no new format, no new loader, no new `Params` field.
+- **Check:** a synthetic constant-wind sounding reproduces the analytic model with
+  `shear_exp = 0`; a real profile shows the wind veering with altitude.
+- **Commit:** "Wind tier 2: single-station sounding data"
+
+### Step 23 — Wind tier 3: multi-station spatial interpolation
+- **Files:** `sim/wind.py`, `tests/test_wind.py`
+- **Spec:** `main.tex` §Models > Wind item 3; `architecture.md` §16, §17
+- **Do:** the `"field"` variant, reusing the Step 19 weighting machinery unchanged. By
+  construction this should be a handful of lines — if it is not, Step 19 drew the seam in the
+  wrong place.
+- **Check:** a single-station case reproduces Step 22 exactly; with two stations of opposing
+  wind direction, the wind sampled along the ground track reverses smoothly.
+- **Commit:** "Wind tier 3: multi-station spatially interpolated data"
+
+### Step 24 — (optional) Interpolation in time between sounding snapshots
+- **Files:** `sim/soundings.py`, `sim/params.py`
+- **Spec:** `architecture.md` §17 ("Time")
+- **Do:** with `p.t0_utc` set, map sim time onto wall clock and linearly blend the two bracketing
+  snapshots per station. Without it, the nearest snapshot is used (current behaviour).
+- **Check:** two identical snapshots at different times give a time-invariant profile; a single
+  snapshot reproduces Step 23.
+- **Commit:** "Time interpolation between sounding snapshots"
+
+### Step 25 — Aerodynamic coefficients as functions of α and M
+- **Files:** `sim/aero.py` (new), `sim/forces.py`, `data/aero/<config>.csv` (new),
+  `tests/test_aero.py`
+- **Spec:** `main.tex` §Forces (`C_A(α, M)`, `C_N(α)`); `architecture.md` §19
+- **Do:** `C_A(α, M)`, `C_N(α)`, `C_m(α, M)` from a table (`np.interp` in α, bracketed in M) with
+  the `Params` constants as the fallback. CoP travel makes `l₁` a function of `(α, M)`, feeding
+  straight back into the Step 6 moment equation. This is the step that makes `Re` and `M`
+  load-bearing rather than merely computed.
+- **⚠ Sign question, resolve before starting:** under `main.tex`'s geometry the aero moment is
+  `M_y = l₁(A_x sin α + A_z cos α)`, so `l₁ > 0` is **divergent**, not restoring — static
+  stability needs `l₁ < 0` (CoP aft of the CoG). Confirm the convention with the user
+  (`architecture.md` §22 item 5) rather than guessing; the previous version of this roadmap had
+  it backwards.
+- **Check:** with the confirmed stable sign, the rocket weathercocks into the relative wind
+  instead of tumbling, and `α` decays after a wind gust instead of growing.
 - **Commit:** "Mach- and alpha-dependent aerodynamic coefficients"
 
-### Step 15 — Wind
-- **Files:** `sim/wind.py` (new), `sim/forces.py`
-- **Do:** `v_wind(t, h)` — constant plus a shear profile, optional seeded gusts. Enters purely
-  through `v_rel` from Step 9, so no other module changes.
-- **Check:** crosswind produces weathercocking and downrange drift in the expected direction.
-- **Commit:** "Wind model"
+### Step 26 — (optional) `tools/fetch_sounding.py`
+- **Files:** `tools/fetch_sounding.py` (new)
+- **Requires:** explicit approval — this is the only part of the project that touches the network
+  (`architecture.md` §22 item 4).
+- **Do:** a hand-run script (never imported by `sim/`) that downloads a sounding with stdlib
+  `urllib` and writes the canonical CSV of `architecture.md` §17. The simulator stays offline and
+  deterministic; only the data acquisition moves out of the browser.
+- **Check:** the fetched file loads with the Step 17 loader with no edits.
+- **Commit:** "Offline sounding fetch helper"
 
-### Step 16 — Launch rail
-- **Files:** `sim/integrate.py`, `sim/dynamics.py`
-- **Do:** while `‖r − r₀‖ < L_rail`, constrain motion to the rail direction and hold `θ` fixed
-  (`ω = θ̈ = 0`); a rail-exit event switches to free flight. This matters more than it looks —
-  rail-exit velocity is what determines whether the wind model above tips the rocket over.
-- **Check:** rail-exit speed is reported; `L_rail = 0` reproduces Step 15.
-- **Commit:** "Launch rail constraint and rail-exit event"
-
-### Step 17 — (optional) Recovery
-- **Files:** `sim/forces.py`, `sim/integrate.py`
-- **Do:** parachute deployment triggered by the apogee event (or a timer): swap the drag model
-  for `½ρV²·C_dS_chute`, with attitude dynamics disabled or heavily damped under canopy.
-- **Check:** descent settles at the analytic terminal velocity `√(2mg/ρC_dS)`.
-- **Commit:** "Parachute recovery"
+### Step 27 — Model comparison sweep and overlay plots
+- **Files:** `run.py`, `sim/plotting.py`
+- **Spec:** `architecture.md` §12 (this step is the payoff for the selection pattern)
+- **Do:** a small sweep helper — `dataclasses.replace(p, gravity_model=...)` over a list of model
+  selections, one `run_sim` each, and an overlay plot plus a table of apogee / max-Q / impact per
+  variant. The point of having four gravity and three atmosphere models is comparing them.
+- **Check:** the four gravity models differ by a predictable, small amount at a 3 km apogee and a
+  visible one at 100 km; ISA vs a real sounding shows where the real atmosphere matters.
+- **Commit:** "Model comparison sweeps and overlay plots"
+- **Milestone:** Phase 2 complete — every model in `main.tex` §Models implemented and selectable.
 
 ---
 
@@ -223,7 +393,7 @@ for human-readable output.
 (Rotation matrices as the state, 9 components with 6 constraints, are the third option: no
 singularity either, but more drift to correct and no advantage over quaternions.)
 
-### Step 18 — Quaternion algebra
+### Step 28 — Quaternion algebra
 - **Files:** `sim/quaternion.py` (new), `tests/test_quaternion.py`
 - **Do:** multiply, conjugate, normalise, rotate a vector, `from_euler` / `to_euler`,
   `q̇ = ½ q ⊗ ω`, and the 3×3 DCM.
@@ -231,14 +401,14 @@ singularity either, but more drift to correct and no advantage over quaternions.
   `R_body_to_inertial` from Step 5 exactly. Pure algebra, no dynamics — fully testable alone.
 - **Commit:** "Quaternion algebra"
 
-### Step 19 — 3D state and translation
+### Step 29 — 3D state and translation
 - **Files:** `sim/state3d.py`, `sim/dynamics3d.py`, `sim/forces3d.py`
 - **Do:** 13-component state `[r(3), v(3), q(4), ω(3)]`. Translation only, attitude held fixed:
   `m·v̇ = W + R(q)·(T_body + A_body)` in NED — the same equation as Phase 1 with a 3×3 rotation.
 - **Check:** planar initial conditions reproduce the Phase 1 trajectory to solver tolerance.
 - **Commit:** "3D state vector and translational dynamics"
 
-### Step 20 — 3D rotational dynamics
+### Step 30 — 3D rotational dynamics
 - **Files:** `sim/dynamics3d.py`
 - **Do:** Euler's equations `ω̇ = I⁻¹(M − ω × I ω)` with the inertia tensor, plus `q̇` and
   renormalisation each step (or as a solver event).
@@ -248,14 +418,14 @@ singularity either, but more drift to correct and no advantage over quaternions.
   is reproduced; `‖q‖ = 1` holds throughout; torque-free motion conserves angular momentum.
 - **Commit:** "Full 6-DOF rotational dynamics"
 
-### Step 21 — 3D aerodynamics
+### Step 31 — 3D aerodynamics
 - **Files:** `sim/aero.py`, `sim/forces3d.py`
 - **Do:** total angle of attack from the 3D relative wind, sideslip `β`, normal force in the
   correct plane, roll moment from fin cant, roll and pitch damping.
-- **Check:** zero sideslip reproduces Step 20; fin cant produces a steady roll rate.
+- **Check:** zero sideslip reproduces Step 30; fin cant produces a steady roll rate.
 - **Commit:** "3D aerodynamics: sideslip, roll and damping"
 
-### Step 22 — 3D output and regression
+### Step 32 — 3D output and regression
 - **Files:** `sim/plotting.py`, `run.py`, `tests/`
 - **Do:** 3D trajectory plot, ground track, Euler-angle time histories, and a regression test
   pinning the 2D-equivalent case.
@@ -265,15 +435,70 @@ singularity either, but more drift to correct and no advantage over quaternions.
 
 ---
 
+## Backlog / later
+
+Not scheduled, not designed further, not deleted. Each of these was deliberately pushed out of
+Phase 2 — pick them up when the models above are in place and the user asks.
+
+### B1 — Launch rail constraint  *(Step 16 in the old, pre-rewrite Phase 2 numbering)*
+- **Files:** `sim/integrate.py`, `sim/dynamics.py`
+- **Sketch:** while `‖r − r₀‖ < L_rail`, constrain motion to the rail direction and hold `θ`
+  fixed (`ω = θ̈ = 0`); a rail-exit event switches to free flight. Matters more than it looks —
+  rail-exit speed is what decides whether the wind model tips the rocket over.
+- **Check:** rail-exit speed reported; `L_rail = 0` reproduces the unconstrained run.
+- **Note:** this is the first Phase-2-adjacent feature that changes `dynamics.py` structurally
+  (a constrained phase, not just a different force). Design it properly when it comes up.
+
+### B2 — Recovery / parachute  *(Step 17 in the old, pre-rewrite Phase 2 numbering)*
+- **Files:** `sim/forces.py`, `sim/integrate.py`
+- **Sketch:** deployment triggered by the apogee event or a timer; drag swaps to
+  `½ρV²·C_d·S_chute`, with attitude dynamics disabled or heavily damped under canopy.
+- **Check:** descent settles at the analytic terminal velocity `√(2mg/ρC_dS)`.
+
+### B3 — Gridded gravity data (EGM2008 / geoid)
+A multi-MB coefficient set or a new geodesy dependency, to capture anomalies of order 10⁻⁴ g —
+two orders of magnitude below the atmosphere model's own error. The `wgs84` variant of Step 11
+already covers the latitude and altitude dependence. See `architecture.md` §13.
+
+### B4 — Non-parallel gravity (direction varying with downrange distance)
+The one genuinely *new physics* among the gravity ideas, and the only one blocked by
+`main.tex` §Current assumptions ("`ẑ_g` fixed for the whole flight"). Needs a derivation update
+before it can be a step. See `architecture.md` §22 item 7.
+
+### B5 — Humidity / virtual temperature in the sounding tiers
+Soundings carry dewpoint; moist air is ~1 % less dense than dry air at the same `p`, `T`. A
+`T_virtual` correction is a few lines once the dewpoint column is carried through the loader.
+
+### B6 — Crosswind (out-of-plane) effects
+Phase 2 discards the cross-plane wind component by construction (`architecture.md` §16); real
+crosswind weathercocking needs the Phase 3 degrees of freedom.
+
+---
+
 ## Dependency summary
 
 ```
-1 → 2 → 3 → 4 → 5 → 6 → 7 → [8]            Phase 1 (all constants)
+1 → 2 → 3 → 4 → 5 → 6 → 7 → [8]                              Phase 1 (all constants) — DONE
                             ↓
-        9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → [17]    Phase 2 (real models)
-                            ↓
-                      18 → 19 → 20 → 21 → 22            Phase 3 (6-DOF)
+9 → 10 → 11 → 12 → 13 → 14 → [15] → 16                       Phase 2a: α, gravity, ISA, thrust
+                                     ↓
+                      17 → 18 → 19 → 20                      Phase 2b: atmosphere real data
+                                     ↓
+                      21 → 22 → 23 → [24] → 25 → [26] → 27   Phase 2c: wind, aero coeffs, sweeps
+                                     ↓
+                      28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF)
+
+Backlog (unscheduled): B1 launch rail · B2 recovery · B3 EGM gravity · B4 non-parallel gravity
+                       B5 humidity · B6 crosswind
 ```
 
-Steps in `[brackets]` are optional. Steps 9, 12, 13 and 20 are **blocked on `main.tex` updates**
-from the user — see `architecture.md` §9 for the exact questions.
+Steps in `[brackets]` are optional. Step 21 (analytic wind) depends only on Step 13 and may be
+pulled forward. **Blocked or gated steps:**
+
+| Step | Blocked on |
+|---|---|
+| 10-27 | `architecture.md` §22 items 1-4 approved by the user (selection pattern, data format, no pandas, no live API) |
+| 15 | `main.tex` — "CoG doesn't change" contradicts propellant depletion (`architecture.md` §22 item 6) |
+| 16 | `main.tex` §Models > Thrust — the pressure-effect derivation is still a stub |
+| 25 | the sign of `l₁` / static stability convention (`architecture.md` §22 item 5) |
+| 30 | `main.tex` §Equations of motion extended to 3D (inertia tensor, `ω × Iω`) |
