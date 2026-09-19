@@ -2,10 +2,11 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step11",
+  "current_stage": "phase2-step12",
   "phase2_completed_steps": [
     {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
-    {"step": 10, "name": "gravity models: constant, linear, radial", "commit": "1f8c641", "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"}
+    {"step": 10, "name": "gravity models: constant, linear, radial", "commit": "1f8c641", "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"},
+    {"step": 11, "name": "gravity real-data (WGS84)", "commit": "f53a0f8", "note": "26/26 tests passing; Somigliana + free-air correction, standard NIMA TR8350.2 constants; equator/pole spot-checks match published values to 7 sig figs; all 4 gravity variants now complete"}
   ],
   "phase1_status": "complete (8/8 steps)",
   "phase2_scope": {

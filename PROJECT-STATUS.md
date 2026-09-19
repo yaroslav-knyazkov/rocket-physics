@@ -17,7 +17,11 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 11 — gravity real-data variant (WGS84).
+Phase 2, Step 12 — ISA atmosphere model.
+
+## Gravity models complete (all 4 main.tex variants)
+Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
+atmosphere.
 
 ## Phase 2 progress
 - Step 9 — `sim/flow.py` (Flow: V, alpha, u_hat, n_hat; wind stubbed at zero until Step 21).
@@ -33,6 +37,13 @@ Phase 2, Step 11 — gravity real-data variant (WGS84).
   regression exact match to Step 9. At current scenario altitude (~1650m) linear/radial differ
   from constant by ~0.39 m; at h=100km they diverge by ~7.5e-4 relative, as physically expected.
   Commit `1f8c641`.
+- Step 11 — `sim/gravity.py`: 4th variant "wgs84" (Somigliana normal gravity + second-order
+  free-air correction, standard published NIMA TR8350.2 constants). `Params` gains
+  `lat0_deg`, `lon0_deg`, `h0_m`, `azimuth_deg` (site block, per architecture.md §18, safe
+  defaults, no behavior change for other models). 26/26 tests passing. Spot-checks: equator
+  9.7803253 m/s^2, pole 9.8321849 m/s^2 (both match published constants to 7 sig figs — the pole
+  value is a derived cross-check, not an input, giving high confidence the formula is correct),
+  45° mid-latitude 9.8061978 m/s^2, decreasing with altitude as expected. Commit `f53a0f8`.
 
 ## Phase 2 scope (expanded per user request 2026-09-19)
 - Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via
