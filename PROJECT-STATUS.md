@@ -17,7 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 7 — full Phase 1 output (trajectory + pitch plots, flight summary).
+Phase 1, Step 8 (optional) — hand-written RK4 cross-check. Otherwise Phase 1 is feature-complete;
+Phase 2 (real models) can start once Step 8 is decided.
 
 ## Milestone
 All of `main.tex` (as of Step 6) is now implemented: translation + rotation, all forces/moments,
@@ -52,6 +53,12 @@ constants only. Confirmed by pytest + regression checks.
   `l1*A_z - A_m` to 1e-12). Regression: theta stays exactly constant when A_z=A_m=0 (current
   placeholder), apogee/impact unchanged from Step 5. Demonstrated correct-direction pitch-over
   (positive A_m -> nose down) via throwaway check. Commit `d5226ac`.
+- Step 7 — `plot_trajectory` (downrange vs altitude, equal aspect) and extended
+  `plot_time_histories` (2x2: altitude, speed, pitch deg, pitch-rate deg/s) added to
+  `sim/plotting.py`. `run.py` prints a full flight summary (apogee altitude/time, max speed,
+  impact time, downrange at impact) and saves `trajectory.png`, `time_histories.png`,
+  `trajectory.csv` (all gitignored). With current placeholder (vertical launch, A_z=0):
+  downrange at impact = 0 m, as expected. Commit `81615c6`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything

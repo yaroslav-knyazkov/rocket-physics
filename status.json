@@ -2,7 +2,7 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase1-step7",
+  "current_stage": "phase1-step8-decision",
   "milestone_step6": "all of main.tex (as of Step 6) implemented: full translation + rotation, all forces/moments, constants only",
   "completed_steps": [
     {"step": 1, "name": "scaffolding", "commit": "4c3f836"},
@@ -10,7 +10,8 @@
     {"step": 3, "name": "altitude/velocity plots", "commit": "3c5f261", "note": "output.png gitignored; plt.show() blocks on interactive backend, expected for personal use"},
     {"step": 4, "name": "aero forces module, constant axial drag", "commit": "68eb716", "note": "forces.py created (model-swap seam); apogee 1650.70m with A_x=0.5, regression-checked A_x=0 reproduces Step 3 exactly"},
     {"step": 5, "name": "frames module, tilted 2D translation", "commit": "f794ec8", "note": "frames.py + first tests (tests/test_frames.py, 4 passing); theta still fixed; tilted-trajectory capability demonstrated (not committed to run.py's default scenario)"},
-    {"step": 6, "name": "rotational dynamics, moments about CoG", "commit": "d5226ac", "note": "theta/omega integrated; M_y = l1*A_z - A_m closed form verified to 1e-12; 6/6 tests passing"}
+    {"step": 6, "name": "rotational dynamics, moments about CoG", "commit": "d5226ac", "note": "theta/omega integrated; M_y = l1*A_z - A_m closed form verified to 1e-12; 6/6 tests passing"},
+    {"step": 7, "name": "full Phase 1 output: trajectory + pitch plots, flight summary", "commit": "81615c6", "note": "trajectory.png, time_histories.png, trajectory.csv all gitignored; downrange=0 at impact matches vertical-launch placeholder"}
   ],
   "stages": [
     {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
