@@ -17,7 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 12 — ISA atmosphere model.
+Phase 2, Step 13 — wire atmosphere into flow.py (Flow gains air/q/M/Re); dynamic-pressure aero
+forces.
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -44,6 +45,12 @@ atmosphere.
   9.7803253 m/s^2, pole 9.8321849 m/s^2 (both match published constants to 7 sig figs — the pole
   value is a derived cross-check, not an input, giving high confidence the formula is correct),
   45° mid-latitude 9.8061978 m/s^2, decreasing with altitude as expected. Commit `f53a0f8`.
+- Step 12 — `sim/atmosphere.py`: full 7-layer ISA (troposphere through mesosphere), `AirState`
+  (rho, p, T, a, mu). Fixed g_isa=9.80665 kept separate from the user's selected gravity model
+  (correct per the standard's own definition). NOT yet wired into flow/forces/dynamics (that's
+  Step 13). 36/36 tests passing. Sea-level values match standard reference exactly (rho=1.225,
+  p=101325, T=288.15K, a=340.29 m/s, mu=1.789e-5 Pa*s); tropopause and 5000m checks correct.
+  Commit `09950ce`.
 
 ## Phase 2 scope (expanded per user request 2026-09-19)
 - Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via
