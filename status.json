@@ -1,0 +1,14 @@
+{
+  "project": "rocket-trajectory",
+  "complexity": "simple",
+  "active_modules": ["architect", "developer"],
+  "current_stage": "setup",
+  "stages": [],
+  "decisions": [],
+  "artifacts": {
+    "spec": "main.tex",
+    "architecture": "architecture.md",
+    "roadmap": "roadmap.md"
+  },
+  "notes": "Personal-use tool, single user, from-scratch Python implementation (no RocketPy). Build incrementally: 2D with constant models first, then real models, then 3D."
+}

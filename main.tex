@@ -1,0 +1,91 @@
+\documentclass[10pt]{extarticle}
+
+\usepackage{fancyhdr, geometry, hyperref, xcolor, amsmath, amsfonts, subcaption, graphicx, tikz, nomencl, bm}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{arrows.meta,arrows}
+\usepackage[export]{adjustbox}
+\usepackage[utf8]{inputenc}
+\usepackage{array}
+\usepackage{pdflscape}
+
+\geometry {
+    a4paper,
+    total={170mm,257mm},
+    left=20mm,
+    top=20mm,
+}
+
+\pagestyle{fancy}
+\pagenumbering{arabic}
+\fancyhead[L]{Bike - Simplified}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+
+\hypersetup{
+    colorlinks,
+    linkcolor={blue!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+\numberwithin{equation}{subsubsection}
+\makenomenclature
+\newcommand{\sgn}{\operatorname{sgn}}
+
+\newcommand{\dr}[2]{$\displaystyle #1$ & $\displaystyle #2$ \\[4pt]}
+\newcommand{\drl}[1]{$\displaystyle #1$ & \\[4pt]}
+
+\newenvironment{twocol}{%
+    \begin{center}
+    \begin{tabular}{@{} l @{\qquad\quad} l @{}}
+}{%
+    \end{tabular}
+    \end{center}
+}
+
+\begin{document}
+\section{Rocket}
+\subsection{Current assumptions}
+Later to implement
+\begin{itemize}
+    \item weight, thrust, aerodynamic forces acting along center axis
+    \item CoG doesn't change
+\end{itemize}
+Others
+\subsection{Frames}
+\begin{itemize}
+    \item $\mathcal{F}_0$ - ground
+    \item $\mathcal{F}_g$ - gravity
+    \item $\mathcal{F}_r$ - rocket
+\end{itemize}
+\subsection{Forces}
+\begin{gather}
+    \vec{W} = mg\hat{z}_g \\
+    \vec{T} = T\hat{x}_r \\
+    \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r
+\end{gather}
+\subsection{Moments}
+\begin{equation}
+    \vec{A}_m = -A_m\hat{y}_r
+\end{equation}
+\subsection{Geometry}
+Measured
+\begin{gather}
+    \vec{Aa} = -l_1\hat{x}_r \\
+    \vec{AB} = -l_2\hat{x}_r
+\end{gather}
+Calculated
+\begin{gather}
+    \vec{aA} = l_1\hat{x}_r \\
+    \vec{aB} = (l_1 - l_2)\hat{x}_r
+\end{gather}
+\subsection{Equations of motion}
+\begin{gather}
+    m\vec{\ddot{x}} = \sum \vec{F} = \vec{W} + \vec{T} + \vec{A}_f \\
+    I\ddot{\theta} = \sum \vec{M}(a) \cdot \hat{y} = \left[\vec{\vec{aB}}\times\vec{T} + \vec{aA}\times\vec{A}_f + \vec{A_m}\right]\cdot \hat{y}
+\end{gather}
+
+\section{Models}
+\subsection{Thrust}
+Thrust curve + pressure change effect. Affects mass
+\end{document}
