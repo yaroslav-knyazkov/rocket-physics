@@ -33,7 +33,8 @@ class Params:
     A_m: float = 0.0  # aero pitching moment magnitude [N*m]
 
     # model selection (architecture.md SS12)
-    gravity_model: str = "constant"  # constant | linear | radial | wgs84
+    gravity_model: str = "constant"     # constant | linear | radial | wgs84
+    atmosphere_model: str = "isa"       # isa | sounding | field
 
     # launch site / Earth (architecture.md SS13, SS15, SS17)
     R_e:         float = 6371000.0  # mean Earth radius [m] (linear & radial gravity)
