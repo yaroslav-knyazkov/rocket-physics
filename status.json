@@ -2,9 +2,18 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "setup",
-  "stages": [],
-  "decisions": [],
+  "current_stage": "phase1-step1",
+  "stages": [
+    {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
+    {"phase": 2, "name": "real models, still 2D", "steps": "9-17", "status": "not_started"},
+    {"phase": 3, "name": "3D, full 6-DOF", "steps": "18-22", "status": "not_started"}
+  ],
+  "decisions": [
+    {"date": "2026-09-19", "question": "architecture/stack", "answer": "approved as recommended: z-down frame, solve_ivp, fixed-signature model seam, quaternions phase 3, minimal pytest"},
+    {"date": "2026-09-19", "question": "z_g direction", "answer": "down; W = m*g*z_g correct as-is"},
+    {"date": "2026-09-19", "question": "A_m sign", "answer": "positive A_m pitches nose down (restoring moment)"},
+    {"date": "2026-09-19", "question": "CoG assumption", "answer": "kept fixed for now; user will update main.tex before Step 12"}
+  ],
   "artifacts": {
     "spec": "main.tex",
     "architecture": "architecture.md",
