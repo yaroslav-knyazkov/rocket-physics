@@ -17,7 +17,16 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 9 — relative wind and angle of attack (`sim/flow.py`).
+Phase 2, Step 10 — gravity models (constant, linear, radial).
+
+## Phase 2 progress
+- Step 9 — `sim/flow.py` (Flow: V, alpha, u_hat, n_hat; wind stubbed at zero until Step 21).
+  `aero_force_body` now uses actual relative wind instead of fixed body axes. 13/13 tests passing
+  (6 new). Ascent leg unchanged (apogee 1650.7038 m / 18.5071 s, exact match to Step 8). Impact
+  time changed 35.9856s -> 37.8688s and max speed 188.88 -> 178.30 m/s — this is the intended
+  physics fix: previously drag always added to the fall during descent (nose up, moving down);
+  now it correctly opposes the actual relative wind and slows the fall, as roadmap Step 9 intended
+  ("makes the descent leg physical for the first time"). Commit `79af229`.
 
 ## Phase 2 scope (expanded per user request 2026-09-19)
 - Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via

@@ -2,7 +2,10 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step9",
+  "current_stage": "phase2-step10",
+  "phase2_completed_steps": [
+    {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"}
+  ],
   "phase1_status": "complete (8/8 steps)",
   "phase2_scope": {
     "gravity": ["constant", "linear", "radial", "wgs84_real_data"],
