@@ -1,7 +1,8 @@
 """Entry point / scenario definition.
 
-Step 2: vertical flight under gravity and constant thrust (thrust cuts off
-after sim.dynamics.T_BURN -- see that module's docstring for why).
+Step 4: vertical flight under gravity, constant thrust and a constant axial
+aerodynamic force (thrust cuts off after sim.forces.T_BURN -- see that
+module's docstring for why).
 """
 
 import math
