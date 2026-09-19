@@ -2,8 +2,23 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step9-blocked",
+  "current_stage": "phase2-step9",
   "phase1_status": "complete (8/8 steps)",
+  "phase2_scope": {
+    "gravity": ["constant", "linear", "radial", "wgs84_real_data"],
+    "atmosphere": ["isa", "sounding_single_station", "field_multi_station_interpolated"],
+    "wind": ["analytic", "sounding_single_station", "field_multi_station_interpolated"],
+    "deferred_to_backlog": ["launch_rail", "recovery", "egm_gravity", "non_parallel_gravity", "humidity", "crosswind"]
+  },
+  "phase2_decisions": [
+    {"date": "2026-09-19", "question": "model selection pattern", "answer": "Params string + dispatch dict per family"},
+    {"date": "2026-09-19", "question": "real-data file format", "answer": "unified sounding CSV per station/time, folder=case under data/soundings/"},
+    {"date": "2026-09-19", "question": "pandas dependency", "answer": "no; numpy.genfromtxt + small header parser"},
+    {"date": "2026-09-19", "question": "live weather API", "answer": "no; manual CSV drop for now; optional offline fetch script later, never inside sim/"}
+  ],
+  "flagged_issues": [
+    {"raised_by": "architect", "date": "2026-09-19", "issue": "static stability sign: per main.tex geometry (Aa=-l1*x_hat_r), l1>0 with normal aero force is divergent not restoring; old roadmap had this backwards; revisit before Step 25"}
+  ],
   "milestone_step6": "all of main.tex (as of Step 6) implemented: full translation + rotation, all forces/moments, constants only",
   "completed_steps": [
     {"step": 1, "name": "scaffolding", "commit": "4c3f836"},

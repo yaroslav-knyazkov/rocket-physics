@@ -17,9 +17,36 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-**Phase 1 complete (Steps 1-8, all 8 done).** Ready to start Phase 2 (real models) — first step
-is Step 9 (relative wind / angle of attack), which is blocked on a `main.tex` update (see "Known
-future main.tex updates" below).
+Phase 2, Step 9 — relative wind and angle of attack (`sim/flow.py`).
+
+## Phase 2 scope (expanded per user request 2026-09-19)
+- Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via
+  `Params.gravity_model` string.
+- Atmosphere: ISA / real single-station sounding / real multi-station spatially-interpolated —
+  goal is rho, Reynolds number, Mach number.
+- Wind: same three-tier structure (analytic / single-station / multi-station interpolated),
+  sharing data infrastructure (`sim/soundings.py`) with atmosphere.
+- Launch rail and recovery moved to a Backlog section (deferred, not deleted).
+- `main.tex` updated (commit `9895505`) with relative-wind/AoA derivation and Gravity/Atmosphere/
+  Wind model specs. `architecture.md`/`roadmap.md` revised for Phase 2 (commit `84b70f2`):
+  Steps 9-27 + Backlog (B1-B6).
+
+## Phase 2 decisions log (2026-09-19)
+- Model selection: `Params` string field + dispatch dict per family (not pure §4 single-body
+  seam, not strategy objects) — keeps one public function per family, makes model comparison
+  trivial, self-documents in printed/CSV output.
+- Real-data format: one unified sounding CSV per station/time (T, p, wind together), folder =
+  "case" under `data/soundings/`. Shared loader/interpolator for atmosphere AND wind tiers 2-3.
+- No pandas — `numpy.genfromtxt` + a small header parser. `requirements.txt` unchanged.
+- No live weather API — manual CSV drop into `data/soundings/` for now. An optional offline
+  fetch script (`tools/fetch_sounding.py`, stdlib urllib, no dependency) may be added later as
+  its own approved step; `sim/` never touches the network.
+
+## Known issue flagged by architect (not blocking yet)
+Sign convention check needed before Step 25 (aero coefficients): per `main.tex`'s geometry
+(`Aa = -l1*x_hat_r`), a normal aero force produces a **divergent** moment when `l1 > 0` — static
+stability requires `l1 < 0` (CoP aft of CoG). The old roadmap had this backwards. Revisit before
+Step 25.
 
 ## Milestone
 All of `main.tex` (as of Step 6) is implemented in code: translation + rotation, all
