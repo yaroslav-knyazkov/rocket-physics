@@ -16,10 +16,17 @@ SS"Forces", updated), driven by the actual relative wind / angle of attack
 from sim/flow.py rather than the fixed body axes. `A_x`, `A_z` are still
 plain `Params` constants -- dynamic-pressure-based coefficients arrive in
 Steps 12-13/25.
+
+Step 10: `weight_inertial` dispatches its magnitude through
+sim/gravity.py's `g(t, y, p)` (main.tex SSModels > Gravity;
+architecture.md SS12/SS13) instead of the fixed `p.g`, so the gravity
+model is selected by `p.gravity_model` and defaults to "constant", which
+reproduces Phase 1 bit-for-bit.
 """
 
 import numpy as np
 
+from sim import gravity
 from sim.flow import flow_state
 
 # Hardcoded constant-thrust burn duration. There is no thrust-curve or
@@ -32,8 +39,13 @@ T_BURN = 2.0  # [s]
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
-    """W = m*g*z_hat_g, already in the inertial frame (main.tex SSForces)."""
-    return np.array([0.0, p.m * p.g])
+    """W = m*g*z_hat_g, already in the inertial frame (main.tex SSForces).
+
+    `g` is the model-selected magnitude from sim/gravity.py
+    (`p.gravity_model`), not the raw `p.g` constant -- see the gravity.py
+    docstring for the three variants implemented at Step 10.
+    """
+    return np.array([0.0, p.m * gravity.g(t, s, p)])
 
 
 def thrust_body(t: float, s, p) -> np.ndarray:
