@@ -70,7 +70,15 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     """
     theta = y[THETA]
 
-    body_forces = thrust_body(t, y, p) + aero_force_body(t, y, p)
+    # Step 9 tidy (architecture.md SS15 "Performance note"): each of these
+    # is now backed by flow_state (and, from Step 12 on, the atmosphere
+    # model), so computing them once and reusing them for both the force
+    # sum and the moment halves the model evaluations per RHS call.
+    # Behaviour-preserving -- identical numbers to calling them twice.
+    thrust = thrust_body(t, y, p)
+    aero_force = aero_force_body(t, y, p)
+
+    body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
     a_i = F_i / p.m
 
@@ -84,8 +92,8 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # today. It is written out (not omitted) so a future gimbal or thrust
     # misalignment (T with a nonzero z-component, or aB off-axis) produces a
     # nonzero moment here with no change to this function's structure.
-    M_thrust = _cross_y(aB, thrust_body(t, y, p))
-    M_aero = _cross_y(aA, aero_force_body(t, y, p))
+    M_thrust = _cross_y(aB, thrust)
+    M_aero = _cross_y(aA, aero_force)
     M_moment = aero_moment_y(t, y, p)
     M_y = M_thrust + M_aero + M_moment
 
