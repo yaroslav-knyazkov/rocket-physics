@@ -17,7 +17,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 4 — constant axial aerodynamic force.
+Phase 1, Step 5 — frames: body↔inertial rotation, 2D translation at fixed attitude.
 
 ## Completed steps
 - Step 1 — scaffolding: `Params`/`State` containers, `run.py` prints them. Commit `4c3f836`.
@@ -30,6 +30,11 @@ Phase 1, Step 4 — constant axial aerodynamic force.
   dense `solve_ivp` interpolant. `run.py` saves `output.png` (gitignored) and calls `plt.show()`.
   Trajectory shape confirmed numerically (monotonic climb, peak at apogee, monotonic descent to
   impact). Added `.gitignore` (pycache, generated PNGs). Commit `3c5f261`.
+- Step 4 — `sim/forces.py` (weight_inertial, thrust_body, aero_force_body, aero_moment_y, per
+  architecture.md's model-swap seam); `dynamics.py` refactored to build forces from it (rotation
+  matrix at theta=pi/2 written inline, not yet in frames.py — that's Step 5). Constant axial drag
+  `A_x` now lowers apogee (1650.70 m vs Step 3's 1839.43 m); regression-checked A_x=0 reproduces
+  Step 3 exactly. Commit `68eb716`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything

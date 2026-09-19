@@ -2,11 +2,12 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase1-step4",
+  "current_stage": "phase1-step5",
   "completed_steps": [
     {"step": 1, "name": "scaffolding", "commit": "4c3f836"},
     {"step": 2, "name": "vertical point mass, constant thrust+gravity", "commit": "2024207", "note": "sign convention validated to ~1e-7 vs analytic; temporary T_BURN=2.0s in dynamics.py, to be replaced by Step 11's thrust curve"},
-    {"step": 3, "name": "altitude/velocity plots", "commit": "3c5f261", "note": "output.png gitignored; plt.show() blocks on interactive backend, expected for personal use"}
+    {"step": 3, "name": "altitude/velocity plots", "commit": "3c5f261", "note": "output.png gitignored; plt.show() blocks on interactive backend, expected for personal use"},
+    {"step": 4, "name": "aero forces module, constant axial drag", "commit": "68eb716", "note": "forces.py created (model-swap seam); apogee 1650.70m with A_x=0.5, regression-checked A_x=0 reproduces Step 3 exactly"}
   ],
   "stages": [
     {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
