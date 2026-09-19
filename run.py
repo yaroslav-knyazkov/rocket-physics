@@ -6,8 +6,11 @@ after sim.dynamics.T_BURN -- see that module's docstring for why).
 
 import math
 
+import matplotlib.pyplot as plt
+
 from sim.integrate import run_sim
 from sim.params import Params
+from sim.plotting import plot_time_histories
 from sim.state import State, Z
 
 
@@ -43,6 +46,17 @@ def main() -> None:
     print(f"Apogee altitude: {apogee_altitude:.4f} m")
     print(f"Apogee time:     {apogee_time:.4f} s")
     print(f"Impact time:     {impact_time:.4f} s")
+
+    fig = plot_time_histories(result)
+    # Always save to a file -- this may run in a non-interactive/headless
+    # context (e.g. no display), where plt.show() would either do nothing
+    # or raise. Saving a PNG guarantees a usable artifact either way.
+    fig.savefig("output.png")
+    print("Saved plot to output.png")
+    try:
+        plt.show()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
