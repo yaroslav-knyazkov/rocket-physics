@@ -36,4 +36,8 @@ class Params:
     gravity_model: str = "constant"  # constant | linear | radial | wgs84
 
     # launch site / Earth (architecture.md SS13, SS15, SS17)
-    R_e: float = 6371000.0  # mean Earth radius [m] (linear & radial gravity)
+    R_e:         float = 6371000.0  # mean Earth radius [m] (linear & radial gravity)
+    lat0_deg:    float = 0.0   # geodetic latitude of the launch site [deg] (wgs84 gravity)
+    lon0_deg:    float = 0.0   # geodetic longitude of the launch site [deg] (station projection, tier 3)
+    h0_m:        float = 0.0   # launch site elevation above MSL [m]
+    azimuth_deg: float = 90.0  # direction of +x, degrees clockwise from North
