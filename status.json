@@ -2,7 +2,8 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase1-step8-decision",
+  "current_stage": "phase2-step9-blocked",
+  "phase1_status": "complete (8/8 steps)",
   "milestone_step6": "all of main.tex (as of Step 6) implemented: full translation + rotation, all forces/moments, constants only",
   "completed_steps": [
     {"step": 1, "name": "scaffolding", "commit": "4c3f836"},
@@ -11,10 +12,11 @@
     {"step": 4, "name": "aero forces module, constant axial drag", "commit": "68eb716", "note": "forces.py created (model-swap seam); apogee 1650.70m with A_x=0.5, regression-checked A_x=0 reproduces Step 3 exactly"},
     {"step": 5, "name": "frames module, tilted 2D translation", "commit": "f794ec8", "note": "frames.py + first tests (tests/test_frames.py, 4 passing); theta still fixed; tilted-trajectory capability demonstrated (not committed to run.py's default scenario)"},
     {"step": 6, "name": "rotational dynamics, moments about CoG", "commit": "d5226ac", "note": "theta/omega integrated; M_y = l1*A_z - A_m closed form verified to 1e-12; 6/6 tests passing"},
-    {"step": 7, "name": "full Phase 1 output: trajectory + pitch plots, flight summary", "commit": "81615c6", "note": "trajectory.png, time_histories.png, trajectory.csv all gitignored; downrange=0 at impact matches vertical-launch placeholder"}
+    {"step": 7, "name": "full Phase 1 output: trajectory + pitch plots, flight summary", "commit": "81615c6", "note": "trajectory.png, time_histories.png, trajectory.csv all gitignored; downrange=0 at impact matches vertical-launch placeholder"},
+    {"step": 8, "name": "RK4 cross-check integrator", "commit": "53a3894", "note": "7/7 tests passing; RK4 vs RK45 agree within grid-resolution tolerance; RK45 remains default, run.py output unchanged"}
   ],
   "stages": [
-    {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
+    {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "complete"},
     {"phase": 2, "name": "real models, still 2D", "steps": "9-17", "status": "not_started"},
     {"phase": 3, "name": "3D, full 6-DOF", "steps": "18-22", "status": "not_started"}
   ],
