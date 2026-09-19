@@ -2,7 +2,8 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase1-step1",
+  "current_stage": "phase1-step2",
+  "completed_steps": [{"step": 1, "name": "scaffolding", "commit": "4c3f836"}],
   "stages": [
     {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
     {"phase": 2, "name": "real models, still 2D", "steps": "9-17", "status": "not_started"},

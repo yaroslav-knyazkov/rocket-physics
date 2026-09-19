@@ -17,7 +17,10 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 1, Step 1 — scaffolding (params/state containers).
+Phase 1, Step 2 — vertical point mass under constant gravity + thrust.
+
+## Completed steps
+- Step 1 — scaffolding: `Params`/`State` containers, `run.py` prints them. Commit `4c3f836`.
 
 ## Active modules
 architect (done for now), developer (implementation, one roadmap step at a time). Everything
