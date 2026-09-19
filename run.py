@@ -1,18 +1,18 @@
 """Entry point / scenario definition.
 
-Step 1: no dynamics yet -- just build a Params and an initial State and
-print them, to prove the scaffolding works.
+Step 2: vertical flight under gravity and constant thrust (thrust cuts off
+after sim.dynamics.T_BURN -- see that module's docstring for why).
 """
 
 import math
 
+from sim.integrate import run_sim
 from sim.params import Params
-from sim.state import State
+from sim.state import State, Z
 
 
 def main() -> None:
-    # Placeholder values, small-model-rocket scale. Exact numbers do not
-    # matter yet -- there is no dynamics module until Step 2.
+    # Placeholder values, small-model-rocket scale (unchanged from Step 1).
     params = Params(
         m=0.5,      # 0.5 kg dry+propellant mass
         I=0.05,     # kg*m^2, rough estimate for a small rocket
@@ -28,8 +28,21 @@ def main() -> None:
     # from horizontal), z = 0 at the launch point.
     state0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
+    result = run_sim(params, state0)
+
+    apogee_time = result.events["apogee"]
+    impact_time = result.events["ground"]
+    # Evaluate the dense interpolant exactly at the apogee event time
+    # rather than taking -min(z) over the adaptive-step samples: RK45's
+    # accepted steps rarely land exactly on the apogee, so a raw min()
+    # under-estimates it. dense_output=True gives us that interpolant.
+    apogee_altitude = -result.raw.sol(apogee_time)[Z]
+
     print(params)
     print(state0)
+    print(f"Apogee altitude: {apogee_altitude:.4f} m")
+    print(f"Apogee time:     {apogee_time:.4f} s")
+    print(f"Impact time:     {impact_time:.4f} s")
 
 
 if __name__ == "__main__":
