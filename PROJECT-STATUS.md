@@ -17,7 +17,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 10 — gravity models (constant, linear, radial).
+Phase 2, Step 11 — gravity real-data variant (WGS84).
 
 ## Phase 2 progress
 - Step 9 — `sim/flow.py` (Flow: V, alpha, u_hat, n_hat; wind stubbed at zero until Step 21).
@@ -27,6 +27,12 @@ Phase 2, Step 10 — gravity models (constant, linear, radial).
   physics fix: previously drag always added to the fall during descent (nose up, moving down);
   now it correctly opposes the actual relative wind and slows the fall, as roadmap Step 9 intended
   ("makes the descent leg physical for the first time"). Commit `79af229`.
+- Step 10 — `sim/gravity.py`: constant/linear/radial models via `Params.gravity_model` string +
+  dispatch dict (approved pattern). `Params` gains `gravity_model` (default "constant", preserves
+  all behavior) and `R_e` (Earth radius, 6.371e6 m). 20/20 tests passing (7 new). Default-model
+  regression exact match to Step 9. At current scenario altitude (~1650m) linear/radial differ
+  from constant by ~0.39 m; at h=100km they diverge by ~7.5e-4 relative, as physically expected.
+  Commit `1f8c641`.
 
 ## Phase 2 scope (expanded per user request 2026-09-19)
 - Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via
