@@ -2,8 +2,11 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase1-step2",
-  "completed_steps": [{"step": 1, "name": "scaffolding", "commit": "4c3f836"}],
+  "current_stage": "phase1-step3",
+  "completed_steps": [
+    {"step": 1, "name": "scaffolding", "commit": "4c3f836"},
+    {"step": 2, "name": "vertical point mass, constant thrust+gravity", "commit": "2024207", "note": "sign convention validated to ~1e-7 vs analytic; temporary T_BURN=2.0s in dynamics.py, to be replaced by Step 11's thrust curve"}
+  ],
   "stages": [
     {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "in_progress"},
     {"phase": 2, "name": "real models, still 2D", "steps": "9-17", "status": "not_started"},
