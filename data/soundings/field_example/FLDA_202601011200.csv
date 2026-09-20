@@ -1,0 +1,25 @@
+# station: FLDA
+# lat_deg: 48.0
+# lon_deg: 16.0
+# elevation_m: 0
+# time_utc: 2026-01-01T12:00:00Z
+# source: synthetic, hand-built for roadmap.md Step 20's multi-station "field"
+#   tier example -- a warm, high-pressure profile (T0=293.15 K, p0=102000 Pa)
+#   propagated through the standard troposphere lapse rate (L=-0.0065 K/m),
+#   i.e. a non-standard-day ISA sharing the standard lapse shape but a
+#   different sea-level anchor than FLDB below (offline-only approval gate,
+#   architecture.md SS22 item 4 -- no live weather API).
+h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms
+0,102000.0,293.15,280,6.0
+500,96195.1,289.90,280,6.0
+1000,90660.6,286.65,280,6.0
+1500,85386.9,283.40,280,6.0
+2000,80364.3,280.15,280,6.0
+3000,71036.0,273.65,280,6.0
+4000,62604.5,267.15,280,6.0
+5000,55002.3,260.65,280,6.0
+6000,48165.6,254.15,280,6.0
+7000,42033.8,247.65,280,6.0
+8000,36550.0,241.15,280,6.0
+9000,31660.5,234.65,280,6.0
+10000,27314.6,228.15,280,6.0

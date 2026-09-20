@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 20 — Atmosphere tier 3: multi-station spatial interpolation (Step 15, propellant
-depletion, is optional and still blocked — see below)
+Phase 2, Step 21 — Wind tier 1: analytic model (Step 15, propellant depletion, is optional and
+still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -145,6 +145,21 @@ atmosphere.
   the way to 100 km can exceed 0.1% (an expected property of the equirectangular/plate-carree
   approximation architecture.md §17 itself specifies, not a bug — flagged rather than silently
   narrowed). Commit `9d6e791`.
+- Step 20 — `sim/atmosphere.py`: tier 3, `"field"` — `_field_air_state` delegates to
+  `soundings.interp_field(p.sounding_case, y, h_msl, p)` (Step 19's horizontal-combination
+  machinery) and repackages the result into `AirState`, same as tier 2 minus wind. First
+  atmosphere model whose output depends on `y[X]`, not just `y[Z]`. No new `Params` fields (all of
+  `sounding_case`/`horizontal_interp`/`grid_top_m`/`grid_step_m`/`idw_epsilon_m` already existed
+  from Steps 18/19). New multi-station example: `data/soundings/field_example/` — FLDA (lat 48.0,
+  lon 16.0, T0=293.15K/p0=102000Pa, warm/high-pressure) and FLDB (lat 48.0, lon 16.5, ~37km due
+  east, T0=288.15K/p0=99000Pa, cooler/low-pressure), both sharing the standard troposphere lapse
+  rate, kept purely cardinal (east-west only) per Step 19's own note about diagonal placements
+  degrading the tangent-plane projection's accuracy. 74/74 tests passing (2 new): a single-station
+  case reproduces the `"sounding"` tier exactly through the full `air_state` seam; with the
+  two-station case, density along a ground-track sweep from FLDA to FLDB decreases monotonically —
+  the correct direction given FLDA is actually denser than FLDB at every shared altitude (pressure
+  offset dominates despite FLDA also being warmer), confirmed from the stations' real numbers, not
+  asserted blindly. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

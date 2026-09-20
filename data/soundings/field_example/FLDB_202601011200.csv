@@ -1,0 +1,28 @@
+# station: FLDB
+# lat_deg: 48.0
+# lon_deg: 16.5
+# elevation_m: 0
+# time_utc: 2026-01-01T12:00:00Z
+# source: synthetic, hand-built for roadmap.md Step 20's multi-station "field"
+#   tier example -- a cooler, low-pressure profile (T0=288.15 K, p0=99000 Pa)
+#   propagated through the standard troposphere lapse rate (L=-0.0065 K/m),
+#   same construction as FLDA above but a different, lower sea-level anchor
+#   (offline-only approval gate, architecture.md SS22 item 4 -- no live
+#   weather API). Placed ~37 km due east of FLDA (lon offset only, same
+#   lat_deg) so the pair's separation stays purely cardinal (east-west), per
+#   Step 19's own risk note about diagonal placements degrading the
+#   tangent-plane projection's accuracy.
+h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms
+0,99000.0,288.15,260,9.0
+500,93270.4,284.90,260,9.0
+1000,87812.3,281.65,260,9.0
+1500,82615.8,278.40,260,9.0
+2000,77671.1,275.15,260,9.0
+3000,68499.8,268.65,260,9.0
+4000,60225.8,262.15,260,9.0
+5000,52780.3,255.65,260,9.0
+6000,46098.4,249.15,260,9.0
+7000,40118.5,242.65,260,9.0
+8000,34782.9,236.15,260,9.0
+9000,30037.0,229.65,260,9.0
+10000,25829.6,223.15,260,9.0

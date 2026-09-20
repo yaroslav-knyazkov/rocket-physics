@@ -4,10 +4,8 @@ main.tex SSModels > Atmosphere; roadmap.md Step 12).
 Tier 1, "isa" (pure-formula International Standard Atmosphere), was
 implemented at Step 12. Tier 2, "sounding" (one station's measured profile,
 interpolated in altitude via sim/soundings.py), is added at Step 18. Tier 3,
-"field" (N stations, spatially interpolated, SS17), comes later; the
-`_MODELS` dispatch dict below already has the shape it will plug into
-(architecture.md SS12: "the same pattern applies verbatim to
-atmosphere.py").
+"field" (N stations, spatially interpolated, SS17), is added at Step 20,
+reusing Step 19's horizontal-combination machinery in sim/soundings.py.
 """
 
 from typing import NamedTuple
@@ -96,7 +94,7 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     `sim.soundings.load_case` and always uses its first station. A case
     folder containing more than one file is a tier-3 ("field") concern
     (multi-station horizontal combination, Step 20); here the rest are
-    silently ignored, same as tier 3 reproducing tier 1 exactly with a
+    silently ignored, same as tier 3 reproducing tier 2 exactly with a
     single station (roadmap.md Step 20's check).
 
     Same `h_msl` convention as `_isa_air_state` above (h_msl = -y[Z] +
@@ -119,6 +117,44 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     )
 
 
+def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
+    """Tier 3: N stations, spatially interpolated (architecture.md SS14,
+    SS17; roadmap.md Step 20).
+
+    Same `h_msl` convention as `_isa_air_state`/`_sounding_air_state` above
+    (h_msl = -y[Z] + p.h0_m). Delegates the actual work to
+    `sim.soundings.interp_field` (Step 19), which combines every station
+    in `p.sounding_case` horizontally at the rocket's current ground
+    position -- `(x*sin(A), x*cos(A))` with `x = y[X]` and
+    `A = p.azimuth_deg` -- via `p.horizontal_interp` (idw/rbf), then
+    interpolates the combined profile in altitude exactly as tier 2. Its
+    `p`/`T`/`rho`/`a`/`mu` fields are repackaged into `AirState` as-is,
+    same as tier 2 -- `u`/`v` (wind) are dropped, that is wind.py's
+    concern (Step 23), not atmosphere's.
+
+    This is the first atmosphere model whose output depends on `y[X]`
+    (the rocket's horizontal ground position), not just `y[Z]`: tiers 1
+    and 2 above only ever read altitude.
+
+    A case folder with a single station reduces `interp_field`'s (default,
+    IDW) weighting to weight 1.0 for that one station (Step 19's own
+    guarantee), so this tier then reproduces `_sounding_air_state` above
+    exactly -- roadmap.md Step 20's stated check. (RBF instead needs >= 3
+    non-collinear stations, per `sim.soundings._combine`'s own docstring,
+    so it does not apply to the single-station case.)
+    """
+    # Imported here, not at module level, same circular-import reason as
+    # `_sounding_air_state` above.
+    from sim import soundings
+
+    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    state = soundings.interp_field(p.sounding_case, y, h_msl, p)
+
+    return AirState(
+        rho=state.rho, p=state.p, T=state.T, a=state.a, mu=state.mu
+    )
+
+
 # Module-private dispatch dict (architecture.md SS12), same pattern as
 # sim/gravity.py's `_GRAVITY_MODELS`: the public seam is `air_state`;
 # callers never learn tiers exist. Unknown strings raise KeyError at the
@@ -126,6 +162,7 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
 _MODELS = {
     "isa": _isa_air_state,
     "sounding": _sounding_air_state,
+    "field": _field_air_state,
 }
 
 

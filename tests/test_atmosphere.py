@@ -18,7 +18,7 @@ from sim.atmosphere import _R_ISA, air_state
 from sim.integrate import run_sim
 from sim.params import Params
 from sim.soundings import load_case
-from sim.state import State, Z
+from sim.state import State, X, Z
 
 _P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
@@ -359,3 +359,93 @@ def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():
     # swing (rules out a sign flip elsewhere masquerading as the right
     # direction by coincidence).
     assert math.isclose(h_apogee_snd, h_apogee_isa, rel_tol=0.05)
+
+
+# ----------------------------------------------------------------------
+# Tier 3: "field" -- multi-station spatial interpolation (roadmap.md
+# Step 20)
+# ----------------------------------------------------------------------
+
+# data/soundings/field_example/: two synthetic stations, FLDA (lat 48.0,
+# lon 16.0) and FLDB (lat 48.0, lon 16.5, ~37 km due east of FLDA -- a
+# purely cardinal separation, per Step 19's own risk note about diagonal
+# placements degrading the tangent-plane projection). Both share the
+# standard troposphere lapse rate but a different sea-level anchor:
+#   FLDA: T0 = 293.15 K, p0 = 102000 Pa (warmer, higher pressure)
+#   FLDB: T0 = 288.15 K, p0 = 99000 Pa  (cooler, lower pressure)
+# Despite FLDA also being warmer (which alone would lower its density),
+# its larger pressure offset dominates: FLDA is denser than FLDB at every
+# shared altitude node (rho_A(0) = 1.212 kg/m^3 > rho_B(0) = 1.197 kg/m^3,
+# and the same ordering holds up through 10 km) -- see this test module's
+# docstring convention of deriving the "expected direction" from the
+# stations' own real numbers rather than asserting it blindly.
+_E_B_M = 37206.0  # projected FLDA->FLDB distance at lat0=48 deg, dlon=0.5 deg
+
+
+def test_field_single_station_matches_sounding_tier_exactly():
+    """Roadmap Step 20's first stated check: a case folder with a single
+    station reproduces Step 18 ("sounding" tier) exactly, confirmed
+    through the full atmosphere.air_state seam (not just at the
+    soundings.py level, where Step 19 already covers this guarantee for
+    interp_field itself). Reuses the existing single-station "example"
+    case (LKPR) so no new data is needed for this check."""
+    p_field = dataclasses.replace(
+        _P, atmosphere_model="field", sounding_case="example", h0_m=380.0
+    )
+    p_snd = dataclasses.replace(
+        _P, atmosphere_model="sounding", sounding_case="example", h0_m=380.0
+    )
+
+    load_case.cache_clear()
+    for x, h in [(0.0, 0.0), (1000.0, 500.0), (-500.0, 2000.0), (300.0, 8000.0)]:
+        y = np.zeros(6)
+        y[X] = x
+        y[Z] = -h
+        want = air_state(0.0, y, p_snd)
+        got = air_state(0.0, y, p_field)
+
+        assert math.isclose(got.rho, want.rho, rel_tol=1e-9), h
+        assert math.isclose(got.p, want.p, rel_tol=1e-9), h
+        assert math.isclose(got.T, want.T, rel_tol=1e-9), h
+        assert math.isclose(got.a, want.a, rel_tol=1e-9), h
+        assert math.isclose(got.mu, want.mu, rel_tol=1e-9), h
+
+
+def test_field_two_stations_density_monotonic_along_ground_track():
+    """Roadmap Step 20's second stated check: with two stations differing
+    in sea-level pressure, the sampled density varies monotonically along
+    the ground track.
+
+    `p.lat0_deg`/`lon0_deg` are set to FLDA's own coordinates (so FLDA
+    sits at the tangent-plane origin, E=N=0) and `p.azimuth_deg` is left
+    at its default 90 deg (East, `main.tex`/`architecture.md`'s "+x is
+    East" convention), matching FLDB sitting due east of FLDA -- so
+    sweeping `y[X]` from 0 to ~37 km moves the ground track from
+    (near) FLDA straight to (near) FLDB, with no north-south drift.
+
+    Since FLDA is denser than FLDB at every shared altitude (see the
+    module comment above), and IDW weight shifts monotonically from FLDA
+    to FLDB as `x` increases along the direct line between them, rho must
+    decrease monotonically along this sweep -- not asserted blindly, but
+    the direction implied by the two stations' actual numbers.
+    """
+    p = dataclasses.replace(
+        _P,
+        atmosphere_model="field",
+        sounding_case="field_example",
+        lat0_deg=48.0,
+        lon0_deg=16.0,
+        # azimuth_deg left at its default (90 deg, East) -- matches FLDB
+        # sitting due east of FLDA.
+    )
+    load_case.cache_clear()
+
+    xs = np.linspace(0.0, _E_B_M, 9)
+    rhos = []
+    for x in xs:
+        y = np.zeros(6)
+        y[X] = float(x)
+        y[Z] = -1000.0  # fixed altitude, well inside both stations' data range
+        rhos.append(air_state(0.0, y, p).rho)
+
+    assert all(a > b for a, b in zip(rhos, rhos[1:])), rhos
