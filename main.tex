@@ -105,15 +105,25 @@ dependent aerodynamic coefficients, \S Models > Aerodynamic coefficients, future
     \vec{A}_m = -A_m\hat{y}_r
 \end{equation}
 \subsection{Geometry}
+$l_1$, $l_2$ are positive distances measured from the nose tip: $l_1$ to the CoG, $l_2$ to the
+thrust point (nozzle exit), with $A$ (CoP), $a$ (CoG) and $B$ (thrust point) all points along the
+body axis. $\hat{x}_r$ points toward the nose (\S "Relative wind and angle of attack": $\alpha=0$
+is nose-first). For a statically stable rocket the CoP sits farther from the tip than the CoG (the
+tail fins dominate the aerodynamic center), so $A$ is aft of $a$ along $\hat{x}_r$ -- corrected
+2026-09-20 (previously this section had $\vec{Aa}=-l_1\hat{x}_r$, which puts the CoP forward of
+the CoG for any positive $l_1$ and gives a divergent, not restoring, aero moment for a linear
+normal force $A_z \propto \alpha$ -- see architecture.md \S19's sign note and \S22 item 5 for the
+full derivation).
+
 Measured
 \begin{gather}
-    \vec{Aa} = -l_1\hat{x}_r \\
+    \vec{Aa} = l_1\hat{x}_r \\
     \vec{AB} = -l_2\hat{x}_r
 \end{gather}
 Calculated
 \begin{gather}
-    \vec{aA} = l_1\hat{x}_r \\
-    \vec{aB} = (l_1 - l_2)\hat{x}_r
+    \vec{aA} = -l_1\hat{x}_r \\
+    \vec{aB} = -(l_1 + l_2)\hat{x}_r
 \end{gather}
 \subsection{Equations of motion}
 \begin{gather}
