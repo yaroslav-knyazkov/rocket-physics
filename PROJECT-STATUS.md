@@ -144,7 +144,7 @@ atmosphere.
   offsets at any distance up to 100 km and moderate diagonals (~35 km), but a diagonal pushed all
   the way to 100 km can exceed 0.1% (an expected property of the equirectangular/plate-carree
   approximation architecture.md §17 itself specifies, not a bug — flagged rather than silently
-  narrowed). Commit `<pending>`.
+  narrowed). Commit `9d6e791`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
