@@ -205,7 +205,7 @@ atmosphere.
   tier exactly through the full `wind_inertial` seam; a new synthetic two-station case with
   genuinely opposing wind directions (0°/180°, cardinal N-S placement) shows the along-plane wind
   component increasing strictly monotonically across an 11-point ground-track sweep, negative near
-  one station and positive near the other, crossing zero exactly once. Commit `<pending>`.
+  one station and positive near the other, crossing zero exactly once. Commit `b1fb9fb`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
