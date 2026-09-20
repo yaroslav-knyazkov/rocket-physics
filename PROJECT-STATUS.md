@@ -159,7 +159,7 @@ atmosphere.
   two-station case, density along a ground-track sweep from FLDA to FLDB decreases monotonically —
   the correct direction given FLDA is actually denser than FLDB at every shared altitude (pressure
   offset dominates despite FLDA also being warmer), confirmed from the stations' real numbers, not
-  asserted blindly. Commit `<pending>`.
+  asserted blindly. Commit `f818573`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
