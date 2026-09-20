@@ -1,0 +1,23 @@
+# station: LKPR
+# lat_deg: 50.1008
+# lon_deg: 14.2600
+# elevation_m: 380
+# time_utc: 2026-05-01T12:00:00Z
+# source: architecture.md SS17 worked example (LKPR sfc/500m/1000m rows),
+#   extended up through the tropopause with a physically plausible,
+#   ISA-like-but-not-identical profile (hand-crafted for Step 17 -- no
+#   live weather API, per the offline-only approval gate, SS22 item 4).
+h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms
+380,96700,287.3,210,4.1
+500,95300,286.5,213,5.0
+1000,89900,283.1,220,7.6
+1500,84605.2,279.7,225,9.5
+2000,79563.1,276.3,230,11.0
+3000,70201.2,269.5,235,15.0
+4000,61743.0,262.7,240,19.0
+5000,54121.3,255.9,245,23.0
+6000,47272.5,249.1,250,27.0
+7000,41145.3,243.1,255,31.0
+8000,35705.2,238.7,260,34.0
+9000,30917.7,235.9,263,36.0
+10000,26732.8,233.9,265,35.0

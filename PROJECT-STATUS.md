@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 17 — Sounding data format, loader, altitude interpolation (Step 15, propellant
-depletion, is optional and still blocked — see below)
+Phase 2, Step 18 — Atmosphere tier 2: single-station real data (Step 15, propellant depletion, is
+optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -89,7 +89,27 @@ atmosphere.
   burnout 2.0000s, apogee 4609.2267m/30.1209s, max speed 304.0110 m/s, impact 62.4745s). 50/50
   tests passing (3 new: inert-at-default, sign/magnitude-correct pressure boost mid-burn verified
   against the exact ISA sea-level pressure, still-zero after burnout with `A_e != 0`).
-  Commit `<pending>`.
+  Commit `0882da3`.
+- Step 17 — `sim/soundings.py` (new): shared data layer for atmosphere tiers 2/3 AND wind tiers
+  2/3 (no physics wired in yet — pure infrastructure). `Sounding` NamedTuple per architecture.md
+  §17 (station/lat/lon/elev/time_utc + h/p/T arrays + u/v ENU wind components derived at load time
+  from wdir/wspd via the standard meteorological convention). `load_case(case)` (`lru_cache`d,
+  globs `data/soundings/<case>/*.csv`). `interp_altitude(sounding, h) -> SoundingState(p,T,rho,a,mu,u,v)`
+  — the tier-2 (single-station) altitude-interpolation seam Steps 18/22 will call: T linear in h,
+  p linear in ln(p), u/v linear in h, rho/a/mu derived (reusing `atmosphere.py`'s own physical
+  constants, not duplicated). Below the lowest data point: continues with the sounding's own local
+  lapse rate from its first two points (isothermal fallback for a degenerate single-row file).
+  Above the highest data point: an ISA-*shaped* profile re-anchored at the sounding's own top point
+  so T/p stay continuous at the seam (reuses `atmosphere.py`'s layer-crossing algorithm, walking
+  forward from the new anchor rather than sea level). Worked example committed at
+  `data/soundings/example/LKPR_202605011200.csv` (extends architecture.md §17's own literal LKPR
+  example up through the tropopause, hand-crafted, ISA-like-but-not-identical — no live weather
+  API, offline only). 62/62 tests passing (12 new): the roadmap's stated check (an ISA-derived
+  synthetic sounding round-trips through the loader/interpolator to within 0.5% of
+  `atmosphere.air_state` between its nodes), wind ENU conversion at the four cardinal directions,
+  continuity at both extrapolation seams, physical sanity (finite, positive, monotone p/rho) well
+  above the data range, the local-lapse-rate below-range behavior, the single-row degenerate case,
+  and `load_case` caching/missing-case-error behavior. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
