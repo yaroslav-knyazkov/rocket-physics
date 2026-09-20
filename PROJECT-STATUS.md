@@ -179,7 +179,7 @@ atmosphere.
   identical across repeated calls) and `gust_sigma=0.0` exactness. Flagged in passing (not a Step
   21 bug): the `C_N_alpha`/`C_m_alpha`/`l1` combination shared by earlier test modules is
   pitch-unstable the moment `alpha != 0` is ever engaged — invisible before this step since every
-  prior one kept `theta` pinned with zero wind; worth remembering for Step 25. Commit `<pending>`.
+  prior one kept `theta` pinned with zero wind; worth remembering for Step 25. Commit `7e15296`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
