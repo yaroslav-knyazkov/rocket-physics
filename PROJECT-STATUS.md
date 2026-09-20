@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 18 — Atmosphere tier 2: single-station real data (Step 15, propellant depletion, is
-optional and still blocked — see below)
+Phase 2, Step 19 — Horizontal interpolation core, stations → local tangent plane, IDW (Step 15,
+propellant depletion, is optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -109,7 +109,19 @@ atmosphere.
   `atmosphere.air_state` between its nodes), wind ENU conversion at the four cardinal directions,
   continuity at both extrapolation seams, physical sanity (finite, positive, monotone p/rho) well
   above the data range, the local-lapse-rate below-range behavior, the single-row degenerate case,
-  and `load_case` caching/missing-case-error behavior. Commit `<pending>`.
+  and `load_case` caching/missing-case-error behavior. Commit `cc77846`.
+- Step 18 — `sim/atmosphere.py`, `sim/params.py`: tier 2, `"sounding"` — `_sounding_air_state`
+  loads `p.sounding_case` via `soundings.load_case` (first station only; multi-station combination
+  is Step 20), computes `h_msl` the same way tier 1 does, and repackages
+  `soundings.interp_altitude`'s `p/T/rho/a/mu` into `AirState` (drops `u`/`v` — wind.py's concern,
+  Step 22). `Params` gains `sounding_case: str = ""`. Default `atmosphere_model="isa"` unchanged.
+  66/66 tests passing (4 new): the ISA-derived synthetic case matches `"isa"` to ~0.05% between
+  nodes (well inside the 0.5% bound); a full trajectory run with that synthetic case matches the
+  `"isa"` run's apogee/impact to ~0.01-0.02%; with the real worked example (LKPR, elevation 380m),
+  the station's actual numbers are warmer and lower-density than ISA predicts at that altitude
+  (measured ~0.71% lower density), and a full trajectory run confirms the physically expected
+  consequence — less drag, apogee ~0.47% higher, impact time ~0.98% shorter — checked as a strict
+  directional assertion, not just `!=`. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

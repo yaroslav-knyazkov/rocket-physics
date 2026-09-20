@@ -52,6 +52,9 @@ class Params:
     h0_m:        float = 0.0   # launch site elevation above MSL [m]
     azimuth_deg: float = 90.0  # direction of +x, degrees clockwise from North
 
+    # Step 18: atmosphere/wind tier 2/3 sounding data (architecture.md SS17)
+    sounding_case: str = ""  # case folder under data/soundings/; "" = unused unless atmosphere_model/wind_model select "sounding"/"field"
+
     # thrust (architecture.md SS19)
     motor_curve: str = ""  # file under data/motors/; "" = no curve, zero thrust
 

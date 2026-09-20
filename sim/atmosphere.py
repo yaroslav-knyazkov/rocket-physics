@@ -1,15 +1,13 @@
 """Local air state, three tiers behind one interface (architecture.md SS14;
 main.tex SSModels > Atmosphere; roadmap.md Step 12).
 
-Only tier 1, "isa" (pure-formula International Standard Atmosphere), is
-implemented this step. Tiers 2/3 ("sounding", "field" -- measured profiles,
-SS17) come later; the `_MODELS` dispatch dict below already has the shape
-they will plug into (architecture.md SS12: "the same pattern applies
-verbatim to atmosphere.py").
-
-`air_state` is not wired into flow.py/forces.py/dynamics.py yet -- that is
-Step 13 (roadmap.md Step 12: "No force changes in this step -- the
-atmosphere is not wired into anything yet").
+Tier 1, "isa" (pure-formula International Standard Atmosphere), was
+implemented at Step 12. Tier 2, "sounding" (one station's measured profile,
+interpolated in altitude via sim/soundings.py), is added at Step 18. Tier 3,
+"field" (N stations, spatially interpolated, SS17), comes later; the
+`_MODELS` dispatch dict below already has the shape it will plug into
+(architecture.md SS12: "the same pattern applies verbatim to
+atmosphere.py").
 """
 
 from typing import NamedTuple
@@ -90,12 +88,44 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     )
 
 
+def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
+    """Tier 2: one station's measured profile, interpolated in altitude
+    (architecture.md SS14, SS17; roadmap.md Step 18).
+
+    Single-station only -- loads `p.sounding_case` via
+    `sim.soundings.load_case` and always uses its first station. A case
+    folder containing more than one file is a tier-3 ("field") concern
+    (multi-station horizontal combination, Step 20); here the rest are
+    silently ignored, same as tier 3 reproducing tier 1 exactly with a
+    single station (roadmap.md Step 20's check).
+
+    Same `h_msl` convention as `_isa_air_state` above (h_msl = -y[Z] +
+    p.h0_m), then `sim.soundings.interp_altitude` does the actual lookup
+    (Step 17); its `p`/`T`/`rho`/`a`/`mu` fields are repackaged into
+    `AirState` as-is -- `u`/`v` (wind) are dropped, that is wind.py's
+    concern (Step 22), not atmosphere's.
+    """
+    # Imported here, not at module level, to avoid a circular import:
+    # sim.soundings imports sim.atmosphere (for the shared ISA constants
+    # and layer table used in its above-top extrapolation).
+    from sim import soundings
+
+    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    snd = soundings.load_case(p.sounding_case)[0]
+    state = soundings.interp_altitude(snd, h_msl)
+
+    return AirState(
+        rho=state.rho, p=state.p, T=state.T, a=state.a, mu=state.mu
+    )
+
+
 # Module-private dispatch dict (architecture.md SS12), same pattern as
 # sim/gravity.py's `_GRAVITY_MODELS`: the public seam is `air_state`;
 # callers never learn tiers exist. Unknown strings raise KeyError at the
 # first call -- no input validation (architecture.md SS7).
 _MODELS = {
     "isa": _isa_air_state,
+    "sounding": _sounding_air_state,
 }
 
 

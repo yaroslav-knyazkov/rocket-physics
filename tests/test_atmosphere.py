@@ -1,5 +1,6 @@
-"""Reference-value tests for sim/atmosphere.py's "isa" tier (architecture.md
-SS14; main.tex SSModels > Atmosphere; roadmap.md Step 12).
+"""Reference-value tests for sim/atmosphere.py's "isa" and "sounding" tiers
+(architecture.md SS14; main.tex SSModels > Atmosphere; roadmap.md Steps 12,
+18).
 
 Physics sanity checks against well-known ISA reference values, per the
 project's testing philosophy -- no fixtures, no conftest.py, plain
@@ -8,15 +9,22 @@ project's testing philosophy -- no fixtures, no conftest.py, plain
 
 import dataclasses
 import math
+import os
 
 import numpy as np
 import pytest
 
 from sim.atmosphere import _R_ISA, air_state
+from sim.integrate import run_sim
 from sim.params import Params
-from sim.state import State
+from sim.soundings import load_case
+from sim.state import State, Z
 
 _P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+
+_SOUNDINGS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "data", "soundings"
+)
 
 
 def _y_at_altitude(h: float) -> np.ndarray:
@@ -146,3 +154,208 @@ def test_unknown_atmosphere_model_raises_keyerror():
     p = dataclasses.replace(_P, atmosphere_model="not-a-real-model")
     with pytest.raises(KeyError):
         air_state(0.0, _y_at_altitude(0.0), p)
+
+
+# ----------------------------------------------------------------------
+# Tier 2: "sounding" -- single-station real data (roadmap.md Step 18)
+# ----------------------------------------------------------------------
+
+# Same 0.5% relative tolerance Step 17 established for the loader/
+# interpolator itself (tests/test_soundings.py); tier 2's atmosphere.py
+# wrapper adds no further approximation on top of soundings.interp_altitude,
+# so the same bound applies here.
+_INTERP_TOL = 0.005
+
+# data/motors/placeholder.csv's burn profile (see tests/test_integrate.py).
+_MOTOR_CURVE = "placeholder.csv"
+
+# A minimal "coefficients" aero setup so the atmosphere is actually
+# load-bearing on the aero forces (architecture.md SS12: "constant" ignores
+# the atmosphere entirely). Flight stays vertical (theta = pi/2, no wind,
+# no lateral perturbation) so alpha == 0 throughout and C_N_alpha/C_m_alpha
+# never actually engage -- only C_A0 (axial drag, driven by q = 0.5*rho*V^2)
+# matters for these comparisons.
+_AERO_KW = dict(
+    aero_model="coefficients",
+    S=0.005,
+    d_ref=0.08,
+    C_A0=0.5,
+    C_N_alpha=2.0,
+    C_m_alpha=-0.5,
+)
+
+
+def _write_isa_synthetic_case(case_dir: str, station: str = "ISA0") -> None:
+    """Write a synthetic sounding CSV sampling sim.atmosphere.air_state
+    (tier 1, "isa") at a handful of altitude nodes spanning 0-20 km, in the
+    exact file format of architecture.md SS17 -- same technique as
+    tests/test_soundings.py's helper of the same name (duplicated here
+    rather than imported, per this project's "no fixtures, no
+    conftest.py" testing philosophy: each test file is self-contained).
+    """
+    os.makedirs(case_dir, exist_ok=True)
+    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    nodes = [0.0, 2000.0, 5000.0, 8000.0, 11000.0, 15000.0, 20000.0]
+
+    lines = [
+        "# station: " + station,
+        "# lat_deg: 0.0",
+        "# lon_deg: 0.0",
+        "# elevation_m: 0.0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "# source: synthetic, generated from sim.atmosphere.air_state (ISA) for testing",
+        "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+    ]
+    for h in nodes:
+        air = air_state(0.0, _y_at_altitude(h), p_params)
+        lines.append(f"{h},{air.p},{air.T},180,5.0")
+
+    path = os.path.join(case_dir, f"{station}_202601010000.csv")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def test_sounding_tier_matches_isa_between_synthetic_nodes():
+    """air_state(..., atmosphere_model="sounding") with an ISA-derived
+    synthetic case must reproduce air_state(..., atmosphere_model="isa")
+    to within the loader/interpolator's own error (roadmap.md Step 18's
+    stated check), queried strictly *between* the synthetic nodes (0,
+    2000, 5000, 8000, 11000, 15000, 20000 m) so the check exercises
+    interpolation, not just the nodes themselves.
+    """
+    case = "test_atmo_isa_synthetic"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    _write_isa_synthetic_case(case_dir)
+
+    try:
+        load_case.cache_clear()
+        p_isa = dataclasses.replace(_P, atmosphere_model="isa")
+        p_snd = dataclasses.replace(
+            _P, atmosphere_model="sounding", sounding_case=case
+        )
+
+        for h in [1000.0, 3500.0, 6500.0, 9500.0, 13000.0, 17500.0]:
+            y = _y_at_altitude(h)
+            want = air_state(0.0, y, p_isa)
+            got = air_state(0.0, y, p_snd)
+
+            assert math.isclose(got.rho, want.rho, rel_tol=_INTERP_TOL), h
+            assert math.isclose(got.p, want.p, rel_tol=_INTERP_TOL), h
+            assert math.isclose(got.T, want.T, rel_tol=_INTERP_TOL), h
+            assert math.isclose(got.a, want.a, rel_tol=_INTERP_TOL), h
+            assert math.isclose(got.mu, want.mu, rel_tol=_INTERP_TOL), h
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_sounding_tier_trajectory_matches_isa_within_interpolation_error():
+    """A full run_sim trajectory with atmosphere_model="sounding" (ISA-
+    derived synthetic case) must match the atmosphere_model="isa" run's
+    apogee altitude/time and impact ("ground") time to within the same
+    interpolation-error tolerance, with `aero_model="coefficients"` so the
+    atmosphere is actually load-bearing on drag (architecture.md SS12's
+    note: "constant" ignores the atmosphere entirely, which would make
+    this comparison vacuous).
+
+    Numerically the apogee for this scenario (~140 m) sits well below the
+    synthetic case's first node spacing (0-2000 m), where the loader's own
+    interpolation error against ISA is <0.05% (far tighter than the 0.5%
+    bound used here) -- so 0.5% leaves ample margin while still being a
+    real, non-trivial check tied to Step 17's established tolerance.
+    """
+    case = "test_atmo_isa_synthetic_traj"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    _write_isa_synthetic_case(case_dir)
+
+    try:
+        load_case.cache_clear()
+        common = dict(
+            m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, **_AERO_KW
+        )
+        p_isa = Params(**common, atmosphere_model="isa")
+        p_snd = Params(
+            **common, atmosphere_model="sounding", sounding_case=case
+        )
+        s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+        r_isa = run_sim(p_isa, s0, t_max=120.0)
+        r_snd = run_sim(p_snd, s0, t_max=120.0)
+
+        t_apogee_isa = r_isa.events["apogee"]
+        t_apogee_snd = r_snd.events["apogee"]
+        h_apogee_isa = -r_isa.raw.sol(t_apogee_isa)[Z]
+        h_apogee_snd = -r_snd.raw.sol(t_apogee_snd)[Z]
+
+        assert math.isclose(h_apogee_snd, h_apogee_isa, rel_tol=_INTERP_TOL)
+        assert math.isclose(t_apogee_snd, t_apogee_isa, rel_tol=_INTERP_TOL)
+        assert math.isclose(
+            r_snd.events["ground"], r_isa.events["ground"], rel_tol=_INTERP_TOL
+        )
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_sounding_real_example_density_lower_than_isa_at_station_elevation():
+    """The real worked example (station LKPR, `data/soundings/example`,
+    Step 17) has, at its own first data row (h_msl = 380 m, p = 96700 Pa,
+    T = 287.3 K), a *higher* temperature than the ISA lapse-rate value at
+    the same altitude (ISA: ~285.68 K) and a very slightly lower pressure
+    (ISA: ~96842.8 Pa) -- i.e. this station's air, at its own elevation,
+    is warmer than the standard atmosphere predicts there. Since
+    rho = p/(R_d*T), a higher T together with a not-higher p makes the
+    real-data density *lower* than the ISA tier's at the same h_msl
+    (ideal gas law, holding p roughly fixed): this is the "physically
+    sensible direction" the roadmap's check asks for, derived from this
+    station's actual first-row values rather than asserted blindly.
+    """
+    p_isa = dataclasses.replace(_P, atmosphere_model="isa", h0_m=380.0)
+    p_snd = dataclasses.replace(
+        _P, atmosphere_model="sounding", sounding_case="example", h0_m=380.0
+    )
+    y = _y_at_altitude(0.0)  # z = 0 -> h_msl = h0_m = 380 m, the station's own row
+
+    air_isa = air_state(0.0, y, p_isa)
+    air_snd = air_state(0.0, y, p_snd)
+
+    assert air_snd.T > air_isa.T
+    assert air_snd.rho < air_isa.rho
+
+
+def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():
+    """Consequence of the density difference above: launching from the
+    real station's own elevation (h0_m = 380 m matches LKPR's
+    `elevation_m`, so the whole low-altitude flight stays inside the
+    station's own measured data, no extrapolation involved), the less
+    dense real-data air produces less axial drag throughout the flight
+    than the ISA tier at the same altitudes, so apogee altitude must come
+    out *higher* with the real sounding than with ISA -- the same
+    "physically sensible direction" check as the density comparison
+    above, carried through a full trajectory.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, h0_m=380.0,
+        **_AERO_KW,
+    )
+    p_isa = Params(**common, atmosphere_model="isa")
+    p_snd = Params(**common, atmosphere_model="sounding", sounding_case="example")
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    load_case.cache_clear()
+    r_isa = run_sim(p_isa, s0, t_max=120.0)
+    r_snd = run_sim(p_snd, s0, t_max=120.0)
+
+    h_apogee_isa = -r_isa.raw.sol(r_isa.events["apogee"])[Z]
+    h_apogee_snd = -r_snd.raw.sol(r_snd.events["apogee"])[Z]
+
+    assert h_apogee_snd > h_apogee_isa
+    # Sanity bound: the density difference at this station is ~0.7%, so
+    # the apogee shift should be a small fraction of that, not a large
+    # swing (rules out a sign flip elsewhere masquerading as the right
+    # direction by coincidence).
+    assert math.isclose(h_apogee_snd, h_apogee_isa, rel_tol=0.05)
