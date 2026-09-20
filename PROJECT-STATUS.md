@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 19 — Horizontal interpolation core, stations → local tangent plane, IDW (Step 15,
-propellant depletion, is optional and still blocked — see below)
+Phase 2, Step 20 — Atmosphere tier 3: multi-station spatial interpolation (Step 15, propellant
+depletion, is optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -121,7 +121,30 @@ atmosphere.
   the station's actual numbers are warmer and lower-density than ISA predicts at that altitude
   (measured ~0.71% lower density), and a full trajectory run confirms the physically expected
   consequence — less drag, apogee ~0.47% higher, impact time ~0.98% shorter — checked as a strict
-  directional assertion, not just `!=`. Commit `<pending>`.
+  directional assertion, not just `!=`. Commit `26f1f8f`.
+- Step 19 — `sim/soundings.py`, `sim/params.py`: tier-3 horizontal combination across stations,
+  pure infrastructure (not wired into `atmosphere.py`/`wind.py` yet — Steps 20/23). `_resample_case`
+  resamples every station of a case onto a common altitude grid at load time (cached on
+  `(case, grid_top_m, grid_step_m)`), reusing `interp_altitude` level-by-level rather than
+  duplicating its interpolation/extrapolation rules. `project_latlon` does the equirectangular
+  tangent-plane projection centred on the launch site. `interp_field_at(case, E, N, h, p)` weights
+  the resampled stations at a tangent-plane point (`"idw"` default — `wᵢ ∝ 1/(dᵢ²+ε²)` — or
+  `"rbf"` via `scipy.interpolate.RBFInterpolator`), combines with a dot product, then feeds the
+  combined profile back through `interp_altitude` for the final altitude lookup.
+  `interp_field(case, y, h, p)` is the convenience wrapper from the rocket's own state vector
+  (ground position `(x·sin A, x·cos A)`) — this is the exact seam Steps 20/23 call. `Params` gains
+  `horizontal_interp` (default `"idw"`), `grid_top_m` (30000.0), `grid_step_m` (100.0),
+  `idw_epsilon_m` (500.0). 72/72 tests passing (6 new): one station reproduces tier 2 exactly;
+  querying at one station's own coordinates among several is dominated by (but, correctly per the
+  IDW+epsilon math, not identical to) that station, checked against an exact analytic bound, not a
+  loose tolerance; two identical-profile stations combine to that same profile everywhere,
+  including far outside both; the rocket-ground-position wrapper agrees with the explicit-point
+  seam; an `"rbf"` smoke test inside a 3-station triangle; and projected-vs-haversine distance
+  <0.1% — with an explicitly documented, verified caveat that this bound holds for cardinal-direction
+  offsets at any distance up to 100 km and moderate diagonals (~35 km), but a diagonal pushed all
+  the way to 100 km can exceed 0.1% (an expected property of the equirectangular/plate-carree
+  approximation architecture.md §17 itself specifies, not a bug — flagged rather than silently
+  narrowed). Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

@@ -55,6 +55,12 @@ class Params:
     # Step 18: atmosphere/wind tier 2/3 sounding data (architecture.md SS17)
     sounding_case: str = ""  # case folder under data/soundings/; "" = unused unless atmosphere_model/wind_model select "sounding"/"field"
 
+    # Step 19: horizontal (tier 3) station combination (architecture.md SS17)
+    horizontal_interp: str = "idw"     # idw | rbf -- station combination method
+    grid_top_m: float = 30000.0        # common altitude grid for tier-3 resampling [m MSL]
+    grid_step_m: float = 100.0         # grid spacing [m]
+    idw_epsilon_m: float = 500.0       # IDW singularity-avoidance term [m]
+
     # thrust (architecture.md SS19)
     motor_curve: str = ""  # file under data/motors/; "" = no curve, zero thrust
 

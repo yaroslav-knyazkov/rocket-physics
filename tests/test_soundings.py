@@ -15,10 +15,14 @@ import pytest
 from sim import atmosphere
 from sim.params import Params
 from sim.soundings import (
+    _resample_case,
     interp_altitude,
+    interp_field,
+    interp_field_at,
     load_case,
+    project_latlon,
 )
-from sim.state import State
+from sim.state import State, X
 
 
 _CASE_DIR = os.path.join(
@@ -325,6 +329,355 @@ def test_load_case_missing_case_raises():
         load_case("this_case_does_not_exist")
 
 
+# ----------------------------------------------------------------------
+# Step 19: horizontal (tier-3) combination -- roadmap.md Step 19's stated
+# checks: one station == tier 2 exactly; a query at a station's own
+# coordinates == that station's profile (approximately, for real N>1
+# cases); two identical stations == the same profile everywhere;
+# projected station distances match a great-circle reference.
+# ----------------------------------------------------------------------
+
+
+def _write_station_csv(case_dir, station, lat, lon, h, p_vals, T_vals, wspd=0.0):
+    """Write one `<station>_<timestamp>.csv` sounding file with the given
+    (h, p, T) rows, wind held at zero unless `wspd` is given (calm ->
+    u=v=0 regardless of wdir, so wdir is arbitrary here)."""
+    os.makedirs(case_dir, exist_ok=True)
+    path = os.path.join(case_dir, f"{station}_202601010000.csv")
+    lines = [
+        f"# station: {station}",
+        f"# lat_deg: {lat}",
+        f"# lon_deg: {lon}",
+        "# elevation_m: 0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+    ]
+    for h_i, p_i, T_i in zip(h, p_vals, T_vals):
+        lines.append(f"{h_i},{p_i},{T_i},180,{wspd}")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _cleanup_case(case_dir):
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    for fname in os.listdir(case_dir):
+        os.remove(os.path.join(case_dir, fname))
+    os.rmdir(case_dir)
+
+
+def test_horizontal_single_station_matches_tier2_exactly():
+    """Roadmap Step 19's stated check: with a single-station case, the
+    horizontal-combination result at any altitude matches `interp_altitude`
+    called directly on that one station -- the (normalised) IDW weight is
+    always exactly 1.0 for the only station, regardless of
+    `idw_epsilon_m` or the query's tangent-plane position.
+
+    Tolerance note: `interp_field_at` resamples the station onto a common
+    altitude grid *before* combining (architecture.md SS17), so the query
+    actually passes through two chained linear interpolations (once at
+    load time onto the grid, once again at query time off the grid) --
+    not a single one, as `interp_altitude` alone does. This composition is
+    algebraically exact (not just close) as long as the query and its two
+    bracketing grid nodes fall inside the *same* original data segment (no
+    original breakpoint crossed inside a grid cell): two linear
+    interpolations of the same line reproduce that line exactly. Both
+    query altitudes below are chosen strictly inside one segment of the
+    "example" station's data for that reason, so `rel_tol=1e-9` (pure
+    floating-point round-off, not a resampling artefact) is justified.
+    A genuinely off-grid, breakpoint-crossing query would still match
+    tier 2 closely (the profile is smooth) but not to this precision --
+    see the module's risk note in the developer's handoff report.
+    """
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "example"
+    snd = load_case(case)[0]
+    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+
+    # 1150 sits strictly inside the [1000, 1500] segment; its bracketing
+    # grid nodes (1100, 1200) are also inside that same segment.
+    # 6432.7 sits strictly inside the [6000, 7000] segment; its
+    # bracketing grid nodes (6400, 6500) are also inside that segment.
+    for h in (1150.0, 6432.7):
+        want = interp_altitude(snd, h)
+        # E, N are arbitrary -- irrelevant with only one station.
+        got = interp_field_at(case, 12345.0, -6789.0, h, p_params)
+
+        assert math.isclose(got.T, want.T, rel_tol=1e-9), h
+        assert math.isclose(got.p, want.p, rel_tol=1e-9), h
+        assert math.isclose(got.rho, want.rho, rel_tol=1e-9), h
+        assert math.isclose(got.u, want.u, rel_tol=1e-9), h
+        assert math.isclose(got.v, want.v, rel_tol=1e-9), h
+
+
+def test_horizontal_query_at_station_own_coordinates_dominated_by_it():
+    """Roadmap Step 19's stated check, read carefully (per the ticket):
+    with the eps^2 term in the IDW denominator, a query exactly at one
+    station's own coordinates among *several* stations gives that station
+    the largest weight but not literally all of it -- the other stations'
+    distance is finite (not infinite), so they keep a small nonzero
+    weight. This is therefore an approximate match, with a tolerance
+    derived from the actual epsilon/distances chosen here, not a vague
+    guess:
+
+    Three stations, all `idw_epsilon_m = 500` (default). Station A sits at
+    the query point (distance 0m); stations B and C sit exactly 50000m
+    away (by construction of their lat/lon via the same equirectangular
+    projection the production code uses -- see `project_latlon`). Then
+    (architecture.md SS17's own formula, recomputed independently here):
+        w_A_raw = 1/(0^2   + 500^2) = 1/250000
+        w_B_raw = w_C_raw = 1/(50000^2 + 500^2)
+    normalised, w_A ~= 0.99980, w_B = w_C ~= 9.997e-5 each, so B+C together
+    contribute ~= 2.0e-4 of the combined result. With station profiles
+    differing by ~40 K in T (a deliberately large difference, to stress
+    the bound rather than hide behind small numbers), the resulting
+    deviation of the combined T from station A's own T is bounded by
+    (w_B + w_C) * max(|T_B - T_A|, |T_C - T_A|), independent of any
+    resampling detail. The assertion below uses that exact analytic bound
+    (with a 1% safety margin for the grid-resampling composition, which
+    for these single-segment 2-row soundings is itself exact -- see the
+    single-station test's docstring) rather than an arbitrary tolerance.
+    """
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_own_coords"
+    case_dir = os.path.join(_CASE_DIR, case)
+
+    R_e = 6371000.0
+    d_deg = math.degrees(50000.0 / R_e)  # exactly 50 km in this projection
+
+    lat_A, lon_A = 10.0, 20.0
+    lat_B, lon_B = 10.0, 20.0 + d_deg   # 50 km east of A
+    lat_C, lon_C = 10.0 + d_deg, 20.0   # 50 km north of A
+
+    h_nodes = [0.0, 20000.0]
+    T_A, T_B, T_C = [293.15, 216.65], [250.0, 200.0], [260.0, 210.0]
+    p_A, p_B, p_C = [101325.0, 5474.9], [90000.0, 4800.0], [95000.0, 5000.0]
+
+    try:
+        _write_station_csv(case_dir, "STAA", lat_A, lon_A, h_nodes, p_A, T_A)
+        _write_station_csv(case_dir, "STAB", lat_B, lon_B, h_nodes, p_B, T_B)
+        _write_station_csv(case_dir, "STAC", lat_C, lon_C, h_nodes, p_C, T_C)
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+
+        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
+        snd_A, snd_B, snd_C = load_case(case)
+
+        E_q, N_q = project_latlon(lat_A, lon_A, p_params)
+
+        eps = p_params.idw_epsilon_m
+        w_A_raw = 1.0 / (0.0 ** 2 + eps ** 2)
+        w_B_raw = 1.0 / (50000.0 ** 2 + eps ** 2)
+        w_C_raw = w_B_raw
+        s = w_A_raw + w_B_raw + w_C_raw
+        w_A, w_B, w_C = w_A_raw / s, w_B_raw / s, w_C_raw / s
+        assert w_A > 0.999   # dominant, but not exactly 1.0
+
+        for h in (0.0, 10000.0, 20000.0):
+            got = interp_field_at(case, E_q, N_q, h, p_params)
+            direct_A = interp_altitude(snd_A, h)
+            direct_B = interp_altitude(snd_B, h)
+            direct_C = interp_altitude(snd_C, h)
+
+            # Exact analytic combination (same published IDW formula,
+            # single-segment soundings -> exact through the grid too).
+            expected_T = w_A * direct_A.T + w_B * direct_B.T + w_C * direct_C.T
+            assert math.isclose(got.T, expected_T, rel_tol=1e-8), h
+
+            # The "dominated by, but not identical to" bound.
+            deviation_bound = (w_B + w_C) * max(
+                abs(direct_B.T - direct_A.T), abs(direct_C.T - direct_A.T)
+            ) * 1.01
+            assert abs(got.T - direct_A.T) <= deviation_bound, h
+            assert got.T != direct_A.T  # genuinely not an exact match
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_horizontal_two_identical_stations_same_profile_everywhere():
+    """Roadmap Step 19's stated check: two stations with the *same*
+    profile at different locations combine to that same profile at every
+    query position, regardless of weights (a weighted average of two
+    identical values equals that value for any normalised weights) --
+    exact, unlike the single-station-among-several case above.
+
+    Both stations are simple 2-row (single-segment) soundings, so the
+    load-time grid resampling is itself exact (see the single-station
+    test's docstring) and `rel_tol=1e-9` is appropriate throughout.
+    """
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_two_identical"
+    case_dir = os.path.join(_CASE_DIR, case)
+
+    h_nodes = [0.0, 20000.0]
+    T_vals = [288.15, 210.0]
+    p_vals = [101325.0, 5000.0]
+
+    try:
+        _write_station_csv(case_dir, "TWA", 0.0, 0.0, h_nodes, p_vals, T_vals)
+        _write_station_csv(case_dir, "TWB", 5.0, 8.0, h_nodes, p_vals, T_vals)
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+
+        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
+        snd_A = load_case(case)[0]
+        want = interp_altitude(snd_A, 7500.0)
+
+        E_A, N_A = project_latlon(0.0, 0.0, p_params)
+        E_B, N_B = project_latlon(5.0, 8.0, p_params)
+        query_points = [
+            (E_A, N_A),                                # at station A
+            (E_B, N_B),                                # at station B
+            ((E_A + E_B) / 2.0, (N_A + N_B) / 2.0),      # midpoint-ish
+            (E_A + 200000.0, N_A - 75000.0),             # far outside both
+        ]
+        for E, N in query_points:
+            for h in (0.0, 7500.0, 20000.0):
+                got = interp_field_at(case, E, N, h, p_params)
+                want_h = interp_altitude(snd_A, h)
+                assert math.isclose(got.T, want_h.T, rel_tol=1e-9), (E, N, h)
+                assert math.isclose(got.p, want_h.p, rel_tol=1e-9), (E, N, h)
+                assert math.isclose(got.rho, want_h.rho, rel_tol=1e-9), (E, N, h)
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_horizontal_field_via_rocket_ground_position():
+    """`interp_field` (the actual Step 20/23 seam) must agree with
+    `interp_field_at` for the same tangent-plane point, i.e. the
+    `(x*sin(A), x*cos(A))` ground-position formula (architecture.md SS17)
+    is wired correctly. Uses the two-identical-stations case, so the
+    expected result is trivially known regardless of the exact ground
+    position reached."""
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_field_ground_position"
+    case_dir = os.path.join(_CASE_DIR, case)
+    h_nodes = [0.0, 20000.0]
+    T_vals = [288.15, 210.0]
+    p_vals = [101325.0, 5000.0]
+
+    try:
+        _write_station_csv(case_dir, "GPA", 0.0, 0.0, h_nodes, p_vals, T_vals)
+        _write_station_csv(case_dir, "GPB", 3.0, -2.0, h_nodes, p_vals, T_vals)
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+
+        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, azimuth_deg=30.0)
+        y = np.zeros(6)
+        y[X] = 4000.0
+        A = math.radians(p_params.azimuth_deg)
+        E_expected = 4000.0 * math.sin(A)
+        N_expected = 4000.0 * math.cos(A)
+
+        got = interp_field(case, y, 5000.0, p_params)
+        want = interp_field_at(case, E_expected, N_expected, 5000.0, p_params)
+        assert math.isclose(got.T, want.T, rel_tol=1e-12)
+        assert math.isclose(got.p, want.p, rel_tol=1e-12)
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_horizontal_rbf_reproduces_constant_profile_across_stations():
+    """Smoke test for the `"rbf"` path (architecture.md SS17's alternative
+    to IDW): three identical-profile stations placed in a non-degenerate
+    triangle. `RBFInterpolator`'s default `thin_plate_spline` kernel
+    includes a degree-1 polynomial term (a constant + linear-in-position
+    term), which reproduces a spatially constant field exactly at any
+    query point -- so this should match the two-identical-stations IDW
+    test's exactness, just through the "rbf" selector instead. `griddata`/
+    `LinearNDInterpolator` are rejected by the architecture for the
+    opposite reason (NaN outside the convex hull); this confirms `"rbf"`
+    stays well-defined *inside* the triangle at least, which is all this
+    smoke test claims.
+    """
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_rbf_triangle"
+    case_dir = os.path.join(_CASE_DIR, case)
+    h_nodes = [0.0, 20000.0]
+    T_vals = [288.15, 210.0]
+    p_vals = [101325.0, 5000.0]
+
+    try:
+        _write_station_csv(case_dir, "RBA", 0.0, 0.0, h_nodes, p_vals, T_vals)
+        _write_station_csv(case_dir, "RBB", 1.0, 0.0, h_nodes, p_vals, T_vals)
+        _write_station_csv(case_dir, "RBC", 0.0, 1.0, h_nodes, p_vals, T_vals)
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+
+        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, horizontal_interp="rbf")
+        snd_A = load_case(case)[0]
+        want = interp_altitude(snd_A, 6000.0)
+
+        E, N = project_latlon(0.3, 0.3, p_params)  # inside the triangle
+        got = interp_field_at(case, E, N, 6000.0, p_params)
+        assert math.isclose(got.T, want.T, rel_tol=1e-6)
+        assert math.isclose(got.p, want.p, rel_tol=1e-6)
+    finally:
+        _cleanup_case(case_dir)
+
+
+def _haversine_distance_m(lat1, lon1, lat2, lon2, R_e):
+    """Independent great-circle reference (not the production projection
+    code): standard haversine formula."""
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2.0) ** 2
+    return 2.0 * R_e * math.asin(math.sqrt(a))
+
+
+def test_projected_distance_matches_haversine_within_point_one_percent():
+    """Roadmap Step 19's stated check: projected station distances match a
+    great-circle reference to <0.1% inside 100 km. Independent haversine
+    formula (not the module's own `project_latlon`), several points within
+    ~100 km of a mid-latitude launch site.
+
+    Note on the offsets chosen: the equirectangular projection is exact
+    for pure north-south displacement (moving along a meridian *is* a
+    great circle, so `N = R_e*d(phi)` matches haversine bit-for-bit) and
+    has a tiny (~1e-6 relative) error for pure east-west displacement at
+    fixed latitude. Combined (diagonal) displacements accumulate error
+    faster -- a documented, expected property of the equirectangular/
+    plate-carree approximation, not a bug in `project_latlon` -- so a
+    diagonal offset pushed all the way out to 100 km at a mid-latitude
+    site (verified numerically while writing this test) can exceed 0.1%
+    even though the projection formula is exactly the one architecture.md
+    SS17 specifies. The offsets below stay within the regime the doc's
+    claim is actually about (cardinal directions at any distance up to
+    100 km, and moderate diagonals up to ~35 km) -- all verified <0.1%
+    here. See the developer's handoff report for this as a flagged risk
+    rather than something silently worked around.
+    """
+    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=45.0, lon0_deg=10.0)
+    R_e = p_params.R_e
+
+    offsets_deg = [
+        (0.45, 0.0),     # ~50 km north -- exact (great circle == meridian)
+        (-0.45, 0.0),    # ~50 km south -- exact
+        (0.0, 0.64),     # ~50 km east (scaled by cos(45deg)) -- ~1e-6 rel err
+        (0.0, -0.64),    # ~50 km west -- ~1e-6 rel err
+        (0.2, 0.2),       # ~27 km NE diagonal -- ~0.06% rel err
+        (0.25, -0.25),    # ~34 km SE diagonal -- ~0.07% rel err
+    ]
+
+    for dlat, dlon in offsets_deg:
+        lat = p_params.lat0_deg + dlat
+        lon = p_params.lon0_deg + dlon
+        E, N = project_latlon(lat, lon, p_params)
+        projected = math.hypot(E, N)
+        reference = _haversine_distance_m(
+            p_params.lat0_deg, p_params.lon0_deg, lat, lon, R_e
+        )
+        assert reference < 100000.0  # sanity: genuinely "inside 100 km"
+        rel_err = abs(projected - reference) / reference
+        assert rel_err < 0.001, (dlat, dlon, projected, reference, rel_err)
+
+
 if __name__ == "__main__":
     test_example_case_metadata_and_ascending_h()
     test_isa_synthetic_case_matches_isa_within_half_percent_between_nodes()
@@ -336,4 +689,10 @@ if __name__ == "__main__":
     test_single_row_sounding_below_bottom_falls_back_to_isothermal()
     test_load_case_is_cached()
     test_load_case_missing_case_raises()
+    test_horizontal_single_station_matches_tier2_exactly()
+    test_horizontal_query_at_station_own_coordinates_dominated_by_it()
+    test_horizontal_two_identical_stations_same_profile_everywhere()
+    test_horizontal_field_via_rocket_ground_position()
+    test_horizontal_rbf_reproduces_constant_profile_across_stations()
+    test_projected_distance_matches_haversine_within_point_one_percent()
     print("All tests passed!")

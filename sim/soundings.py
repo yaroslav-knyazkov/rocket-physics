@@ -1,12 +1,18 @@
-"""Sounding data: file format, loader, altitude interpolation
-(architecture.md SS17; roadmap.md Step 17).
+"""Sounding data: file format, loader, altitude interpolation, and
+horizontal (tier-3) combination across stations (architecture.md SS17;
+roadmap.md Steps 17 and 19).
 
 This is the shared data layer for atmosphere tiers 2/3 (SS14) *and* wind
-tiers 2/3 (SS16) -- one canonical file format, one loader, one
-interpolator, consumed by both `sim/atmosphere.py` (Step 18+) and
-`sim/wind.py` (Step 22+). Nothing in this module is wired into forces.py
-or dynamics.py yet -- this step is pure infrastructure (roadmap.md Step
-17: "no physics changes in this step").
+tiers 2/3 (SS16) -- one canonical file format, one loader, one altitude
+interpolator, one horizontal-combination path, consumed by both
+`sim/atmosphere.py` (Step 18/20+) and `sim/wind.py` (Step 22/23+). Nothing
+in this module is wired into forces.py or dynamics.py yet -- both Step 17
+and Step 19 are pure infrastructure (roadmap.md: "no physics changes in
+this step").
+
+Step 19 adds the tier-3 horizontal machinery towards the bottom of this
+file (`ResampledCase`, `_resample_case`, `project_latlon`, `interp_field`,
+`interp_field_at`) -- see that section's own docstring for the design.
 
 File format (architecture.md SS17):
 
@@ -81,6 +87,7 @@ from typing import NamedTuple
 import numpy as np
 
 from sim import atmosphere
+from sim.state import X
 
 
 class Sounding(NamedTuple):
@@ -322,3 +329,214 @@ def interp_altitude(snd: Sounding, h: float) -> SoundingState:
     return SoundingState(
         p=p, T=T, rho=float(rho), a=float(a), mu=float(mu), u=u, v=v
     )
+
+
+# ----------------------------------------------------------------------
+# Horizontal (tier-3) combination across stations (architecture.md SS17,
+# "Interpolation in horizontal position"; roadmap.md Step 19).
+#
+# Pure infrastructure -- nothing below is wired into atmosphere.py/wind.py
+# yet (that is Step 20/23). The public seam for those steps is
+# `interp_field` (query from the rocket's own state vector `y`) and
+# `interp_field_at` (query from an explicit tangent-plane point, used
+# directly by the tests below and by any future along-track query).
+#
+# Design: resample every station in a case onto a common altitude grid at
+# "load" time (cached per (case, grid_top_m, grid_step_m), since the grid
+# itself is Params-settable -- SS17/SS19), giving arrays of shape
+# (n_stations, n_levels). At query time, project stations and the query
+# point into a launch-site-centred tangent plane, weight the stations
+# (IDW or RBF), and combine with one dot product per quantity (weights
+# depend only on horizontal position, not altitude -- SS17: "the whole
+# horizontal step is one small dot product"). The combined grid profile is
+# then wrapped back into a `Sounding`-shaped object and fed straight
+# through `interp_altitude` above, reusing its altitude-interpolation
+# *and* its outside-the-grid extrapolation behaviour for free (exactly
+# the module's own instruction: "interpolate the combined profile in
+# altitude exactly as tier 2").
+# ----------------------------------------------------------------------
+
+
+class ResampledCase(NamedTuple):
+    """Every station of a case, resampled onto one common altitude grid.
+
+    `T`, `ln_p`, `u`, `v` have shape `(n_stations, n_levels)`; `h` is the
+    shared grid, `(n_levels,)`. `lat`/`lon` are the stations' own
+    coordinates, `(n_stations,)` -- kept as raw degrees rather than
+    pre-projected (E, N) because the tangent-plane origin
+    (`p.lat0_deg`/`lon0_deg`/`R_e`) is a `Params` field, not a property of
+    the case, and this object is cached on `(case, grid_top_m,
+    grid_step_m)` only (architecture.md SS17/SS19) -- it must stay valid
+    across calls with the same grid but a different launch site.
+    """
+
+    h: np.ndarray     # (n_levels,), m MSL, ascending
+    lat: np.ndarray   # (n_stations,), deg
+    lon: np.ndarray   # (n_stations,), deg
+    T: np.ndarray     # (n_stations, n_levels), K
+    ln_p: np.ndarray  # (n_stations, n_levels), ln(Pa)
+    u: np.ndarray     # (n_stations, n_levels), m/s
+    v: np.ndarray     # (n_stations, n_levels), m/s
+
+
+@functools.lru_cache(maxsize=None)
+def _resample_case(
+    case: str, grid_top_m: float, grid_step_m: float
+) -> ResampledCase:
+    """Resample every station of `case` onto a common 0..grid_top_m
+    altitude grid at grid_step_m spacing, reusing `interp_altitude` level
+    by level -- no duplication of the T-linear/p-log-linear/u,v-linear
+    interpolation rules or the below-bottom/above-top extrapolation rules,
+    all of which stay in one place (`interp_altitude` above).
+
+    Cached on `(case, grid_top_m, grid_step_m)`, not just `case`: the grid
+    is `Params`-settable (architecture.md SS17/SS19), so two different
+    `Params` using the same case but a different grid must not share a
+    cache entry. `grid_top_m`/`grid_step_m` are plain floats, hashable.
+    """
+    stations = load_case(case)
+
+    n_levels = int(round(grid_top_m / grid_step_m)) + 1
+    h = np.linspace(0.0, grid_top_m, n_levels)
+
+    n_stations = len(stations)
+    T = np.empty((n_stations, n_levels))
+    ln_p = np.empty((n_stations, n_levels))
+    u = np.empty((n_stations, n_levels))
+    v = np.empty((n_stations, n_levels))
+
+    for i, snd in enumerate(stations):
+        for j, level in enumerate(h):
+            state = interp_altitude(snd, float(level))
+            T[i, j] = state.T
+            ln_p[i, j] = np.log(state.p)
+            u[i, j] = state.u
+            v[i, j] = state.v
+
+    lat = np.array([s.lat for s in stations], dtype=float)
+    lon = np.array([s.lon for s in stations], dtype=float)
+
+    return ResampledCase(h=h, lat=lat, lon=lon, T=T, ln_p=ln_p, u=u, v=v)
+
+
+def project_latlon(lat_deg: float, lon_deg: float, p) -> "tuple[float, float]":
+    """Equirectangular tangent-plane projection of `(lat_deg, lon_deg)`,
+    centred on the launch site `(p.lat0_deg, p.lon0_deg)` (architecture.md
+    SS17): `E = R_e*cos(phi0)*d(lambda)`, `N = R_e*d(phi)`, with
+    `d(lambda)`/`d(phi)` in radians. <0.1% error inside 100 km (SS17) --
+    the accuracy of sounding data itself is orders of magnitude worse.
+
+    Public mainly so callers (and the tests below) can place an arbitrary
+    query point -- e.g. a station's own coordinates -- in the same frame
+    the resampled grid and the rocket's ground position (`interp_field`)
+    live in. Production callers (Step 20/23) use `interp_field` with the
+    rocket's state vector instead; they never need this directly, since
+    the rocket's own ground position is `(x*sin(A), x*cos(A))`, not a
+    lat/lon (see `interp_field` below).
+    """
+    phi0 = np.radians(p.lat0_deg)
+    dlat = np.radians(lat_deg - p.lat0_deg)
+    dlon = np.radians(lon_deg - p.lon0_deg)
+    E = p.R_e * np.cos(phi0) * dlon
+    N = p.R_e * dlat
+    return float(E), float(N)
+
+
+def _combine(resampled: ResampledCase, E: float, N: float, p):
+    """Weight every station in `resampled` at tangent-plane point `(E, N)`
+    and combine their level arrays into one profile, dispatching on
+    `p.horizontal_interp` (architecture.md SS17's table). Returns
+    `(T, ln_p, u, v)`, each `(n_levels,)`.
+    """
+    phi0 = np.radians(p.lat0_deg)
+    station_E = p.R_e * np.cos(phi0) * np.radians(resampled.lon - p.lon0_deg)
+    station_N = p.R_e * np.radians(resampled.lat - p.lat0_deg)
+
+    if p.horizontal_interp == "idw":
+        # w_i ~ 1/(d_i^2 + eps^2), normalised -- architecture.md SS17.
+        # eps > 0 always, so this is well-defined even when the query
+        # point exactly coincides with a station (d_i = 0), and reduces
+        # to weight 1.0 for the (only) station in a single-station case
+        # regardless of eps.
+        d2 = (station_E - E) ** 2 + (station_N - N) ** 2
+        w = 1.0 / (d2 + p.idw_epsilon_m ** 2)
+        w = w / w.sum()
+        T = w @ resampled.T
+        ln_p = w @ resampled.ln_p
+        u = w @ resampled.u
+        v = w @ resampled.v
+    elif p.horizontal_interp == "rbf":
+        # scipy.interpolate.RBFInterpolator, verified present in the
+        # installed scipy 1.18.1 (architecture.md SS17). d can carry
+        # several output columns at once (evaluated as one linear system
+        # since the kernel only depends on the station coordinates, not
+        # the values), so T/ln_p/u/v are stacked into one (n_stations,
+        # 4*n_levels) array and combined with a single call.
+        #
+        # griddata/LinearNDInterpolator are explicitly rejected by
+        # architecture.md SS17 (NaN outside the convex hull of the
+        # stations -- a rocket's ground track routinely leaves a
+        # two/three-station polygon). RBFInterpolator with the default
+        # 'thin_plate_spline' kernel and degree needs >= 3 non-collinear
+        # stations (scipy's own requirement for the degree-1 polynomial
+        # term); with fewer, scipy raises ValueError -- not silently
+        # papered over here, since the "idw" default already handles 1/2
+        # stations and rbf is offered as an alternative, not a
+        # replacement (architecture.md SS17's own table: rbf "needs >=
+        # (degree+1) points").
+        from scipy.interpolate import RBFInterpolator
+
+        y = np.column_stack([station_E, station_N])
+        n = resampled.h.size
+        stacked = np.concatenate(
+            [resampled.T, resampled.ln_p, resampled.u, resampled.v], axis=1
+        )
+        rbf = RBFInterpolator(y, stacked, kernel="thin_plate_spline", smoothing=0.0)
+        combined = rbf(np.array([[E, N]]))[0]
+        T, ln_p, u, v = combined[:n], combined[n:2 * n], combined[2 * n:3 * n], combined[3 * n:]
+    else:
+        raise KeyError(f"Unknown horizontal_interp: {p.horizontal_interp!r}")
+
+    return T, ln_p, u, v
+
+
+def interp_field_at(case: str, E: float, N: float, h: float, p) -> SoundingState:
+    """Horizontal combination of every station in `case` at tangent-plane
+    point `(E, N)` [m, launch-site-centred ENU -- see `project_latlon`],
+    then altitude interpolation at `h` [m MSL] exactly as tier 2
+    (`interp_altitude`).
+
+    This is the low-level seam: callers that already have a tangent-plane
+    point (this module's own tests, or a future along-track query) use
+    this directly. `interp_field` below is the convenience wrapper for
+    the common case of a rocket state vector, and is what Step 20's
+    atmosphere tier 3 / Step 23's wind tier 3 actually call.
+    """
+    resampled = _resample_case(case, p.grid_top_m, p.grid_step_m)
+    T, ln_p, u, v = _combine(resampled, E, N, p)
+
+    combined = Sounding(
+        station="<field>", lat=float("nan"), lon=float("nan"), elev=float("nan"),
+        time_utc="", h=resampled.h, p=np.exp(ln_p), T=T, u=u, v=v,
+    )
+    return interp_altitude(combined, h)
+
+
+def interp_field(case: str, y: np.ndarray, h: float, p) -> SoundingState:
+    """Horizontal combination of every station in `case` at the rocket's
+    own ground position, then altitude interpolation at `h` [m MSL]
+    (architecture.md SS17). The ground position is `(x*sin(A), x*cos(A))`
+    in the same launch-site-centred ENU tangent plane as the stations,
+    with `x = y[X]` (downrange coordinate) and `A = p.azimuth_deg`.
+
+    This is the direct seam for Step 20's atmosphere tier 3
+    (`atmosphere.py`'s `"field"` variant) and Step 23's wind tier 3
+    (`wind.py`'s `"field"` variant) -- both call this unchanged, per
+    roadmap.md Step 23's note that tier 3 wind "reuses the Step 19
+    weighting machinery unchanged".
+    """
+    A = np.radians(p.azimuth_deg)
+    x = float(y[X])
+    E = x * np.sin(A)
+    N = x * np.cos(A)
+    return interp_field_at(case, E, N, h, p)
