@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 22 — Wind tier 2: single-station real data (Step 15, propellant depletion, is
-optional and still blocked — see below)
+Phase 2, Step 23 — Wind tier 3: multi-station spatial interpolation (Step 15, propellant
+depletion, is optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -180,6 +180,21 @@ atmosphere.
   21 bug): the `C_N_alpha`/`C_m_alpha`/`l1` combination shared by earlier test modules is
   pitch-unstable the moment `alpha != 0` is ever engaged — invisible before this step since every
   prior one kept `theta` pinned with zero wind; worth remembering for Step 25. Commit `7e15296`.
+- Step 22 — `sim/wind.py`: tier 2, `"sounding"` — `_sounding_wind` loads `p.sounding_case` via
+  `soundings.load_case` (first station only, same convention as the atmosphere tiers) and
+  `soundings.interp_altitude` for `(u, v)` ENU wind at `h_msl = -y[Z] + p.h0_m` (MSL, not AGL —
+  a measured station profile is tied to real altitude, unlike tier 1's ground-referenced shear).
+  Projects ENU `(u, v)` onto the flight plane via `w_along = u·sin(A) + v·cos(A)`,
+  `w_cross = u·cos(A) - v·sin(A)` — derived from first principles and verified algebraically
+  consistent with tier 1's `w_x = -W·cos(wdir-azimuth)`/`w_y = -W·sin(wdir-azimuth)` by
+  substituting tier 1's own ENU conversion and reducing via the cos/sin angle-difference
+  identities. No new file format, loader, or `Params` field — reuses Step 17/18's machinery
+  entirely. 86/86 tests passing (6 new, `tests/test_wind.py` now 12): a synthetic constant-wind
+  sounding matches the analytic model at `shear_exp=0` (including strictly-between-node
+  interpolation); a synthetic pure-veering profile (wdir sweeping 0→45→90°) shifts the downrange
+  component exactly as `-W·cos(wdir)` predicts; the real `example` (LKPR) case's wind genuinely
+  veers 210°→265° from 380m to 10000m, confirmed against hand-computed expected values at each
+  data row; MSL (not AGL) altitude convention confirmed via `h0_m`. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

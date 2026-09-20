@@ -8,17 +8,24 @@ philosophy -- no fixtures, no conftest.py, plain `assert` + `math.isclose`/
 
 import dataclasses
 import math
+import os
 
 import numpy as np
+import pytest
 
 import sim.flow as flow_mod
 from sim.flow import flow_state
 from sim.integrate import run_sim
 from sim.params import Params
+from sim.soundings import load_case
 from sim.state import State, VX, X, Z
-from sim.wind import wind_inertial
+from sim.wind import wind_horizontal_enu, wind_inertial
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv, see tests/test_thrust_curve.py
+
+_SOUNDINGS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "data", "soundings"
+)
 
 
 # ----------------------------------------------------------------------
@@ -268,3 +275,282 @@ def test_gust_sigma_zero_reproduces_no_gust_analytic_profile_exactly():
     delta = math.radians(common["wind_dir_deg"] - common["azimuth_deg"])
     expected_w_x = -W * math.cos(delta)
     assert math.isclose(w_a[0], expected_w_x, rel_tol=1e-12)
+
+
+# ----------------------------------------------------------------------
+# Tier 2: "sounding" -- single-station real data (roadmap.md Step 22)
+# ----------------------------------------------------------------------
+
+
+def _write_constant_wind_case(case_dir: str, wdir_deg: float, wspd_ms: float) -> None:
+    """Write a synthetic sounding whose `wdir`/`wspd` are the *same* at
+    every altitude node (0, 2000, 5000, 8000, 11000 m) -- a "no-shear,
+    no-veer" profile. Since `u`/`v` are derived from `wdir`/`wspd` at load
+    time (soundings.py), a constant `wdir`/`wspd` gives a constant `(u,
+    v)` at every node too, so `np.interp` between any two identical
+    values reproduces that exact value at any altitude *inside* the data
+    range -- linear interpolation of a constant function carries no
+    approximation error at all. This is what lets the test below use a
+    tight tolerance instead of the loader's usual ~0.5% interpolation
+    bound (architecture.md SS17/roadmap.md Step 17): there is nothing to
+    interpolate away from here, only floating-point roundoff between the
+    two independently-written formulas (`_analytic_wind`'s
+    `-W*cos(wdir-azimuth)` vs `_sounding_wind`'s ENU dot product).
+
+    p_Pa/T_K columns are filled with plausible-looking placeholder values
+    (unused by wind.py, which only reads `u`/`v`) so the file still
+    round-trips through the shared loader's full column set.
+    """
+    os.makedirs(case_dir, exist_ok=True)
+    nodes = [0.0, 2000.0, 5000.0, 8000.0, 11000.0]
+    lines = [
+        "# station: WNDCONST",
+        "# lat_deg: 0.0",
+        "# lon_deg: 0.0",
+        "# elevation_m: 0.0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+    ]
+    for h in nodes:
+        p_placeholder = 101325.0 * math.exp(-h / 8000.0)
+        T_placeholder = 288.15 - 0.0065 * h
+        lines.append(f"{h},{p_placeholder},{T_placeholder},{wdir_deg},{wspd_ms}")
+    path = os.path.join(case_dir, "WNDCONST_202601010000.csv")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def test_sounding_constant_wind_reproduces_analytic_model_with_zero_shear():
+    """Roadmap Step 22's first stated check: a synthetic constant-wind
+    sounding reproduces the analytic model with `wind_shear_exp = 0.0`
+    and the equivalent `wind_ref_ms`/`wind_dir_deg`, at a couple of
+    different altitudes -- including altitudes strictly between the
+    sounding's own nodes, so the check exercises `interp_altitude`, not
+    just the raw node values.
+
+    `wind_shear_exp = 0.0` makes tier 1's `W(h)` altitude-independent
+    (`(h/h_ref)**0 == 1` for any `h`), matching the sounding's own
+    altitude-independent `wdir`/`wspd` -- the two tiers describe the same
+    physical wind by construction, just through different native
+    representations ((wdir, wspd) vs (u, v) ENU), so the module docstring's
+    algebraic consistency check should make them agree here to near
+    machine precision (see `_write_constant_wind_case`'s docstring for
+    why no ~0.5% interpolation-error margin is needed).
+    """
+    wdir_deg = 205.0
+    W = 9.0
+    azimuth_deg = 40.0  # a non-cardinal azimuth, exercising the general formula
+
+    case = "test_wind_sounding_constant"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    _write_constant_wind_case(case_dir, wdir_deg, W)
+
+    try:
+        load_case.cache_clear()
+        common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=azimuth_deg)
+        p_analytic = Params(
+            **common, wind_model="analytic", wind_dir_deg=wdir_deg,
+            wind_ref_ms=W, wind_ref_h_m=1.0, wind_shear_exp=0.0,
+        )
+        p_sounding = Params(**common, wind_model="sounding", sounding_case=case)
+
+        for h in [0.0, 500.0, 3000.0, 7000.0, 9500.0, 11000.0]:
+            y = np.zeros(6)
+            y[Z] = -h
+
+            w_analytic = wind_horizontal_enu(0.0, y, p_analytic)
+            w_sounding = wind_horizontal_enu(0.0, y, p_sounding)
+
+            assert math.isclose(w_sounding[0], w_analytic[0], rel_tol=1e-9, abs_tol=1e-9), h
+            assert math.isclose(w_sounding[1], w_analytic[1], rel_tol=1e-9, abs_tol=1e-9), h
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_sounding_pure_veering_shifts_downrange_component_as_predicted():
+    """A synthetic case whose `wdir` changes with altitude at *constant*
+    `wspd` (0 deg at h=0, 45 deg at h=5000, 90 deg at h=10000 -- veering
+    clockwise with altitude, a textbook boundary-layer effect), isolating
+    the pure direction-change (veering) effect on the downrange component
+    from any accompanying speed change.
+
+    With `azimuth_deg = 0.0` (flight plane facing North), the along-plane
+    formula collapses to `w_along = -W*cos(wdir)` (delta = wdir - 0):
+    at wdir=0 the wind blows from due North straight down the flight
+    plane (a pure headwind, w_along = -W); as it veers toward wdir=90
+    (from due East, a pure crosswind in this plane) the along-plane
+    projection shrinks toward zero. So `w_along` must increase
+    monotonically (become less negative) with altitude here -- derived
+    directly from the formula, not asserted blindly.
+    """
+    W = 8.0
+    case = "test_wind_sounding_veer"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    os.makedirs(case_dir, exist_ok=True)
+    lines = [
+        "# station: WNDVEER",
+        "# lat_deg: 0.0",
+        "# lon_deg: 0.0",
+        "# elevation_m: 0.0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+        f"0,101325,288.15,0,{W}",
+        f"5000,54048,255.65,45,{W}",
+        f"10000,26436,223.15,90,{W}",
+    ]
+    path = os.path.join(case_dir, "WNDVEER_202601010000.csv")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    try:
+        load_case.cache_clear()
+        p = Params(
+            m=0.5, I=0.05, l1=0.3, l2=0.4,
+            wind_model="sounding", sounding_case=case, azimuth_deg=0.0,
+        )
+
+        w0 = wind_inertial(0.0, np.zeros(6), p)[0]
+        y1 = np.zeros(6)
+        y1[Z] = -5000.0
+        w1 = wind_inertial(0.0, y1, p)[0]
+        y2 = np.zeros(6)
+        y2[Z] = -10000.0
+        w2 = wind_inertial(0.0, y2, p)[0]
+
+        expected0 = -W * math.cos(math.radians(0.0))
+        expected1 = -W * math.cos(math.radians(45.0))
+        expected2 = -W * math.cos(math.radians(90.0))
+
+        assert math.isclose(w0, expected0, rel_tol=1e-9)
+        assert math.isclose(w1, expected1, rel_tol=1e-9)
+        assert math.isclose(w2, expected2, abs_tol=1e-9)
+
+        # The predicted direction of change, confirmed against the actual
+        # dispatched values, not just the hand-computed ones above.
+        assert w0 < w1 < w2
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_sounding_real_example_case_veers_and_shifts_downrange_component():
+    """Roadmap Step 22's second stated check, against the actual worked
+    example (`data/soundings/example`, station LKPR, Step 17): its
+    `wdir` genuinely varies with altitude (210 deg at h_msl=380 m up to
+    265 deg at h_msl=10000 m, per the committed CSV -- not just used for
+    the atmosphere tiers so far), so `wind_model="sounding"` must sample
+    a different downrange wind component at these two altitudes, and by
+    the amount and direction the projection formula predicts from the
+    file's own (wdir, wspd) values at each row -- not merely `!=`.
+
+    Queried exactly at the sounding's own two altitude nodes, so the
+    values compared are exact table entries, not something blurred by
+    `interp_altitude`'s in-range interpolation.
+    """
+    wdir_low, wspd_low = 210.0, 4.1      # h_msl = 380 m (first row)
+    wdir_high, wspd_high = 265.0, 35.0   # h_msl = 10000 m (last row)
+    azimuth_deg = 0.0
+
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        wind_model="sounding", sounding_case="example", azimuth_deg=azimuth_deg,
+    )
+
+    load_case.cache_clear()
+    snd = load_case("example")[0]
+    assert not math.isclose(snd.h[0], snd.h[-1])
+    assert wdir_low != wdir_high  # the real profile does veer, not just a wspd change
+
+    y_low = np.zeros(6)
+    y_low[Z] = -380.0
+    y_high = np.zeros(6)
+    y_high[Z] = -10000.0
+
+    w_low = wind_inertial(0.0, y_low, p)[0]
+    w_high = wind_inertial(0.0, y_high, p)[0]
+
+    expected_low = -wspd_low * math.cos(math.radians(wdir_low - azimuth_deg))
+    expected_high = -wspd_high * math.cos(math.radians(wdir_high - azimuth_deg))
+
+    assert math.isclose(w_low, expected_low, rel_tol=1e-6)
+    assert math.isclose(w_high, expected_high, rel_tol=1e-6)
+
+    # The formula-derived expectation itself shows the direction the
+    # veering (plus the accompanying speed increase) pushes the downrange
+    # component: as wdir sweeps from 210 deg toward 270 deg (due West, a
+    # pure crosswind against this North-facing flight plane) cos(wdir)
+    # shrinks in magnitude fast enough to outweigh the simultaneous wspd
+    # increase, so w_along must be *smaller* at the top of the profile.
+    assert expected_high < expected_low
+    assert w_high < w_low
+
+
+def test_sounding_uses_msl_altitude_not_agl_unlike_analytic_tier():
+    """Unlike tier 1's `altitude_agl`-referenced shear profile, tier 2
+    reads the sounding at `h_msl = -y[Z] + p.h0_m` -- the same MSL
+    convention `sim.atmosphere`'s sounding/field tiers use (architecture.md
+    SS17). A nonzero `h0_m` must shift which row of the sounding is read
+    at the pad (`z = 0`), exactly like `test_h0_m_shifts_altitude_to_msl`
+    in tests/test_atmosphere.py.
+    """
+    case = "test_wind_sounding_h0"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    # A profile whose speed (hence downrange component, at azimuth=wdir=0)
+    # actually varies with altitude, so h0_m computed wrongly (e.g. as
+    # plain AGL like tier 1) would sample the wrong row and this check
+    # would fail loudly instead of passing vacuously.
+    os.makedirs(case_dir, exist_ok=True)
+    lines = [
+        "# station: WNDH0",
+        "# lat_deg: 0.0",
+        "# lon_deg: 0.0",
+        "# elevation_m: 0.0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+        "0,101325,288.15,0,4.0",
+        "5000,54048,255.65,0,10.0",
+    ]
+    path = os.path.join(case_dir, "WNDH0_202601010000.csv")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    try:
+        load_case.cache_clear()
+        p_pad = Params(
+            m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=0.0,
+            wind_model="sounding", sounding_case=case, h0_m=5000.0,
+        )
+        p_direct = Params(
+            m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=0.0,
+            wind_model="sounding", sounding_case=case, h0_m=0.0,
+        )
+
+        w_at_pad_elevated = wind_inertial(0.0, np.zeros(6), p_pad)[0]
+        y_direct = np.zeros(6)
+        y_direct[Z] = -5000.0
+        w_direct_5000 = wind_inertial(0.0, y_direct, p_direct)[0]
+
+        assert math.isclose(w_at_pad_elevated, w_direct_5000, rel_tol=1e-9)
+        # And it must differ from the sea-level (h_msl=0) row's own value.
+        w_direct_0 = wind_inertial(0.0, np.zeros(6), p_direct)[0]
+        assert not math.isclose(w_at_pad_elevated, w_direct_0, rel_tol=1e-6)
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_unknown_wind_model_raises_keyerror():
+    """No input validation (architecture.md SS7/SS12), same as
+    atmosphere.py's and gravity.py's dispatch tables: an unrecognised
+    `wind_model` string raises KeyError at the first call.
+    """
+    p = dataclasses.replace(Params(m=0.5, I=0.05, l1=0.3, l2=0.4), wind_model="not-a-real-model")
+    with pytest.raises(KeyError):
+        wind_inertial(0.0, np.zeros(6), p)

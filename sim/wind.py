@@ -2,10 +2,10 @@
 (architecture.md SS16; main.tex SSModels > Wind; roadmap.md Step 21).
 
 Tier 1, "analytic" (constant direction + power-law shear + optional
-deterministic gusts), is implemented at this step. Tier 2, "sounding" (one
+deterministic gusts), was implemented at Step 21. Tier 2, "sounding" (one
 station's measured `(u, v)` profile, interpolated in altitude via
-sim/soundings.py), arrives at Step 22. Tier 3, "field" (N stations,
-spatially interpolated, SS17), arrives at Step 23.
+sim/soundings.py), is added at this step (Step 22). Tier 3, "field" (N
+stations, spatially interpolated, SS17), arrives at Step 23.
 
 ### The 2D projection limitation (architecture.md SS16)
 
@@ -43,6 +43,7 @@ import functools
 import numpy as np
 
 from sim.flow import altitude_agl
+from sim.state import Z
 
 
 def _no_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
@@ -129,6 +130,78 @@ def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     return (w_x, w_y)
 
 
+def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
+    """Tier 2: one station's measured `(u, v)` profile, interpolated in
+    altitude (architecture.md SS16, SS17; roadmap.md Step 22).
+
+    Single-station only -- loads `p.sounding_case` via
+    `sim.soundings.load_case` and always uses its first station, the same
+    convention `sim.atmosphere._sounding_air_state`/`_field_air_state`
+    established for Steps 18/20: a case folder with more than one file is
+    a tier-3 ("field") concern, arriving unchanged at Step 23.
+
+    Same `h_msl` convention as the atmosphere tiers, h_msl = -y[Z] +
+    p.h0_m -- *not* `altitude_agl` like tier 1's power-law shear profile
+    above. A measured sounding is a set of altitude-MSL rows tied to a
+    real station; re-referencing it to the launch site's AGL altitude
+    would shift every row by `p.h0_m` for no physical reason, exactly the
+    argument `_analytic_wind`'s docstring makes in the opposite direction
+    for a shear profile anchored to the local ground.
+
+    ### Projection: ENU (u, v) -> flight-plane axes
+
+    `soundings.interp_altitude` returns wind as ENU components `(u, v)` =
+    (East, North) -- a different representation from tier 1's
+    (`wind_dir_deg`, `wind_ref_ms`) speed/direction pair, so the
+    flight-plane projection has to be re-derived from first principles
+    rather than reused as-is.
+
+    The flight plane's downrange axis `+x_hat` points along the launch
+    azimuth `A = p.azimuth_deg` (degrees clockwise from North), so in ENU
+    coordinates `+x_hat = (sin A, cos A)` (A=0 -> North = (0, 1); A=90 ->
+    East = (1, 0)). The out-of-plane axis `+y_hat`, `x_hat` rotated -90
+    deg (clockwise) to match tier 1's own `w_y` sign below, is
+    `(cos A, -sin A)`. Projecting the ENU wind vector `(u, v)` onto each
+    with a plain dot product:
+
+        w_along = u*sin(A) + v*cos(A)      (dot with x_hat)
+        w_cross = u*cos(A) - v*sin(A)      (dot with y_hat)
+
+    Consistency check against tier 1's `w_x = -W*cos(wdir - azimuth)` /
+    `w_y = -W*sin(wdir - azimuth)` (architecture.md SS16): substituting
+    tier 1's own ENU conversion (soundings.py's docstring), u =
+    -W*sin(wdir), v = -W*cos(wdir), into `w_along` above:
+
+        w_along = -W*sin(wdir)*sin(A) - W*cos(wdir)*cos(A)
+                = -W*(sin(wdir)*sin(A) + cos(wdir)*cos(A))
+                = -W*cos(wdir - A)                              [cos(a-b) identity]
+
+    which is exactly tier 1's `w_x`. Same substitution into `w_cross`:
+
+        w_cross = -W*sin(wdir)*cos(A) + W*cos(wdir)*sin(A)
+                = -W*(sin(wdir)*cos(A) - cos(wdir)*sin(A))
+                = -W*sin(wdir - A)                              [sin(a-b) identity]
+
+    which is exactly tier 1's `w_y`. So the two tiers agree on the same
+    physical projection, expressed in each tier's own native wind
+    representation.
+    """
+    # Imported here, not at module level, same circular-import reason as
+    # sim.atmosphere's `_sounding_air_state`/`_field_air_state`: this
+    # module would otherwise need sim.soundings at import time, and
+    # sim.soundings imports sim.atmosphere for its shared ISA constants.
+    from sim import soundings
+
+    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    snd = soundings.load_case(p.sounding_case)[0]
+    state = soundings.interp_altitude(snd, h_msl)
+
+    A = np.radians(p.azimuth_deg)
+    w_along = state.u * np.sin(A) + state.v * np.cos(A)
+    w_cross = state.u * np.cos(A) - state.v * np.sin(A)
+    return (float(w_along), float(w_cross))
+
+
 # Module-private dispatch dict (architecture.md SS12), same pattern as
 # sim/gravity.py's `_GRAVITY_MODELS` / sim/atmosphere.py's `_MODELS`: the
 # public seam is `wind_inertial`/`wind_horizontal_enu`; callers never learn
@@ -139,6 +212,7 @@ def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
 _MODELS = {
     "none": _no_wind,
     "analytic": _analytic_wind,
+    "sounding": _sounding_wind,
 }
 
 
