@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 16 — Pressure correction to thrust (Step 15, propellant depletion, is optional and
-still blocked — see below)
+Phase 2, Step 17 — Sounding data format, loader, altitude interpolation (Step 15, propellant
+depletion, is optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -76,7 +76,20 @@ atmosphere.
   to set, `T`, is now inert). This step intentionally changes the trajectory versus Step 13 (a real
   motor curve replacing a fake constant-thrust rectangle is the point of the step) — there is no
   bit-for-bit regression claim here, unlike the gravity/atmosphere/aero model-selection steps.
-  Commit pending.
+  Commit `0d184bf`.
+- Step 16 — `sim/thrust_curve.py`, `sim/params.py`: altitude pressure correction on top of the
+  curve lookup, `T(t,h) = T_ref(t) + A_e*(p_ref - p_amb)` with `p_amb` from
+  `atmosphere.air_state(t, s, p).p`. `Params` gains `A_e` (default 0.0, nozzle exit area) and
+  `p_ref` (default 101325.0 Pa). The correction is guarded to only apply while `T_ref(t) > 0`
+  (motor actually flowing) — otherwise `A_e*(p_ref - p_amb)` would manufacture nonzero thrust from
+  ambient pressure alone during coast/pre-ignition, breaking the clean zero-after-burnout cutoff
+  Step 14's burnout event depends on. `A_e = 0.0` (the default, used by `run.py`'s scenario)
+  short-circuits before touching the atmosphere model at all, reproducing Step 14 bit-for-bit
+  regardless of `p_ref` or `atmosphere_model` — confirmed via `run.py` (identical printed summary:
+  burnout 2.0000s, apogee 4609.2267m/30.1209s, max speed 304.0110 m/s, impact 62.4745s). 50/50
+  tests passing (3 new: inert-at-default, sign/magnitude-correct pressure boost mid-burn verified
+  against the exact ISA sea-level pressure, still-zero after burnout with `A_e != 0`).
+  Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

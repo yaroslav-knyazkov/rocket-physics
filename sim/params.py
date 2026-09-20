@@ -54,3 +54,7 @@ class Params:
 
     # thrust (architecture.md SS19)
     motor_curve: str = ""  # file under data/motors/; "" = no curve, zero thrust
+
+    # Step 16: altitude pressure correction on thrust (architecture.md SS19)
+    A_e: float = 0.0        # nozzle exit area [m^2]; 0.0 = correction is inert
+    p_ref: float = 101325.0  # ambient pressure the curve was measured at [Pa]

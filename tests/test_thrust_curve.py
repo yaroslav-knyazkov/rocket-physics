@@ -106,10 +106,85 @@ def test_thrust_interpolation():
             os.remove(test_curve_path)
 
 
+def test_pressure_correction_inert_at_default_A_e():
+    """Roadmap Step 16 check: `A_e = 0.0` (the `Params` default) must
+    reproduce Step 14's raw curve lookup bit-for-bit at several time
+    points, including a pre-ignition point, several during-burn points
+    and a post-burnout point.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+
+    for t, expected in [
+        (-1.0, 0.0),
+        (0.0, 0.0),
+        (0.05, 150.0),
+        (0.1, 90.0),
+        (0.8, 90.0),
+        (1.6, 90.0),
+        (1.8, 45.0),
+        (2.0, 0.0),
+        (2.1, 0.0),
+        (10.0, 0.0),
+    ]:
+        assert thrust(t, s, p) == expected
+
+
+def test_pressure_correction_increases_thrust_with_lower_ambient_pressure():
+    """Roadmap Step 16 check: with `A_e > 0` and `p_ref` above the ambient
+    pressure at the state's altitude, thrust at a non-zero-thrust time
+    point is measurably higher than the raw curve value, with the exact
+    magnitude given by the formula `T(t,h) = T_ref(t) + A_e*(p_ref -
+    p_amb)`. At sea level (z=0, default h0_m=0) the ISA model gives
+    `p_amb = 101325.0` Pa exactly, so choosing `p_ref` above that gives a
+    known, exact correction to check against -- confirming the sign, not
+    just `!=`.
+    """
+    t = 0.8  # flat-sustain part of the curve: raw T_ref = 90.0 N
+    A_e = 0.001  # m^2
+    p_ref = 150000.0  # Pa, above the sea-level ambient the curve implies
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        motor_curve="placeholder.csv", A_e=A_e, p_ref=p_ref,
+    )
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+
+    raw_thrust = 90.0
+    p_amb = 101325.0  # ISA sea-level pressure, exact per the ISA base layer
+    expected = raw_thrust + A_e * (p_ref - p_amb)
+
+    corrected = thrust(t, s, p)
+    assert corrected > raw_thrust
+    assert math.isclose(corrected, expected, rel_tol=1e-9)
+
+
+def test_pressure_correction_still_zero_after_burnout():
+    """Roadmap Step 16 check / SS19 guard: even with `A_e != 0`, thrust
+    stays exactly zero after burnout (and before ignition) -- the
+    pressure term must not manufacture nonzero thrust once the motor
+    isn't actually flowing, since `integrate.py`'s `_burnout_event` and
+    Step 14's own check both depend on a clean cut to zero.
+    """
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        motor_curve="placeholder.csv", A_e=0.001, p_ref=150000.0,
+    )
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+
+    assert thrust(-1.0, s, p) == 0.0
+    assert thrust(0.0, s, p) == 0.0
+    assert thrust(2.0, s, p) == 0.0
+    assert thrust(2.1, s, p) == 0.0
+    assert thrust(10.0, s, p) == 0.0
+
+
 if __name__ == "__main__":
     test_load_motor_curve()
     test_thrust_curve_shape()
     test_thrust_curve_total_impulse()
     test_thrust_zero_when_no_curve()
     test_thrust_interpolation()
+    test_pressure_correction_inert_at_default_A_e()
+    test_pressure_correction_increases_thrust_with_lower_ambient_pressure()
+    test_pressure_correction_still_zero_after_burnout()
     print("All tests passed!")
