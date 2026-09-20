@@ -194,7 +194,7 @@ atmosphere.
   interpolation); a synthetic pure-veering profile (wdir sweeping 0→45→90°) shifts the downrange
   component exactly as `-W·cos(wdir)` predicts; the real `example` (LKPR) case's wind genuinely
   veers 210°→265° from 380m to 10000m, confirmed against hand-computed expected values at each
-  data row; MSL (not AGL) altitude convention confirmed via `h0_m`. Commit `<pending>`.
+  data row; MSL (not AGL) altitude convention confirmed via `h0_m`. Commit `1c10109`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
