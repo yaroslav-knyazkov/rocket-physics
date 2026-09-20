@@ -8,8 +8,10 @@ fields, but those need sim/atmosphere.py, which does not exist until Step
 would mean fabricating an atmosphere model out of turn, so `Flow` here is
 the Step-9 subset; Step 13 extends it, it does not replace it.
 
-Wind is zero for now (`_wind_inertial` is an inline stub) -- Step 21 fills
-in sim/wind.py for real.
+Step 21: `_wind_inertial` now delegates to `sim.wind.wind_inertial`
+(architecture.md SS16) instead of the inline zeros stub. Its default,
+`p.wind_model == "none"`, still returns exactly zero, so every result
+computed before this step is unchanged.
 """
 
 from typing import NamedTuple
@@ -33,12 +35,21 @@ class Flow(NamedTuple):
 
 
 def _wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
-    """Wind velocity in the inertial frame, (w_x, w_z). Always zero until
-    Step 21 (roadmap.md Step 9: "a stub wind_inertial returning zeros, or
-    inline zeros"). Kept as a function (not inlined at the call site) so the
-    real sim/wind.py can replace this one call without touching flow_state.
+    """Wind velocity in the inertial frame, (w_x, w_z) -- delegates to
+    sim.wind.wind_inertial (architecture.md SS16, roadmap.md Step 21).
+
+    Imported locally, not at module level, to avoid a circular import:
+    sim.wind imports sim.flow.altitude_agl (its power-law shear profile is
+    referenced to altitude AGL), so sim.flow cannot import sim.wind at
+    module scope -- same convention as sim.atmosphere's `_sounding_air_state`/
+    `_field_air_state` importing sim.soundings locally for the same reason.
+
+    Kept as a function (not inlined at the call site) so flow_state itself
+    never changes when the wind model changes.
     """
-    return np.zeros(2)
+    from sim import wind
+
+    return wind.wind_inertial(t, y, p)
 
 
 def flow_state(t: float, y: np.ndarray, p) -> Flow:

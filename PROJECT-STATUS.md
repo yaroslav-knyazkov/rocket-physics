@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 21 — Wind tier 1: analytic model (Step 15, propellant depletion, is optional and
-still blocked — see below)
+Phase 2, Step 22 — Wind tier 2: single-station real data (Step 15, propellant depletion, is
+optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -160,6 +160,26 @@ atmosphere.
   the correct direction given FLDA is actually denser than FLDB at every shared altitude (pressure
   offset dominates despite FLDA also being warmer), confirmed from the stations' real numbers, not
   asserted blindly. Commit `f818573`.
+- Step 21 — `sim/wind.py` (new), `sim/flow.py`, `sim/params.py`: tier 1, `"analytic"` —
+  `wind_inertial` dispatches on `p.wind_model` (`"none"` default, zeros; `"analytic"` power-law
+  shear `W(h) = wind_ref_ms*(max(h,h_ref)/h_ref)^shear_exp`, AGL not MSL, clamped below `h_ref`).
+  Meteorological `wdir - azimuth` projection onto the flight plane per architecture.md §16;
+  cross-plane component computed and discarded via `wind_horizontal_enu` (exposed for Phase 3 to
+  reuse unchanged). Optional deterministic gusts: a frozen sum of 8 sinusoids with phases/weights
+  drawn once from `np.random.default_rng(gust_seed)`, cached per seed; `gust_sigma=0.0` skips the
+  RNG entirely. `flow._wind_inertial` now delegates here instead of the inline zeros stub. `Params`
+  gains `wind_model`, `wind_ref_ms`, `wind_dir_deg`, `wind_ref_h_m`, `wind_shear_exp`, `gust_sigma`,
+  `gust_seed`. 81/81 tests passing (7 new): `"none"` reproduces the pre-Step-21 stub bit-for-bit
+  (verified by monkeypatching the old stub back in and diffing a full trajectory, not a pinned
+  baseline); a pure headwind raises `V` by exactly the wind speed; the four cardinal directions
+  give the derived-not-guessed sign (headwind/tailwind/crosswind/crosswind); headwind and tailwind
+  of equal speed bracket the still-air apogee in the correct order (needed an inclined launch —
+  purely vertical flight makes headwind/tailwind indistinguishable, since `|v_rel|` depends on
+  `w_x²` when the rocket's own downrange velocity is negligible); gust determinism (bit-for-bit
+  identical across repeated calls) and `gust_sigma=0.0` exactness. Flagged in passing (not a Step
+  21 bug): the `C_N_alpha`/`C_m_alpha`/`l1` combination shared by earlier test modules is
+  pitch-unstable the moment `alpha != 0` is ever engaged — invisible before this step since every
+  prior one kept `theta` pinned with zero wind; worth remembering for Step 25. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

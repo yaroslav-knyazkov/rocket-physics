@@ -67,3 +67,12 @@ class Params:
     # Step 16: altitude pressure correction on thrust (architecture.md SS19)
     A_e: float = 0.0        # nozzle exit area [m^2]; 0.0 = correction is inert
     p_ref: float = 101325.0  # ambient pressure the curve was measured at [Pa]
+
+    # Step 21: wind tier 1, analytic model (architecture.md SS16, SS18)
+    wind_model: str = "none"    # none | analytic | sounding | field
+    wind_ref_ms: float = 0.0    # reference wind speed W_ref at wind_ref_h_m [m/s]
+    wind_dir_deg: float = 0.0   # meteorological wind direction (from North, clockwise) [deg]
+    wind_ref_h_m: float = 10.0  # reference height for wind_ref_ms / the shear power law [m]
+    wind_shear_exp: float = 0.143  # power-law shear exponent, ~= 1/7
+    gust_sigma: float = 0.0     # gust perturbation scale [m/s]; 0.0 = gusts off entirely
+    gust_seed: int = 0          # RNG seed for the frozen gust realization
