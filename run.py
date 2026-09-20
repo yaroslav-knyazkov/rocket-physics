@@ -1,11 +1,14 @@
 """Entry point / scenario definition.
 
 Step 4: vertical flight under gravity, constant thrust and a constant axial
-aerodynamic force (thrust cuts off after sim.forces.T_BURN -- see that
-module's docstring for why).
+aerodynamic force.
 
 Step 7: full Phase 1 output -- trajectory + pitch plots and a printed flight
 summary.
+
+Step 14: thrust is now a real (time, thrust) curve (sim/thrust_curve.py,
+selected via `motor_curve`) instead of the constant-thrust/T_BURN hack;
+the summary now also prints the burnout time from `result.events`.
 """
 
 import math
@@ -26,7 +29,7 @@ def main() -> None:
         I=0.05,     # kg*m^2, rough estimate for a small rocket
         l1=0.3,     # m, CoP -> CoG distance
         l2=0.4,     # m, CoP -> thrust point distance
-        T=50.0,     # N, placeholder thrust
+        motor_curve="placeholder.csv",  # Step 14: real (time, thrust) curve
         A_x=0.5,    # N, placeholder axial aero force
         A_z=0.0,    # N, placeholder normal aero force
         A_m=0.0,    # N*m, placeholder aero pitching moment
@@ -40,6 +43,7 @@ def main() -> None:
 
     apogee_time = result.events["apogee"]
     impact_time = result.events["ground"]
+    burnout_time = result.events["burnout"]
     # Evaluate the dense interpolant exactly at the apogee event time
     # rather than taking -min(z) over the adaptive-step samples: RK45's
     # accepted steps rarely land exactly on the apogee, so a raw min()
@@ -63,6 +67,7 @@ def main() -> None:
 
     print(params)
     print(state0)
+    print(f"Burnout time:        {burnout_time:.4f} s")
     print(f"Apogee altitude:     {apogee_altitude:.4f} m")
     print(f"Apogee time:         {apogee_time:.4f} s")
     print(f"Max speed:           {max_speed:.4f} m/s")

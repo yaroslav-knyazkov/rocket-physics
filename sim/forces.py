@@ -22,20 +22,15 @@ sim/gravity.py's `g(t, y, p)` (main.tex SSModels > Gravity;
 architecture.md SS12/SS13) instead of the fixed `p.g`, so the gravity
 model is selected by `p.gravity_model` and defaults to "constant", which
 reproduces Phase 1 bit-for-bit.
+
+Step 14: `thrust_body` now uses the thrust curve from sim/thrust_curve.py,
+replacing the hard-coded T_BURN constant-thrust model.
 """
 
 import numpy as np
 
-from sim import gravity
+from sim import gravity, thrust_curve
 from sim.flow import flow_state
-
-# Hardcoded constant-thrust burn duration. There is no thrust-curve or
-# burnout-event model yet (that arrives in Phase 2 / Step 11); this is the
-# minimal "constant thrust for a fixed duration" needed to make the
-# analytic apogee check in architecture.md/roadmap.md Step 2 computable at
-# all. Lives here (rather than dynamics.py) because it gates `thrust_body`,
-# the function that owns the cutoff behaviour.
-T_BURN = 2.0  # [s]
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
@@ -51,12 +46,12 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
 def thrust_body(t: float, s, p) -> np.ndarray:
     """T = T*x_hat_r (main.tex SSForces), body frame.
 
-    Constant magnitude `p.T` while `t < T_BURN`, zero after -- see the
-    `T_BURN` docstring above for why this cutoff exists at all. Step 11
-    replaces this body with a real (time, thrust) curve; the cutoff-by-time
-    logic goes away then, not before.
+    Now uses the thrust curve from sim/thrust_curve.py instead of a
+    constant magnitude with hard-coded burn time. The thrust curve
+    provides time-varying thrust and automatically cuts off when the
+    curve ends (returns zero after the last defined point).
     """
-    thrust = p.T if t < T_BURN else 0.0
+    thrust = thrust_curve.thrust(t, s, p)
     return np.array([thrust, 0.0])
 
 

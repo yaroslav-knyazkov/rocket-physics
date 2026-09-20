@@ -1,0 +1,9 @@
+# Placeholder solid-motor thrust curve: ignition spike, brief settle,
+# flat sustained burn, then tail-off to zero at burnout.
+# total impulse: 162.75 N*s
+# Format: t_s,thrust_N
+0.0,0.0
+0.05,150.0
+0.1,90.0
+1.6,90.0
+2.0,0.0

@@ -11,6 +11,8 @@ special-casing -- the point is to prove the physics module is genuinely
 solver-agnostic, not to replace RK45 (architecture.md SS1/SS8: "No event
 location, no step control" is an accepted, documented limitation of this
 path, not a bug).
+
+Step 14: Adds burnout event detection for thrust curve cutoff.
 """
 
 from typing import Any, NamedTuple, Optional
@@ -20,12 +22,13 @@ from scipy.integrate import solve_ivp
 
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
+from sim import thrust_curve
 
 
 class Result(NamedTuple):
     t: np.ndarray                     # time samples [s]
     y: np.ndarray                     # state history, shape (6, N)
-    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None}
+    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
 
 
@@ -54,6 +57,45 @@ def _apogee_event(t, y, p):
 
 _apogee_event.terminal = False
 _apogee_event.direction = 1  # vz: negative (rising) -> positive (falling) == apogee
+
+
+_BURNOUT_EPS = 1e-9  # [N], see _burnout_event's docstring
+
+
+def _burnout_event(t, y, p):
+    """Burnout event: triggers when thrust drops to zero after burnout.
+
+    Returns `thrust(t) - _BURNOUT_EPS` so that zero crossings of the
+    *shifted* function indicate burnout. `direction = -1` below restricts
+    detection to falling edges (positive to negative) only.
+
+    No t=0 guard is needed here, unlike `_ground_event`/`_apogee_event`: a
+    motor curve starts at zero thrust and rises (ignition), so the
+    crossing at t=0 is rising, not falling, and `direction=-1` already
+    excludes it.
+
+    The `_BURNOUT_EPS` shift exists for a different, real reason: after
+    burnout (or when `p.motor_curve == ""` and thrust is zero for the
+    whole flight) the event function is *exactly* zero over an extended
+    interval, not just momentarily. `solve_ivp` classifies a step as a
+    "falling" (or "rising") edge using `<=`/`>=` comparisons, so two
+    consecutive samples that are both exactly 0.0 satisfy *both* the
+    falling and rising conditions -- every accepted step in a flat-zero
+    region gets reported as a spurious event (verified directly: with
+    `p.motor_curve == ""`, the unshifted event fires at t=0.0 every time,
+    even though thrust is never positive to begin with). Subtracting a
+    tiny epsilon makes the "thrust is off" region strictly negative
+    instead of exactly zero, which removes the ambiguity: a real burnout
+    still crosses through -_BURNOUT_EPS (shifting the detected time by
+    much less than any physically meaningful resolution), while a
+    genuinely-always-zero curve now stays strictly negative and never
+    triggers at all.
+    """
+    return thrust_curve.thrust(t, y, p) - _BURNOUT_EPS
+
+
+_burnout_event.terminal = False  # Simulation continues past burnout (coast/descent)
+_burnout_event.direction = -1    # Trigger on falling edge (positive to negative)
 
 
 class _LinearInterpolant:
@@ -110,6 +152,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
 
     t_apogee = None
     t_ground = None
+    t_burnout = None
 
     t = 0.0
     y = y0
@@ -143,6 +186,17 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
             t, y = t_ground, y_ground
             break
 
+        # Burnout: thrust crosses from positive to negative (engine cutoff).
+        # No t=0 guard needed here -- see _burnout_event's docstring above:
+        # a motor curve starts at zero and rises, so `thrust_now > 0.0` is
+        # false at t=0 and this cannot fire on ignition, only on cutoff.
+        if t_burnout is None:
+            thrust_now = thrust_curve.thrust(t, y, p)
+            thrust_next = thrust_curve.thrust(t_next, y_next, p)
+            if thrust_now > 0.0 and thrust_next <= 0.0:
+                frac = -thrust_now / (thrust_next - thrust_now)
+                t_burnout = t + frac * dt_step
+
         ts.append(t_next)
         ys.append(y_next)
         t, y = t_next, y_next
@@ -153,7 +207,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     return Result(
         t=t_arr,
         y=y_arr,
-        events={"apogee": t_apogee, "ground": t_ground},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
         raw=_RK4Raw(sol=_LinearInterpolant(t_arr, y_arr)),
     )
 
@@ -187,7 +241,7 @@ def run_sim(
         y0,
         method=method,
         args=(p,),
-        events=[_ground_event, _apogee_event],
+        events=[_ground_event, _apogee_event, _burnout_event],
         dense_output=True,
         rtol=rtol,
         atol=atol,
@@ -195,10 +249,11 @@ def run_sim(
 
     t_ground = sol.t_events[0][0] if len(sol.t_events[0]) else None
     t_apogee = sol.t_events[1][0] if len(sol.t_events[1]) else None
+    t_burnout = sol.t_events[2][0] if len(sol.t_events[2]) else None
 
     return Result(
         t=sol.t,
         y=sol.y,
-        events={"apogee": t_apogee, "ground": t_ground},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
         raw=sol,
     )

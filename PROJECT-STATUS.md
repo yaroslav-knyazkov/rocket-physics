@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 13 — wire atmosphere into flow.py (Flow gains air/q/M/Re); dynamic-pressure aero
-forces.
+Phase 2, Step 16 — Pressure correction to thrust (Step 15, propellant depletion, is optional and
+still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -51,6 +51,40 @@ atmosphere.
   Step 13). 36/36 tests passing. Sea-level values match standard reference exactly (rho=1.225,
   p=101325, T=288.15K, a=340.29 m/s, mu=1.789e-5 Pa*s); tropopause and 5000m checks correct.
   Commit `09950ce`.
+- Step 13 — `sim/flow.py`, `sim/forces.py`, `sim/params.py`: Flow gains air, q=½ρV², M=V/a,
+  Re=ρVl_ref/μ; added aero_model with "constant" and "coefficients" (A_x = qS·C_A0,
+  A_z = qS·C_Nα·α, A_m = qS·d_ref·C_mα·α); added S, d_ref, l_ref, C_A0, C_N_alpha, C_m_alpha to
+  Params. Verified that aero_model="constant" reproduces Step 12 exactly; with "coefficients"
+  drag vanishes at V=0, reverses on descent and falls with altitude. Commit `9b558c1`.
+- Step 14 — `sim/thrust_curve.py` (new): time/thrust table via `lru_cache`d loader + `np.interp`,
+  zero after the last point. Removed the `T_BURN` constant-thrust hack from `sim/forces.py`
+  entirely — `thrust_body` now calls `thrust_curve.thrust(t, s, p)`. Added `motor_curve: str = ""`
+  to `Params` (default reproduces the "no thrust" case, matching every other Phase 2 field's
+  Phase-1-preserving-default pattern; `run.py`'s scenario now sets `motor_curve="placeholder.csv"`
+  explicitly, since the old `T=50.0` field is no longer read by `thrust_body` at all). Added a
+  `burnout` event to both integrators in `sim/integrate.py` (`Result.events["burnout"]`), including
+  a real scipy `solve_ivp` gotcha found and fixed along the way: an event function that stays
+  *exactly* zero over an extended interval (post-burnout, or the whole flight with no curve) gets
+  classified as both a rising and falling edge by scipy's `<=`/`>=` event logic, causing spurious
+  detections at t=0; fixed with a tiny epsilon shift (`_BURNOUT_EPS = 1e-9` N) on the RK45 path
+  only (the hand-written RK4 path does a direct numeric comparison and doesn't need it).
+  `data/motors/placeholder.csv` is a small illustrative solid-motor-shaped curve (ignition spike to
+  150N, settle to 90N, flat sustain, linear tail-off to 0 by t=2.0s; stated total impulse
+  162.75 N·s, verified by `np.trapezoid` in `tests/test_thrust_curve.py`). 47/47 tests passing (4
+  new thrust-curve tests + 3 new burnout-event tests in `tests/test_integrate.py`; `T_BURN`'s old
+  regression test in `tests/test_dynamics.py` updated to use the new curve, since the field it used
+  to set, `T`, is now inert). This step intentionally changes the trajectory versus Step 13 (a real
+  motor curve replacing a fake constant-thrust rectangle is the point of the step) — there is no
+  bit-for-bit regression claim here, unlike the gravity/atmosphere/aero model-selection steps.
+  Commit pending.
+
+## Step 15 — skipped for now (optional, still blocked)
+Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
+graph and remains blocked: `main.tex` §Current assumptions still states "CoG doesn't change",
+which directly contradicts a time-varying `I(t)`/`l1(t)`/`l2(t)`. Re-checked 2026-09-20 before
+starting Step 16 — still unchanged. Proceeding straight to Step 16 (pressure correction), which
+does not depend on Step 15. Revisit Step 15 if/when the user updates `main.tex` with the CoG/
+inertia-shift derivation.
 
 ## Phase 2 scope (expanded per user request 2026-09-19)
 - Gravity: constant, linear, radial (inverse-square), WGS84 real-data — selectable via
