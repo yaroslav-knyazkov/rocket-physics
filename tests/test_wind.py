@@ -546,6 +546,163 @@ def test_sounding_uses_msl_altitude_not_agl_unlike_analytic_tier():
         os.rmdir(case_dir)
 
 
+# ----------------------------------------------------------------------
+# Tier 3: "field" -- multi-station spatial interpolation (roadmap.md
+# Step 23)
+# ----------------------------------------------------------------------
+
+
+def test_field_single_station_matches_sounding_tier_exactly():
+    """Roadmap Step 23's first stated check: a case folder with a single
+    station reproduces Step 22 ("sounding" tier) exactly, confirmed
+    through the full `wind_inertial`/`wind_horizontal_enu` seam -- not
+    just at the `soundings.interp_field` level, where Step 19's own
+    "one station => tier 2 exactly" guarantee already covers this.
+    Reuses the existing single-station "example" case (LKPR), same as
+    `test_field_single_station_matches_sounding_tier_exactly` in
+    tests/test_atmosphere.py, so no new data is needed for this check.
+    """
+    p_field = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        wind_model="field", sounding_case="example", azimuth_deg=0.0,
+    )
+    p_sounding = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        wind_model="sounding", sounding_case="example", azimuth_deg=0.0,
+    )
+
+    load_case.cache_clear()
+    for t, x, h in [(0.0, 0.0, 0.0), (1.3, 1000.0, 500.0), (7.0, -500.0, 2000.0), (12.0, 300.0, 8000.0)]:
+        y = np.zeros(6)
+        y[X] = x
+        y[Z] = -h
+
+        want = wind_horizontal_enu(t, y, p_sounding)
+        got = wind_horizontal_enu(t, y, p_field)
+
+        assert math.isclose(got[0], want[0], rel_tol=1e-9, abs_tol=1e-9), h
+        assert math.isclose(got[1], want[1], rel_tol=1e-9, abs_tol=1e-9), h
+        assert np.array_equal(wind_inertial(t, y, p_field), wind_inertial(t, y, p_sounding))
+
+
+def _write_opposing_stations_case(case_dir: str, lat_b_deg: float, W: float) -> None:
+    """Write a synthetic two-station case, station FLDWA at (lat=0,
+    lon=0) with `wdir=0` (wind from due North -- blowing due South) and
+    station FLDWB at (lat=lat_b_deg, lon=0), due *North* of FLDWA, with
+    `wdir=180` (wind from due South -- blowing due North): genuinely
+    opposing directions, not merely a modest ~20 deg difference like
+    `data/soundings/field_example/` (built for Step 20's atmosphere
+    tier-3 tests).
+
+    Both stations share the same altitude nodes and the same constant
+    `wspd=W` at every node -- only `wdir` differs -- so `(u, v)` at every
+    node is exactly `(0, -W)` for FLDWA and exactly `(0, +W)` for FLDWB
+    (meteorological ENU conversion, `sim/soundings.py`'s docstring),
+    independent of altitude.
+
+    Cardinal (North-South) separation, not diagonal, same "keep it
+    cardinal" consideration `data/soundings/field_example/` (Step
+    19/20) already established for the tangent-plane projection.
+    """
+    os.makedirs(case_dir, exist_ok=True)
+    nodes = [0.0, 5000.0, 11000.0]
+
+    def _write(station: str, lat_deg: float, wdir_deg: float) -> None:
+        lines = [
+            f"# station: {station}",
+            f"# lat_deg: {lat_deg}",
+            "# lon_deg: 0.0",
+            "# elevation_m: 0.0",
+            "# time_utc: 2026-01-01T00:00:00Z",
+            "h_msl_m,p_Pa,T_K,wdir_deg,wspd_ms",
+        ]
+        for h in nodes:
+            p_placeholder = 101325.0 * math.exp(-h / 8000.0)
+            T_placeholder = 288.15 - 0.0065 * h
+            lines.append(f"{h},{p_placeholder},{T_placeholder},{wdir_deg},{W}")
+        path = os.path.join(case_dir, f"{station}_202601010000.csv")
+        with open(path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+
+    _write("FLDWA", 0.0, wdir_deg=0.0)
+    _write("FLDWB", lat_b_deg, wdir_deg=180.0)
+
+
+def test_field_two_opposing_stations_wind_reverses_smoothly_along_ground_track():
+    """Roadmap Step 23's second stated check: with two stations of
+    opposing wind direction, the wind sampled along the ground track
+    reverses smoothly.
+
+    `p.azimuth_deg = 0.0` (North-facing flight plane, `+x = North`) and
+    the two stations are placed North-South of each other (FLDWA at the
+    tangent-plane origin, FLDWB `D_m` due North), matching the ground
+    track `(E, N) = (x*sin(A), x*cos(A)) = (0, x)` -- a straight line
+    from FLDWA to FLDWB with no East-West drift, same "keep it cardinal"
+    reasoning as `sim.soundings.interp_field`'s own docstring.
+
+    With `A = 0`, `w_along = u*sin(0) + v*cos(0) = v`. FLDWA's `v = -W`
+    (wdir=0, a pure headwind against the `+x`-North flight direction);
+    FLDWB's `v = +W` (wdir=180, a pure tailwind) -- derived directly from
+    the ENU conversion, not asserted blindly.
+
+    Monotonicity is not asserted blindly either: IDW weight `w_A(x) =
+    f(d_A^2)/(f(d_A^2)+f(d_B^2))` with `f(d^2) = 1/(d^2+eps^2)`. Along the
+    straight segment between the two stations, `d_A^2 = x^2` is strictly
+    increasing in `x` and `d_B^2 = (D_m - x)^2` is strictly decreasing, so
+    `f(d_A^2)` is strictly decreasing and `f(d_B^2)` is strictly
+    increasing; `w_A = 1/(1 + f(d_B^2)/f(d_A^2))` is therefore strictly
+    decreasing in `x` (the ratio `f(d_B^2)/f(d_A^2)` is strictly
+    increasing, being a ratio of an increasing over a decreasing positive
+    function), and `w_B = 1 - w_A` strictly increasing. The combined
+    `v = w_A*(-W) + w_B*(+W) = W*(w_B - w_A)` is then strictly increasing
+    in `x` over the whole sweep -- so `w_along` must change sign exactly
+    once, monotonically, not merely flip.
+    """
+    D_m = 20000.0  # separation [m], >> idw_epsilon_m's default 500 m
+    W = 9.0
+
+    p_probe = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)  # only for its R_e default
+    lat_b_deg = math.degrees(D_m / p_probe.R_e)
+
+    case = "test_wind_field_opposing"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    _write_opposing_stations_case(case_dir, lat_b_deg, W)
+
+    try:
+        load_case.cache_clear()
+        p = Params(
+            m=0.5, I=0.05, l1=0.3, l2=0.4,
+            wind_model="field", sounding_case=case, azimuth_deg=0.0,
+            lat0_deg=0.0, lon0_deg=0.0,
+        )
+
+        xs = np.linspace(0.0, D_m, 11)
+        w_alongs = []
+        for x in xs:
+            y = np.zeros(6)
+            y[X] = float(x)
+            y[Z] = 0.0  # pad altitude, h_msl = 0 -- exactly node 0 of both stations
+            w_alongs.append(wind_inertial(0.0, y, p)[0])
+
+        # Strictly increasing across the whole sweep (headwind -> tailwind).
+        assert all(a < b for a, b in zip(w_alongs, w_alongs[1:])), w_alongs
+
+        # Near FLDWA: dominated by its headwind (negative); near FLDWB:
+        # dominated by its tailwind (positive).
+        assert w_alongs[0] < 0.0
+        assert w_alongs[-1] > 0.0
+
+        # Exactly one sign change across the sweep -- no oscillation.
+        signs = [w > 0.0 for w in w_alongs]
+        transitions = sum(1 for a, b in zip(signs, signs[1:]) if a != b)
+        assert transitions == 1
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
 def test_unknown_wind_model_raises_keyerror():
     """No input validation (architecture.md SS7/SS12), same as
     atmosphere.py's and gravity.py's dispatch tables: an unrecognised

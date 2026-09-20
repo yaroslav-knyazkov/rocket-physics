@@ -17,8 +17,8 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 23 — Wind tier 3: multi-station spatial interpolation (Step 15, propellant
-depletion, is optional and still blocked — see below)
+Phase 2, Step 24 — (optional) Interpolation in time between sounding snapshots (Step 15,
+propellant depletion, is optional and still blocked — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -195,6 +195,17 @@ atmosphere.
   component exactly as `-W·cos(wdir)` predicts; the real `example` (LKPR) case's wind genuinely
   veers 210°→265° from 380m to 10000m, confirmed against hand-computed expected values at each
   data row; MSL (not AGL) altitude convention confirmed via `h0_m`. Commit `1c10109`.
+- Step 23 — `sim/wind.py`: tier 3, `"field"` — `_field_wind` delegates to
+  `soundings.interp_field(p.sounding_case, y, h_msl, p)` (Step 19's horizontal-combination
+  machinery, same call `atmosphere._field_air_state` makes at Step 20) and reuses tier 2's exact
+  ENU→flight-plane projection unchanged. 6 executable lines, as the roadmap itself predicted
+  ("reusing the Step 19 weighting machinery unchanged... a handful of lines"). No new `Params`
+  fields. This closes out all three wind tiers (analytic/sounding/field), mirroring the atmosphere
+  tiers exactly. 88/88 tests passing (2 new): a single-station case reproduces the `"sounding"`
+  tier exactly through the full `wind_inertial` seam; a new synthetic two-station case with
+  genuinely opposing wind directions (0°/180°, cardinal N-S placement) shows the along-plane wind
+  component increasing strictly monotonically across an 11-point ground-track sweep, negative near
+  one station and positive near the other, crossing zero exactly once. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

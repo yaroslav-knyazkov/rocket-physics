@@ -4,8 +4,8 @@
 Tier 1, "analytic" (constant direction + power-law shear + optional
 deterministic gusts), was implemented at Step 21. Tier 2, "sounding" (one
 station's measured `(u, v)` profile, interpolated in altitude via
-sim/soundings.py), is added at this step (Step 22). Tier 3, "field" (N
-stations, spatially interpolated, SS17), arrives at Step 23.
+sim/soundings.py), was added at Step 22. Tier 3, "field" (N stations,
+spatially interpolated, SS17), is added at this step (Step 23).
 
 ### The 2D projection limitation (architecture.md SS16)
 
@@ -202,6 +202,33 @@ def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     return (float(w_along), float(w_cross))
 
 
+def _field_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
+    """Tier 3: N stations, spatially interpolated (architecture.md SS16,
+    SS17; roadmap.md Step 23).
+
+    Same `h_msl` convention as `_sounding_wind` above (h_msl = -y[Z] +
+    p.h0_m, not `altitude_agl`). Delegates the horizontal combination
+    *and* altitude interpolation to `sim.soundings.interp_field` (Step
+    19) -- the same call `sim.atmosphere._field_air_state` makes for
+    Step 20 -- then reuses `_sounding_wind`'s own ENU -> flight-plane
+    projection unchanged on the returned `u`/`v`. A single-station case
+    reduces `interp_field`'s weighting to 1.0 for that station (Step 19's
+    own guarantee), so this tier then reproduces `_sounding_wind` above
+    exactly -- roadmap.md Step 23's first stated check.
+    """
+    # Imported here, not at module level, same circular-import reason as
+    # `_sounding_wind` above.
+    from sim import soundings
+
+    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    state = soundings.interp_field(p.sounding_case, y, h_msl, p)
+
+    A = np.radians(p.azimuth_deg)
+    w_along = state.u * np.sin(A) + state.v * np.cos(A)
+    w_cross = state.u * np.cos(A) - state.v * np.sin(A)
+    return (float(w_along), float(w_cross))
+
+
 # Module-private dispatch dict (architecture.md SS12), same pattern as
 # sim/gravity.py's `_GRAVITY_MODELS` / sim/atmosphere.py's `_MODELS`: the
 # public seam is `wind_inertial`/`wind_horizontal_enu`; callers never learn
@@ -213,6 +240,7 @@ _MODELS = {
     "none": _no_wind,
     "analytic": _analytic_wind,
     "sounding": _sounding_wind,
+    "field": _field_wind,
 }
 
 
