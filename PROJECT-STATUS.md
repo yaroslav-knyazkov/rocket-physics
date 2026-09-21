@@ -245,7 +245,7 @@ own dedicated commit before Step 25:
   "restoring" here.
 - `run.py` provably unaffected (its scenario has `A_z=0, A_m=0`, `aero_model="constant"`) —
   confirmed byte-for-byte identical stdout before/after.
-- 89/89 tests passing (1 new). Commit `<pending>`.
+- 89/89 tests passing (1 new). Commit `c2e7537`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

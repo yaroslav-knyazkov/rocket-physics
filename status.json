@@ -29,7 +29,7 @@
     "caveat": "no pitch-rate damping in this model yet (arrives with Step 25) -- verified/asserted claim is 'bounded oscillatory' not 'literal decay to zero'",
     "run_py_impact": "none, confirmed byte-for-byte identical (A_z=A_m=0 in that scenario)",
     "tests": "89/89 passing (1 new)",
-    "commit": "pending"
+    "commit": "c2e7537"
   },
   "flagged_issues_step19": [
     {"issue": "equirectangular tangent-plane projection's error vs great-circle grows with diagonal (non-cardinal) displacement and can exceed 0.1% for diagonal offsets approaching 100km at mid-latitudes, even though it stays under cardinal-direction offsets at any distance and moderate diagonals (~35km). This is an expected property of the projection architecture.md SS17 itself specifies, not a bug. Worth remembering when picking station positions for Step 20/23 field-tier test fixtures -- avoid relying on exact <0.1% distance claims for far diagonal placements."}
