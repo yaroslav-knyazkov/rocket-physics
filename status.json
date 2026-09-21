@@ -22,7 +22,7 @@
   ],
   "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
   "phase2_step27_completed": {
-    "commit": "pending",
+    "commit": "9291b32",
     "note": "run.py gains sweep(base_params,field,values,s0) -- the dataclasses.replace idiom architecture.md SS12 itself specifies -- plus a printed summary table (apogee alt/time, max-Q via flow_state, impact time). sim/plotting.py gains plot_trajectory_overlay (flight-path + altitude-vs-time panels). Two sweeps by default: 4 gravity models, and isa vs real LKPR sounding (aero_model=coefficients so atmosphere is load-bearing). Single-run scenario/output completely unaffected (confirmed byte-identical). 114/114 tests passing (5 new): sane per-variant summaries; gravity apogee ordering physically predictable; atmosphere sweep confirms real sounding gives higher apogee/lower max-Q than isa (less dense, less drag); gravity divergence small (<1%) at ~4.6km but clearly visible (~8x larger) at 100km, exactly the roadmap's stated check; overlay plot valid. THIS STEP CLOSES OUT PHASE 2 -- every model in main.tex Models implemented and selectable."
   },
   "phase2_milestone_complete": {

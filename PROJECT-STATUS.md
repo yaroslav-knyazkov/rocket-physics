@@ -331,7 +331,7 @@ own dedicated commit before Step 25:
   isa                   682.3775        9.5833    23066.9337       25.9148
   sounding              685.1434        9.6047    23002.8091       25.9532
   ```
-  Commit `<pending>`.
+  Commit `9291b32`.
 
 ## Phase 2 milestone: COMPLETE
 Every model family in `main.tex` §Models is implemented and selectable via a `Params` string field:
