@@ -1,0 +1,29 @@
+# Synthetic aerodynamic-coefficient table for a generic fin-stabilized
+# rocket -- placeholder data (roadmap.md Step 25), analogous in spirit to
+# data/motors/placeholder.csv: not measured, just illustrates the table
+# format and the qualitative trends a real Barrowman-style analysis shows
+# -- C_A rises through the transonic drag hump near M=1 and falls off
+# supersonically; C_N's effective alpha-slope peaks near M=1 and drops off
+# supersonically; C_m is a restoring (negative-slope) moment coefficient;
+# and the CoP (l1_m, the CoP-to-CoG distance -- same quantity as Params.l1)
+# moves aft with increasing Mach. Every row keeps l1_m > 0 (CoP aft of the
+# CoG, main.tex SSGeometry, corrected 2026-09-20) -- statically stable
+# across the whole table.
+#
+# Grid: alpha_deg in {-10, 0, 10}, M in {0.5, 1.0, 2.0} -- 9 rows, a
+# rectangular (M, alpha) grid (sim/aero.py's loader requires every M row
+# to share the same alpha grid). sim/aero.py brackets in M (clamped at the
+# edges, no extrapolation) and interpolates with np.interp in alpha within
+# each bracketing M row, then linearly blends the two rows.
+#
+# Format: alpha_deg,M,C_A,C_N,C_m,l1_m
+alpha_deg,M,C_A,C_N,C_m,l1_m
+-10,0.5,0.35,-0.5236,0.0873,0.28
+0,0.5,0.30,0.0,0.0,0.28
+10,0.5,0.35,0.5236,-0.0873,0.28
+-10,1.0,0.60,-0.6981,0.1396,0.35
+0,1.0,0.55,0.0,0.0,0.35
+10,1.0,0.60,0.6981,-0.1396,0.35
+-10,2.0,0.45,-0.4363,0.0524,0.32
+0,2.0,0.40,0.0,0.0,0.32
+10,2.0,0.45,0.4363,-0.0524,0.32

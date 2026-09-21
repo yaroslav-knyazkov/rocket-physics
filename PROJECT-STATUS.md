@@ -17,7 +17,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 25 — Aerodynamic coefficients as functions of α and M (Step 15, propellant
+Phase 2, Step 26 — (network approval granted) Offline sounding fetch script (Step 15, propellant
 depletion, and Step 24, time interpolation between sounding snapshots, are both optional and
 deferred — see below)
 
@@ -246,6 +246,36 @@ own dedicated commit before Step 25:
 - `run.py` provably unaffected (its scenario has `A_z=0, A_m=0`, `aero_model="constant"`) —
   confirmed byte-for-byte identical stdout before/after.
 - 89/89 tests passing (1 new). Commit `c2e7537`.
+
+## Phase 2 progress (continued)
+- Step 25 — `sim/aero.py` (new): `C_A(α,M)`, `C_N(α,M)`, `C_m(α,M)`, `cop_l1(α,M)` — table-driven
+  via `p.aero_table` (own design, since architecture.md §19 leaves the exact column format
+  unspecified: `alpha_deg,M,C_A,C_N,C_m,l1_m` rows, rectangular `(M,α)` grid, `np.interp` in α
+  within each bracketing M row then linearly blended across the M bracket, clamped — not
+  extrapolated — outside the M range), with the existing `Params` constants (`C_A0`, `C_N_alpha`,
+  `C_m_alpha`, `l1`) as the exact fallback when `p.aero_table==""` (default). New
+  `data/aero/example.csv`: synthetic, illustrative fin-rocket-shaped table (transonic drag hump,
+  peak normal-force slope near M=1, restoring `C_m`, CoP moving aft with Mach), every row keeping
+  `l1_m > 0` (stable per the just-corrected sign convention). `sim/forces.py`'s `"coefficients"`
+  regime now calls `aero.C_A`/`C_N`/`C_m` instead of inline formulas (bit-for-bit unchanged when no
+  table). `sim/dynamics.py`'s `derivatives()` now computes `l1_aero = aero.cop_l1(flow.alpha,
+  flow.M, p)` for `aA` (the CoP position) only — `aB` (the thrust exit point, a fixed mechanical
+  point on the body) deliberately stays on the constant `p.l1`, since coupling it to the moving CoP
+  would invent an unspecified thrust-misalignment effect outside this step's scope. This needed one
+  extra `flow_state` call in `dynamics.py` beyond a pure constant-to-function swap — flagged as a
+  small, deliberate exception to the roadmap's general "dynamics.py doesn't change in Phase 2"
+  note, not a structural change. 96/96 tests passing (7 new): table lookup verified against an
+  independent hand computation of the same bilinear formula; exact-grid-point lookup with zero
+  interpolation error; edge-clamping (no extrapolation); malformed non-rectangular table rejected
+  with `ValueError`; no-table path reproduces every pre-Step-25 formula bit-for-bit including
+  through the full `dynamics.derivatives()` seam; a decisive check that `dynamics.py` actually uses
+  the table's `l1` and not a deliberately-absurd stale `p.l1=999.0`; and a full-trajectory
+  weathercocking check extending the sign-fix commit's off-axis scenario through the real
+  table-driven path. Same honesty finding as the sign-fix commit, re-verified with the real table
+  (not assumed): `alpha(t)` stays bounded and oscillatory (`[-0.150, -0.0998, 0.0548, 0.0433,
+  -0.0930, -0.0636]` rad over `t=0..5s`), not decaying to zero — this model still has no
+  pitch-rate-damping term anywhere, so genuine decay isn't physically achievable at this step
+  regardless of the table's nonlinearity. Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency

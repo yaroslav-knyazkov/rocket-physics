@@ -25,11 +25,17 @@ reproduces Phase 1 bit-for-bit.
 
 Step 14: `thrust_body` now uses the thrust curve from sim/thrust_curve.py,
 replacing the hard-coded T_BURN constant-thrust model.
+
+Step 25: the "coefficients" regime's `C_A`/`C_N`/`C_m` are no longer
+inline `Params`-constant formulas -- they are delegated to sim/aero.py,
+which is table-driven (`p.aero_table`) with the exact same constant
+formulas as the fallback (architecture.md SS19). Bit-for-bit unchanged
+when `p.aero_table == ""` (the default).
 """
 
 import numpy as np
 
-from sim import gravity, thrust_curve
+from sim import aero, gravity, thrust_curve
 from sim.flow import flow_state
 
 
@@ -66,16 +72,21 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     Step 13: two regimes:
       * "constant": use the constant magnitudes p.A_x, p.A_z (Phase 1 behaviour)
       * "coefficients": compute from dynamic pressure and coefficients:
-            A_x = q * S * C_A0
-            A_z = q * S * C_N_alpha * alpha
+            A_x = q * S * C_A(alpha, M)
+            A_z = q * S * C_N(alpha, M)
+
+    Step 25: `C_A`/`C_N` come from sim/aero.py, which is table-driven
+    (`p.aero_table`) with `p.C_A0`/`p.C_N_alpha*alpha` as the fallback --
+    i.e. identical numbers to the pre-Step-25 formulas above when no
+    table is configured.
     """
     flow = flow_state(t, s, p)
     if p.aero_model == "constant":
         A_x = p.A_x
         A_z = p.A_z
     elif p.aero_model == "coefficients":
-        A_x = flow.q * p.S * p.C_A0
-        A_z = flow.q * p.S * p.C_N_alpha * flow.alpha
+        A_x = flow.q * p.S * aero.C_A(flow.alpha, flow.M, p)
+        A_z = flow.q * p.S * aero.C_N(flow.alpha, flow.M, p)
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
     return -A_x * flow.u_hat - A_z * flow.n_hat
@@ -90,13 +101,17 @@ def aero_moment_y(t: float, s, p) -> float:
     Step 13: two regimes:
       * "constant": use the constant magnitude p.A_m (Phase 1 behaviour)
       * "coefficients": compute from dynamic pressure and coefficients:
-            A_m = q * S * d_ref * C_m_alpha * alpha
+            A_m = q * S * d_ref * C_m(alpha, M)
+
+    Step 25: `C_m` comes from sim/aero.py, table-driven (`p.aero_table`)
+    with `p.C_m_alpha*alpha` as the fallback -- identical numbers to the
+    pre-Step-25 formula above when no table is configured.
     """
     flow = flow_state(t, s, p)
     if p.aero_model == "constant":
         A_m = p.A_m
     elif p.aero_model == "coefficients":
-        A_m = flow.q * p.S * p.d_ref * p.C_m_alpha * flow.alpha
+        A_m = flow.q * p.S * p.d_ref * aero.C_m(flow.alpha, flow.M, p)
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
     return -A_m

@@ -44,6 +44,8 @@ structure.
 
 import numpy as np
 
+from sim import aero
+from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
 from sim.state import OMEGA, THETA, VX, VZ, X, Z
@@ -95,7 +97,31 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # `A_z ~ alpha` -- see main.tex SSGeometry's correction note.)
     # `aB = aA + AB` with the unchanged `AB = -l2*x_hat_r` (thrust point at
     # the tail): `aB = -(l1 + l2)*x_hat_r`.
-    aA = np.array([-p.l1, 0.0])            # CoP position
+    #
+    # Step 25 (architecture.md SS19, "CoP travel"): `aA`'s `l1` is no
+    # longer necessarily the constant `p.l1` -- `aero.cop_l1(alpha, M, p)`
+    # looks it up from `p.aero_table` when one is configured, falling
+    # back to the constant `p.l1` otherwise (bit-for-bit the line this
+    # replaces). This is the one seam through which a table-driven CoP
+    # location reaches the moment equation without otherwise
+    # restructuring this function -- an extra `flow_state` call, matching
+    # the existing (already-not-cached, per architecture.md SS21)
+    # `aero_moment_y` call below, which recomputes `flow_state` a second
+    # time on its own.
+    #
+    # `aB` deliberately keeps the constant `p.l1` (not the dynamic CoP
+    # location): B is the thrust exit point, a fixed mechanical point on
+    # the body that does not move just because the CoP does. Only `aA`
+    # (the CoP's own position) is meant to travel -- architecture.md SS19
+    # says "l1 [the aero moment arm] becomes a function of (alpha, M)",
+    # nothing about the thrust attachment point. Coupling `aB` to the
+    # moving CoP too would invent an unspecified thrust-misalignment
+    # effect (that is explicitly a *future* gimbal-model concern, per the
+    # "on-axis thrust ... intentionally zero today" comment below) rather
+    # than model the CoP travel this step actually asks for.
+    flow = flow_state(t, y, p)
+    l1_aero = aero.cop_l1(flow.alpha, flow.M, p)
+    aA = np.array([-l1_aero, 0.0])         # CoP position
     aB = np.array([-(p.l1 + p.l2), 0.0])   # thrust application point
 
     # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel

@@ -41,6 +41,12 @@ class Params:
     C_m_alpha: float = 0.0  # pitching moment coefficient slope [1/rad]
     aero_model: str = "constant"  # "constant" or "coefficients"
 
+    # Step 25: aero coefficients as functions of (alpha, M) (architecture.md
+    # SS19; sim/aero.py). "" = no table; the constants above (and the
+    # constant p.l1 CoP-to-CoG distance) are used as-is, reproducing every
+    # pre-Step-25 "coefficients" result bit-for-bit.
+    aero_table: str = ""  # file under data/aero/; "" = use the constants above
+
     # model selection (architecture.md SS12)
     gravity_model: str = "constant"     # constant | linear | radial | wgs84
     atmosphere_model: str = "isa"       # isa | sounding | field

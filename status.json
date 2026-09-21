@@ -2,7 +2,8 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step25",
+  "current_stage": "phase2-step26",
+  "step26_network_approved": {"date": "2026-09-21", "answer": "yes, implement tools/fetch_sounding.py now"},
   "phase2_completed_steps": [
     {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
     {"step": 10, "name": "gravity models: constant, linear, radial", "commit": "1f8c641", "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"},
@@ -20,6 +21,10 @@
     {"step": 23, "name": "Wind tier 3: multi-station spatially interpolated data", "commit": "b1fb9fb", "note": "sim/wind.py gains _field_wind (tier 3, delegates to soundings.interp_field from Step 19, reuses tier 2's ENU projection unchanged). 6 executable lines, matching roadmap's own 'handful of lines' prediction. No new Params fields. Closes out all three wind tiers. 88/88 tests passing (2 new): single-station case reproduces sounding tier exactly; new synthetic two-station opposing-wind case (0/180deg, N-S) shows along-plane wind increasing strictly monotonically across an 11-point sweep, crossing zero exactly once."}
   ],
   "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
+  "phase2_step25_completed": {
+    "commit": "pending",
+    "note": "sim/aero.py (new): C_A/C_N/C_m/cop_l1(alpha,M), table-driven via p.aero_table (own column format: alpha_deg,M,C_A,C_N,C_m,l1_m, rectangular (M,alpha) grid, np.interp in alpha bracketed/blended in M, clamped not extrapolated outside M range), Params constants as exact fallback when aero_table='' (default). data/aero/example.csv: synthetic fin-rocket table, l1_m>0 throughout (stable). forces.py's coefficients regime delegates to aero.C_A/C_N/C_m. dynamics.py's derivatives() uses aero.cop_l1(flow.alpha,flow.M,p) for aA only (not aB, which stays on constant p.l1 -- thrust exit point doesn't move with the CoP); needed one extra flow_state() call, flagged as a small deliberate exception to 'dynamics.py doesn't change in Phase 2'. 96/96 tests passing (7 new). Same honesty finding as the sign fix, re-verified with the real table: alpha stays bounded/oscillatory, not decaying (no pitch-rate damping term exists in this model)."
+  },
   "sign_convention_fix_pre_step25": {
     "date": "2026-09-20/21",
     "issue": "architect flagged (architecture.md SS19/SS22 item 5) that main.tex's original geometry (Aa=-l1*x_hat_r) makes a linear normal aero force divergent, not restoring, for any positive l1 -- static stability needs CoP aft of CoG",
