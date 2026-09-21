@@ -22,7 +22,7 @@
   ],
   "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
   "phase2_step25_completed": {
-    "commit": "pending",
+    "commit": "c4fe830",
     "note": "sim/aero.py (new): C_A/C_N/C_m/cop_l1(alpha,M), table-driven via p.aero_table (own column format: alpha_deg,M,C_A,C_N,C_m,l1_m, rectangular (M,alpha) grid, np.interp in alpha bracketed/blended in M, clamped not extrapolated outside M range), Params constants as exact fallback when aero_table='' (default). data/aero/example.csv: synthetic fin-rocket table, l1_m>0 throughout (stable). forces.py's coefficients regime delegates to aero.C_A/C_N/C_m. dynamics.py's derivatives() uses aero.cop_l1(flow.alpha,flow.M,p) for aA only (not aB, which stays on constant p.l1 -- thrust exit point doesn't move with the CoP); needed one extra flow_state() call, flagged as a small deliberate exception to 'dynamics.py doesn't change in Phase 2'. 96/96 tests passing (7 new). Same honesty finding as the sign fix, re-verified with the real table: alpha stays bounded/oscillatory, not decaying (no pitch-rate damping term exists in this model)."
   },
   "sign_convention_fix_pre_step25": {

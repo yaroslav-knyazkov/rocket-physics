@@ -275,7 +275,7 @@ own dedicated commit before Step 25:
   (not assumed): `alpha(t)` stays bounded and oscillatory (`[-0.150, -0.0998, 0.0548, 0.0433,
   -0.0930, -0.0636]` rad over `t=0..5s`), not decaying to zero — this model still has no
   pitch-rate-damping term anywhere, so genuine decay isn't physically achievable at this step
-  regardless of the table's nonlinearity. Commit `<pending>`.
+  regardless of the table's nonlinearity. Commit `c4fe830`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
