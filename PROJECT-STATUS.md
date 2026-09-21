@@ -17,9 +17,9 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 26 — (network approval granted) Offline sounding fetch script (Step 15, propellant
-depletion, and Step 24, time interpolation between sounding snapshots, are both optional and
-deferred — see below)
+Phase 2, Step 27 — Model comparison sweep and overlay plots (the last step — Phase 2 milestone).
+Step 15, propellant depletion, and Step 24, time interpolation between sounding snapshots, are
+both optional and deferred — see below
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -276,6 +276,34 @@ own dedicated commit before Step 25:
   -0.0930, -0.0636]` rad over `t=0..5s`), not decaying to zero — this model still has no
   pitch-rate-damping term anywhere, so genuine decay isn't physically achievable at this step
   regardless of the table's nonlinearity. Commit `c4fe830`.
+- Step 26 — `tools/fetch_sounding.py` (new, approved by the user — the only part of the project
+  that touches the network): a hand-run CLI, never imported by `sim/`, fetching from the
+  University of Wyoming radiosonde archive's current live endpoint
+  (`https://weather.arcc.uwyo.edu/wsgi/sounding` — the older `weather.uwyo.edu` host has moved;
+  discovered by fetching it directly since a research subagent's session lacked Firecrawl this
+  time). `robots.txt` there disallows `/wsgi`, the actual data endpoint — used anyway with the
+  user's explicit, informed approval (a hand-run, occasional, single-request tool, not the
+  bulk/automated crawling robots.txt is aimed at), documented transparently in the script's
+  docstring and in every file's `# source:` line. Splits network I/O (`fetch_raw`) from pure logic
+  (`parse_response`/`resample_rows`/`format_canonical`) so the parsing path is unit-testable
+  offline. Resamples the archive's ~1-second-resolution response (thousands of rows) down to a
+  configurable altitude step (default 250 m, nearest-sample) before writing the canonical CSV
+  format. Handles the archive's "no data" case (confirmed live: HTTP 404 with a plain-text body,
+  not the 200 originally assumed) as a clear `SoundingFetchError`. 109/109 tests passing (13 new,
+  all offline against a captured response fixture — no live network call in the automated suite).
+  Live end-to-end verification (station 72672, 2024-01-15 12:00Z): 5040 raw rows → 122 resampled,
+  written to `data/soundings/example_live/72672_202401151200.csv` (kept, committed, as a genuine
+  real-data worked example alongside the earlier hand-crafted ones), loads with zero edits via
+  `sim.soundings.load_case`, physically sane values throughout (elevation 1699m closely matches
+  station 72672/KRIW's real ~1697m elevation — a good independent sanity check the unit
+  conversions and metadata convention are correct). Commit `<pending>`.
+
+## Phase 2 milestone reached
+Steps 9-23 and 25-26 all complete (Step 15 optional/blocked, Step 24 optional/deferred). Every
+model family in `main.tex` §Models is now implemented and selectable: gravity (4 variants),
+atmosphere (3 tiers), wind (3 tiers), thrust curve + pressure correction, and Mach/α-dependent aero
+coefficients with CoP travel. Only Step 27 (the comparison-sweep payoff step) remains to close out
+Phase 2.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
