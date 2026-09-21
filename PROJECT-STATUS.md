@@ -296,7 +296,7 @@ own dedicated commit before Step 25:
   real-data worked example alongside the earlier hand-crafted ones), loads with zero edits via
   `sim.soundings.load_case`, physically sane values throughout (elevation 1699m closely matches
   station 72672/KRIW's real ~1697m elevation — a good independent sanity check the unit
-  conversions and metadata convention are correct). Commit `<pending>`.
+  conversions and metadata convention are correct). Commit `00a576a`.
 
 ## Phase 2 milestone reached
 Steps 9-23 and 25-26 all complete (Step 15 optional/blocked, Step 24 optional/deferred). Every

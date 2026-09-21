@@ -22,7 +22,7 @@
   ],
   "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
   "phase2_step26_completed": {
-    "commit": "pending",
+    "commit": "00a576a",
     "note": "tools/fetch_sounding.py (new, network-approved, never imported by sim/): fetches from weather.arcc.uwyo.edu/wsgi/sounding (moved from the older weather.uwyo.edu; robots.txt disallows /wsgi, used anyway with explicit user approval, documented transparently). Splits fetch_raw (network) from parse_response/resample_rows/format_canonical (pure, offline-testable). Resamples ~1s-resolution response to configurable altitude step (default 250m). Handles the archive's no-data case (HTTP 404 + plain text, confirmed live) as SoundingFetchError. 109/109 tests passing (13 new, offline). Live-verified: station 72672 2024-01-15 12:00Z, 5040 raw rows -> 122 resampled, written to data/soundings/example_live/, loads with zero edits via sim.soundings.load_case, elevation 1699m matches real KRIW elevation ~1697m."
   },
   "phase2_step25_completed": {
