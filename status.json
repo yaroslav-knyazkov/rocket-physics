@@ -2,7 +2,7 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step24",
+  "current_stage": "phase2-step25",
   "phase2_completed_steps": [
     {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
     {"step": 10, "name": "gravity models: constant, linear, radial", "commit": "1f8c641", "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"},
@@ -19,6 +19,18 @@
     {"step": 22, "name": "Wind tier 2: single-station sounding data", "commit": "1c10109", "note": "sim/wind.py gains _sounding_wind (tier 2, loads p.sounding_case via soundings.load_case, first station only, interp_altitude for ENU u/v at MSL altitude, not AGL). Projects ENU onto flight plane via w_along=u*sin(A)+v*cos(A), w_cross=u*cos(A)-v*sin(A) -- derived from scratch and verified algebraically consistent with tier 1's wdir-based formula. No new format/loader/Params field. 86/86 tests passing (6 new): constant-wind sounding matches analytic tier at shear_exp=0; synthetic veering profile matches -W*cos(wdir) exactly; real LKPR example case wind veers 210->265deg from 380m to 10000m, confirmed against hand-computed values; MSL convention confirmed."},
     {"step": 23, "name": "Wind tier 3: multi-station spatially interpolated data", "commit": "b1fb9fb", "note": "sim/wind.py gains _field_wind (tier 3, delegates to soundings.interp_field from Step 19, reuses tier 2's ENU projection unchanged). 6 executable lines, matching roadmap's own 'handful of lines' prediction. No new Params fields. Closes out all three wind tiers. 88/88 tests passing (2 new): single-station case reproduces sounding tier exactly; new synthetic two-station opposing-wind case (0/180deg, N-S) shows along-plane wind increasing strictly monotonically across an 11-point sweep, crossing zero exactly once."}
   ],
+  "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
+  "sign_convention_fix_pre_step25": {
+    "date": "2026-09-20/21",
+    "issue": "architect flagged (architecture.md SS19/SS22 item 5) that main.tex's original geometry (Aa=-l1*x_hat_r) makes a linear normal aero force divergent, not restoring, for any positive l1 -- static stability needs CoP aft of CoG",
+    "user_clarification": "l1/l2 stay positive (both measured from the nose tip) -- fix is a corrected geometry, not a negative l1",
+    "main_tex_commit": "ac2cff2",
+    "code_fix": "sim/dynamics.py: aA=(-l1,0), aB=(-(l1+l2),0); tests/test_forces.py Step 6 regression re-derived to M_y=-l1*A_z-A_m; scanned all tests using the Step-21-flagged unstable fixture (l1=0.3,C_N_alpha=2.0,C_m_alpha=-0.5), none needed changes; new test demonstrates bounded/restoring alpha under corrected sign vs alpha(1s)~-2.19rad (divergent) reconstructed with old sign for contrast",
+    "caveat": "no pitch-rate damping in this model yet (arrives with Step 25) -- verified/asserted claim is 'bounded oscillatory' not 'literal decay to zero'",
+    "run_py_impact": "none, confirmed byte-for-byte identical (A_z=A_m=0 in that scenario)",
+    "tests": "89/89 passing (1 new)",
+    "commit": "pending"
+  },
   "flagged_issues_step19": [
     {"issue": "equirectangular tangent-plane projection's error vs great-circle grows with diagonal (non-cardinal) displacement and can exceed 0.1% for diagonal offsets approaching 100km at mid-latitudes, even though it stays under cardinal-direction offsets at any distance and moderate diagonals (~35km). This is an expected property of the projection architecture.md SS17 itself specifies, not a bug. Worth remembering when picking station positions for Step 20/23 field-tier test fixtures -- avoid relying on exact <0.1% distance claims for far diagonal placements."}
   ],

@@ -36,9 +36,10 @@ needed for moments, only for the translational forces above.
 in the (x_hat_r, z_hat_r) plane. With `x_hat_r x z_hat_r = -y_hat_r`
 (architecture.md SS2), the y-component of `a x b` for `a = (a_x, a_z)`,
 `b = (b_x, b_z)` is `-(a_x*b_z - a_z*b_x)`. Both cross products are written
-out explicitly (rather than only the pre-simplified scalar `l1*A_z - A_m`)
-so that a future gimbal or thrust-misalignment model drops in without
-touching this function's structure.
+out explicitly (rather than only the pre-simplified scalar
+`-l1*A_z - A_m`, per the corrected geometry below) so that a future gimbal
+or thrust-misalignment model drops in without touching this function's
+structure.
 """
 
 import numpy as np
@@ -82,10 +83,20 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
     a_i = F_i / p.m
 
-    # Geometry (main.tex SSGeometry): both points lie along the body x-axis,
-    # relative to the CoG.
-    aA = np.array([p.l1, 0.0])         # CoP position
-    aB = np.array([p.l1 - p.l2, 0.0])  # thrust application point
+    # Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
+    # along the body x-axis, relative to the CoG. `l1`, `l2` are positive,
+    # nose-tip-referenced distances; `x_hat_r` points toward the nose. A
+    # statically stable rocket has its CoP (A) farther from the nose tip
+    # than its CoG (a) -- i.e. aft of the CoG along `x_hat_r` -- so `aA`
+    # (the CoG-to-CoP vector) points in the *negative* `x_hat_r` direction:
+    # `aA = -l1*x_hat_r`. (The previous `aA = +l1*x_hat_r` put the CoP
+    # forward of the CoG for any positive `l1`, which is aerodynamically
+    # divergent rather than restoring for a linear normal force
+    # `A_z ~ alpha` -- see main.tex SSGeometry's correction note.)
+    # `aB = aA + AB` with the unchanged `AB = -l2*x_hat_r` (thrust point at
+    # the tail): `aB = -(l1 + l2)*x_hat_r`.
+    aA = np.array([-p.l1, 0.0])            # CoP position
+    aB = np.array([-(p.l1 + p.l2), 0.0])   # thrust application point
 
     # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
     # to T) produces zero pitching moment -- this term is intentionally zero

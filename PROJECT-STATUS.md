@@ -17,8 +17,9 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 24 — (optional) Interpolation in time between sounding snapshots (Step 15,
-propellant depletion, is optional and still blocked — see below)
+Phase 2, Step 25 — Aerodynamic coefficients as functions of α and M (Step 15, propellant
+depletion, and Step 24, time interpolation between sounding snapshots, are both optional and
+deferred — see below)
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -206,6 +207,45 @@ atmosphere.
   genuinely opposing wind directions (0°/180°, cardinal N-S placement) shows the along-plane wind
   component increasing strictly monotonically across an 11-point ground-track sweep, negative near
   one station and positive near the other, crossing zero exactly once. Commit `b1fb9fb`.
+
+## Step 24 — skipped for now (optional, deferred as non-trivial)
+Step 24 (time interpolation between sounding snapshots) is marked optional in the roadmap. Skipped
+rather than attempted this pass: it needs a "group multiple time-snapshots per physical station"
+concept that doesn't exist yet in `sim/soundings.py` — right now every CSV file in a case is
+treated as an independent *spatial* station, so feeding it two snapshots of the *same* station
+would currently be silently double-counted by the tier-3 IDW average as two different stations at
+the same location. That's a real design decision, not "a handful of lines" — deferred until there's
+an actual multi-snapshot dataset to design against.
+
+## Sign-convention correction (pre-Step-25, 2026-09-20/21)
+The architect flagged (`architecture.md` §19/§22 item 5) that `main.tex`'s original geometry
+(`Aa = -l1·x̂_r`) makes a linear normal aero force **divergent**, not restoring, for any positive
+`l1` — static stability needs the CoP aft of the CoG. Per the user: `l1`/`l2` are meant to stay
+**positive** throughout (both measured from the nose tip), so the fix is not "make `l1` negative"
+but a corrected geometry: `main.tex`'s `Geometry` subsection now has `Aa = +l1·x̂_r`
+(`aA = -l1·x̂_r`, `aB = -(l1+l2)·x̂_r`) — commit `ac2cff2`. The corresponding code fix landed as its
+own dedicated commit before Step 25:
+- `sim/dynamics.py`: `aA`/`aB` now built as `(-p.l1, 0)` / `(-(p.l1+p.l2), 0)`, matching the
+  corrected `main.tex`.
+- `tests/test_forces.py`: the Step 6 regression test's closed form re-derived and flipped to
+  `M_y = -l1·A_z - A_m` (from `+l1·A_z - A_m`), independently re-derived via `_cross_y`, not just
+  asserted.
+- Scanned every test using the flagged unstable fixture (`l1=0.3, C_N_alpha=2.0, C_m_alpha=-0.5`,
+  first noticed by Step 21's developer) — none needed changes: each either never calls
+  `dynamics.derivatives`/`run_sim` directly, keeps `theta` pinned with zero/symmetric wind so
+  `alpha` stays 0 throughout, or is a differential comparison (old-stub-vs-new, isa-vs-sounding,
+  RK4-vs-RK45) where the sign cancels out on both sides.
+- New test demonstrates the actual physical fix directly (not just algebra): an off-axis launch
+  (`alpha0 = -0.15 rad`) with `aero_model="coefficients"`, `C_N_alpha=2.0`, `l1=0.3` stays
+  **bounded** (`|alpha|` never exceeds its initial magnitude by more than ~1%, oscillatory) under
+  the corrected sign, versus reaching `alpha(1.0s) ≈ -2.19 rad` (~14.6× the initial magnitude, past
+  ±π/2) with the old sign reconstructed for contrast. Honest caveat, confirmed not assumed: this
+  model has no pitch-rate damping yet (arrives with Step 25's real coefficients), so a bounded
+  undamped oscillator — not literal decay to zero — is the correct, verified characterization of
+  "restoring" here.
+- `run.py` provably unaffected (its scenario has `A_z=0, A_m=0`, `aero_model="constant"`) —
+  confirmed byte-for-byte identical stdout before/after.
+- 89/89 tests passing (1 new). Commit `<pending>`.
 
 ## Step 15 — skipped for now (optional, still blocked)
 Step 15 (propellant depletion / variable mass) is marked optional in the roadmap's dependency
