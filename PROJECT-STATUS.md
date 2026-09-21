@@ -17,9 +17,10 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-Phase 2, Step 27 — Model comparison sweep and overlay plots (the last step — Phase 2 milestone).
-Step 15, propellant depletion, and Step 24, time interpolation between sounding snapshots, are
-both optional and deferred — see below
+**Phase 2 COMPLETE.** All 19 mandatory steps (9-14, 16-23, 25-27) done and committed; Step 15
+(propellant depletion) and Step 24 (time interpolation between sounding snapshots) both remain
+optional and deferred — see below. Every model in `main.tex` §Models is now implemented and
+selectable. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead.
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
@@ -297,6 +298,50 @@ own dedicated commit before Step 25:
   `sim.soundings.load_case`, physically sane values throughout (elevation 1699m closely matches
   station 72672/KRIW's real ~1697m elevation — a good independent sanity check the unit
   conversions and metadata convention are correct). Commit `00a576a`.
+- Step 27 — `run.py`, `sim/plotting.py`: the payoff for the whole model-selection pattern
+  (architecture.md §12). `run.py` gains `sweep(base_params, field, values, s0)` — the exact
+  `dataclasses.replace(p, <field>=<value>)` idiom §12 itself specifies, one `run_sim` per variant
+  — plus a plain-text summary table (apogee altitude/time, max dynamic pressure "max-Q" sampled via
+  `flow_state` on the same dense grid the single-run summary already uses, impact time) and
+  `sim/plotting.py` gains `plot_trajectory_overlay` (flight-path + altitude-vs-time panels, one
+  line per variant, same dense-output convention as the existing plot functions). Two sweeps run by
+  default: the four gravity models (at this scenario's own ~4.6 km apogee) and `"isa"` vs the real
+  LKPR sounding (`data/soundings/example`, `aero_model="coefficients"` so the atmosphere is
+  actually load-bearing). The original single-run scenario and its printed summary are completely
+  unaffected (confirmed byte-identical). 114/114 tests passing (5 new): sweep produces one `Result`
+  per variant with sane summaries; gravity apogee ordering is physically predictable
+  (`constant < linear ≈ radial < wgs84` at this scale, `wgs84` highest partly because the default
+  `lat0_deg=0.0` equator start has `γ₀(0)=9.7803 < g=9.80665`); atmosphere sweep confirms the real
+  sounding gives higher apogee and lower max-Q than ISA (less dense air, less drag — consistent
+  with Step 18's own finding); a direct check that gravity-model divergence is small (`<1%`) at
+  ~4.6 km but clearly visible (`~8×` larger) at 100 km, exactly the roadmap's stated check; overlay
+  plot returns a valid figure. Actual printed sweep tables:
+  ```
+  Gravity model comparison (gravity_model sweep):
+  gravity_model    apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
+  ------------------------------------------------------------------------
+  constant             4609.2267       30.1209    54853.4687       62.4745
+  linear               4612.2749       30.1465    54852.6283       62.5327
+  radial               4612.2651       30.1465    54852.6241       62.5326
+  wgs84                4624.2535       30.2202    54864.7281       62.6972
+
+  Atmosphere model comparison (station LKPR) (atmosphere_model sweep):
+  atmosphere_model   apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
+  --------------------------------------------------------------------------
+  isa                   682.3775        9.5833    23066.9337       25.9148
+  sounding              685.1434        9.6047    23002.8091       25.9532
+  ```
+  Commit `<pending>`.
+
+## Phase 2 milestone: COMPLETE
+Every model family in `main.tex` §Models is implemented and selectable via a `Params` string field:
+4 gravity variants, 3 atmosphere tiers, 3 wind tiers, a real thrust curve with pressure correction,
+and Mach/α-dependent aero coefficients with CoP travel — plus the shared real-data infrastructure
+(sounding format/loader/altitude-interpolation/horizontal-interpolation) backing the tier-2/3
+variants of both atmosphere and wind, an offline fetch helper for real sounding data, and a
+comparison-sweep tool that makes the point of having multiple models actually visible. 19 mandatory
+steps, all committed individually as the working rules require. 2 steps (15, 24) remain optional
+and deferred, not blocking. Phase 3 (3D, 6-DOF) has not been started.
 
 ## Phase 2 milestone reached
 Steps 9-23 and 25-26 all complete (Step 15 optional/blocked, Step 24 optional/deferred). Every

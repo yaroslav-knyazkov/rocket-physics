@@ -2,7 +2,7 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-step27",
+  "current_stage": "phase2-complete",
   "step26_network_approved": {"date": "2026-09-21", "answer": "yes, implement tools/fetch_sounding.py now"},
   "phase2_completed_steps": [
     {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
@@ -21,6 +21,15 @@
     {"step": 23, "name": "Wind tier 3: multi-station spatially interpolated data", "commit": "b1fb9fb", "note": "sim/wind.py gains _field_wind (tier 3, delegates to soundings.interp_field from Step 19, reuses tier 2's ENU projection unchanged). 6 executable lines, matching roadmap's own 'handful of lines' prediction. No new Params fields. Closes out all three wind tiers. 88/88 tests passing (2 new): single-station case reproduces sounding tier exactly; new synthetic two-station opposing-wind case (0/180deg, N-S) shows along-plane wind increasing strictly monotonically across an 11-point sweep, crossing zero exactly once."}
   ],
   "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
+  "phase2_step27_completed": {
+    "commit": "pending",
+    "note": "run.py gains sweep(base_params,field,values,s0) -- the dataclasses.replace idiom architecture.md SS12 itself specifies -- plus a printed summary table (apogee alt/time, max-Q via flow_state, impact time). sim/plotting.py gains plot_trajectory_overlay (flight-path + altitude-vs-time panels). Two sweeps by default: 4 gravity models, and isa vs real LKPR sounding (aero_model=coefficients so atmosphere is load-bearing). Single-run scenario/output completely unaffected (confirmed byte-identical). 114/114 tests passing (5 new): sane per-variant summaries; gravity apogee ordering physically predictable; atmosphere sweep confirms real sounding gives higher apogee/lower max-Q than isa (less dense, less drag); gravity divergence small (<1%) at ~4.6km but clearly visible (~8x larger) at 100km, exactly the roadmap's stated check; overlay plot valid. THIS STEP CLOSES OUT PHASE 2 -- every model in main.tex Models implemented and selectable."
+  },
+  "phase2_milestone_complete": {
+    "date": "2026-09-21",
+    "summary": "19 mandatory Phase 2 steps done (9-14,16-23,25-27), all committed individually. Step 15 (propellant depletion) and Step 24 (time interpolation between sounding snapshots) both optional per roadmap, deferred/skipped, not blocking. Every model family in main.tex Models implemented and selectable via a Params string field: 4 gravity variants, 3 atmosphere tiers, 3 wind tiers, real thrust curve + pressure correction, Mach/alpha-dependent aero coefficients with CoP travel. Shared real-data infrastructure (sounding format/loader/altitude+horizontal interpolation) backs both atmosphere and wind tier 2/3. Offline fetch helper (tools/fetch_sounding.py) for real sounding data, network-approved and live-verified. Comparison-sweep tooling makes the model-selection pattern's payoff visible. A significant mid-phase correction landed along the way: the CoP/CoG moment-arm sign convention (main.tex + sim/dynamics.py), found before Step 25 and fixed as its own dedicated commit.",
+    "next": "Phase 3 (3D, full 6-DOF) -- not started, awaiting user go-ahead"
+  },
   "phase2_step26_completed": {
     "commit": "00a576a",
     "note": "tools/fetch_sounding.py (new, network-approved, never imported by sim/): fetches from weather.arcc.uwyo.edu/wsgi/sounding (moved from the older weather.uwyo.edu; robots.txt disallows /wsgi, used anyway with explicit user approval, documented transparently). Splits fetch_raw (network) from parse_response/resample_rows/format_canonical (pure, offline-testable). Resamples ~1s-resolution response to configurable altitude step (default 250m). Handles the archive's no-data case (HTTP 404 + plain text, confirmed live) as SoundingFetchError. 109/109 tests passing (13 new, offline). Live-verified: station 72672 2024-01-15 12:00Z, 5040 raw rows -> 122 resampled, written to data/soundings/example_live/, loads with zero edits via sim.soundings.load_case, elevation 1699m matches real KRIW elevation ~1697m."
@@ -73,8 +82,8 @@
   ],
   "stages": [
     {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "complete"},
-    {"phase": 2, "name": "real models, still 2D", "steps": "9-17", "status": "not_started"},
-    {"phase": 3, "name": "3D, full 6-DOF", "steps": "18-22", "status": "not_started"}
+    {"phase": 2, "name": "real models, still 2D", "steps": "9-27 (expanded 2026-09-19 from original 9-17)", "status": "complete", "note": "19 mandatory steps done (9-14,16-23,25-27); Step 15 (propellant depletion) and Step 24 (time interpolation) both optional and deferred, not blocking"},
+    {"phase": 3, "name": "3D, full 6-DOF", "steps": "28-32 (renumbered 2026-09-19 from original 18-22)", "status": "not_started"}
   ],
   "decisions": [
     {"date": "2026-09-19", "question": "architecture/stack", "answer": "approved as recommended: z-down frame, solve_ivp, fixed-signature model seam, quaternions phase 3, minimal pytest"},

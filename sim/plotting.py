@@ -50,6 +50,53 @@ def plot_trajectory(r: Result):
     return fig
 
 
+def plot_trajectory_overlay(results: "dict[str, Result]", title: str = "Model comparison"):
+    """Overlay several `Result`s on one figure, one line per model variant
+    (architecture.md SS12, roadmap.md Step 27 -- "the payoff for the
+    selection pattern"). `results` keys are the model-selection strings
+    (e.g. the `p.gravity_model` values that produced each `Result`) and
+    become the legend labels.
+
+    Two panels, both built on `_dense_time_grid` like `plot_trajectory`/
+    `plot_time_histories` above: the flight path (downrange vs altitude,
+    left) and altitude vs time (right). Both are cheap once the dense
+    interpolant is sampled per variant, and they answer different
+    questions -- path shape vs. how quickly altitude is gained/lost --
+    which matters for e.g. the gravity sweep, where the paths are nearly
+    identical but the altitude-vs-time curves separate a little more
+    visibly around apogee.
+
+    Returns the `fig`, does not call `plt.show()` -- same convention as
+    `plot_trajectory`/`plot_time_histories`.
+    """
+    fig, (ax_traj, ax_alt) = plt.subplots(1, 2, figsize=(14, 6))
+
+    for label, r in results.items():
+        t = _dense_time_grid(r)
+        y = r.raw.sol(t)
+        downrange = y[X]
+        altitude = -y[Z]
+
+        ax_traj.plot(downrange, altitude, label=str(label))
+        ax_alt.plot(t, altitude, label=str(label))
+
+    ax_traj.set_xlabel("Downrange [m]")
+    ax_traj.set_ylabel("Altitude [m]")
+    ax_traj.set_title(f"{title}: flight path")
+    ax_traj.set_aspect("equal", adjustable="datalim")
+    ax_traj.grid(True)
+    ax_traj.legend()
+
+    ax_alt.set_xlabel("Time [s]")
+    ax_alt.set_ylabel("Altitude [m]")
+    ax_alt.set_title(f"{title}: altitude vs time")
+    ax_alt.grid(True)
+    ax_alt.legend()
+
+    fig.tight_layout()
+    return fig
+
+
 def plot_time_histories(r: Result):
     """Altitude, speed, pitch and pitch rate vs time (Step 3 + Step 7).
 
