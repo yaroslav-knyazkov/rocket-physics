@@ -136,8 +136,21 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     Contrast, from `_buggy_derivatives` (the pre-fix sign, reconstructed
     from scratch above, not imported from anywhere -- sim/dynamics.py no
     longer contains it): the identical initial condition reaches
-    `alpha(1.0 s) = -2.19 rad` (magnitude ~14.6x the initial 0.15 rad, and
-    past +-pi/2) -- clearly divergent/tumbling, not a numerical artifact.
+    `alpha(2.0 s) = -1.65 rad`, well past +-pi/2 -- clearly tumbling, not a
+    numerical artifact.
+
+    Re-verified numerically after Phase 2.5 Step 35 changed `C_N`'s
+    fallback from `C_N_alpha*alpha` to `C_N_alpha*sin(alpha)` (aero.py's
+    module docstring): since `sin` saturates at 1, the buggy sign no
+    longer produces smooth, monotonically-accelerating runaway (the old
+    `alpha(1.0 s) = -2.19 rad` this test used to pin) -- it produces a
+    large, wildly oscillating tumble instead (`alpha` sampled at
+    t=1..5 s: -0.38, -1.65, +2.11, +0.47, -0.11 rad). The qualitative
+    contrast this test exists to demonstrate is unchanged (bounded,
+    small-amplitude restoring oscillation vs. large-amplitude tumbling),
+    it just needs a threshold that tolerates non-monotonic growth: sampled
+    at t=2.0 s (comfortably past the first excursion above `pi/2`, still
+    within this scenario's pre-apogee window), not at t=1.0 s.
     """
     p = Params(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
@@ -169,11 +182,13 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     # --- Old (pre-fix) sign: reconstructed locally, same initial state -
     y0 = np.array(s0)
     sol = solve_ivp(
-        _buggy_derivatives, (0.0, 1.0), y0, args=(p,),
+        _buggy_derivatives, (0.0, 2.0), y0, args=(p,),
         dense_output=True, max_step=0.01, rtol=1e-9, atol=1e-9,
     )
     assert sol.status == 0
-    alpha_buggy_1s = flow_state(1.0, sol.sol(1.0), p).alpha
+    alpha_buggy_2s = flow_state(2.0, sol.sol(2.0), p).alpha
 
-    assert abs(alpha_buggy_1s) > 5.0 * abs(alpha0)  # >0.75 rad; observed ~2.19 rad
+    # Comfortably past +-pi/2 (genuinely tumbling, nose no longer even
+    # broadside to the relative wind) -- observed ~-1.65 rad.
+    assert abs(alpha_buggy_2s) > math.pi / 2
 

@@ -125,9 +125,16 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
     """Params field discipline (architecture.md SS20: every new field's
     default reproduces the previous step exactly): with `p.aero_table ==
     ""` (the default), aero.py's C_A/C_N/C_m/cop_l1 reduce to exactly
-    the pre-Step-25 `forces.py` "coefficients" formulas, and
+    the current `forces.py` "coefficients" formulas, and
     `dynamics.derivatives()`'s aA uses exactly the constant `p.l1` --
-    bit-for-bit the same `dydt` as before this step existed.
+    bit-for-bit the same `dydt` as computed by hand here.
+
+    C_N/C_m use `sin(alpha)`, not raw `alpha`, since Phase 2.5 Step 35
+    (aero.py's module docstring: smoothing the branch-cut discontinuity at
+    `alpha = +-pi`) -- this test's own probe `alpha_probe = 0.12` is
+    comfortably in the small-angle range where the two are almost
+    indistinguishable, but the assertions below use `sin` explicitly so
+    they stay exact rather than merely "close".
     """
     p = Params(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
@@ -137,23 +144,25 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
     alpha_probe, M_probe = 0.12, 0.9
 
     assert aero.C_A(alpha_probe, M_probe, p) == p.C_A0
-    assert aero.C_N(alpha_probe, M_probe, p) == p.C_N_alpha * alpha_probe
-    assert aero.C_m(alpha_probe, M_probe, p) == p.C_m_alpha * alpha_probe
+    assert aero.C_N(alpha_probe, M_probe, p) == p.C_N_alpha * math.sin(alpha_probe)
+    assert aero.C_m(alpha_probe, M_probe, p) == p.C_m_alpha * math.sin(alpha_probe)
     assert aero.cop_l1(alpha_probe, M_probe, p) == p.l1
 
     s = State(x=0.0, z=0.0, vx=0.0, vz=-60.0, theta=math.pi / 2 - 0.1, omega=0.3)
     y = np.array(s)
     dydt = derivatives(0.0, y, p)
 
-    # Manually reconstruct dynamics.derivatives()'s pre-Step-25 aA
-    # (constant p.l1) and forces.py's pre-Step-25 A_x/A_z/A_m formulas,
-    # and confirm identical dydt[OMEGA].
+    # Manually reconstruct dynamics.derivatives()'s aA (constant p.l1) and
+    # forces.py's current A_x/A_z/A_m formulas, and confirm identical
+    # dydt[OMEGA].
     flow = flow_state(0.0, y, p)
     A_x = flow.q * p.S * p.C_A0
-    A_z = flow.q * p.S * p.C_N_alpha * flow.alpha
-    A_m = flow.q * p.S * p.d_ref * p.C_m_alpha * flow.alpha
+    A_z = flow.q * p.S * p.C_N_alpha * math.sin(flow.alpha)
+    A_m = flow.q * p.S * p.d_ref * p.C_m_alpha * math.sin(flow.alpha)
     aA = np.array([-p.l1, 0.0])
-    aero_force = -A_x * flow.u_hat - A_z * flow.n_hat
+    # Body axis, not wind axis (Step 35, Phase 2.5) -- see forces.py's
+    # aero_force_body docstring.
+    aero_force = np.array([-A_x, -A_z])
 
     def _cross_y(a, b):
         return -(a[0] * b[1] - a[1] * b[0])
@@ -219,25 +228,26 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
 
     dydt = derivatives(0.0, y0, p)
 
-    # Closed-form re-derivation (tests/test_forces.py's _cross_y algebra,
-    # generalised to nonzero alpha): with aA = (-l1, 0) and
-    # aero_force_body = -A_x*u_hat - A_z*n_hat, u_hat=(cos a, sin a),
-    # n_hat=(-sin a, cos a):
-    #   _cross_y(aA, aero_force) = -l1*(A_x*sin(a) + A_z*cos(a))
-    # No thrust (p.T defaults to 0.0, no motor_curve), so M_thrust = 0;
-    # M_moment = aero_moment_y = -A_m.
+    # Closed-form re-derivation (tests/test_forces.py's _cross_y algebra):
+    # with aA = (-l1, 0) and aero_force_body = (-A_x, -A_z) in body axis,
+    # unconditionally (Step 35, Phase 2.5 -- no more u_hat/n_hat rotation):
+    #   _cross_y(aA, aero_force) = -l1*A_z
+    # exactly, for every alpha -- the same closed form
+    # tests/test_forces.py::test_moment_matches_closed_form_minus_l1_Az_minus_Am
+    # uses for the constant-model case, now also exact here at nonzero
+    # alpha. No thrust (p.T defaults to 0.0, no motor_curve), so
+    # M_thrust = 0; M_moment = aero_moment_y = -A_m.
     q = flow.q
-    A_x = q * p.S * C_A
     A_z = q * p.S * C_N
     A_m = q * p.S * p.d_ref * C_m
-    expected_M_y = -l1_table * (A_x * math.sin(alpha0) + A_z * math.cos(alpha0)) - A_m
+    expected_M_y = -l1_table * A_z - A_m
 
     assert math.isclose(dydt[OMEGA] * p.I, expected_M_y, rel_tol=1e-9)
 
     # And decisively NOT the constant p.l1 = 999.0 (l1_table/p.l1 ~ 2.8e-4
     # -- if dynamics.py had stayed on the constant, M_y would be off by
     # nearly 4 orders of magnitude).
-    wrong_M_y = -p.l1 * (A_x * math.sin(alpha0) + A_z * math.cos(alpha0)) - A_m
+    wrong_M_y = -p.l1 * A_z - A_m
     assert not math.isclose(dydt[OMEGA] * p.I, wrong_M_y, rel_tol=1e-2)
 
 
@@ -255,19 +265,32 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     flow through sim/aero.py's table lookup on every RHS call, not the
     Params constants.
 
-    Honesty check, verified numerically (not assumed) before writing
-    this assertion, per this step's explicit instruction not to claim
-    decay this model cannot produce: this model still has no pitch-rate
-    damping term (neither C_N/C_m nor the new l1(alpha, M) table act on
-    omega, only on alpha) -- table-driven coefficients do not add
-    damping just by being nonlinear/Mach-dependent. Sampled directly at
-    t in {0, 1, 2, 3, 4, 5} s (same scenario as test_forces.py's V0=60
-    m/s, alpha0=-0.15 rad, pre-apogee window): alpha(t) is
-    [-0.150, -0.0998, 0.0548, 0.0433, -0.0930, -0.0636] rad -- bounded
+    Re-verified numerically (not assumed) after Step 35 (Phase 2.5) put
+    the aero force back in body axis instead of the relative-wind frame:
+    the previous trace pinned here relied in part on `sin(alpha)*A_x`
+    leaking into the moment through the old `u_hat`/`n_hat` rotation --
+    a real, if small, phantom restoring contribution from the *axial*
+    (drag) coefficient, which has no business affecting the pitching
+    moment when `aA` has no z-component. With that leak gone, the
+    scenario's apogee moves to ~5.03 s (was ~6.1 s in
+    tests/test_forces.py's simpler, C_A0=0 scenario, where A_x is exactly
+    zero and this leak never applied), so the sampling window is pulled
+    in to `t_max=4.5` to keep the same safe margin before the apogee/
+    near-zero-V singularity that test_forces.py's own docstring already
+    flags and tests/test_flow.py's `test_alpha_near_pi_on_tail_first_descent`
+    separately covers -- not a new failure mode, just closer to this
+    scenario's own apogee than before.
+
+    Honesty check, verified numerically before writing this assertion,
+    per this step's explicit instruction not to claim decay this model
+    cannot produce: this model still has no pitch-rate damping term
+    (neither C_N/C_m nor the l1(alpha, M) table act on omega, only on
+    alpha) -- table-driven coefficients do not add damping just by being
+    nonlinear/Mach-dependent. Sampled at t in {0, 0.8, 1.6, 2.4, 3.2, 4.0} s
+    (V0=60 m/s, alpha0=-0.15 rad, pre-apogee window): alpha(t) is
+    [-0.1500, +0.1193, +0.0418, +0.0877, -0.0247, +0.0916] rad -- bounded
     (never exceeding the initial 0.15 rad magnitude) and oscillatory
-    (sign-flipping, non-monotonic), exactly the same "restoring, not
-    growing" character as the sign-fix commit's own finding, not literal
-    decay to zero.
+    (sign-flipping, non-monotonic) -- restoring, not growing.
     """
     p = Params(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
@@ -279,10 +302,10 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     V0 = 60.0
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=-V0, theta=theta0, omega=0.0)
 
-    r = run_sim(p, s0, t_max=5.0, method="RK45")
-    assert r.events["apogee"] is None  # confirms t_max=5.0 stays pre-apogee
+    r = run_sim(p, s0, t_max=4.5, method="RK45")
+    assert r.events["apogee"] is None  # confirms t_max=4.5 stays pre-apogee
 
-    sample_times = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    sample_times = [0.0, 0.8, 1.6, 2.4, 3.2, 4.0]
     alphas = []
     for t in sample_times:
         y = r.raw.sol(t)

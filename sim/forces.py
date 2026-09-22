@@ -11,11 +11,21 @@ from main.tex SSForces / SSMoments:
     A_f = -A_x*x_hat_r - A_z*z_hat_r        (body frame)
     A_m = -A_m*y_hat_r                      (body frame, scalar about y)
 
-Step 9: `A_f` is generalised to `-A_x*u_hat - A_z*n_hat` (main.tex
-SS"Forces", updated), driven by the actual relative wind / angle of attack
-from sim/flow.py rather than the fixed body axes. `A_x`, `A_z` are still
-plain `Params` constants -- dynamic-pressure-based coefficients arrive in
+Step 9 originally generalised `A_f` to `-A_x*u_hat - A_z*n_hat` (rotating it
+into the relative-wind frame), driven by the actual relative wind / angle
+of attack from sim/flow.py. `A_x`, `A_z` were still plain `Params`
+constants at that point -- dynamic-pressure-based coefficients arrived in
 Steps 12-13/25.
+
+Step 35 (Phase 2.5) reverted that rotation: `C_A`/`C_N` (Step 25) are
+body-axis (axial/normal) coefficients, matching the CFD/wind-tunnel data
+convention they are extracted from, so their own `alpha`-dependence already
+accounts for the relative wind -- rotating the resulting force through
+`u_hat`/`n_hat` a second time was double-applying it. `A_f` is therefore
+`-A_x*x_hat_r - A_z*z_hat_r` again, unconditionally (main.tex SSModels >
+Aerodynamics). `flow.u_hat`/`flow.n_hat` are still computed in flow.py and
+still used -- just to get `V`, `alpha`, `q` into the coefficient lookup, not
+to redirect the force.
 
 Step 10: `weight_inertial` dispatches its magnitude through
 sim/gravity.py's `g(t, y, p)` (main.tex SSModels > Gravity;
@@ -62,12 +72,18 @@ def thrust_body(t: float, s, p) -> np.ndarray:
 
 
 def aero_force_body(t: float, s, p) -> np.ndarray:
-    """A_f = -A_x*u_hat - A_z*n_hat (main.tex SSForces, generalised), body
-    frame. `u_hat`/`n_hat` come from the actual relative wind (sim/flow.py),
-    not the fixed body axes, so drag correctly opposes the flight direction
-    even when it does not coincide with the nose (e.g. tail-first descent).
-    At alpha = 0 (nose-first into the relative wind), u_hat = (1, 0) and
-    n_hat = (0, 1), so this reduces exactly to the Phase 1 `(-A_x, -A_z)`.
+    """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
+    body frame, unconditionally -- the Phase 1 form, for every alpha, not
+    just alpha = 0.
+
+    `A_x`, `A_z` are body-axis (axial/normal) coefficients: `flow.alpha`
+    (from the actual relative wind, sim/flow.py) already drives `C_A(alpha,
+    M)`/`C_N(alpha, M)` below, so the force itself is *not* additionally
+    rotated through `flow.u_hat`/`flow.n_hat` (the relative-wind frame) --
+    doing so would double-apply the alpha-dependence, since those
+    coefficients are extracted in body axes to begin with (Step 35, Phase
+    2.5; see main.tex SSModels > Relative wind and angle of attack for what
+    `u_hat`/`n_hat` are used for instead: V, alpha, q).
 
     Step 13: two regimes:
       * "constant": use the constant magnitudes p.A_x, p.A_z (Phase 1 behaviour)
@@ -76,9 +92,10 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
             A_z = q * S * C_N(alpha, M)
 
     Step 25: `C_A`/`C_N` come from sim/aero.py, which is table-driven
-    (`p.aero_table`) with `p.C_A0`/`p.C_N_alpha*alpha` as the fallback --
-    i.e. identical numbers to the pre-Step-25 formulas above when no
-    table is configured.
+    (`p.aero_table`) with `p.C_A0`/`p.C_N_alpha*sin(alpha)` as the fallback
+    (the `sin`, not raw `alpha`, is Phase 2.5 Step 35 -- see aero.py's
+    module docstring) -- matching the pre-Step-25 formulas above to within
+    that fallback's own small-angle error when no table is configured.
     """
     flow = flow_state(t, s, p)
     if p.aero_model == "constant":
@@ -89,7 +106,7 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
         A_z = flow.q * p.S * aero.C_N(flow.alpha, flow.M, p)
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
-    return -A_x * flow.u_hat - A_z * flow.n_hat
+    return np.array([-A_x, -A_z])
 
 
 def aero_moment_y(t: float, s, p) -> float:

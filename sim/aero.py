@@ -33,11 +33,42 @@ then combine" shape as `soundings.py`'s tier-3 combination.
 
 No table configured (`p.aero_table == ""`, the default) -- every public
 function below falls back to the plain `Params` constant, reproducing
-`forces.py`'s pre-Step-25 "coefficients" formulas bit-for-bit:
-    C_A   -> p.C_A0                  (constant, no alpha/M dependence)
-    C_N   -> p.C_N_alpha * alpha
-    C_m   -> p.C_m_alpha * alpha
-    l1    -> p.l1                    (constant CoP-to-CoG distance)
+`forces.py`'s pre-Step-25 "coefficients" formulas to within the linear
+model's own small-angle error (see the Phase 2.5 note just below):
+    C_A   -> p.C_A0                       (constant, no alpha/M dependence)
+    C_N   -> p.C_N_alpha * sin(alpha)     (main.tex's C_N_alpha*alpha, smoothed)
+    C_m   -> p.C_m_alpha * sin(alpha)     (main.tex's C_m_alpha*alpha, smoothed)
+    l1    -> p.l1                         (constant CoP-to-CoG distance)
+
+Phase 2.5 (after Step 35): `C_N`/`C_m`'s fallback uses `sin(alpha)` instead
+of the raw `alpha` main.tex's linear formula literally specifies.
+`sin(alpha) == alpha` to leading order for small alpha -- they differ by
+<0.4% at 8.6 degrees (deg2rad(8.6) - sin(deg2rad(8.6)) / deg2rad(8.6)), well
+inside this fallback's own small-angle-linearisation error -- so every
+normal (small-alpha) trajectory is unaffected in any way that matters. The
+reason for the change: raw `alpha = atan2(w, u)` is *discontinuous* at its
+own branch cut (`u < 0`, `w` crossing zero), and an unperturbed, symmetric
+flight coasting through `V = 0` at apogee with `theta` unchanged (no
+restoring moment ever having engaged) lands exactly there -- floating-point
+noise in `w` alone then flips `alpha` between +pi and -pi from one solver
+evaluation to the next. With the raw-alpha formula that flips
+`C_N`/`C_m`'s sign and (being unbounded) magnitude every RHS call, which
+sent `solve_ivp`'s adaptive step control into a step-size collapse that did
+not recover within any reasonable wall-clock time (observed: still not
+converged after several minutes, on a scenario Step 34's code finished in
+~1 second). A magnitude *clamp* on `alpha` was tried first and does not
+fix this -- it only shrinks the jump, and any genuine discontinuity, however
+small, still defeats an adaptive solver's local-smoothness assumption.
+`sin(alpha)` removes the discontinuity itself: it has no branch cut, so it
+passes through the `+-pi` crossing exactly as smoothly as everything else
+in the model does. It is also arguably the more physically honest formula
+at large `alpha` to begin with -- `sin(pi) = 0`, correctly zero net side
+force flying exactly tail-first (by symmetry, for a body of revolution),
+where the literal `C_N_alpha*alpha` formula gives a large, nonsensical
+value instead. `atan2(w, u)` itself remains ill-defined at the single
+physical point `u = w = 0`; that is inherent to using an angle at all and
+is not, and cannot be, "fixed" -- `sin(alpha)` only ensures nothing built
+from it blows up there.
 
 Note on `C_N`'s signature: main.tex writes `C_N(alpha)` (no explicit `M`
 dependence), but this module gives `C_N` the same `(alpha, M, p)` shape as
@@ -176,12 +207,14 @@ def C_N(alpha: float, M: float, p) -> float:
 
     Table-driven when `p.aero_table` is set (the table may vary `C_N`
     with `M` too -- see the module docstring's note on this signature);
-    otherwise `p.C_N_alpha * alpha` (Step 13's formula, unchanged).
+    otherwise `p.C_N_alpha * sin(alpha)` (Step 13's `C_N_alpha*alpha`
+    formula, smoothed at Phase 2.5 Step 35 -- see the module docstring's
+    "no table configured" section for why).
     """
     if p.aero_table:
         table = _load_table(p.aero_table)
         return _table_lookup(table, alpha, M, table.C_N)
-    return p.C_N_alpha * alpha
+    return p.C_N_alpha * np.sin(alpha)
 
 
 def C_m(alpha: float, M: float, p) -> float:
@@ -189,12 +222,13 @@ def C_m(alpha: float, M: float, p) -> float:
     per architecture.md SS19: `A_m = qS*d_ref*C_m(alpha, M)`).
 
     Table-driven when `p.aero_table` is set; otherwise `p.C_m_alpha *
-    alpha` (Step 13's formula, unchanged).
+    sin(alpha)` (Step 13's `C_m_alpha*alpha` formula, smoothed at Phase 2.5
+    Step 35, same reasoning as `C_N` above).
     """
     if p.aero_table:
         table = _load_table(p.aero_table)
         return _table_lookup(table, alpha, M, table.C_m)
-    return p.C_m_alpha * alpha
+    return p.C_m_alpha * np.sin(alpha)
 
 
 def cop_l1(alpha: float, M: float, p) -> float:

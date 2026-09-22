@@ -435,6 +435,25 @@ commit, re-run the Phase 1/2 regression suite after each).
   suite is unaffected); at nonzero `α` the force direction changes and should be sanity-checked
   against a hand-worked example before relying on it for the stability-margin work in
   `rocket-2d.tex` §Analytical analysis.
+- **Found during this step, fixed in the same commit — `sim/aero.py`'s constant-fallback `C_N`/
+  `C_m`:** the full regression suite hung (not merely slow — still running after 90+ seconds on a
+  scenario the pre-Step-35 code finished in ~1s). Traced to an unperturbed, symmetric vertical
+  flight (no wind, no off-axis launch) coasting through `V = 0` at apogee with `theta` unchanged
+  (no restoring moment ever having engaged), landing the rocket tail-first (`alpha` near `±π`)
+  right where `atan2(w, u)` sits on its own branch cut — floating-point noise in `w` alone flips
+  `alpha` between `+π` and `−π` every solver evaluation, and the fallback's *unbounded* linear
+  `C_N = C_N_alpha·alpha` turned that into a multi-unit jump in the moment every RHS call, which
+  `solve_ivp`'s adaptive step control could not recover from. A magnitude clamp on `alpha` was
+  tried first and does not fix it (any discontinuity, however small, still defeats the solver's
+  local-smoothness assumption) — the fix that works is `C_N = C_N_alpha·sin(alpha)` (and same for
+  `C_m`): continuous everywhere, `≈alpha` to well within this fallback's own small-angle error at
+  realistic angles (<0.4% at 8.6°), and arguably more physically honest at large `alpha` besides
+  (correctly zero at exactly tail-first, by symmetry, instead of a large nonsensical value). See
+  `sim/aero.py`'s module docstring for the full derivation. One exact-equality test
+  (`tests/test_aero.py::test_no_table_reproduces_pre_step25_coefficients_exactly`) updated to
+  assert against `sin(alpha)`; `tests/test_forces.py`'s old/new-sign contrast test re-verified and
+  re-pinned (the old-sign case no longer runs away monotonically now that `C_N` saturates — it
+  tumbles instead, which the test now checks for directly).
 - **Commit:** "Aerodynamic force resolved in body axis, not wind axis"
 
 ### Step 36 — Variable mass: CoG and moment-of-inertia travel

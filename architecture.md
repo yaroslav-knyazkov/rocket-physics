@@ -683,15 +683,21 @@ worth stating explicitly so nobody adds a defensive branch later.
 
 ### How the aero force uses it (`forces.py`, `aero_model="coefficients"`)
 
+**Revised at Phase 2.5 Step 35.** Step 9 originally rotated the force into the relative-wind
+frame, `A_f = −A_x·û − A_z·n̂`. That double-applied the `α`-dependence: `C_A(α,M)`/`C_N(α,M)`
+(Step 25) are body-axis (axial/normal) coefficients, the same convention the CFD/wind-tunnel data
+is extracted in, so their own table already carries the full `α`-dependence. The force stays in
+body axis, unconditionally, matching the Phase 1 expression for every `α`, not just `α = 0`:
+
 ```
-A_f = −A_x·û − A_z·n̂                (main.tex §Forces, generalised)
-    = (−A_x·cos α + A_z·sin α,  −A_x·sin α − A_z·cos α)   in body components
-A_x = q·S·C_A(α, M)      A_z = q·S·C_N(α)      A_m = q·S·d_ref·C_m(α, M)
+A_f = −A_x·x̂_r − A_z·ẑ_r                (main.tex §Models > Aerodynamics)
+A_x = q·S·C_A(α, M)      A_z = q·S·C_N(α, M)      A_m = q·S·d_ref·C_m(α, M)
 ```
 
-At `α = 0` this is exactly `(−A_x, −A_z)` — the Phase 1 expression — which is the regression test
-for Step 9. The moment arm term in `dynamics.py` is unchanged and still correct:
-`cross_y(aA, A_f) = −l₁·A_f,z = l₁(A_x sin α + A_z cos α)`, which reduces to `l₁·A_z` at `α = 0`.
+`flow.û, n̂` (§15 below) are still computed and still used — just to get `V, α, q` into the
+coefficient lookup, not to redirect the force. The moment arm term in `dynamics.py` simplifies
+accordingly: `cross_y(aA, A_f) = −l₁·A_f,z = l₁·A_z`, exactly, for every `α` — the same closed
+form as the Phase 1/constant-model case, no longer just its `α = 0` special case.
 
 ### Altitude conventions (three altitudes, do not mix them)
 

@@ -144,6 +144,16 @@ range), interpolate linearly in $\alpha$ within each bracketing row, then blend 
 linearly across the $M$ bracket. $l_1(\alpha,M)$ feeds directly into \S Geometry's
 $\vec{aA}=-l_1\hat{x}_r$, coupling CoP travel back into the pitching moment.
 
+\ai{Implementation note: the fallback $C_N$, $C_m$ are evaluated as $C_{N\alpha}\sin\alpha$,
+$C_{m\alpha}\sin\alpha$ in code (identical to the formula above for small $\alpha$, within 0.4\%
+at $8.6^\circ$) rather than the raw linear form. This is a numerical-robustness fix, not a
+different physical model: $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch
+cut ($u<0$, $w$ crossing zero), which an unperturbed flight coasting tail-first through $V=0$ at
+apogee lands on exactly, and the unbounded linear form turns that into a solver-breaking jump in
+the moment every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is
+arguably more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side
+force a body of revolution has flying exactly tail-first by symmetry).}
+
 The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
 relative-wind frame $\hat{u},\hat{n}$ --- since $C_A, C_N$ are themselves body-axis (axial/normal)
 coefficients, the same convention the CFD/wind-tunnel data is extracted in, and their
