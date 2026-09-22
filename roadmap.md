@@ -167,6 +167,8 @@ identical. That regression is what keeps 19 steps of model-building honest.
 - **Commit:** "Relative wind, angle of attack and the aero force direction"
 
 ### Step 10 — Gravity models: constant, linear, radial
+*(`linear` removed at Phase 2.5 Step 34 — kept here as the historical record of what this step
+originally did and why.)*
 - **Files:** `sim/gravity.py` (new), `sim/params.py`, `sim/forces.py`, `tests/test_gravity.py`
 - **Spec:** `main.tex` §Models > Gravity; `architecture.md` §12 (the dispatch pattern) and §13
 - **Do:** `gravity.g(t, y, p) -> float` dispatching on `p.gravity_model` over three private

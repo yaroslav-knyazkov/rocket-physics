@@ -71,7 +71,7 @@ def sweep(base_params: Params, field: str, values, s0: State, **run_kwargs) -> d
     of `field`, varying only that one field on `base_params` via
     `dataclasses.replace`, exactly the idiom SS12 gives:
 
-        for gm in ("constant", "linear", "radial", "wgs84"):
+        for gm in ("constant", "radial", "wgs84"):
             run_sim(dataclasses.replace(p, gravity_model=gm), s0)
 
     Returns `{value: {"result": Result, "params": Params, **_flight_summary}}`,
@@ -182,13 +182,13 @@ def main() -> None:
     # are unaffected by anything below.
     # ------------------------------------------------------------------
 
-    # (a) The four gravity models, at this scenario's own ~4.6 km apogee
+    # (a) The three gravity models, at this scenario's own ~4.6 km apogee
     # scale, where roadmap.md Step 27 expects them to differ "by a
     # predictable, small amount" -- same base scenario as the single run
     # above (aero_model="constant" here, so gravity is the only thing
-    # varying).
+    # varying). "linear" was removed at Phase 2.5 Step 34.
     gravity_sweep = sweep(
-        params, "gravity_model", ("constant", "linear", "radial", "wgs84"), state0
+        params, "gravity_model", ("constant", "radial", "wgs84"), state0
     )
     _print_sweep_table("Gravity model comparison", "gravity_model", gravity_sweep)
     fig_gravity = plot_trajectory_overlay(

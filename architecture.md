@@ -395,7 +395,7 @@ tiers**, all selectable; launch rail and recovery deferred to the backlog.
 |---|---|
 | 11 | Overview, module map, dependency direction |
 | 12 | **Model selection pattern** — the dispatch-dict extension of the §4 seam (approval gate) |
-| 13 | `sim/gravity.py` — constant / linear / radial / wgs84 |
+| 13 | `sim/gravity.py` — constant / radial / wgs84 (`linear` removed, Phase 2.5 Step 34) |
 | 14 | `sim/atmosphere.py` — ISA / sounding / field, the `AirState` interface |
 | 15 | `sim/flow.py` — relative wind, α, V, q, Re, M; altitude conventions |
 | 16 | `sim/wind.py` — analytic / sounding / field |
@@ -461,9 +461,10 @@ Phase 2 code is written, because gravity, atmosphere and wind all follow whateve
 the signature". That is true of the thrust curve and the aero table. It is *not* true of the
 three new families:
 
-- The whole point of implementing four gravity models is **comparing them in the same session**
-  ("how much apogee does inverse-square buy over linear?"). Comment-out-the-body swapping makes a
-  comparison a git-diff-and-rerun exercise and leaves dead code in the file.
+- The whole point of implementing several gravity models is **comparing them in the same
+  session** ("how much apogee does the exact inverse-square law buy over a constant `g`?").
+  Comment-out-the-body swapping makes a comparison a git-diff-and-rerun exercise and leaves dead
+  code in the file.
 - Three atmosphere and three wind tiers differ by *data availability*, not by physics preference:
   the user will run ISA when there is no sounding and the multi-station field when there is. That
   is a per-scenario choice, i.e. scenario data, i.e. `Params`.
@@ -473,12 +474,10 @@ three new families:
 ```python
 # sim/gravity.py
 def _g_constant(t, y, p): return p.g
-def _g_linear(t, y, p):   ...
 def _g_radial(t, y, p):   ...
 def _g_wgs84(t, y, p):    ...
 
-_MODELS = {"constant": _g_constant, "linear": _g_linear,
-           "radial": _g_radial, "wgs84": _g_wgs84}
+_MODELS = {"constant": _g_constant, "radial": _g_radial, "wgs84": _g_wgs84}
 
 def g(t: float, y: np.ndarray, p: Params) -> float:
     """Gravitational acceleration magnitude [m/s^2] (main.tex §Models > Gravity)."""
@@ -492,7 +491,7 @@ Properties, stated so the pattern is not re-litigated at every model family:
 - Each variant is a small private function, side by side, all live, all testable in one test file.
 - A swap is a **one-word edit in `run.py`'s `Params(...)`**, not a code edit in `sim/`.
 - A comparison sweep is three lines:
-  `for gm in ("constant","linear","radial","wgs84"): run_sim(replace(p, gravity_model=gm), s0)`.
+  `for gm in ("constant","radial","wgs84"): run_sim(replace(p, gravity_model=gm), s0)`.
 - The selection string lands in `print(params)` and in any CSV dump, so a saved run is
   self-describing about which models produced it. Comment-out swapping loses that.
 - It is *not* a plugin registry: the dict is module-private, there is no registration API, no ABC,
@@ -530,7 +529,7 @@ mean-sea-level altitude is needed (`wgs84`); see §15 "Altitude conventions".
 | `gravity_model` | Formula | Notes |
 |---|---|---|
 | `"constant"` | `g = p.g` | Phase 1 baseline, the default. Bit-for-bit reproduces Phase 1. |
-| `"linear"` | `g₀(1 − 2h/R_e)` | First-order expansion of the inverse-square law. Goes negative above `h = R_e/2`; physically irrelevant here, documented not guarded. |
+| ~~`"linear"`~~ | ~~`g₀(1 − 2h/R_e)`~~ | **Removed at Phase 2.5 Step 34** — first-order expansion of the inverse-square law, strictly dominated by `"radial"` below (exact, equally cheap, doesn't go negative above `h = R_e/2`). |
 | `"radial"` | `g₀·(R_e/(R_e+h))²` | Exact for a spherical non-rotating Earth. |
 | `"wgs84"` | Somigliana normal gravity + 2nd-order free-air correction, `g(φ, h_msl)` | The "real data" variant — see below. |
 
@@ -571,7 +570,8 @@ The obvious candidates and the verdict on each (the user asked; this is the grou
   breaks `main.tex` §Current assumptions ("`ẑ_g` fixed for the whole flight") and would have to be
   derived there first. Flagged as a question in §22, listed in the roadmap backlog. Not Phase 2.
 
-Recommendation: **four variants, exactly as `main.tex` lists them.** No fifth.
+Recommendation at the time: **four variants, exactly as `main.tex` listed them.** No fifth.
+(Revised at Phase 2.5 Step 34: down to three — `linear` removed, see §13's model table above.)
 
 ---
 
@@ -698,7 +698,7 @@ for Step 9. The moment arm term in `dynamics.py` is unchanged and still correct:
 | Symbol | Meaning | Expression | Used by |
 |---|---|---|---|
 | `z` | state, **down-positive**, zero at the launch point | `y[Z]` | the physics |
-| `h_agl` | above the launch point | `−y[Z]` | gravity `linear`/`radial` (`main.tex` defines `h = −z`), rail/recovery later |
+| `h_agl` | above the launch point | `−y[Z]` | gravity `radial` (`main.tex` defines `h = −z`), rail/recovery later |
 | `h_msl` | above mean sea level | `p.h0_m − y[Z]` | ISA, soundings, `wgs84` |
 
 Soundings are published against MSL and ISA is defined against MSL, so a launch site at 380 m that
@@ -1033,7 +1033,7 @@ design is unchanged — with two Phase 2 clarifications.
 
 | Module | Checks |
 |---|---|
-| `gravity` | all four give `g(h=0) ≈ g₀` at `lat = 45.5°`; `linear` and `radial` agree to ~1e-6 relative at 10 km and diverge measurably at 100 km; `wgs84` gives 9.7803 at the equator, 9.8322 at the pole, 9.80665 near 45.5° |
+| `gravity` | all three give `g(h=0) ≈ g₀` at `lat = 45.5°`; `wgs84` gives 9.7803 at the equator, 9.8322 at the pole, 9.80665 near 45.5°; `radial` matches `wgs84`'s altitude dependence to ~1e-3 relative over 0-30 km |
 | `atmosphere` ISA | `ρ(0)=1.225`, `p(11 km)=22632 Pa`, `T(20 km)=216.65 K`, `a(0)=340.29 m/s`, `μ(288.15)=1.789e-5`; monotone ρ |
 | `flow` | at `α=0` the aero force equals the Phase 1 `(−A_x, −A_z)` exactly; with zero wind `v_rel == v`; `V=0` on the pad yields finite zeros |
 | `wind` | `"none"` reproduces the previous step bit-for-bit; a pure headwind increases `V` by exactly the wind speed; direction→component conversion checked for the four cardinal directions |

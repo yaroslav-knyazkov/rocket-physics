@@ -51,7 +51,7 @@ _AERO_KW = dict(
 
 
 def test_sweep_produces_one_result_per_variant():
-    variants = ("constant", "linear", "radial", "wgs84")
+    variants = ("constant", "radial", "wgs84")
     results = sweep(_P, "gravity_model", variants, _S0)
 
     assert set(results.keys()) == set(variants)
@@ -66,24 +66,19 @@ def test_sweep_produces_one_result_per_variant():
 
 def test_sweep_gravity_apogee_ordering_is_physically_predictable():
     """At this scenario's ~4.6 km apogee, gravity decreases with altitude
-    for "linear"/"radial"/"wgs84" (architecture.md SS13), so all three give
-    less deceleration on the way up than "constant" and so a higher apogee.
-    "linear" and "radial" are near-identical this low (Step 10's own
-    `test_linear_and_radial_agree_closely_at_10km` established this to
-    ~1e-5 relative at 10 km, so well within 1e-3 at ~4.6 km). "wgs84"
-    additionally starts from a lower g0 at the equator (the default
+    for "radial"/"wgs84" (architecture.md SS13), so both give less
+    deceleration on the way up than "constant" and so a higher apogee.
+    "wgs84" additionally starts from a lower g0 at the equator (the default
     `lat0_deg=0.0`: `gamma0(0) = 9.7803253359 < p.g = 9.80665`), so it
-    gives the highest apogee of the four -- a strict, predictable ordering,
+    gives the highest apogee of the three -- a strict, predictable ordering,
     the same kind of directional check Step 10's own gravity tests used.
     """
     results = sweep(
-        _P, "gravity_model", ("constant", "linear", "radial", "wgs84"), _S0
+        _P, "gravity_model", ("constant", "radial", "wgs84"), _S0
     )
     apogees = {k: v["apogee_altitude"] for k, v in results.items()}
 
-    assert apogees["constant"] < apogees["linear"]
     assert apogees["constant"] < apogees["radial"]
-    assert math.isclose(apogees["linear"], apogees["radial"], rel_tol=1e-3)
     assert apogees["wgs84"] > apogees["radial"]
 
 
@@ -106,14 +101,14 @@ def test_sweep_atmosphere_isa_vs_sounding_shows_real_atmosphere_matters():
 
 
 def test_gravity_divergence_grows_with_altitude():
-    """roadmap.md Step 27's check: the four gravity models differ "by a
+    """roadmap.md Step 27's check: the gravity models differ "by a
     predictable, small amount at a 3 km apogee and a visible one at
     100 km" -- a direct numeric check on `gravity.g`, the same kind Step
     10's own tests (tests/test_gravity.py) used, sampled at this scenario's
     actual apogee altitude (~4.6 km, per run.py's own printed summary) and
-    at 100 km.
+    at 100 km. ("linear" removed at Phase 2.5 Step 34.)
     """
-    variants = ("constant", "linear", "radial", "wgs84")
+    variants = ("constant", "radial", "wgs84")
 
     def _relative_spread(h: float) -> float:
         y = np.array(

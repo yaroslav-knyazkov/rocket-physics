@@ -48,11 +48,11 @@ class Params:
     aero_table: str = ""  # file under data/aero/; "" = use the constants above
 
     # model selection (architecture.md SS12)
-    gravity_model: str = "constant"     # constant | linear | radial | wgs84
+    gravity_model: str = "constant"     # constant | radial | wgs84
     atmosphere_model: str = "isa"       # isa | sounding | field
 
     # launch site / Earth (architecture.md SS13, SS15, SS17)
-    R_e:         float = 6371000.0  # mean Earth radius [m] (linear & radial gravity)
+    R_e:         float = 6371000.0  # mean Earth radius [m] (radial gravity)
     lat0_deg:    float = 0.0   # geodetic latitude of the launch site [deg] (wgs84 gravity)
     lon0_deg:    float = 0.0   # geodetic longitude of the launch site [deg] (station projection, tier 3)
     h0_m:        float = 0.0   # launch site elevation above MSL [m]
