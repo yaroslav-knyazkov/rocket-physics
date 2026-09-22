@@ -346,8 +346,24 @@ d:\Projects\rocket-trajectory\
 4. **"CoG doesn't change"** (main.tex §Current assumptions) conflicts with Phase 2 propellant
    depletion, which moves the CoG and changes `I`, `l₁` and `l₂` in time. Needs a derivation
    update before Step 12.
+   **RESOLVED** — `main.tex` §Models > Mass and moment of inertia now gives a minimal two-lumped-
+   mass derivation (`l_B(t)`, `I(t)` via the parallel-axis theorem); the propellant grain geometry
+   itself is still a `\todo`. Unblocks Phase 2.5 Step 36.
 5. **Thrust moment is identically zero** under the current geometry (`aB ∥ T`). Worth knowing
    before wondering why the rocket never pitches under thrust.
+6. **Aerodynamic force axis** — Step 9's generalisation resolved item 3 above by rotating the
+   Phase 1 force into the relative-wind frame (`û, n̂`), but the aerodynamic coefficients
+   `C_A(α,M)`/`C_N(α,M)` (Step 25) are themselves body-axis quantities (matching the user's CFD
+   data convention), so re-rotating them through `û, n̂` double-applies the `α`-dependence.
+   **RESOLVED** — `main.tex` §Models > Aerodynamics now states the force stays in body axes,
+   `A_f = -A_x·x̂_r - A_z·ẑ_r`, for every `α`; `û, n̂` are used only for `V, α, q`. Code fix
+   scheduled as Phase 2.5 Step 35 (`sim/forces.py::aero_force_body`/`aero_moment_y`).
+7. **Earth's rotation, dynamic (Coriolis) term** — the WGS84 gravity model already folds in the
+   Earth's rotation *statically* (the equatorial/polar difference in `g`'s magnitude); nothing
+   folds in the *dynamic* Coriolis/centrifugal fictitious-force terms on the moving rocket. Not
+   previously tracked as an open question at all. `main.tex` §Models > Non-inertial frame
+   corrections now states the standard formula; the launch-site-frame projection of `Ω` is a
+   `\todo`. Scheduled as Phase 2.5 Step 37.
 
 ---
 
@@ -1069,11 +1085,21 @@ step that hits them.
 5. **Sign of `l₁` / static stability (§19)** — under `main.tex`'s current geometry, a stable
    rocket needs `l₁ < 0`. Confirm the intended convention (or update `main.tex`) before the
    aero-coefficient step.
-6. **CoG motion under propellant depletion** — still open from §9 item 4; blocks the variable-mass
-   step, not the environment models.
+6. **CoG motion under propellant depletion** — **RESOLVED**, see §9 item 4. Scheduled as
+   Phase 2.5 Step 36.
 7. **Non-parallel gravity** — `main.tex` §Current assumptions fixes `ẑ_g` for the whole flight.
    A gravity *direction* that rotates with downrange distance would be the one genuinely new
-   physics among the gravity variants, but it needs a derivation update first. Backlog unless the
-   user wants it.
+   physics among the gravity variants, but it needs a derivation update first. **Still backlog** —
+   distinct from item 9 below (Coriolis is a dynamic, velocity-dependent effect on the equations
+   of motion; this is a static, position-dependent effect on `ẑ_g`'s direction). Unless the user
+   wants it.
 8. **Crosswind is discarded in 2D (§16)** — worth confirming the user is happy that wind only ever
    acts along the flight plane until Phase 3.
+9. **Coriolis/centrifugal (rotating-Earth) correction** — **RESOLVED** as a design question, see
+   §9 item 7; the tangent-plane projection of `Ω` is a `\todo` in `main.tex`. Scheduled as
+   Phase 2.5 Step 37.
+10. **Linear gravity model removed** — the `"linear"` variant (`architecture.md` §13,
+    `sim/gravity.py::_g_linear`) is being dropped: it is the weakest of the four (first-order
+    truncation of inverse-square, goes negative above `h = R_e/2`) and offers no advantage over
+    `radial`, which is exact and equally cheap. Scheduled as Phase 2.5 Step 34 (code + tests +
+    the Step-27 comparison sweep).

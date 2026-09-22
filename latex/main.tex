@@ -1,0 +1,106 @@
+\documentclass[10pt]{extarticle}
+
+% ---------- Packages ----------
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath, amsfonts, bm}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{nomencl}
+\usepackage{array}
+\usepackage{pdflscape}
+\usepackage[export]{adjustbox}
+\usepackage[utf8]{inputenc}
+\usepackage{parskip}
+
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{arrows.meta, arrows}
+
+% ---------- Page setup ----------
+\geometry{
+    a4paper,
+    total={170mm,257mm},
+    left=20mm,
+    top=20mm
+}
+
+% ---------- Headers and footers ----------
+\pagestyle{fancy}
+\pagenumbering{arabic}
+
+\fancyhead[L]{Rocket Physics by Yaroslav Knyazkov}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+
+% ---------- Hyperlinks ----------
+\hypersetup{
+    colorlinks=true,
+    linkcolor={blue!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+% ---------- Equation numbering ----------
+\numberwithin{equation}{subsection}
+
+% ---------- Custom commands ----------
+\newcommand{\todo}[1]{%
+    \textcolor{red}{(#1)}%
+}
+% \ai marks text/equations written or edited by the AI assistant, so changes
+% made outside a normal editing pass are visually distinguishable.
+\newcommand{\ai}[1]{{\color{blue}#1}}
+
+\begin{document}
+
+\tableofcontents
+
+\todo{\begin{itemize}
+    \item make everything organized,
+    \item analytical analysis as a section,
+    \item assumption wingbody (+ how to analyitcally calulate CoP), + air frame, + air brake,
+\end{itemize}}
+
+Ideas
+\begin{itemize}
+    \item dynamic stability analysis
+\end{itemize}
+
+\newpage
+\ai{\section{Current assumptions}
+This section collects, in one place, every simplification the current derivation and the
+simulator rely on. Each is expected to be relaxed in a later phase; the relevant model or roadmap
+step is named where one exists, so a reader can tell "current shortcut" from "permanent choice"
+at a glance.
+\begin{itemize}
+    \item \textbf{Flat, non-rotating Earth for the flight-dynamics frame.} $\mathcal{F}_0$ is
+    treated as inertial: $\hat{z}_g$ is fixed for the whole flight (the local vertical does not
+    rotate with downrange distance), and the equations of motion carry no Earth-rotation
+    (Coriolis/centrifugal) term. This concerns only the \emph{direction} of $\hat{z}_g$ and the
+    translational equations of motion --- the \emph{magnitude} of $g$ already accounts for the
+    Earth's rotation through the WGS84 model (\S Models > Gravity). See \S Models > Non-inertial
+    frame corrections.
+    \item \textbf{Constant mass, center of gravity and moment of inertia.} $m$, $I$, $l_1$, $l_2$
+    are held fixed for the whole flight; propellant depletion is not yet wired into the equations
+    of motion. See \S Models > Mass and moment of inertia.
+    \item \textbf{Thrust axis aligned with the body axis.} No gimbal or nozzle misalignment is
+    modelled; under the current geometry the thrust moment about the CoG is identically zero.
+    \item \textbf{Planar (2D) flight, no crosswind.} Motion is confined to the vertical plane
+    fixed by the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded
+    (\S Models > Wind).
+    \item \textbf{No vertical wind.} Wind velocity is horizontal only; updrafts/downdrafts are not
+    modelled (\S Models > Wind).
+    \item \textbf{No launch rail constraint, no recovery/parachute.} Free flight from $t = 0$;
+    deferred to the backlog.
+\end{itemize}}
+
+\newpage
+\input{sections/rocket-2d}
+
+\newpage
+\input{sections/models}
+
+\end{document}

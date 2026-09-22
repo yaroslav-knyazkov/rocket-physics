@@ -1,0 +1,116 @@
+\section{Rocket 2D}
+\subsection{Frames}
+\begin{itemize}
+    \item $\mathcal{F}_0$ - ground
+    \item $\mathcal{F}_g$ - gravitational field
+    \item $\mathcal{F}_r$ - rocket
+\end{itemize}
+\ai{$\mathcal{F}_0$ and $\mathcal{F}_g$ share the same fixed orientation ($\hat{z}_g \equiv
+\hat{z}_0$, down) --- the gravity frame is kept notationally separate only so a curved/rotating
+Earth can be introduced later without renaming anything (\S Current assumptions). $\mathcal{F}_r$
+is right-handed with $\hat{x}_r$ along the rocket's nose axis (positive forward), $\hat{z}_r$
+completing the pitch plane with it ($\hat{z}_r \equiv \hat{z}_g$ when $\theta = 0$), and
+$\hat{y}_r$ out of the pitch plane. Pitch $\theta$ is measured from the inertial horizontal,
+positive nose-up; the pitch rate $\omega = \dot\theta$ is the rotation rate about $\hat{y}_r$.}
+
+
+\subsection{Forces and moments}
+Weight is the main force the rocket has to overcome to increase its altitude. It is written by
+\begin{equation}
+    \vec{W} = mg\hat{z}_g, 
+\end{equation}
+where $m$ is mass of rocket, $g$ gravitational acceleration along direction of gravitational field $\hat{z}_g$.
+
+To overcome weight thrust force is generated, by ejecting fuel at velocity and due to pressure differences. It is simply written as
+\begin{equation}
+    \vec{T} = T\hat{x}_r,
+\end{equation}
+where $T$ is thrust magnitude along axis of rocket $\hat{x}_r$. \todo{add own thrust axis; misalignment + control}
+
+Due to motion of rocket within fluid aerodynamic forces are present and given by
+\begin{equation}
+    \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r,
+\end{equation}
+where $A_x, A_z$ are respectively drag and lift magnitudes defined in rocket frame $\hat{x}_r, \hat{z}_r$. By defining a reference point $D$ on the rocket pitching moment can be obtained and written as
+\begin{equation}
+    \vec{A}_m = -A_m\hat{y}_r,
+\end{equation}
+where $A_m$ is pitching moment magnitude, defined around $\hat{y}_r$ axis.
+
+\subsection{Geometry}
+Three forces, each act at it's own point. Every dimensions will be defined in rocket frame and from the point $A$ at the tip of the rocket.
+
+Weight is defined at center of gravity, here defined as $B$, giving
+\begin{equation}
+    \vec{AB} = -l_B\hat{x}_r - u_B\hat{z}_r.
+\end{equation}
+
+Thrust is defined at $C$,
+\begin{equation}
+    \vec{AC} = -l_C\hat{x}_r - u_C\hat{z}_r.
+\end{equation}
+
+Aerodynamic forces at $D$
+\begin{equation}
+    \vec{AD} = -l_D\hat{x}_r.
+\end{equation}
+
+The added $u$ dimensions refer to the axis misalignment as in real rockets center of gravity and thrust can't be strictly on the axis. As $D$ is reference point no misalignment definition is required, however the external surfaces unsymmetry will be visible in polar plots.
+
+\subsection{Equations of motion}
+\begin{gather}
+    m\vec{\ddot{x}} = \sum \vec{F} = \vec{W} + \vec{T} + \vec{A}_f \\
+    I\ddot{\theta} = \sum \vec{M}(B) \cdot \hat{y}_r = \left[\vec{BC}\times\vec{T} + \vec{BD}\times\vec{A}_f + \vec{A_m}\right]\cdot \hat{y}_r
+\end{gather}
+
+\subsection{Analytical analysis}
+\ai{Here ${}^r(\cdot)$ denotes a vector's components resolved along the body axes $\hat{x}_r,
+\hat{z}_r$ at the current instant --- i.e.\ $m\,{}^r\ddot{x} = (m\ddot{\vec{x}})\cdot\hat{x}_r$
+--- \emph{not} a derivative taken within the rotating frame $\mathcal{F}_r$ itself (which would
+additionally need that frame's own rotation-coupling terms). The equations below are therefore
+just $\sum\vec{F}\cdot\hat{x}_r$, $\sum\vec{F}\cdot\hat{z}_r$ of \S Equations of motion,
+expanded.}
+\subsubsection{Forces}
+\begin{align}
+    m{}^r\ddot{x} &= -mg\cos{\theta} + T - A_x\\
+    m{}^r\ddot{z} &= mg\sin{\theta} - A_z
+\end{align}
+
+\subsubsection{Moment}
+\begin{equation}
+    I\ddot{\theta} = (u_B - u_D)T - u_BA_x + (l_B - l_C)A_z - A_m
+\end{equation}
+\todo{write that $l_C$ is irrelevant; unless thrust axis defined}
+
+No thrust \todo{write}
+\begin{equation}
+    I\ddot{\theta} = -u_BA_x + (l_B - l_C)A_z - A_m.
+\end{equation}
+
+If thrust and weight axis are aligned then the equation turns into
+\begin{equation} \label{eq:moment_aligned}
+    I\ddot{\theta} = (l_B - l_C)A_z - A_m.
+\end{equation}
+
+\todo{actual section with thrust and no-thrust stability}
+\paragraph{Static stability} is a steady measure of stability of rocket due to disturbance, which for this case is angle of attack $\alpha$. We will use no thrust, axis aligned \autoref{eq:moment_aligned}. Before the analysis we need to expand and linearize $A_z, A_m$, which are given by
+\begin{equation}
+    A_z = qc_zA,\quad A_m = qc_mAl,
+\end{equation}
+where $q$ is dynamic pressure, $c_z, c_m$ are respectively lift and pitching moment coefficeints and $A, l$ reference area and length, More on that in \todo{section reference}.
+
+Coefficents $c_z, c_m$ can be linearized by using
+\begin{align}
+    c_z &= c_{z,0} + \alpha c_{z,\alpha}, \\
+    c_m &= c_{m,0} + \alpha c_{m,\alpha}.
+\end{align}
+
+By taking partial derivative of angular acceleration by $\alpha$, we expect $\frac{\partial \ddot\theta}{\partial \alpha} < 0$ behavior, meaning the rocket will stabilize the trajectory. The expansion and derivative gives
+\begin{equation}
+    \frac{\partial \ddot\theta}{\partial \alpha} = \frac{qA}{I}\biggl[(l_B - l_C)c_{z,\alpha} - c_{m,\alpha}l\biggr] < 0,
+\end{equation}
+which is met stability margin $\textrm{SM}$ is 
+\begin{equation}
+    \textrm{SM} = l_B - l_C < l\frac{c_{m,\alpha}}{c_{z,\alpha}}.
+\end{equation}
+\todo{maybe divide both sides by area; sqrtA or diameter for dimensionless number}
