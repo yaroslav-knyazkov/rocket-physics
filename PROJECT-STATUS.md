@@ -17,8 +17,9 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-**Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) in progress**,
-inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Steps 33-35 done:
+**Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
+inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Next: Phase 3 (3D, full
+6-DOF) — not started, awaiting the user's go-ahead. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -45,23 +46,45 @@ project's history with Step 15/25):
    structure), documented as a placeholder matching `main.tex`'s own "uniform density, fixed
    shape" `\todo`.
 
-Step 37 (Coriolis/centrifugal correction) — the derivation blocker is resolved:
-architect drafted the Ω-in-tangent-plane-frame derivation (`latex/sections/models.tex`, commit
-`a98f283`), verified to 4.4e-16 against an independent 3D calculation. Key finding: in-plane
-Coriolis is driven entirely by Ω's out-of-plane component, so a due-North/South launch (or the
-poles) gets exactly zero in-plane Coriolis even though the true effect is maximal there (just
-lateral, which a 2D model can't represent) — documented as an explicit closure, same precedent as
-the existing crosswind closure in §Wind. User picked scope **Option B**: implement in-plane
-Coriolis (roadmap's original spec) *plus* expose the discarded lateral component as a labeled
-diagnostic (not fed into the physics), so the blind spot is visible instead of silent. Step 36 is
-now done — Step 37's code implementation is dispatched next.
+Step 37 — non-inertial (Coriolis/centrifugal) correction. `sim/rotation.py` (new):
+`omega_components(lat0_deg, azimuth_deg)` — Earth's Ω decomposed in the launch tangent-plane frame
+per the architect's derivation (`latex/sections/models.tex`, commit `a98f283`, verified to 4.4e-16
+against an independent 3D calculation). Key finding: in-plane Coriolis is driven entirely by Ω's
+out-of-plane component, so a due-North/South launch (or the poles) gets exactly zero in-plane
+Coriolis even though the true effect is maximal there (just lateral, which a 2D model can't
+represent) — documented as an explicit closure, same precedent as the existing crosswind closure
+in §Wind. Implemented per user-approved **scope Option B**: in-plane Coriolis added to
+`sim/dynamics.py`'s translational derivatives, gated by new `Params.earth_rotation` (bool, default
+`False`, bit-for-bit inert) — *plus* the discarded lateral component computed and exposed as a
+labeled diagnostic (not fed into the physics), so the blind spot is visible instead of silent. The
+residual centrifugal term (Option D) was deliberately **not** implemented, per the user's explicit
+choice — documented as a closed decision, not a gap. 123/123 tests passing (7 new). Commit
+`9af29c7`.
 
-Also surfaced by the architect, not fixed (out of scope for Step 37): `rocket-2d.tex`
+Verified: `earth_rotation=False` is bit-for-bit inert regardless of `lat0_deg`/`azimuth_deg`;
+in-plane Coriolis matches the closed form independently re-derived in the test (~2.81×10⁻² m/s² at
+`lat0=50°, azimuth=90°, V=300 m/s`, matching the architect's ~2.8×10⁻² report); the existing
+~4.6 km-apogee scenario deflects ~8.4 m downrange at apogee with Coriolis on at that geometry,
+matching `models.tex`'s own order-of-magnitude estimate ("order 10 m over a 30 s powered ascent");
+the in-plane term is exactly zero at `azimuth=0°/180°` for every latitude tested, with the lateral
+diagnostic nonzero there instead — the documented blind spot, and the exact property the
+diagnostic exists to demonstrate.
+
+**Process note:** the developer caught and correctly resolved a contradiction in the orchestrator's
+own dispatch instructions for this step (the detailed scope description said the lateral
+diagnostic must be nonzero at `azimuth=0°/180°`; a later "Checks" bullet, copied loosely from
+`roadmap.md`'s older wording, said the opposite). Resolved by re-deriving from `models.tex` itself
+— the authoritative source — rather than taking either instruction on faith, and verified
+numerically. No harm done, but a reminder to double-check dispatch prompts for internal
+consistency, not just against the spec.
+
+Also surfaced by the architect, not fixed (genuinely out of scope for Step 37): `rocket-2d.tex`
 §Analytical analysis's force equations assume θ measured from the vertical, conflicting with
 §Frames and the actual code (θ measured from horizontal, nose-up) — a pre-existing inconsistency
-in the user's own older text. Flagged for a small dedicated fix step later.
+in the user's own older text. Flagged for a small dedicated fix step later, not urgent.
 
-Phase 3 (3D, full 6-DOF) has not been started.
+**Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
+(3D, full 6-DOF) has not been started.
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to

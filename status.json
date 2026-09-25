@@ -2,10 +2,10 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2.5-in-progress",
+  "current_stage": "phase2.5-complete",
   "phase2_5_scope": {
     "steps": "33-37",
-    "note": "added after the Phase 2 milestone closeout; not part of Phase 3 (still 2D). Steps 33-35 done. Step 36 (variable mass) done (commit 2610cd8), 2 open modeling questions flagged for user/architect review before Step 37. Step 37 derivation prep done (commit a98f283) -- Omega's tangent-plane components derived by architect (verified 4.4e-16 vs independent 3D calc), user approved scope Option B (in-plane Coriolis per original spec + a labeled diagnostic for the discarded lateral component, not fed into physics). Step 37 code implementation queued behind Step 36 (both touch sim/dynamics.py/params.py/tests/test_dynamics.py -- serialized to avoid conflicts)."
+    "note": "added after the Phase 2 milestone closeout; not part of Phase 3 (still 2D). ALL 5 STEPS DONE (33-37). Step 36 (variable mass) done (commit 2610cd8), 2 open modeling questions flagged for future user/architect review (not blocking). Step 37 (Coriolis) done (commit 9af29c7), scope Option B as user approved: in-plane Coriolis + labeled lateral diagnostic, gated by p.earth_rotation (default False, bit-for-bit inert). Phase 3 (3D, full 6-DOF) is next, not started, awaiting user go-ahead."
   },
   "phase2_5_step36_completed": {
     "commit": "2610cd8",
@@ -18,6 +18,18 @@
   "phase2_5_step37_prep": {
     "commit": "a98f283",
     "note": "latex/sections/models.tex Non-inertial frame corrections: Omega decomposed in launch tangent-plane frame as function of lat0_deg/azimuth_deg (reusing existing Params fields, no new params). Key finding: in-plane Coriolis is generated entirely by Omega's out-of-plane (y_g) component; in-plane Omega components produce only lateral acceleration a 2D model can't receive -- so the todo's literal phrasing (project Omega onto x_g,z_g) would have kept the half that does nothing. Documented as a closure (not a smallness argument), same precedent as the existing crosswind closure in Section Wind. Consequence flagged: in-plane Coriolis is exactly zero for due-North/South launches (chi=0/180) or at the poles, even though the true effect is maximal there (just lateral). User chose scope Option B over A/C/D via AskUserQuestion: implement in-plane Coriolis (roadmap's original spec) PLUS expose the discarded lateral component as a labeled diagnostic, not fed back into the state -- makes the blind spot visible instead of silent. Also surfaced, not fixed (out of scope): rocket-2d.tex Section Analytical analysis's force equations assume theta measured from vertical, conflicting with Section Frames/actual code (theta from horizontal, nose-up) -- pre-existing inconsistency in user's older text, flagged for a future small fix step."
+  },
+  "phase2_5_step37_completed": {
+    "commit": "9af29c7",
+    "note": "sim/rotation.py (new): omega_components(lat0_deg,azimuth_deg) -- Earth's Omega decomposed in the launch tangent-plane frame, unit-norm verified. sim/dynamics.py: in-plane Coriolis acceleration added to translational derivatives, gated by new Params field earth_rotation (bool, default False -- bit-for-bit inert regardless of lat0_deg/azimuth_deg when off). Lateral (out-of-plane) Coriolis component also computed and exposed as a labeled diagnostic (not fed into the state/physics) per user's Option B scope choice. Residual centrifugal term (Option D) deliberately NOT implemented, per user's explicit rejection -- documented in sim/rotation.py's docstring and roadmap.md as a closed decision, not a gap. 123/123 tests passing (7 new in tests/test_dynamics.py).",
+    "verified": [
+      "earth_rotation=False bit-for-bit inert regardless of lat0_deg/azimuth_deg",
+      "in-plane Coriolis matches models.tex's closed form independently re-derived in the test: ~2.81e-2 m/s^2 at lat0=50,azimuth=90,V=300 m/s (architect's report: ~2.8e-2)",
+      "trajectory-level: ~8.4m downrange deflection at apogee (t~30s) for the existing ~4.6km-apogee scenario at lat0=50,azimuth=90 -- matches models.tex's own order-of-magnitude estimate ('order 10 m over a 30s powered ascent')",
+      "in-plane term exactly zero at azimuth=0/180 for every latitude tested; lateral diagnostic nonzero there instead -- the documented blind spot, and the property the diagnostic exists to demonstrate",
+      "omega_components has unit norm across a spread of latitudes/azimuths"
+    ],
+    "flagged_by_developer": "found and resolved an internal contradiction in the orchestrator's own dispatch instructions (the detailed scope paragraph said the lateral diagnostic must be NONZERO at azimuth=0/180, but a later 'Checks' bullet literally said the opposite). Resolved correctly using models.tex's own derivation as the authoritative source, re-derived and verified numerically rather than taken on faith. Implemented/tested the correct behavior (in-plane zero, lateral nonzero at the blind spot)."
   },
   "phase2_5_completed_steps": [
     {"step": 33, "name": "Documentation restructuring (Current assumptions, models.tex consolidation)", "commit": "3aaec51", "note": "main.tex split into latex/main.tex + latex/sections/{rocket-2d,models}.tex; added the previously-referenced-but-undefined Current assumptions section; filled empty stubs (frame axes, gravity direction, Reynolds/Mach, aero-coefficient discussion); added non-inertial and variable-mass model sketches (left as derivation todos, feeding Steps 36/37); dropped linear gravity from the text; documented vertical wind as unimplemented (no fitting theory found). No code changes."},
