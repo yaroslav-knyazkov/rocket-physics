@@ -30,10 +30,24 @@ inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Steps 3
   → `C_N_alpha*sin(alpha)`, since an unperturbed vertical flight can coast tail-first through
   `V=0` at apogee and land exactly on `atan2`'s branch cut). Commit `6fa46f2`.
 
-Next: Step 36 (variable mass: CoG/moment-of-inertia travel) — in progress. Step 37 (Coriolis/
-centrifugal correction) is **blocked**: `roadmap.md` explicitly flags it as needing a derivation
-(projecting Earth's Ω into the launch-site tangent-plane frame as a function of latitude/azimuth)
-that the user needs to resolve in `main.tex` first — not an engineering choice for an agent to make.
+Next: Step 36 (variable mass: CoG/moment-of-inertia travel) — dispatched to developer, in
+progress. Step 37 (Coriolis/centrifugal correction) — the derivation blocker is resolved:
+architect drafted the Ω-in-tangent-plane-frame derivation (`latex/sections/models.tex`, commit
+`a98f283`), verified to 4.4e-16 against an independent 3D calculation. Key finding: in-plane
+Coriolis is driven entirely by Ω's out-of-plane component, so a due-North/South launch (or the
+poles) gets exactly zero in-plane Coriolis even though the true effect is maximal there (just
+lateral, which a 2D model can't represent) — documented as an explicit closure, same precedent as
+the existing crosswind closure in §Wind. User picked scope **Option B**: implement in-plane
+Coriolis (roadmap's original spec) *plus* expose the discarded lateral component as a labeled
+diagnostic (not fed into the physics), so the blind spot is visible instead of silent. Step 37's
+code implementation is queued behind Step 36 (both touch `sim/dynamics.py`/`sim/params.py`/
+`tests/test_dynamics.py` — serialized to avoid conflicts).
+
+Also surfaced by the architect, not fixed (out of scope for Step 37): `rocket-2d.tex`
+§Analytical analysis's force equations assume θ measured from the vertical, conflicting with
+§Frames and the actual code (θ measured from horizontal, nose-up) — a pre-existing inconsistency
+in the user's own older text. Flagged for a small dedicated fix step later.
+
 Phase 3 (3D, full 6-DOF) has not been started.
 
 ## Gravity models complete (all 4 main.tex variants)
