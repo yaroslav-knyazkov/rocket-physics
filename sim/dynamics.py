@@ -58,6 +58,14 @@ l1(t), l2(t)"; main.tex's own SSCurrent assumptions still lists `l_1`,
 `l_B(t)` on their own, this is enough to make a real `l_p != l_d` offset
 change the rotational dynamics (the "Check" this step's roadmap entry
 asks for) without inventing an unstated `l1(t)`/`l2(t)` formula.
+
+Step 37 (roadmap.md; main.tex SSModels > Non-inertial frame corrections):
+`a_i` gains `sim.rotation`'s in-plane Coriolis acceleration when
+`p.earth_rotation` is `True` (default `False`, bit-for-bit pre-Step-37
+otherwise). This is a purely translational correction -- zero moment
+about the CoG (sim/rotation.py's module docstring, "Moment") -- so it
+touches only `dvx/dt`/`dvz/dt` below, never `M_y`/`domega/dt`, and does
+not interact with `l1`/`l2`/`aA`/`aB` at all.
 """
 
 import numpy as np
@@ -66,6 +74,7 @@ from sim import aero, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
+from sim.rotation import coriolis_inplane
 from sim.state import M, OMEGA, THETA, VX, VZ, X, Z
 
 
@@ -171,6 +180,16 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
         dm_dt = -thrust_curve.thrust(t, y, p) / (p.I_sp * p.g)
 
     a_i = F_i / m
+
+    # Step 37: non-inertial (Coriolis) frame correction (main.tex SSModels >
+    # Non-inertial frame corrections; sim/rotation.py). Off by default
+    # (`p.earth_rotation = False`) -- `a_i` unchanged, bit-for-bit
+    # pre-Step-37. On -> add the in-plane Coriolis acceleration only (the
+    # residual centrifugal term and the out-of-plane Coriolis component
+    # are deliberately not implemented; see sim/rotation.py's module
+    # docstring). Purely translational -- no effect on M_y/domega/dt below.
+    if p.earth_rotation:
+        a_i = a_i + coriolis_inplane(t, y, p)
 
     # Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
     # along the body x-axis, relative to the CoG. `l1`, `l2` are positive,

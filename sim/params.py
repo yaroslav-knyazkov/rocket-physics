@@ -102,3 +102,16 @@ class Params:
     l_p: float = 0.0   # propellant centroid, distance from the nose [m] (main.tex's grain-geometry \todo placeholder: held constant)
     I_d: float = 0.0   # dry structure's own moment of inertia about l_d [kg*m^2]
     I_sp: float = 0.0  # specific impulse [s], for dm/dt = -T_ref(t)/(I_sp*g0)
+
+    # Step 37: non-inertial (Coriolis) frame correction (main.tex SSModels >
+    # Non-inertial frame corrections; sim/rotation.py). Same "unset =
+    # bit-for-bit reproduces every prior step" gate convention as
+    # `m_d`/`aero_table`/`wind_model`: `False` (the default) means
+    # dynamics.py never calls sim.rotation.coriolis_inplane at all. `True`
+    # adds the in-plane Coriolis acceleration only -- the residual
+    # centrifugal term and the out-of-plane Coriolis component are
+    # deliberately not folded into the physics (see sim/rotation.py's
+    # module docstring for why); `lat0_deg`/`azimuth_deg` above (already
+    # used by gravity.py's WGS84 model and wind.py's ENU projection) are
+    # reused as-is -- no new parameter beyond this one flag.
+    earth_rotation: bool = False

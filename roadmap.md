@@ -471,31 +471,35 @@ commit, re-run the Phase 1/2 regression suite after each).
   is unchanged from Step 35, isolating the effect of `l_B(t) ≠ l_d` when a real offset is set.
 - **Commit:** "Propellant depletion: CoG and moment-of-inertia travel"
 
-### Step 37 — Non-inertial (Coriolis/centrifugal) correction
-- **Files:** `sim/gravity.py` or a new `sim/rotation.py`, `sim/dynamics.py`, `sim/params.py`,
-  `tests/test_dynamics.py`
+### Step 37 — Non-inertial (Coriolis/centrifugal) correction — done
+- **Files:** `sim/rotation.py` (new), `sim/dynamics.py`, `sim/params.py`, `tests/test_dynamics.py`
 - **Spec:** `main.tex` §Models > Non-inertial frame corrections (Step 33) — the standard
-  `a_Coriolis = -2Ω×v`, `a_centrifugal = -Ω×(Ω×r)` terms.
-- **Blocked on:** the `\todo` in that section — projecting `Ω` (Earth's angular velocity,
-  magnitude fixed) into the launch-site tangent-plane frame `(x̂_g, ẑ_g)` as a function of
-  latitude `φ₀` and launch azimuth `χ`. This is a derivation, not an engineering choice — resolve
-  it in `main.tex` before writing code.
-  - *Candidate derivation drafted (AI, pending user review — step stays blocked until reviewed):*
-    `latex/sections/models.tex` §Non-inertial frame corrections now carries the full projection,
-    wrapped in `\ai{}`. Result: `Ω = Ω(cosφ₀cosχ x̂_g − cosφ₀sinχ ŷ_g − sinφ₀ ẑ_g)` (ẑ_g down),
-    and for planar motion the in-plane Coriolis term comes *only* from the plane-normal component
-    `Ω_y`, giving `a_Cor,2D = 2Ω cosφ₀ sinχ (ż x̂_g − ẋ ẑ_g)`. The in-plane components of `Ω`
-    produce a purely lateral acceleration that a 2D model cannot carry and which is therefore
-    dropped — a documented closure, not a smallness argument. Two consequences the user should
-    sign off on: a due-North/South launch gets *zero* modelled Coriolis effect, and the retained
-    term is the same order as the still-neglected frozen-vertical (flat-Earth) error.
-- **Do (once unblocked):** add the projected `Ω` and the two acceleration terms to
-  `dynamics.derivatives`, gated by a new `p.earth_rotation: bool` (default `False`, reproducing
-  every prior step's results bit-for-bit).
-- **Check:** `earth_rotation=False` reproduces Step 36 exactly; with it on, the deflection at a
-  few-km apogee is centimeters-to-meters, consistent with the order-of-magnitude estimate in
-  `main.tex` §Current assumptions.
-- **Commit:** "Coriolis/centrifugal correction to the equations of motion"
+  `a_Coriolis = -2Ω×v`, `a_centrifugal = -Ω×(Ω×r)` terms; derivation resolved in
+  `latex/sections/models.tex` §Non-inertial frame corrections (commit `a98f283`), reviewed and
+  scoped by the user (Option B, below).
+- **Resolved projection:** `Ω = Ω(cosφ₀cosχ x̂_g − cosφ₀sinχ ŷ_g − sinφ₀ ẑ_g)` (ẑ_g down); the
+  in-plane Coriolis term comes *only* from the plane-normal component `Ω_y`, giving
+  `a_Cor,2D = 2Ω cosφ₀ sinχ (ż x̂_g − ẋ ẑ_g)`. The in-plane components of `Ω` (`Ω_x`, `Ω_z`)
+  produce a purely lateral acceleration a 2D model cannot carry — a documented closure, not a
+  smallness argument.
+- **Scope decision (Option B, user-approved):** in-plane Coriolis only, gated by
+  `p.earth_rotation: bool` (default `False`, bit-for-bit pre-Step-37). The discarded lateral
+  (out-of-plane, `y_g`) component is computed and exposed as a labeled diagnostic
+  (`sim.rotation.coriolis_lateral_diagnostic`) — never fed back into the state, since this is a
+  genuinely 2D model with no lateral DOF to receive it — so a due-North/South launch
+  (`χ=0°`/`180°`, where the *retained* in-plane term is exactly zero) does not read as "no
+  Coriolis effect here". The residual centrifugal term (Option D) is **not** implemented: ~3
+  orders of magnitude below Coriolis, and its vertical part risks double-counting against the
+  WGS84 free-air correction; documented in `sim/rotation.py`'s module docstring, not built.
+- **Check:** `earth_rotation=False` reproduces every prior step bit-for-bit (verified directly —
+  `test_earth_rotation_off_reproduces_derivatives_bit_for_bit`); with it on, the vertical-launch,
+  ~4.6 km-apogee scenario already used elsewhere in `tests/test_dynamics.py` deflects downrange by
+  ~8.4 m at apogee (`φ₀=50°`, `χ=90°`, apogee at t~=30 s) — matching models.tex's own worked
+  estimate ("order 10 m of displacement over a 30 s powered ascent") almost exactly. The in-plane
+  term is verified exactly zero at `χ=0°`/`180°` (`test_coriolis_inplane_zero_for_due_north_south_launch`),
+  and the lateral diagnostic is verified *nonzero* there instead — the documented blind spot —
+  per `test_coriolis_lateral_diagnostic_nonzero_at_the_blind_spot`.
+- **Commit:** "Coriolis correction to the equations of motion (Option B: in-plane only + lateral diagnostic)"
 
 **Not scheduled:** vertical wind (`main.tex` §Models > Wind > Vertical wind) — no theory found
 that fits the current data pipeline (station soundings, no terrain/NWP source) without adding a

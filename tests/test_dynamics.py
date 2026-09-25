@@ -27,7 +27,8 @@ import numpy as np
 from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives
 from sim.integrate import run_sim
 from sim.params import Params
-from sim.state import M, THETA, State, Z
+from sim.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
+from sim.state import M, THETA, VX, VZ, State, X, Z
 
 
 def test_rk4_agrees_with_rk45_on_apogee_and_impact():
@@ -203,3 +204,172 @@ def test_real_cog_offset_changes_pitch_trajectory():
     theta_shift = r_shift.raw.sol(2.0)[THETA]
 
     assert not math.isclose(theta_noshift, theta_shift, rel_tol=1e-6, abs_tol=1e-6)
+
+
+# ---------------------------------------------------------------------
+# Step 37: non-inertial (Coriolis) frame correction -- Option B (see
+# sim/rotation.py's module docstring): in-plane Coriolis only, gated by
+# `p.earth_rotation`, plus a labeled-but-unused lateral diagnostic. No
+# residual centrifugal term (rejected scope).
+# ---------------------------------------------------------------------
+
+
+def test_omega_components_have_unit_norm():
+    """models.tex eq:omega_components is a pure change of basis (ENU ->
+    the flight-plane triad), so `Omega_x^2 + Omega_y^2 + Omega_z^2` must
+    equal `Omega^2` for every `(phi0, chi)` -- a basis-independent
+    invariant that catches a sign/axis-labeling error even before any
+    force is computed.
+    """
+    for lat0_deg in (-90.0, -50.0, 0.0, 23.4, 50.0, 90.0):
+        for azimuth_deg in (0.0, 45.0, 90.0, 135.0, 180.0, 270.0, 359.0):
+            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            omega_x, omega_y, omega_z = omega_components(p)
+            norm_sq = omega_x**2 + omega_y**2 + omega_z**2
+            assert math.isclose(norm_sq, OMEGA_EARTH**2, rel_tol=1e-9)
+
+
+def test_earth_rotation_off_reproduces_derivatives_bit_for_bit():
+    """`p.earth_rotation = False` (the default) -- the on/off gate -- must
+    give bit-for-bit identical derivatives regardless of `lat0_deg`/
+    `azimuth_deg`, exactly the same "gated field is inert when off"
+    property `test_mass_model_off_reproduces_fixed_mass_bit_for_bit`
+    exercises for Step 36's `p.m_d`. A nonzero velocity is required here
+    (unlike that test) since `coriolis_inplane` is `[0, 0]` at `v=0`
+    regardless of the gate -- a state at rest would not actually exercise
+    the gate.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5)
+    p_site_a = Params(lat0_deg=0.0, azimuth_deg=90.0, **common)
+    p_site_b = Params(lat0_deg=50.0, azimuth_deg=30.0, **common)
+    s = State(x=100.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
+
+    dydt_a = derivatives(5.0, np.array(s), p_site_a)
+    dydt_b = derivatives(5.0, np.array(s), p_site_b)
+
+    assert np.array_equal(dydt_a, dydt_b)
+
+
+def test_earth_rotation_on_matches_closed_form_in_plane_acceleration():
+    """`derivatives`'s added acceleration, with `p.earth_rotation = True`,
+    must equal models.tex eq:coriolis_2d's closed form,
+
+        a_x = +2*Omega*cos(phi0)*sin(chi)*vz
+        a_z = -2*Omega*cos(phi0)*sin(chi)*vx
+
+    computed independently here (not by calling `sim.rotation` itself) so
+    this is a real check against the derivation, not a tautology. Also a
+    magnitude sanity check: at `phi0=50`, `chi=90`, `V=300 m/s` (`vx=300`,
+    `vz=0`) the architect's report and models.tex SS"Magnitudes" both give
+    ~2.8e-2 m/s^2.
+    """
+    p_off = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
+                    lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=False)
+    p_on = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
+                   lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=True)
+    s = State(x=0.0, z=-1000.0, vx=300.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    dydt_off = derivatives(0.0, np.array(s), p_off)
+    dydt_on = derivatives(0.0, np.array(s), p_on)
+    added = np.array([dydt_on[VX] - dydt_off[VX], dydt_on[VZ] - dydt_off[VZ]])
+
+    phi0 = math.radians(50.0)
+    chi = math.radians(90.0)
+    k = 2.0 * OMEGA_EARTH * math.cos(phi0) * math.sin(chi)
+    expected = np.array([k * s.vz, -k * s.vx])
+
+    assert np.allclose(added, expected, rtol=1e-9, atol=1e-15)
+    assert math.isclose(abs(expected[1]), 2.8e-2, rel_tol=0.05)
+
+
+def test_earth_rotation_deflects_vertical_flight_by_order_ten_metres():
+    """Trajectory-level sanity check (roadmap.md Step 37's "Check"):
+    reuse the vertical-launch, few-km-apogee scenario from
+    `test_rk4_agrees_with_rk45_on_apogee_and_impact` above (theta=pi/2,
+    `A_z=0`, `A_m=0` -> zero pitching moment for the whole flight, so
+    `theta` never leaves pi/2 and, with `earth_rotation=False`, downrange
+    `x` stays *exactly* 0 the whole flight -- the body-frame thrust/aero
+    forces only ever rotate into the inertial z-axis).
+
+    With `earth_rotation=True` at `phi0=50`, `chi=90` (`p.azimuth_deg`'s
+    default), the only source of downrange motion is the added Coriolis
+    term, and models.tex SS"Magnitudes" gives an explicit worked number
+    for this exact scenario: "order 10 m of displacement over a 30 s
+    powered ascent" -- this flight's apogee is at t~=30 s.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    p_off = Params(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=False, **common)
+    p_on = Params(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=True, **common)
+
+    r_off = run_sim(p_off, s0)
+    r_on = run_sim(p_on, s0)
+
+    t_apogee_off = r_off.events["apogee"]
+    t_apogee_on = r_on.events["apogee"]
+    assert t_apogee_off is not None and t_apogee_on is not None
+
+    x_apogee_off = r_off.raw.sol(t_apogee_off)[X]
+    x_apogee_on = r_on.raw.sol(t_apogee_on)[X]
+
+    assert math.isclose(x_apogee_off, 0.0, abs_tol=1e-9)
+    # "Order 10 m" -- generously bracketed, this is an order-of-magnitude
+    # check, not a precise regression value (main.tex/models.tex give the
+    # estimate, not an exact number to reproduce bit-for-bit).
+    assert 1.0 < abs(x_apogee_on) < 100.0
+
+
+def test_coriolis_inplane_zero_for_due_north_south_launch():
+    """models.tex: `Omega_y = -Omega*cos(phi0)*sin(chi)` vanishes for a
+    launch due North or due South (`chi = 0`/`180` deg) at any latitude --
+    the in-plane Coriolis term the 2D model actually applies is then
+    exactly zero, the model's documented "blind spot".
+    """
+    s = State(x=10.0, z=-2000.0, vx=250.0, vz=-30.0, theta=math.pi / 2, omega=0.0)
+    for lat0_deg in (-60.0, 0.0, 45.0, 89.0):
+        for azimuth_deg in (0.0, 180.0):
+            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            a = coriolis_inplane(0.0, np.array(s), p)
+            assert math.isclose(a[0], 0.0, abs_tol=1e-15)
+            assert math.isclose(a[1], 0.0, abs_tol=1e-15)
+
+
+def test_coriolis_lateral_diagnostic_nonzero_at_the_blind_spot():
+    """The whole point of `coriolis_lateral_diagnostic` (sim/rotation.py's
+    module docstring, point 2): exactly where the retained in-plane term
+    is zero (`chi = 0`/`180` deg, per the test above), the *true* Coriolis
+    effect is not zero -- it is maximal and entirely lateral. The
+    diagnostic must report a nonzero value there, so the in-plane number
+    alone is never misread as "no Coriolis effect on this launch".
+    """
+    s = State(x=10.0, z=-2000.0, vx=250.0, vz=-30.0, theta=math.pi / 2, omega=0.0)
+
+    for lat0_deg in (-60.0, 30.0, 60.0):
+        for azimuth_deg in (0.0, 180.0):
+            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            in_plane = coriolis_inplane(0.0, np.array(s), p)
+            lateral = coriolis_lateral_diagnostic(0.0, np.array(s), p)
+
+            assert math.isclose(in_plane[0], 0.0, abs_tol=1e-15)
+            assert math.isclose(in_plane[1], 0.0, abs_tol=1e-15)
+            assert abs(lateral) > 1e-6
+
+    # And it is generically nonzero away from the blind spot too, for a
+    # moving rocket (it is not a "only fires at chi=0/180" quantity).
+    p_generic = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=50.0, azimuth_deg=90.0)
+    assert abs(coriolis_lateral_diagnostic(0.0, np.array(s), p_generic)) > 1e-6
+
+
+def test_coriolis_lateral_diagnostic_matches_closed_form():
+    """`coriolis_lateral_diagnostic` must equal models.tex
+    eq:coriolis_split's discarded bracket, `-2*(Omega_z*vx - Omega_x*vz)`,
+    computed independently here from `omega_components` (not by re-calling
+    `coriolis_lateral_diagnostic` itself)."""
+    s = State(x=0.0, z=-1500.0, vx=180.0, vz=-25.0, theta=math.pi / 2, omega=0.0)
+    p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=35.0, azimuth_deg=60.0)
+
+    omega_x, _omega_y, omega_z = omega_components(p)
+    expected = -2.0 * (omega_z * s.vx - omega_x * s.vz)
+
+    assert math.isclose(coriolis_lateral_diagnostic(0.0, np.array(s), p), expected, rel_tol=1e-12)
