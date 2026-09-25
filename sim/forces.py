@@ -41,12 +41,20 @@ inline `Params`-constant formulas -- they are delegated to sim/aero.py,
 which is table-driven (`p.aero_table`) with the exact same constant
 formulas as the fallback (architecture.md SS19). Bit-for-bit unchanged
 when `p.aero_table == ""` (the default).
+
+Step 36: `weight_inertial`'s `m` is the current, possibly time-varying
+mass (`s[M]`) once the variable-mass model is on (`p.m_d` set, main.tex
+SSModels > Mass and moment of inertia) -- the fixed `p.m` otherwise,
+bit-for-bit unchanged. `thrust_body`/`aero_force_body`/`aero_moment_y`
+are untouched by Step 36 -- they depend on `t`/flow state, not directly
+on mass.
 """
 
 import numpy as np
 
 from sim import aero, gravity, thrust_curve
 from sim.flow import flow_state
+from sim.state import M
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
@@ -55,8 +63,15 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
     `g` is the model-selected magnitude from sim/gravity.py
     (`p.gravity_model`), not the raw `p.g` constant -- see the gravity.py
     docstring for the three variants implemented at Step 10.
+
+    Step 36: `m` is the current, possibly time-varying mass -- `s[M]`
+    (`state.M`) when the variable-mass model is on (`p.m_d` set), the
+    fixed `p.m` otherwise (main.tex SSModels > Mass and moment of
+    inertia; params.py's `m_d` on/off gate). Bit-for-bit `p.m` when the
+    model is off, matching every other Phase 2 model-selection seam.
     """
-    return np.array([0.0, p.m * gravity.g(t, s, p)])
+    m = s[M] if p.m_d is not None else p.m
+    return np.array([0.0, m * gravity.g(t, s, p)])
 
 
 def thrust_body(t: float, s, p) -> np.ndarray:

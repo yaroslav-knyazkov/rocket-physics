@@ -11,6 +11,7 @@ true with g > 0. Altitude is -z; nothing in the physics ever refers to
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -82,3 +83,22 @@ class Params:
     wind_shear_exp: float = 0.143  # power-law shear exponent, ~= 1/7
     gust_sigma: float = 0.0     # gust perturbation scale [m/s]; 0.0 = gusts off entirely
     gust_seed: int = 0          # RNG seed for the frozen gust realization
+
+    # Step 36: variable mass -- CoG and moment-of-inertia travel (main.tex
+    # SSModels > Mass and moment of inertia). `m_d` is the single on/off
+    # gate, the same "unset sentinel disables the new model" convention as
+    # `aero_table`/`motor_curve` (""), `wind_model` ("none"): `None` (the
+    # default) reproduces every prior step bit-for-bit -- `m` stays fixed
+    # at `p.m`, `I` stays fixed at `p.I`, `state.M` is carried along
+    # unused. Setting `m_d` switches on the two-lumped-mass model
+    # (dry structure at `l_d`, remaining propellant at `l_p`): `m` becomes
+    # the integrated mass state, `dm/dt = -T_ref(t)/(I_sp*g0)`, and
+    # `l_B(t)`, `I(t)` are recomputed every RHS call from it
+    # (dynamics.py). `p.m` is then only the *initial* (wet) mass used to
+    # seed `state.m` -- not read by the moment/translational equations
+    # anymore.
+    m_d: Optional[float] = None  # dry (burnout) mass [kg]; None = mass model off
+    l_d: float = 0.0   # dry structure's centroid, distance from the nose [m]
+    l_p: float = 0.0   # propellant centroid, distance from the nose [m] (main.tex's grain-geometry \todo placeholder: held constant)
+    I_d: float = 0.0   # dry structure's own moment of inertia about l_d [kg*m^2]
+    I_sp: float = 0.0  # specific impulse [s], for dm/dt = -T_ref(t)/(I_sp*g0)

@@ -96,7 +96,12 @@ def _buggy_derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     M_moment = aero_moment_y(t, y, p)
     M_y = M_thrust + M_aero + M_moment
 
-    dydt = np.zeros(6)
+    # Step 36: state is now 7-long (`m` appended, sim/state.py) -- this
+    # reconstruction predates that and never used mass beyond `p.m`
+    # (`p.m_d` is never set in this test), so dydt[M] stays the implicit
+    # 0.0 `np.zeros` already gives it; only the array length needs to
+    # track the now-7-component state so `solve_ivp` sees matching shapes.
+    dydt = np.zeros(7)
     dydt[X] = y[VX]
     dydt[Z] = y[VZ]
     dydt[VX] = a_i[0]

@@ -40,15 +40,33 @@ out explicitly (rather than only the pre-simplified scalar
 `-l1*A_z - A_m`, per the corrected geometry below) so that a future gimbal
 or thrust-misalignment model drops in without touching this function's
 structure.
+
+Step 36 (roadmap.md; main.tex SSModels > Mass and moment of inertia): `m`
+becomes the 7th state component (`state.M`), integrated via
+`dm/dt = -T_ref(t)/(I_sp*g0)`, and `p.I` is replaced by the instantaneous
+`I(t)` (two-lumped-mass model, dry structure + remaining propellant,
+parallel-axis theorem) -- gated by `p.m_d` (params.py: `None` = off,
+reproduces every prior step bit-for-bit, `p.m`/`p.I` used exactly as
+before). `p.l1`/`p.l2` (the CoP-to-CoG and CoP-to-thrust moment arms,
+`aA`/`aB` below) are deliberately left untouched by this step -- main.tex's
+Mass and moment of inertia section gives a formula for `l_B(t)` and `I(t)`
+only, not for how the aerodynamic/thrust attachment points travel relative
+to a moving CoG (that is exactly the still-open question architecture.md
+SS19 flags: "still blocked on a main.tex update ... contradicts I(t),
+l1(t), l2(t)"; main.tex's own SSCurrent assumptions still lists `l_1`,
+`l_2` as held fixed). Since `I(t)`'s parallel-axis terms already depend on
+`l_B(t)` on their own, this is enough to make a real `l_p != l_d` offset
+change the rotational dynamics (the "Check" this step's roadmap entry
+asks for) without inventing an unstated `l1(t)`/`l2(t)` formula.
 """
 
 import numpy as np
 
-from sim import aero
+from sim import aero, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
-from sim.state import OMEGA, THETA, VX, VZ, X, Z
+from sim.state import M, OMEGA, THETA, VX, VZ, X, Z
 
 
 def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
@@ -61,8 +79,49 @@ def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
     return -(a_x * b_z - a_z * b_x)
 
 
+def _propellant_mass(m: float, p) -> float:
+    """m_p(t) = m(t) - m_d (main.tex SSModels > Mass and moment of inertia),
+    clamped at 0. The adaptive solver overshoots the true burnout
+    zero-crossing by a floating-point sliver on either side (the same
+    reason `integrate.py`'s `_burnout_event` needs its own epsilon shift)
+    -- a stray negative `m_p` right after burnout would flip the sign of
+    every term below instead of just settling at the dry-mass endpoint.
+    """
+    return max(m - p.m_d, 0.0)
+
+
+def _cog_position(m_p: float, p) -> float:
+    """l_B(t): mass-weighted centroid of the two-lumped-mass model -- dry
+    structure (mass m_d, fixed centroid l_d) and remaining propellant
+    (mass m_p, centroid l_p) -- main.tex SSModels > Mass and moment of
+    inertia.
+    """
+    return (p.m_d * p.l_d + m_p * p.l_p) / (p.m_d + m_p)
+
+
+def _moment_of_inertia(m_p: float, l_B: float, p) -> float:
+    """I(t): parallel-axis theorem, dry structure + remaining propellant,
+    each shifted from its own centroid to the instantaneous CoG l_B(t)
+    (main.tex SSModels > Mass and moment of inertia):
+
+        I(t) = I_d + m_d*(l_B-l_d)^2 + I_p(t) + m_p*(l_B-l_p)^2
+
+    `I_p(t)`, the remaining propellant's own moment of inertia about its
+    own centroid, is main.tex's own placeholder `\\todo` ("uniform
+    density, fixed shape" until the grain geometry is known) -- taken
+    proportional to `m_p(t)` via the dry structure's own specific moment
+    of inertia `I_d/m_d` (i.e. propellant assumed to have the same
+    mass-normalised MOI/radius of gyration as the dry structure): the
+    simplest closed form that needs no geometry constant beyond the four
+    this step introduces (`m_d, l_d, l_p, I_d`). Revisit once real grain
+    geometry is available (main.tex's own note).
+    """
+    I_p = (p.I_d / p.m_d) * m_p
+    return p.I_d + p.m_d * (l_B - p.l_d) ** 2 + I_p + m_p * (l_B - p.l_p) ** 2
+
+
 def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
-    """dy/dt for the 6-vector state [x, z, vx, vz, theta, omega].
+    """dy/dt for the state vector [x, z, vx, vz, theta, omega, m].
 
     Translation: `dx/dt = vx`, `dz/dt = vz`,
     `[dvx/dt, dvz/dt] = (weight_inertial + to_inertial(thrust_body + aero_force_body, theta)) / m`.
@@ -70,6 +129,12 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     Rotation (Step 6): `dtheta/dt = omega`,
     `domega/dt = M_y / I` where
     `M_y = cross_y(aB, thrust_body) + cross_y(aA, aero_force_body) + aero_moment_y`.
+
+    Mass (Step 36): `dm/dt = -T_ref(t)/(I_sp*g0)` while the variable-mass
+    model is on (`p.m_d` set); `I` above is then the instantaneous `I(t)`
+    from the two-lumped-mass model instead of the fixed `p.I` (see module
+    docstring). Both are exactly `dm/dt = 0`, `I = p.I` when `p.m_d` is
+    `None` (the default) -- bit-for-bit the pre-Step-36 behaviour.
     """
     theta = y[THETA]
 
@@ -83,7 +148,29 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
 
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
-    a_i = F_i / p.m
+
+    # Step 36: mass model gate (params.py's `m_d`). Off (`None`, the
+    # default) -> `m`, `I` are the fixed Phase 1 constants, `dm/dt = 0`,
+    # bit-for-bit pre-Step-36. On -> `m` is the integrated state
+    # `y[M]`, `I` is the instantaneous `I(t)` from the two-lumped-mass
+    # model (main.tex SSModels > Mass and moment of inertia), and
+    # `dm/dt = -T_ref(t)/(I_sp*g0)`. `thrust_curve.thrust` (not the raw
+    # curve lookup) stands in for `T_ref(t)` here -- identical to it
+    # whenever `p.A_e == 0.0` (the default, and every scenario below),
+    # and only differs by the Step-16 nozzle-exit pressure term
+    # otherwise, which is a thrust correction, not a mass-flow one.
+    if p.m_d is None:
+        m = p.m
+        I = p.I
+        dm_dt = 0.0
+    else:
+        m = y[M]
+        m_p = _propellant_mass(m, p)
+        l_B = _cog_position(m_p, p)
+        I = _moment_of_inertia(m_p, l_B, p)
+        dm_dt = -thrust_curve.thrust(t, y, p) / (p.I_sp * p.g)
+
+    a_i = F_i / m
 
     # Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
     # along the body x-axis, relative to the CoG. `l1`, `l2` are positive,
@@ -134,11 +221,12 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     M_moment = aero_moment_y(t, y, p)
     M_y = M_thrust + M_aero + M_moment
 
-    dydt = np.zeros(6)
+    dydt = np.zeros(7)
     dydt[X] = y[VX]
     dydt[Z] = y[VZ]
     dydt[VX] = a_i[0]
     dydt[VZ] = a_i[1]
     dydt[THETA] = y[OMEGA]
-    dydt[OMEGA] = M_y / p.I
+    dydt[OMEGA] = M_y / I
+    dydt[M] = dm_dt
     return dydt
