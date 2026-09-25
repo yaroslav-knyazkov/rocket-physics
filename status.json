@@ -2,7 +2,16 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2-complete",
+  "current_stage": "phase2.5-in-progress",
+  "phase2_5_scope": {
+    "steps": "33-37",
+    "note": "added after the Phase 2 milestone closeout; not part of Phase 3 (still 2D). Steps 33-35 done. Step 36 unblocked, in progress. Step 37 blocked on a main.tex derivation (Omega's tangent-plane components as a function of latitude/azimuth) -- roadmap.md explicitly calls this a derivation, not an engineering choice, to be resolved by the user before code is written."
+  },
+  "phase2_5_completed_steps": [
+    {"step": 33, "name": "Documentation restructuring (Current assumptions, models.tex consolidation)", "commit": "3aaec51", "note": "main.tex split into latex/main.tex + latex/sections/{rocket-2d,models}.tex; added the previously-referenced-but-undefined Current assumptions section; filled empty stubs (frame axes, gravity direction, Reynolds/Mach, aero-coefficient discussion); added non-inertial and variable-mass model sketches (left as derivation todos, feeding Steps 36/37); dropped linear gravity from the text; documented vertical wind as unimplemented (no fitting theory found). No code changes."},
+    {"step": 34, "name": "Remove the linear gravity model", "commit": "6d48576", "note": "sim/gravity.py: deleted _g_linear + dispatch entry; strictly dominated by radial (exact inverse-square) with no cost advantage and goes negative above h=R_e/2. gravity_model='linear' now raises KeyError like any unknown model string. 111/111 tests passing (3 linear-specific cases removed, sweep tests updated in place)."},
+    {"step": 35, "name": "Aerodynamic force in body axis, not wind axis", "commit": "6fa46f2", "note": "sim/forces.py::aero_force_body now returns -A_x*x_hat_r - A_z*z_hat_r unconditionally (body-axis convention matching the CFD/wind-tunnel data C_A/C_N are extracted in) instead of rotating through flow.u_hat/n_hat, which was double-applying the relative-wind rotation. Bit-for-bit identical at alpha=0; diverges from the old (wrong) behavior at nonzero alpha. Found+fixed in the same commit: sim/aero.py's constant-fallback C_N/C_m was unbounded (C_N_alpha*alpha), which hung solve_ivp when an unperturbed vertical flight coasts tail-first through V=0 at apogee and alpha oscillates across atan2's +-pi branch cut; fixed with C_N_alpha*sin(alpha) (continuous everywhere, matches linear form to <0.4% at realistic angles, correctly zero at exact tail-first). 111/111 tests passing, no hangs."}
+  ],
   "step26_network_approved": {"date": "2026-09-21", "answer": "yes, implement tools/fetch_sounding.py now"},
   "phase2_completed_steps": [
     {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
@@ -28,7 +37,7 @@
   "phase2_milestone_complete": {
     "date": "2026-09-21",
     "summary": "19 mandatory Phase 2 steps done (9-14,16-23,25-27), all committed individually. Step 15 (propellant depletion) and Step 24 (time interpolation between sounding snapshots) both optional per roadmap, deferred/skipped, not blocking. Every model family in main.tex Models implemented and selectable via a Params string field: 4 gravity variants, 3 atmosphere tiers, 3 wind tiers, real thrust curve + pressure correction, Mach/alpha-dependent aero coefficients with CoP travel. Shared real-data infrastructure (sounding format/loader/altitude+horizontal interpolation) backs both atmosphere and wind tier 2/3. Offline fetch helper (tools/fetch_sounding.py) for real sounding data, network-approved and live-verified. Comparison-sweep tooling makes the model-selection pattern's payoff visible. A significant mid-phase correction landed along the way: the CoP/CoG moment-arm sign convention (main.tex + sim/dynamics.py), found before Step 25 and fixed as its own dedicated commit.",
-    "next": "Phase 3 (3D, full 6-DOF) -- not started, awaiting user go-ahead"
+    "next": "Phase 2.5 (Steps 33-37, doc restructuring + variable-mass + Coriolis) inserted before Phase 3; see phase2_5_scope/phase2_5_completed_steps. Phase 3 (3D, full 6-DOF) still not started."
   },
   "phase2_step26_completed": {
     "commit": "00a576a",

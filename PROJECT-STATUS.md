@@ -17,10 +17,24 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Commit after every completed step (small, reviewable increments).
 
 ## Current stage
-**Phase 2 COMPLETE.** All 19 mandatory steps (9-14, 16-23, 25-27) done and committed; Step 15
-(propellant depletion) and Step 24 (time interpolation between sounding snapshots) both remain
-optional and deferred — see below. Every model in `main.tex` §Models is now implemented and
-selectable. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead.
+**Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) in progress**,
+inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Steps 33-35 done:
+- Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
+  `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
+  previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
+- Step 34 — removed the `linear` gravity model (dominated by `radial`, no advantage; went negative
+  above `h=R_e/2`). `gravity_model="linear"` now raises `KeyError`. Commit `6d48576`.
+- Step 35 — aero force now resolved in **body axis**, not wind axis (was double-applying the
+  relative-wind rotation; the two conventions only agreed at α=0). Also fixed, in the same commit,
+  an unbounded-α hang in `sim/aero.py`'s constant-fallback `C_N`/`C_m` (linear `C_N_alpha*alpha`
+  → `C_N_alpha*sin(alpha)`, since an unperturbed vertical flight can coast tail-first through
+  `V=0` at apogee and land exactly on `atan2`'s branch cut). Commit `6fa46f2`.
+
+Next: Step 36 (variable mass: CoG/moment-of-inertia travel) — in progress. Step 37 (Coriolis/
+centrifugal correction) is **blocked**: `roadmap.md` explicitly flags it as needing a derivation
+(projecting Earth's Ω into the launch-site tangent-plane frame as a function of latitude/azimuth)
+that the user needs to resolve in `main.tex` first — not an engineering choice for an agent to make.
+Phase 3 (3D, full 6-DOF) has not been started.
 
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
