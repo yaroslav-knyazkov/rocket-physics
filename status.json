@@ -5,7 +5,15 @@
   "current_stage": "phase2.5-in-progress",
   "phase2_5_scope": {
     "steps": "33-37",
-    "note": "added after the Phase 2 milestone closeout; not part of Phase 3 (still 2D). Steps 33-35 done. Step 36 (variable mass) dispatched to developer, in progress. Step 37 derivation prep done (commit a98f283) -- Omega's tangent-plane components derived by architect (verified 4.4e-16 vs independent 3D calc), user approved scope Option B (in-plane Coriolis per original spec + a labeled diagnostic for the discarded lateral component, not fed into physics). Step 37 code implementation queued behind Step 36 (both touch sim/dynamics.py/params.py/tests/test_dynamics.py -- serialized to avoid conflicts)."
+    "note": "added after the Phase 2 milestone closeout; not part of Phase 3 (still 2D). Steps 33-35 done. Step 36 (variable mass) done (commit 2610cd8), 2 open modeling questions flagged for user/architect review before Step 37. Step 37 derivation prep done (commit a98f283) -- Omega's tangent-plane components derived by architect (verified 4.4e-16 vs independent 3D calc), user approved scope Option B (in-plane Coriolis per original spec + a labeled diagnostic for the discarded lateral component, not fed into physics). Step 37 code implementation queued behind Step 36 (both touch sim/dynamics.py/params.py/tests/test_dynamics.py -- serialized to avoid conflicts)."
+  },
+  "phase2_5_step36_completed": {
+    "commit": "2610cd8",
+    "note": "m becomes the 7th integrated state component (dm/dt=-T_ref(t)/(I_sp*g0)). l_B(t) (mass-weighted CoG) and I(t) (parallel-axis, two-lumped-mass: dry structure at l_d, propellant at l_p) recomputed every RHS call from m(t) and new Params constants m_d,l_d,l_p,I_d,I_sp. Gated by p.m_d (None=off default): every existing scenario reproduces prior behavior exactly (verified: garbage state.m=999.0 on the off path gives bit-for-bit identical output to m=0.0). weight_inertial now reads current mass instead of constant p.m. I_p(t) taken proportional to m_p(t) via dry structure's specific MOI I_d/m_d (only closed form needing no new constant; flagged as placeholder per main.tex's own todo pending real grain geometry). 116/116 tests passing.",
+    "open_questions_for_review": [
+      {"question": "Should p.l1/p.l2 (CoP-to-CoG and CoP-to-thrust moment arms) also become functions of l_B(t) now that the CoG travels?", "implemented_choice": "left fixed (conservative) -- main.tex's Mass/MOI section gives formulas for l_B(t)/I(t) only, nothing for how attachment points transform relative to a moving CoG; main.tex's own Current assumptions section still lists l1/l2 as fixed; architecture.md SS19 flags this as open. Roadmap's regression check still satisfied since I(t) already depends on l_B(t) via the parallel-axis terms.", "status": "open, needs user/architect review before Step 37 per developer's own flag"},
+      {"question": "I_p(t) proportionality constant (not specified by the 4 Step-36 constants)", "implemented_choice": "I_p(t) = (I_d/m_d)*m_p(t), i.e. propellant assumed same mass-normalized MOI (radius of gyration) as dry structure. Documented placeholder, matches main.tex's own uniform-density/fixed-shape todo wording.", "status": "acceptable as placeholder per developer/architect; revisit when real grain geometry is available"}
+    ]
   },
   "phase2_5_step37_prep": {
     "commit": "a98f283",

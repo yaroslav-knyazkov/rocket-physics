@@ -30,8 +30,22 @@ inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Steps 3
   → `C_N_alpha*sin(alpha)`, since an unperturbed vertical flight can coast tail-first through
   `V=0` at apogee and land exactly on `atan2`'s branch cut). Commit `6fa46f2`.
 
-Next: Step 36 (variable mass: CoG/moment-of-inertia travel) — dispatched to developer, in
-progress. Step 37 (Coriolis/centrifugal correction) — the derivation blocker is resolved:
+Step 36 — variable mass: CoG/moment-of-inertia travel. `m` is now the 7th integrated state
+component (`dm/dt = -T_ref(t)/(I_sp·g0)`). `l_B(t)`/`I(t)` (parallel-axis, two-lumped-mass model)
+recomputed every RHS call from `m(t)` and new `Params` constants `m_d,l_d,l_p,I_d,I_sp`. Gated by
+`p.m_d` (`None` = off, default) — every existing scenario reproduces prior behavior exactly.
+116/116 tests passing. Commit `2610cd8`. **Two open modeling questions flagged for review**
+(developer made the conservative, spec-literal choice for both rather than guess, per this
+project's history with Step 15/25):
+1. Should `p.l1`/`p.l2` (CoP-to-CoG / CoP-to-thrust moment arms) also travel with `l_B(t)`?
+   `main.tex` only gives formulas for `l_B(t)`/`I(t)`, nothing for the attachment points, and its
+   own §Current assumptions still lists `l1,l2` as fixed — left fixed for now.
+2. `I_p(t)` (propellant's own moment of inertia) needs a proportionality constant not given by
+   Step 36's 4 new constants — implemented as `(I_d/m_d)*m_p(t)` (same specific MOI as the dry
+   structure), documented as a placeholder matching `main.tex`'s own "uniform density, fixed
+   shape" `\todo`.
+
+Step 37 (Coriolis/centrifugal correction) — the derivation blocker is resolved:
 architect drafted the Ω-in-tangent-plane-frame derivation (`latex/sections/models.tex`, commit
 `a98f283`), verified to 4.4e-16 against an independent 3D calculation. Key finding: in-plane
 Coriolis is driven entirely by Ω's out-of-plane component, so a due-North/South launch (or the
@@ -39,9 +53,8 @@ poles) gets exactly zero in-plane Coriolis even though the true effect is maxima
 lateral, which a 2D model can't represent) — documented as an explicit closure, same precedent as
 the existing crosswind closure in §Wind. User picked scope **Option B**: implement in-plane
 Coriolis (roadmap's original spec) *plus* expose the discarded lateral component as a labeled
-diagnostic (not fed into the physics), so the blind spot is visible instead of silent. Step 37's
-code implementation is queued behind Step 36 (both touch `sim/dynamics.py`/`sim/params.py`/
-`tests/test_dynamics.py` — serialized to avoid conflicts).
+diagnostic (not fed into the physics), so the blind spot is visible instead of silent. Step 36 is
+now done — Step 37's code implementation is dispatched next.
 
 Also surfaced by the architect, not fixed (out of scope for Step 37): `rocket-2d.tex`
 §Analytical analysis's force equations assume θ measured from the vertical, conflicting with
