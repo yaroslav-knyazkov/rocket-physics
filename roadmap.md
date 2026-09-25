@@ -480,6 +480,15 @@ commit, re-run the Phase 1/2 regression suite after each).
   magnitude fixed) into the launch-site tangent-plane frame `(x̂_g, ẑ_g)` as a function of
   latitude `φ₀` and launch azimuth `χ`. This is a derivation, not an engineering choice — resolve
   it in `main.tex` before writing code.
+  - *Candidate derivation drafted (AI, pending user review — step stays blocked until reviewed):*
+    `latex/sections/models.tex` §Non-inertial frame corrections now carries the full projection,
+    wrapped in `\ai{}`. Result: `Ω = Ω(cosφ₀cosχ x̂_g − cosφ₀sinχ ŷ_g − sinφ₀ ẑ_g)` (ẑ_g down),
+    and for planar motion the in-plane Coriolis term comes *only* from the plane-normal component
+    `Ω_y`, giving `a_Cor,2D = 2Ω cosφ₀ sinχ (ż x̂_g − ẋ ẑ_g)`. The in-plane components of `Ω`
+    produce a purely lateral acceleration that a 2D model cannot carry and which is therefore
+    dropped — a documented closure, not a smallness argument. Two consequences the user should
+    sign off on: a due-North/South launch gets *zero* modelled Coriolis effect, and the retained
+    term is the same order as the still-neglected frozen-vertical (flat-Earth) error.
 - **Do (once unblocked):** add the projected `Ω` and the two acceleration terms to
   `dynamics.derivatives`, gated by a new `p.earth_rotation: bool` (default `False`, reproducing
   every prior step's results bit-for-bit).

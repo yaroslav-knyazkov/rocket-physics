@@ -81,9 +81,168 @@ frame. The centrifugal term is a small, latitude-dependent correction, already a
 WGS84 $g(\phi,h)$ above when the launch site is the reference point; the Coriolis term is
 genuinely new here and depends on the flight's own velocity and heading, not just the launch
 site.
-\todo{derive $\vec{\Omega}$'s components in the launch-site tangent-plane frame
-$(\hat{x}_g,\hat{z}_g)$, as a function of latitude $\phi_0$ and launch azimuth $\chi$, and add the
-resulting term to \S Equations of motion.}}
+\paragraph{Tangent-plane basis.} Work in the local East--North--Up triad
+$(\hat{E},\hat{N},\hat{U})$ at the launch site $(\phi_0,\lambda_0)$, with $\phi_0$ the site's
+geodetic latitude (the same quantity written $\phi$ in \S Gravity). The flight-plane frame
+$\mathcal{F}_0$ is the NED-like triad already fixed by the launch heading $\chi$ (degrees
+clockwise from North, the direction of $+\hat{x}$, \S Atmosphere > Field) and by $\hat{z}_g$
+pointing \emph{down} (\S Frames, $h=-z$):
+\begin{gather}
+    \hat{x}_g = \sin\chi\,\hat{E} + \cos\chi\,\hat{N} \\
+    \hat{y}_g = \cos\chi\,\hat{E} - \sin\chi\,\hat{N} \\
+    \hat{z}_g = -\hat{U}
+\end{gather}
+Nothing here is new: $\hat{x}_g$ is the downrange direction used by the ground track
+$(x\sin\chi, x\cos\chi)$ of \S Atmosphere > Field, and $\hat{y}_g$ is exactly the cross-plane
+direction whose wind component $w_y = u\cos\chi - v\sin\chi$ is computed and discarded in
+\S Wind > Flight-plane projection. The triad is right-handed,
+$\hat{x}_g\times\hat{y}_g = \hat{z}_g$, which can be checked directly from the three lines above
+($(\sin\chi,\cos\chi,0)\times(\cos\chi,-\sin\chi,0) = (0,0,-1)$ in ENU components). $\hat{y}_g$
+points to the \emph{right} of the downrange direction.
+
+\paragraph{Components of $\vec{\Omega}$.} The Earth's angular velocity points along the rotation
+axis, i.e.\ toward the celestial north pole. At latitude $\phi_0$ that direction lies in the
+local meridian plane (no East component), tilted from the local vertical by the co-latitude:
+\begin{equation}
+    \vec{\Omega} = \Omega\left(\cos\phi_0\,\hat{N} + \sin\phi_0\,\hat{U}\right), \qquad
+    \Omega = 7.2921\times10^{-5}\,\mathrm{rad/s}
+\end{equation}
+Projecting onto the flight-plane triad by taking dot products with the three basis vectors above:
+\begin{align}
+    \Omega_x &= \vec{\Omega}\cdot\hat{x}_g
+        = \Omega\cos\phi_0\,(\hat{N}\cdot\hat{N})\cos\chi = \Omega\cos\phi_0\cos\chi \\
+    \Omega_y &= \vec{\Omega}\cdot\hat{y}_g
+        = \Omega\cos\phi_0\,(\hat{N}\cdot\hat{N})(-\sin\chi) = -\Omega\cos\phi_0\sin\chi \\
+    \Omega_z &= \vec{\Omega}\cdot\hat{z}_g
+        = \Omega\sin\phi_0\,(\hat{U}\cdot(-\hat{U})) = -\Omega\sin\phi_0
+\end{align}
+so that
+\begin{equation} \label{eq:omega_components}
+    \vec{\Omega} = \Omega\left(\cos\phi_0\cos\chi\,\hat{x}_g
+        - \cos\phi_0\sin\chi\,\hat{y}_g - \sin\phi_0\,\hat{z}_g\right)
+\end{equation}
+with $\Omega_x^2+\Omega_y^2+\Omega_z^2 = \Omega^2$ as required. Three sanity checks: at the North
+pole ($\phi_0 = 90^\circ$) it reduces to $-\Omega\hat{z}_g$, i.e.\ straight up, for every $\chi$;
+on the equator launching due North ($\phi_0=0,\chi=0$) to $+\Omega\hat{x}_g$, i.e.\ horizontal and
+downrange; on the equator launching due East ($\phi_0=0,\chi=90^\circ$) to $-\Omega\hat{y}_g$,
+which is horizontal and to the left of downrange --- North again, as it must be.
+
+The sign of $\Omega_z$ is the one easy mistake here and is purely a bookkeeping consequence of
+this project's $z$-down convention: the rotation vector points \emph{up} out of the northern
+hemisphere, hence negative along $\hat{z}_g$.
+
+\paragraph{Which component of $\vec{\Omega}$ actually matters in 2D.} With motion confined to
+the flight plane, $\vec{v} = v_x\hat{x}_g + v_z\hat{z}_g$ (no $\hat{y}_g$ component). Expanding
+the cross product in the right-handed triad:
+\begin{equation}
+    \vec{\Omega}\times\vec{v} =
+        \Omega_yv_z\,\hat{x}_g
+        + \left(\Omega_zv_x - \Omega_xv_z\right)\hat{y}_g
+        - \Omega_yv_x\,\hat{z}_g
+\end{equation}
+so
+\begin{equation} \label{eq:coriolis_split}
+    \vec{a}_{Coriolis} = -2\vec{\Omega}\times\vec{v} =
+        \underbrace{-2\Omega_y\left(v_z\hat{x}_g - v_x\hat{z}_g\right)}_{\text{in-plane}}
+        \;\underbrace{-\,2\left(\Omega_zv_x - \Omega_xv_z\right)\hat{y}_g}_{\text{out-of-plane}}
+\end{equation}
+This is worth reading carefully, because it inverts the intuitive move. The in-plane Coriolis
+acceleration is produced \emph{entirely} by $\Omega_y$ --- the component of $\vec{\Omega}$
+\emph{normal} to the flight plane --- while $\Omega_x$ and $\Omega_z$, the components lying
+\emph{inside} the plane, produce a purely out-of-plane acceleration. "Project $\vec{\Omega}$ onto
+the flight plane and keep that part" would therefore keep exactly the half that does nothing
+in-plane and throw away the half that does everything.
+
+\textbf{Simplification (2D closure).} Only the in-plane bracket of
+\autoref{eq:coriolis_split} is retained; the $\hat{y}_g$ term is dropped. This is \emph{not} a
+smallness argument --- the discarded lateral acceleration is of the same order as the retained
+one, and for some geometries larger. It is dropped because the model has no lateral degree of
+freedom to receive it: the out-of-plane Coriolis deflection (the familiar right-hand deflection
+in the northern hemisphere) is physically real, and a 2D planar model simply cannot represent it.
+This is the same closure already applied to the crosswind component $w_y$ in \S Wind, and it is
+lifted by the same future work (Phase 3, full 6-DOF), not by anything in this section.
+
+Two consequences follow immediately and should be stated so results are not over-read:
+\begin{itemize}
+    \item $\Omega_y = -\Omega\cos\phi_0\sin\chi$ vanishes for a launch due North or due South
+    ($\chi = 0^\circ, 180^\circ$) and at the poles. For those cases the 2D model predicts
+    \emph{zero} Coriolis effect, while the true Coriolis effect is maximal and entirely lateral.
+    \item $|\Omega_y|$ is largest for an East/West launch near the equator, where the effect the
+    2D model \emph{can} see is also the largest it ever is.
+\end{itemize}
+
+\paragraph{In-plane Coriolis term.} Substituting $\Omega_y$ into the retained bracket:
+\begin{equation} \label{eq:coriolis_2d}
+    \vec{a}_{Coriolis}^{\,2D} = 2\Omega\cos\phi_0\sin\chi\left(v_z\,\hat{x}_g - v_x\,\hat{z}_g\right)
+\end{equation}
+i.e.\ componentwise, with the state variables of \S Equations of motion ($v_x = \dot{x}$
+downrange, $v_z = \dot{z}$ \emph{downward}, so an ascending rocket has $v_z < 0$):
+\begin{align}
+    a_{Coriolis,x} &= +2\Omega\cos\phi_0\sin\chi\;\dot{z} \\
+    a_{Coriolis,z} &= -2\Omega\cos\phi_0\sin\chi\;\dot{x}
+\end{align}
+The two classical checks both come out right. A rocket rising vertically at the equator with an
+Eastward $+\hat{x}_g$ ($\phi_0=0$, $\chi=90^\circ$, $\dot{z}<0$) gets $a_x < 0$: it drifts
+\emph{West}, the standard counterpart of the eastward deflection of a falling body. A body moving
+East ($\dot{x}>0$) gets $a_z < 0$, i.e.\ \emph{upward} --- the E\"otv\"os effect, eastward motion
+reducing apparent weight.
+
+\paragraph{Residual centrifugal term.} Write the rocket's geocentric position as
+$\vec{r} = \vec{R}_0 + \vec{s}$, with $\vec{R}_0$ from the Earth's centre to the launch site and
+$\vec{s} = x\hat{x}_g + z\hat{z}_g$ the simulation's own position state. Since
+$-\vec{\Omega}\times(\vec{\Omega}\times\vec{a}) = \Omega^2\vec{a} - (\vec{\Omega}\cdot\vec{a})
+\vec{\Omega}$ is linear in $\vec{a}$, the centrifugal acceleration splits cleanly:
+\begin{equation}
+    \vec{a}_{centrifugal} = \underbrace{\Omega^2\vec{R}_0 - (\vec{\Omega}\cdot\vec{R}_0)\vec{\Omega}}_{\text{constant, already in }\gamma_0(\phi)}
+    \;+\; \underbrace{\Omega^2\vec{s} - (\vec{\Omega}\cdot\vec{s})\vec{\Omega}}_{\text{residual}}
+\end{equation}
+The first bracket is the static launch-site term the WGS84 Somigliana formula already carries.
+The residual, with $\vec{\Omega}\cdot\vec{s} = \Omega(\cos\phi_0\cos\chi\,x - \sin\phi_0\,z)$
+from \autoref{eq:omega_components}, has in-plane components
+\begin{align}
+    a_{cf,x} &= \Omega^2\Bigl[x - \cos\phi_0\cos\chi\left(\cos\phi_0\cos\chi\,x - \sin\phi_0\,z\right)\Bigr] \\
+    a_{cf,z} &= \Omega^2\Bigl[z + \sin\phi_0\left(\cos\phi_0\cos\chi\,x - \sin\phi_0\,z\right)\Bigr]
+\end{align}
+This is bounded by $\Omega^2|\vec{s}| = 5.3\times10^{-9}\,|\vec{s}|$, i.e.\
+$5\times10^{-5}\,\mathrm{m/s^2}$ even at $|\vec{s}| = 10\,\mathrm{km}$ --- roughly three orders of
+magnitude below the Coriolis term, and its \emph{vertical} part is in any case already folded into
+the WGS84 free-air correction through the constant $m$ in \S Gravity (double-counting it would be
+a small error in the wrong direction). Recommendation: implement the Coriolis term only, and leave
+the residual centrifugal term documented here but unimplemented.
+
+\paragraph{Moment.} Coriolis and centrifugal accelerations are body forces distributed in exact
+proportion to mass, so their resultant acts at the centre of gravity $B$ and contributes
+\emph{zero} moment about $B$. The one surviving coupling comes from the body's own pitch rate
+($\vec{v}_i = \vec{v}_B + \vec{\omega}\times\vec{r}_i$ inside the rigid body), a gyroscopic torque
+of order $2I\Omega\omega$, i.e.\ an angular acceleration of order
+$2\Omega\omega \approx 1.5\times10^{-4}\,\mathrm{rad/s^2}$ at $\omega = 1\,\mathrm{rad/s}$. It is
+negligible against the aerodynamic pitching moment and is dropped; the rotational equation of
+\S Equations of motion is unchanged.
+
+\paragraph{Result to add to \S Equations of motion.} The translational equation gains one term:
+\begin{equation}
+    m\vec{\ddot{x}} = \vec{W} + \vec{T} + \vec{A}_f + m\,\vec{a}_{Coriolis}^{\,2D}
+\end{equation}
+with $\vec{a}_{Coriolis}^{\,2D}$ from \autoref{eq:coriolis_2d}, evaluated directly in
+$\mathcal{F}_0$ (no body-axis rotation needed --- it is already a ground-frame expression, like
+$\vec{W}$). $\phi_0$ and $\chi$ are the launch-site latitude and heading already used by
+\S Gravity and \S Wind respectively; no new parameter is introduced.
+
+\paragraph{Magnitudes, and an honest consistency caveat.} The retained term scales as
+$2\Omega\cos\phi_0\sin\chi\,V$: at $V = 300\,\mathrm{m/s}$ it is at most
+$4.4\times10^{-2}\,\mathrm{m/s^2}$ (equatorial East launch) and about
+$2.8\times10^{-2}\,\mathrm{m/s^2}$ at $\phi_0 = 50^\circ$ --- some $0.3\%$ of $g$, accumulating to
+order $10\,\mathrm{m}$ of displacement over a $30\,\mathrm{s}$ powered ascent. That is worth
+having for impact-point prediction and is consistent with the centimetre-to-metre estimate quoted
+in \S Current assumptions.
+
+It is, however, the \emph{same} order as an error this model still carries: freezing $\hat{z}_g$ at
+the launch-site vertical (\S Gravity > Direction) mis-points gravity by $x/R_e$, an effective
+$g\,x/R_e \approx 1.5\times10^{-2}\,\mathrm{m/s^2}$ at $x = 10\,\mathrm{km}$ and growing linearly
+with downrange. Adding Coriolis while keeping the frozen-vertical assumption therefore does not
+by itself make the trajectory accurate to the Coriolis level; the two corrections are independent
+and comparable, and the flat-Earth one dominates once the flight goes far enough downrange. Both
+are listed in \S Current assumptions for that reason.}
 
 \subsection{Thrust}
 Magnitude of thrust is the result of conservation of momentum (ejection of fuel) and pressure differences, given as
