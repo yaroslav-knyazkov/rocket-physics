@@ -25,6 +25,7 @@ import math
 import numpy as np
 
 from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives
+from sim.flow import flow_state
 from sim.integrate import run_sim
 from sim.params import Params
 from sim.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
@@ -373,3 +374,75 @@ def test_coriolis_lateral_diagnostic_matches_closed_form():
     expected = -2.0 * (omega_z * s.vx - omega_x * s.vz)
 
     assert math.isclose(coriolis_lateral_diagnostic(0.0, np.array(s), p), expected, rel_tol=1e-12)
+
+
+# ---------------------------------------------------------------------
+# Step 39: thrust-axis misalignment -- trim angle of attack
+# (architecture.md SS23.2; analysis.tex eq:alpha_trim).
+# ---------------------------------------------------------------------
+
+
+def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
+    """A statically stable airframe (the same aero_model="coefficients"
+    fixture Steps 25/35 use, tests/test_forces.py's
+    `test_offaxis_alpha_stays_bounded_with_corrected_sign...`: positive
+    `C_N_alpha`, `l1 > 0`, i.e. CoP aft of CoG) launched dead vertical
+    (`theta0 = pi/2`, `alpha0 = 0`) with `thrust_misalign_deg = 0.0` stays
+    at `alpha = 0` for the whole burn -- the trivial "aligned" equilibrium
+    of analysis.tex eq:moment_aligned, with nothing to disturb it.
+
+    Introducing a small, realistic nozzle cant (`|delta| = 0.2 deg`, inside
+    the spec's stated "0.1-1.0 deg" range) gives `M_delta != 0` from
+    ignition (analysis.tex eq:moment_misaligned), so eq:alpha_trim predicts
+    a nonzero equilibrium alpha whose sign matches `M_delta`'s: positive
+    `delta` gives `l_C - l_B > 0` (`aB = -(l1+l2)*x_hat_r` puts the nozzle
+    aft of the CoG, same convention as tests/test_forces.py's moment-shift
+    tests), `sin(delta) > 0`, `T > 0` -> `M_delta > 0`; a stable airframe's
+    `d(theta_ddot)/d(alpha) < 0` then makes `alpha_trim > 0` (eq:alpha_trim).
+
+    Without a pitch-damping term (tests/test_forces.py's existing off-axis
+    test already documents this model has none yet), the airframe does not
+    asymptote to `alpha_trim` -- it is a forced, undamped oscillator that
+    starts away from the *new* equilibrium, so it swings through a range
+    including it rather than settling there. What is checked instead,
+    early in the burn before the first oscillation reverses (verified
+    numerically: sampled at t=0.1..0.4 s, well before the ~0.5 s first
+    sign flip) is exactly the claim the check calls for: `alpha(t)` takes
+    the sign of `M_delta` (i.e. of `delta`) throughout that window, stays
+    small (bounded, not diverging towards +-pi/2 like the sign-bug
+    regression test's tumble), and negating `delta` mirrors `alpha(t)`
+    almost exactly (the configuration is otherwise perfectly symmetric).
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0,
+        motor_curve="placeholder.csv",
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    sample_times = [0.1, 0.2, 0.3, 0.4]
+
+    # --- Baseline: delta = 0.0 -> the trivial aligned equilibrium -----
+    p_baseline = Params(thrust_misalign_deg=0.0, **common)
+    r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
+    for t in sample_times:
+        alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
+        assert math.isclose(alpha, 0.0, abs_tol=1e-9)
+
+    # --- Positive cant: alpha(t) > 0 throughout the sampled window ----
+    p_pos = Params(thrust_misalign_deg=0.2, **common)
+    r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
+    alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
+    for a in alphas_pos:
+        assert a > 0.0
+        assert abs(a) < 0.5  # bounded -- nowhere near the tumbling regime
+
+    # --- Negative cant: mirrors the positive case almost exactly ------
+    p_neg = Params(thrust_misalign_deg=-0.2, **common)
+    r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
+    alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
+    for a in alphas_neg:
+        assert a < 0.0
+
+    for a_pos, a_neg in zip(alphas_pos, alphas_neg):
+        assert math.isclose(a_pos, -a_neg, rel_tol=1e-6, abs_tol=1e-8)

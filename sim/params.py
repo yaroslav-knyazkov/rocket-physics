@@ -124,3 +124,12 @@ class Params:
     # used by gravity.py's WGS84 model and wind.py's ENU projection) are
     # reused as-is -- no new parameter beyond this one flag.
     earth_rotation: bool = False
+
+    # Step 39: thrust-axis misalignment (main.tex SSForces eq:thrust_vector;
+    # architecture.md SS23.2). Same "unset = bit-for-bit reproduces every
+    # prior step" convention as `A_e`/`aero_table`/`wind_model`/`m_d`: 0.0
+    # (the default) makes `thrust_body` return exactly `(T, 0.0)`, since
+    # `np.cos(0.0) == 1.0` and `np.sin(0.0) == 0.0` bitwise. A nonzero value
+    # is a fixed, small (manufacturing-grade, ~0.1-1.0 deg) nozzle cant, not
+    # a commanded gimbal angle -- there is no control law here.
+    thrust_misalign_deg: float = 0.0  # fixed nozzle cant delta [deg], + toward +z_hat_r

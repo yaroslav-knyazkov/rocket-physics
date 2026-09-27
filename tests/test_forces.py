@@ -11,6 +11,7 @@ import math
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from sim import thrust_curve
 from sim.dynamics import derivatives
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
@@ -272,4 +273,145 @@ def test_gravity_direction_radial_adds_retarding_downrange_acceleration():
 
     assert W_par[0] == 0.0
     assert W_rad[0] < 0.0
+
+
+# ---------------------------------------------------------------------
+# Step 39: thrust-axis misalignment (architecture.md SS23.2; main.tex
+# eq:thrust_vector, analysis.tex eq:moment_full/moment_misaligned).
+# ---------------------------------------------------------------------
+
+
+def test_thrust_body_default_misalign_is_onaxis_vector_bitforbit():
+    """`thrust_misalign_deg = 0.0` (the default) -- the on/off gate for
+    Step 39 -- must make `thrust_body` return exactly `(T, 0.0)`, with no
+    rounding: `np.radians(0.0) == 0.0`, `np.cos(0.0) == 1.0`,
+    `np.sin(0.0) == 0.0` are all exact in IEEE754, so this is a genuine
+    bitwise check (`np.array_equal`), not an `isclose` one. Exercised at
+    several times, including one after burnout (T == 0), since the claim
+    is "bit-for-bit for every T", not just a nonzero one.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+
+    for t in (0.0, 0.5, 1.0, 2.5, 10.0):
+        T = thrust_curve.thrust(t, y, p)
+        assert np.array_equal(thrust_body(t, y, p), np.array([T, 0.0]))
+
+
+def test_thrust_body_misaligned_matches_closed_form_vector():
+    """`thrust_misalign_deg = delta != 0` must return
+    `(T*cos(delta), T*sin(delta))` exactly (main.tex eq:thrust_vector) --
+    checked algebraically against an independently computed `T`, not just
+    "the vector changed".
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+               thrust_misalign_deg=5.0)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+    t = 1.0
+
+    T = thrust_curve.thrust(t, y, p)
+    delta = math.radians(5.0)
+    vec = thrust_body(t, y, p)
+
+    assert math.isclose(vec[0], T * math.cos(delta), rel_tol=1e-12)
+    assert math.isclose(vec[1], T * math.sin(delta), rel_tol=1e-12)
+
+
+def test_moment_shift_matches_closed_form_l1_plus_l2_T_sin_delta():
+    """`M_y` (isolated here as `dydt[OMEGA] * p.I`, since `p.m_d` is off so
+    `I` is the fixed `p.I`) shifts by exactly `(p.l1 + p.l2) * T * sin(delta)`
+    between a misaligned and an aligned case at the same state and thrust
+    magnitude (analysis.tex eq:moment_misaligned's `M_delta`, with the
+    code's `l1 + l2` standing in for `l_C - l_B`) -- checked against the
+    closed form, not merely "M_y changed".
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+                  A_x=0.5, A_z=0.3, A_m=0.1)
+    p_aligned = Params(thrust_misalign_deg=0.0, **common)
+    p_misaligned = Params(thrust_misalign_deg=7.0, **common)
+    s = State(x=0.0, z=-50.0, vx=20.0, vz=-15.0, theta=1.1, omega=0.05)
+    y = np.array(s)
+    t = 0.5  # mid-burn -- T > 0
+
+    dydt_aligned = derivatives(t, y, p_aligned)
+    dydt_misaligned = derivatives(t, y, p_misaligned)
+
+    T = thrust_curve.thrust(t, y, p_aligned)
+    assert T > 0.0  # otherwise this test would not exercise the new term at all
+    delta = math.radians(7.0)
+    expected_shift = (p_aligned.l1 + p_aligned.l2) * T * math.sin(delta)
+
+    My_aligned = dydt_aligned[OMEGA] * p_aligned.I
+    My_misaligned = dydt_misaligned[OMEGA] * p_misaligned.I
+
+    assert math.isclose(My_misaligned - My_aligned, expected_shift, rel_tol=1e-12)
+
+
+def test_moment_shift_is_exactly_zero_when_thrust_is_zero():
+    """analysis.tex sec:analysis_moment's table: "no thrust" collapses the
+    aligned and misaligned columns onto each other for *any* `delta`,
+    since `T = 0` scales both `cos(delta)` and `sin(delta)` out --
+    misalignment is physically inert without thrust. Checked past burnout
+    (`t` beyond the placeholder curve's last point, so `T == 0` exactly).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+                  A_x=0.5, A_z=0.3, A_m=0.1)
+    p_aligned = Params(thrust_misalign_deg=0.0, **common)
+    p_misaligned = Params(thrust_misalign_deg=7.0, **common)
+    s = State(x=0.0, z=-50.0, vx=20.0, vz=-15.0, theta=1.1, omega=0.05)
+    y = np.array(s)
+    t = 10.0  # well past the placeholder curve's burnout
+
+    T = thrust_curve.thrust(t, y, p_aligned)
+    assert T == 0.0
+
+    dydt_aligned = derivatives(t, y, p_aligned)
+    dydt_misaligned = derivatives(t, y, p_misaligned)
+
+    assert dydt_aligned[OMEGA] == dydt_misaligned[OMEGA]
+
+
+def test_moment_shift_is_independent_of_angle_of_attack():
+    """analysis.tex sec:analysis_misaligned, "it does not change the
+    static-stability result": `delta` is a constant, so
+    `d(M_delta)/d(alpha) == 0` -- the moment shift from a fixed `delta`
+    must be *identical* at two states with different angles of attack
+    (same thrust magnitude, `aero_model="coefficients"` so `alpha` really
+    does drive a nonzero, alpha-dependent aero moment/force on top of it),
+    not merely "nonzero at both".
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
+    )
+    p_aligned = Params(thrust_misalign_deg=0.0, **common)
+    p_misaligned = Params(thrust_misalign_deg=3.0, **common)
+    t = 1.0
+
+    V0 = 60.0
+    s_alpha0 = State(x=0.0, z=-200.0, vx=0.0, vz=-V0, theta=math.pi / 2, omega=0.0)
+    alpha2 = 0.25
+    s_alpha_nonzero = State(x=0.0, z=-200.0, vx=0.0, vz=-V0,
+                             theta=math.pi / 2 + alpha2, omega=0.0)
+
+    T = thrust_curve.thrust(t, np.array(s_alpha0), p_aligned)
+    delta = math.radians(3.0)
+    expected_shift = (p_aligned.l1 + p_aligned.l2) * T * math.sin(delta)
+
+    # Sanity: the two states really do differ in alpha, otherwise the loop
+    # below would not actually exercise "different angles of attack".
+    alpha_a = flow_state(t, np.array(s_alpha0), p_aligned).alpha
+    alpha_b = flow_state(t, np.array(s_alpha_nonzero), p_aligned).alpha
+    assert not math.isclose(alpha_a, alpha_b, abs_tol=1e-6)
+
+    for s in (s_alpha0, s_alpha_nonzero):
+        y = np.array(s)
+        dydt_aligned = derivatives(t, y, p_aligned)
+        dydt_misaligned = derivatives(t, y, p_misaligned)
+        shift = (dydt_misaligned[OMEGA] - dydt_aligned[OMEGA]) * p_aligned.I
+
+        assert math.isclose(shift, expected_shift, rel_tol=1e-12)
 

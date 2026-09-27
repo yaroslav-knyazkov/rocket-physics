@@ -56,6 +56,13 @@ Direction; architecture.md SS23.1), which dispatches on
 bit-for-bit unchanged; "radial" rotates it with downrange distance). This
 is a direction-only change, orthogonal to the magnitude dispatch
 `gravity.g` already performs.
+
+Step 39: `thrust_body` gains a fixed nozzle cant `delta = p.thrust_misalign_deg`
+(main.tex SSForces eq:thrust_vector; architecture.md SS23.2), returning
+`T*(cos(delta), sin(delta))` instead of the on-axis `(T, 0.0)`. `delta = 0.0`
+(the default) reproduces the on-axis vector bit-for-bit. dynamics.py needs
+no change -- `_cross_y(aB, thrust)` was already written generically enough
+to pick up the resulting moment (see that module's docstring).
 """
 
 import numpy as np
@@ -87,15 +94,24 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
 
 
 def thrust_body(t: float, s, p) -> np.ndarray:
-    """T = T*x_hat_r (main.tex SSForces), body frame.
+    """T = T*(cos(delta)*x_hat_r + sin(delta)*z_hat_r) (main.tex SSForces
+    eq:thrust_vector), body frame.
 
-    Now uses the thrust curve from sim/thrust_curve.py instead of a
-    constant magnitude with hard-coded burn time. The thrust curve
-    provides time-varying thrust and automatically cuts off when the
-    curve ends (returns zero after the last defined point).
+    Uses the thrust curve from sim/thrust_curve.py instead of a constant
+    magnitude with hard-coded burn time. The thrust curve provides
+    time-varying thrust and automatically cuts off when the curve ends
+    (returns zero after the last defined point).
+
+    Step 39 (architecture.md SS23.2): `delta = p.thrust_misalign_deg`
+    (converted to radians here, the same "degrees in Params, radians at
+    first use" convention as `lat0_deg`/`azimuth_deg`/`wind_dir_deg`) is a
+    fixed nozzle cant, not a commanded gimbal -- there is no control law.
+    `delta = 0.0` (the default) gives back `(thrust, 0.0)` bit-for-bit,
+    since `np.cos(0.0) == 1.0` and `np.sin(0.0) == 0.0` exactly.
     """
     thrust = thrust_curve.thrust(t, s, p)
-    return np.array([thrust, 0.0])
+    delta = np.radians(p.thrust_misalign_deg)
+    return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
 def aero_force_body(t: float, s, p) -> np.ndarray:

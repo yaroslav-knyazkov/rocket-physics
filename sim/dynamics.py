@@ -66,6 +66,16 @@ otherwise). This is a purely translational correction -- zero moment
 about the CoG (sim/rotation.py's module docstring, "Moment") -- so it
 touches only `dvx/dt`/`dvz/dt` below, never `M_y`/`domega/dt`, and does
 not interact with `l1`/`l2`/`aA`/`aB` at all.
+
+Step 39 (roadmap.md; main.tex SSForces eq:thrust_vector, SSAnalysis
+eq:moment_misaligned; architecture.md SS23.2): needs **no functional
+change here at all**. `sim/forces.py`'s `thrust_body` now returns a
+general body-frame vector `T*(cos(delta), sin(delta))` instead of the
+on-axis `(T, 0)`, and `M_thrust = _cross_y(aB, thrust)` below was already
+written out as a general 2D cross product for exactly this reason (see
+Step 6's note above) -- it evaluates to `(l1 + l2)*T*sin(delta)` with no
+edit. Only the stale inline comment next to that line ("intentionally
+zero today") needed rewording.
 """
 
 import numpy as np
@@ -231,10 +241,18 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     aB = np.array([-(p.l1 + p.l2), 0.0])   # thrust application point
 
     # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
-    # to T) produces zero pitching moment -- this term is intentionally zero
-    # today. It is written out (not omitted) so a future gimbal or thrust
-    # misalignment (T with a nonzero z-component, or aB off-axis) produces a
-    # nonzero moment here with no change to this function's structure.
+    # to T) produces zero pitching moment -- that was the only case here
+    # before Step 39. It is written out (not simplified away) so a thrust
+    # misalignment (T with a nonzero z-component, `sim/forces.py`'s
+    # `thrust_body` when `p.thrust_misalign_deg != 0`) produces a nonzero
+    # moment with no change to this function's structure: `_cross_y(aB,
+    # thrust) = (p.l1 + p.l2) * T * sin(delta)` exactly (main.tex SSAnalysis
+    # eq:moment_misaligned's M_delta, architecture.md SS23.2), since
+    # `aB = -(p.l1+p.l2)*x_hat_r` and `_cross_y(a, b) = -(a_x*b_z - a_z*b_x)`.
+    # Still zero whenever T = 0 (T=0 scales both cos(delta) and sin(delta)
+    # away) or delta = 0 (the default -- bit-for-bit unchanged). A future
+    # gimbal model (aB off-axis, or a commanded delta(t)) drops in the same
+    # way.
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
     M_moment = aero_moment_y(t, y, p)
