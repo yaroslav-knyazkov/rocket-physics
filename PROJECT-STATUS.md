@@ -137,6 +137,63 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
 
+## Phase 2.6 doc/derivation pass (2026-09-27) — Steps 38-40 spec'd, code not yet implemented
+
+At the user's request: implement gravity direction varying with downrange distance (Backlog B4),
+thrust-axis misalignment, and humid-air density (Backlog B5) — plus two restructuring requests
+folded in: reorder `models.tex` to **Gravity → Thrust → Mass → Aerodynamics → Atmosphere → other**
+(Wind/Relative wind/Non-inertial), and promote "Analytical analysis" out of `rocket-2d.tex` into
+its own `latex/sections/analysis.tex`. Done by the architect, documentation/derivation only — no
+code changes yet (that's Steps 38-40, next).
+
+**Restructuring:**
+- `models.tex` subsections reordered per the user's explicit force-grouped order (a deliberate
+  reversal of the report-finalization pass's dependency-first order) — this reintroduces forward
+  references (§Thrust cites §Atmosphere's `p_amb`, §Aerodynamics cites §Atmosphere's ρ and §Other's
+  `alpha`, further down in the document). Flagged transparently in the doc rather than silently
+  "corrected" back, since `\autoref` resolves regardless of definition order.
+- New `latex/sections/analysis.tex`: "Analytical analysis" promoted to its own top-level section
+  (kept `\label{sec:analysis}` so every existing cross-reference survives). Fills the long-standing
+  `\todo{actual section with thrust and no-thrust stability}` with an organized derivation across
+  three configurations — **no thrust**, **aligned thrust**, **misaligned thrust** — plus the static
+  stability analysis, in the user's requested order, with a small comparison table at the end of
+  §Moment tying the three configurations together (user confirmed keeping this layout over an
+  alternative that groups the three moment cases contiguously).
+
+**New physics, derived (not yet coded):**
+1. **Step 38 — gravity direction vs. downrange.** The local vertical rotates by `φ = x/R_e` from
+   the launch vertical; `weight_inertial`'s direction becomes `(-sinφ, cosφ)` instead of the fixed
+   `(0,1)`. Gated by a new `gravity_direction: str = "parallel" | "radial"` field (orthogonal to
+   `gravity_model`'s magnitude selection, dispatch-dict pattern matching every other named-model
+   field). Direction-only — no change to altitude bookkeeping, stays independent of the existing
+   Coriolis correction (their own "independent and comparable, don't multiply" framing already in
+   the doc). Verified numerically against the real `sim/dynamics.py`/`sim/frames.py` before being
+   written up (e.g. the rotated-weight contribution to `dvx/dt`/`dvz/dt` reproduced exactly, zero
+   contribution to `domega/dt`).
+2. **Step 39 — thrust-axis misalignment.** A fixed nozzle cant angle `δ`
+   (`thrust_misalign_deg: float = 0.0`), giving `T = T·(cosδ x̂_r + sinδ ẑ_r)`. Verified that
+   `sim/dynamics.py`'s existing generic cross-product machinery needs **no code change at all** —
+   it already produces exactly `(l1+l2)·T·sinδ` once `thrust_body` returns a vector with a nonzero
+   `ẑ_r` component (the "future gimbal drops in with no structural change" comment in `dynamics.py`
+   was literally true). Scoped to misalignment only, not a commanded/control-law gimbal (that stays
+   backlog).
+3. **Step 40 — humid-air density**, approved by the user: an optional `Td_K` (dewpoint, kelvin)
+   sounding CSV column, gated by `humid_air: bool = False`, applying the standard Magnus/virtual-
+   temperature correction (`ρ = p/(R_d·T_v)`) in the sounding/field tiers only — ISA stays dry-air
+   by definition. Absent column → all-NaN → dry-air fallback, zero cost to every existing data
+   file. Verified against a real sounding row (~0.5-1.25% density reduction, temperate to hot-humid
+   conditions) and Magnus-formula reference values.
+
+**Not verified:** no LaTeX toolchain in this environment — not compiled, only structurally checked
+(51 labels, 191 cross-references, 0 dangling, 0 duplicates across all 4 files). **Compile locally
+before treating this as final**, same caveat as the report-finalization pass.
+
+**Next:** developer implements Steps 38, 39, 40 in that order, one commit each, full regression
+suite after each. Steps 38 and 39 both touch `sim/forces.py` and must be done sequentially, not in
+parallel, despite being physically independent corrections. Exact function signatures/`Params`
+fields/formulas for all three are pinned in `architecture.md` §23.1/§23.2/§23.3 and in the
+architect's dispatch — no developer should need to re-derive anything, only implement and test.
+
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
 atmosphere.

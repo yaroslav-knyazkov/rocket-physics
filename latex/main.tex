@@ -58,13 +58,15 @@
 
 \tableofcontents
 
-\ai{This report is organised in two halves. \autoref{sec:rocket2d} fixes the frames, the three
-forces and their application points, writes the equations of motion and analyses them by hand;
-\autoref{sec:models} gives the interchangeable models behind each symbol those equations use.
-\autoref{sec:assumptions}, immediately below, lists every simplification both halves currently
-rely on, and \autoref{sec:backlog} lists what is deliberately deferred. Text and equations in blue
-were written or edited by an AI assistant; parenthesised text in red marks an item that is still
-open.}
+\ai{This report is organised in three parts. \autoref{sec:rocket2d} fixes the frames, the three
+forces and their application points and writes the equations of motion;
+\autoref{sec:analysis} expands those equations by hand and works through the pitching-moment
+configuration space and the static-stability criterion that follows from it;
+\autoref{sec:models} gives the interchangeable models behind each symbol the equations use.
+\autoref{sec:assumptions}, immediately below, lists every simplification the three parts
+currently rely on, and \autoref{sec:backlog} lists what is deliberately deferred. Text and
+equations in blue were written or edited by an AI assistant; parenthesised text in red marks an
+item that is still open.}
 
 \newpage
 \ai{\section{Current assumptions}\label{sec:assumptions}
@@ -73,17 +75,26 @@ simulator rely on. Each is expected to be relaxed in a later phase; the relevant
 step is named where one exists, so a reader can tell ``current shortcut'' from ``permanent
 choice'' at a glance.
 \begin{itemize}
-    \item \textbf{Flat Earth for the flight-dynamics frame.} $\hat{z}_g$ is fixed for the whole
-    flight: the local vertical does not rotate with downrange distance
-    (\autoref{sec:gravity} > Direction). The Earth's rotation is carried only in part. Its
+    \item \textbf{Parallel gravity by default, but no longer permanently.} $\hat{z}_g$ can now
+    rotate with downrange distance, by the arc angle $\varphi = x/R_e$
+    (\autoref{sec:gravity} > Direction) --- the frozen local vertical this list used to record
+    as a fixed simplification is a \emph{selectable} one. It is still the default, so every
+    result produced before that model existed is reproduced unchanged; what has gone is the
+    need to treat $g\,x/R_e$ as an unquantified error term. What is \emph{not} lifted with it:
+    the ground stays flat ($h = -z$ is measured from the launch-point tangent plane, not from a
+    curved surface, a difference of $x^2/2R_e \approx 8\,\mathrm{m}$ at
+    $x = 10\,\mathrm{km}$), and there is no curved-Earth impact condition.
+    \item \textbf{Earth rotation carried only in part, and in a launch-site-fixed frame.} The
     \emph{static} effect is present --- the \emph{magnitude} of $g$ includes the centrifugal
     contribution through the WGS84 model (\autoref{sec:gravity}) --- and so is the in-plane
-    Coriolis term in the translational equations of motion
-    (\autoref{sec:noninertial}). What is dropped is the out-of-plane Coriolis
-    component, which this 2D model has no degree of freedom to receive, and the residual
-    centrifugal term, derived there but left unimplemented as some three orders of magnitude
-    smaller. The frozen-$\hat{z}_g$ error and the retained Coriolis term are of comparable
-    magnitude; see that section's closing caveat before over-reading either.
+    Coriolis term in the translational equations of motion (\autoref{sec:noninertial}). What is
+    dropped is the out-of-plane Coriolis component, which this 2D model has no degree of freedom
+    to receive, and the residual centrifugal term, derived there but left unimplemented as some
+    three orders of magnitude smaller. Separately, the decomposition of $\vec{\Omega}$ is frozen
+    at the launch site's latitude and heading and does \emph{not} follow the rotating
+    $\hat{z}_g$ above; the two corrections stay deliberately independent, which costs about
+    $3\times10^{-6}$ of the Coriolis term itself at $10\,\mathrm{km}$ downrange
+    (\autoref{sec:noninertial}, closing caveat).
     \item \textbf{Constant moment arms (not constant mass).} Mass, centre of gravity and moment
     of inertia are \emph{not} held fixed: $m(t)$, $l_B(t)$ and $I(t)$ come from the propellant
     model of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held
@@ -93,9 +104,16 @@ choice'' at a glance.
     (\autoref{sec:aero}) but not to CoG travel, and the CoG-to-$C$ thrust arm is a
     constant. Lifting this needs a stated rule for how $C$ and $D$ move as $l_B(t)$ moves, which
     no section currently gives.
-    \item \textbf{Thrust axis aligned with the body axis.} No gimbal or nozzle misalignment is
-    modelled; under the current geometry the thrust moment about the CoG is identically zero
-    (\autoref{sec:analysis_moment}). See \autoref{sec:backlog}.
+    \item \textbf{Thrust axis aligned with the body axis by default; no control authority at
+    all.} A fixed nozzle cant $\delta$ (\autoref{eq:thrust_vector}) is now modelled and gives
+    the first nonvanishing thrust moment in the document,
+    $M_\delta = (l_C-l_B)T\sin\delta$ (\autoref{sec:analysis_misaligned}); $\delta = 0$ is the
+    default and reproduces the identically-zero thrust moment every earlier result was computed
+    with. Two things are still absent: a \emph{commanded} deflection --- a gimbal and the
+    control law driving it, i.e.\ the only pitch authority a rocket has off the rail --- and a
+    \emph{lateral} offset of the nozzle or the centre of gravity ($u_B, u_C \neq 0$), which is
+    derived in \autoref{eq:moment_full} but has no parameter behind it. See
+    \autoref{sec:backlog}.
     \item \textbf{Planar (2D) flight, no crosswind.} Motion is confined to the vertical plane
     fixed by the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded
     (\autoref{sec:wind}).
@@ -111,6 +129,9 @@ simplifies, that one what is deliberately left undone and what each item is wait
 \input{sections/rocket-2d}
 
 \newpage
+\input{sections/analysis}   % \ai: new file, split out of rocket-2d.tex (the \ai markers are inside it)
+
+\newpage
 \input{sections/models}
 
 \newpage
@@ -122,15 +143,18 @@ properly, so that a reader can tell a missing derivation from a missing input.
 
 \subsection*{Modelling and analysis extensions}
 \begin{itemize}
-    \item \textbf{Thrust-axis misalignment and control.} Give the thrust its own axis, distinct
-    from the body axis $\hat{x}_r$: a fixed nozzle misalignment, a commanded gimbal angle, or
-    both. $\vec{T}$ then acquires a $\hat{z}_r$ component, the term $\vec{BC}\times\vec{T}$ of
-    \autoref{eq:eom_rot} stops vanishing identically, and the thrust point's axial position
-    $l_C$ --- irrelevant today, \autoref{sec:analysis_moment} --- becomes a live
-    quantity for the first time. This is also the entry point for any control law, a gimbal
-    being the only pitch authority a rocket has once it is off the rail. \emph{Waiting on:} a
-    defined thrust-axis geometry --- how the deflection is parameterised, and whether it is a
-    fixed manufacturing error or a commanded input.
+    \item \textbf{Thrust-axis control (the misalignment half is done).} The \emph{fixed} part of
+    this item is now modelled: a constant nozzle cant $\delta$ (\autoref{eq:thrust_vector})
+    gives $\vec{T}$ a $\hat{z}_r$ component, stops $\vec{BC}\times\vec{T}$ of
+    \autoref{eq:eom_rot} vanishing identically, and makes the thrust point's axial position
+    $l_C$ a live quantity for the first time (\autoref{sec:analysis_misaligned}). What remains
+    open is the \emph{commanded} half: a gimbal angle $\delta(t)$ driven by a control law, a
+    gimbal being the only pitch authority a rocket has once it is off the rail. That needs
+    things this document does not fix anywhere --- what the law is controlling (pitch
+    programme? gravity turn? impact point?), actuator rate and deflection limits, and a sensor
+    model to close the loop on. \emph{Waiting on:} a stated guidance objective. A second, much
+    smaller leftover is the lateral offset $u_B, u_C \neq 0$: already derived in
+    \autoref{eq:moment_full}, simply not parameterised.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated or constant coefficients of \autoref{sec:aero} with a wing-body
     (Barrowman-style) build-up: nose, body and fins each contributing to $C_N$ and to the
@@ -163,17 +187,22 @@ stated in full, with its reasoning, at the point where it is deferred; none of i
 here.
 \begin{itemize}
     \item Launch rail constraint, and recovery / parachute --- \autoref{sec:assumptions}.
-    \item Gravity \emph{direction} varying with downrange distance, i.e.\ lifting the frozen
-    $\hat{z}_g$ --- \autoref{sec:gravity} > Direction. The one genuinely new physics among the
-    gravity variants.
+    \item Gravity \emph{direction} varying with downrange distance --- \textbf{no longer
+    deferred:} derived and implemented, \autoref{sec:gravity} > Direction. What is left of the
+    curved-Earth family is the \emph{ground}: a curved surface, so that altitude and the impact
+    condition are measured from it rather than from the launch-point tangent plane. That is a
+    different kind of change (it touches the termination event, not a force) and is not
+    scheduled.
     \item Out-of-plane motion: crosswind weathercocking (\autoref{sec:wind}) and the lateral
     Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the
     same 2D closure and both are lifted by the same future work, a full 6-DOF model --- not by
     anything that can be done inside this document.
     \item Propellant grain geometry behind $I_p(t)$ and $l_p$ ---
     \autoref{sec:mass}.
-    \item Humid-air density, i.e.\ the virtual-temperature correction ---
-    \autoref{sec:density}.
+    \item Humid-air density, i.e.\ the virtual-temperature correction --- \textbf{no longer
+    deferred:} derived and implemented for the measured-data tiers,
+    \autoref{sec:density}. The ISA tier stays dry by definition, and the speed of sound stays
+    the dry-air one; both are stated there.
     \item Vertical wind, updrafts and downdrafts --- \autoref{sec:wind} > Vertical wind.
     \item Expansion of what drives $C_A$, $C_N$, $C_m$ beyond the qualitative list ---
     \autoref{sec:aero} > Coefficients, pending the CFD / data-extraction pipeline.

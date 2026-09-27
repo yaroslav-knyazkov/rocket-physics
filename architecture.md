@@ -16,6 +16,9 @@ Phase 2; Phase 3 adds quaternion-based 6-DOF alongside (not instead of) the 2D c
 **Document layout:** §1-§10 are Phase 1 (implemented, unchanged). §11-§22 are the **Phase 2
 design** (gravity ×4, atmosphere ×3 tiers, wind ×3 tiers, relative wind/α, real-data ingestion) —
 start at §11 for anything Phase 2. Approval gates and open sign questions are collected in §22.
+§23 holds the **Steps 38-40** additions designed after Phase 2.5 closed (non-parallel gravity,
+thrust-axis misalignment, humid-air density); it is self-contained — a developer implementing one
+of those three needs §23's own subsection plus the LaTeX section it names, not the whole document.
 
 ---
 
@@ -518,10 +521,12 @@ deleted at Step 13. That alone pays for the selector.
 
 ## 13. `sim/gravity.py` — four gravity models
 
-Spec: `main.tex` §Models > Gravity. All variants return the **scalar magnitude** `g`; the
-direction is always the fixed `ẑ_g = ẑ_i` (down) under the flat-Earth assumption, so
-`forces.weight_inertial` becomes `np.array([0.0, p.m * gravity.g(t, y, p)])` and nothing else
-changes.
+Spec: `main.tex` §Models > Gravity. All variants here return the **scalar magnitude** `g`. The
+direction was the fixed `ẑ_g = ẑ_i` (down) for all of Phase 2, so `forces.weight_inertial` was
+`np.array([0.0, p.m * gravity.g(t, y, p)])` and nothing else changed. **Superseded at Step 38**
+(§23.1): direction is now its own dispatch seam, `gravity.z_hat_g(t, y, p)`, selected by
+`p.gravity_direction` (`"parallel"` — the default, bit-for-bit the line above — or `"radial"`).
+The magnitude table below is unaffected and combines freely with either direction.
 
 Altitude used by all variants: `h = -y[Z]` (above the launch point) — plus `p.h0_m` when a
 mean-sea-level altitude is needed (`wgs84`); see §15 "Altitude conventions".
@@ -566,9 +571,10 @@ The obvious candidates and the verdict on each (the user asked; this is the grou
   vertical gravity profile at a launch site; it would be a file containing a formula's output.
   Skip.
 - **Non-parallel gravity (direction varying with downrange distance)** — the one genuinely
-  *different* model, and the only one that adds new physics rather than a better magnitude. But it
-  breaks `main.tex` §Current assumptions ("`ẑ_g` fixed for the whole flight") and would have to be
-  derived there first. Flagged as a question in §22, listed in the roadmap backlog. Not Phase 2.
+  *different* model, and the only one that adds new physics rather than a better magnitude. Was
+  blocked on `main.tex` §Current assumptions ("`ẑ_g` fixed for the whole flight"). **Now derived
+  and specified** — `models.tex` §Gravity > Direction, implementation in §23.1 — and it turns out
+  *not* to be a fifth `gravity_model` at all, but a second, orthogonal dispatch on direction.
 
 Recommendation at the time: **four variants, exactly as `main.tex` listed them.** No fifth.
 (Revised at Phase 2.5 Step 34: down to three — `linear` removed, see §13's model table above.)
@@ -821,6 +827,8 @@ Rules, all deliberately minimal:
   manifest file to keep in sync**; a "case" is just a folder and the loader globs it.
 - `h_msl_m` strictly increasing, geometric altitude above MSL. Empty fields are allowed and load as
   `NaN`, so an atmosphere-only or wind-only sounding is the same format with blank columns.
+- **Step 40 adds one optional column, `Td_K` (dewpoint, kelvin)** — absent column ⇒ all-`NaN` ⇒
+  dry-air density, so every existing file stays valid unchanged. See §23.3.
 - One file = one station × one time. Tier 2 = a folder with one file; tier 3 = a folder with
   several. **The tier is chosen by `p.atmosphere_model` / `p.wind_model`, not inferred from the
   file count** — inferring would silently change physics when a file is added.
@@ -862,6 +870,7 @@ table. **Rule: `Params` holds names and paths; modules hold the loaded data, cac
 | `u`, `v` | linear in `h` | never interpolate `wdir` — it wraps at 360° |
 | `ρ` | **derived**, `ρ = p/(R_d·T)` | interpolating ρ independently of p and T breaks the gas law |
 | `a`, `μ` | derived from interpolated `T` | same reason |
+| `T_d` | linear in `h`, edge-held outside the range (Step 40) | same profile shape as `T`; no standard dewpoint profile exists to anchor an extrapolation to (§23.3) |
 
 Outside the data range: below the lowest level, continue with the first layer's lapse rate; above
 the highest level, continue with an **ISA-shaped profile anchored at the top data point** (same
@@ -977,6 +986,11 @@ class Params:
     C_A0:       float = 0.0    # constant fallbacks
     C_N_alpha:  float = 0.0    # per radian
     C_m_alpha:  float = 0.0    # per radian
+
+    # ---- Steps 38-40 (§23) — each default reproduces every prior step bit-for-bit ----
+    gravity_direction:   str   = "parallel"  # parallel | radial  (§23.1)
+    thrust_misalign_deg: float = 0.0         # fixed nozzle cant delta [deg]  (§23.2)
+    humid_air:           bool  = False       # virtual-temperature density, measured tiers (§23.3)
 ```
 
 Note the two defaults that are *not* Phase 1 values: `atmosphere_model = "isa"` is safe because the
@@ -1007,6 +1021,11 @@ design is unchanged — with two Phase 2 clarifications.
   `np.interp` in α inside a bracketing interpolation in M) or the constant fallbacks in `Params`.
   This is the step that makes `Re` and `M` load-bearing rather than merely computed.
   CoP travel makes `l₁` a function of `(α, M)`, which couples straight back into the moment.
+- **Thrust direction (Step 38-40 block, §23.2)** — the thrust *vector* gains a fixed cant
+  `δ = p.thrust_misalign_deg`: `thrust_body` returns `(T·cos δ, T·sin δ)` instead of `(T, 0)`.
+  `dynamics.py` is unchanged — `_cross_y(aB, thrust)` already produces the correct
+  `(l1+l2)·T·sin δ` moment, which is exactly what it was written generically for. `dm/dt` is
+  driven by the thrust *magnitude* and is unaffected.
 
 > **Sign warning, carried into the aero-coefficient step.** With `main.tex`'s geometry
 > (`Aa = −l₁x̂_r`, so `aA = +l₁x̂_r`), the aero moment is `M_y = l₁(A_x sin α + A_z cos α)`. For a
@@ -1093,19 +1112,281 @@ step that hits them.
    aero-coefficient step.
 6. **CoG motion under propellant depletion** — **RESOLVED**, see §9 item 4. Scheduled as
    Phase 2.5 Step 36.
-7. **Non-parallel gravity** — `main.tex` §Current assumptions fixes `ẑ_g` for the whole flight.
-   A gravity *direction* that rotates with downrange distance would be the one genuinely new
-   physics among the gravity variants, but it needs a derivation update first. **Still backlog** —
-   distinct from item 9 below (Coriolis is a dynamic, velocity-dependent effect on the equations
-   of motion; this is a static, position-dependent effect on `ẑ_g`'s direction). Unless the user
-   wants it.
+7. **Non-parallel gravity** — **RESOLVED.** The derivation now exists (`models.tex` §Gravity >
+   Direction: rigid rotation of the launch basis by `φ = x/R_e`), `main.tex` §Current assumptions
+   is updated, and the implementation is specified in §23.1. Scheduled as Step 38. Still distinct
+   from item 9 (Coriolis is dynamic and velocity-dependent; this is static and
+   position-dependent), and the two are deliberately kept independent — see §23.1's scope note.
 8. **Crosswind is discarded in 2D (§16)** — worth confirming the user is happy that wind only ever
    acts along the flight plane until Phase 3.
 9. **Coriolis/centrifugal (rotating-Earth) correction** — **RESOLVED** as a design question, see
    §9 item 7; the tangent-plane projection of `Ω` is a `\todo` in `main.tex`. Scheduled as
    Phase 2.5 Step 37.
-10. **Linear gravity model removed** — the `"linear"` variant (`architecture.md` §13,
+10. **Sounding file format gains an optional `Td_K` column (Step 40, §23.3)** — the format itself
+    was an approval gate (item 2 above), so its extension is flagged here too. Backwards
+    compatible in both directions: existing files load unchanged, and the correction is gated by
+    `p.humid_air = False`. Recommendation: `Td_K`, kelvin, optional, as specified in §23.3.
+11. **Linear gravity model removed** — the `"linear"` variant (`architecture.md` §13,
     `sim/gravity.py::_g_linear`) is being dropped: it is the weakest of the four (first-order
     truncation of inverse-square, goes negative above `h = R_e/2`) and offers no advantage over
     `radial`, which is exact and equally cheap. Scheduled as Phase 2.5 Step 34 (code + tests +
     the Step-27 comparison sweep).
+
+---
+
+## 23. Phase 2.6 — gravity direction, thrust misalignment, humid air (Steps 38-40)
+
+Three additive steps designed after Phase 2.5 closed, from `latex/sections/models.tex`
+(restructured in the same pass) and the new `latex/sections/analysis.tex`. Each is one step, one
+commit, and each has a `Params` default that reproduces every prior step **bit-for-bit**. None of
+them changes the state vector, the solver, the events or the module map; Steps 38 and 39 change
+one function body each, Step 40 changes a data format and one derived quantity.
+
+| Step | Physics | `Params` gate | Modules touched |
+|---|---|---|---|
+| 38 | gravity **direction** rotates with downrange distance | `gravity_direction: str = "parallel"` | `gravity.py`, `forces.py`, `params.py` |
+| 39 | fixed thrust-axis cant (nozzle misalignment) | `thrust_misalign_deg: float = 0.0` | `forces.py`, `params.py` |
+| 40 | humid-air density in the measured tiers | `humid_air: bool = False` + optional CSV column | `soundings.py`, `atmosphere.py`, `params.py`, `data/` |
+
+### 23.1 Step 38 — non-parallel gravity (`gravity_direction`)
+
+Spec: `models.tex` §Gravity > Direction (eqs. `xhat_g_rotated`, `zhat_g_rotated`,
+`phi_downrange`, `weight_rotated`); `analysis.tex` §Forces for the body-axis reading. Resolves
+roadmap Backlog B4 and §22 item 7 above.
+
+**Model.** The launch-point basis is rotated rigidly by the ground arc angle `φ = x/R_e` about
+the axis normal to the flight plane. In launch-frame `(x, z)` components, with `z` down:
+
+```
+phi         = y[X] / p.R_e
+x_hat_g(phi) = ( cos(phi), sin(phi))
+z_hat_g(phi) = (-sin(phi), cos(phi))
+W            = m * g(t, y, p) * z_hat_g(phi) = ( -m*g*sin(phi), m*g*cos(phi) )
+```
+
+Only `z_hat_g` is needed by the code; `x_hat_g` is derived in the LaTeX for the construction and
+is not used anywhere in `sim/`.
+
+**Structure — a second dispatch dict in `gravity.py`, not a fourth `gravity_model`.** Magnitude
+and direction are orthogonal choices (any of `constant`/`radial`/`wgs84` combines with either
+direction), so folding direction into `gravity_model` would need a combinatorial product of
+names. Instead `sim/gravity.py` gets a second §12-pattern seam beside `g()`:
+
+```python
+# sim/gravity.py
+from sim.state import X
+
+def _dir_parallel(t, y, p) -> np.ndarray:
+    return np.array([0.0, 1.0])          # z_hat_g0, frozen at the launch vertical
+
+def _dir_radial(t, y, p) -> np.ndarray:
+    phi = y[X] / p.R_e                    # models.tex eq:phi_downrange
+    return np.array([-np.sin(phi), np.cos(phi)])   # eq:zhat_g_rotated
+
+_GRAVITY_DIRECTIONS = {"parallel": _dir_parallel, "radial": _dir_radial}
+
+def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
+    """Unit vector along the local gravity direction, inertial (launch-point)
+    components. models.tex §Gravity > Direction."""
+    return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)
+```
+
+`forces.weight_inertial` becomes exactly one line:
+
+```python
+m = s[M] if p.m_d is not None else p.m
+return m * gravity.g(t, s, p) * gravity.z_hat_g(t, s, p)
+```
+
+**Bit-for-bit.** With `"parallel"` this evaluates `(m*g) * array([0.0, 1.0])` =
+`array([0.0, m*g])` — identical bits to today's `np.array([0.0, m*g])`, since `x*0.0 == 0.0` and
+`x*1.0 == x` exactly for finite positive `x`. Verified.
+
+**`Params`:** `gravity_direction: str = "parallel"   # parallel | radial`. A string rather than a
+`bool` (contrast `earth_rotation`) because this is a *choice among named models behind one
+symbol* — the §12 pattern used by `gravity_model`, `atmosphere_model`, `wind_model`,
+`horizontal_interp`, `aero_model` — and there is a plausible third variant (`φ =
+arctan(x/(R_e+h))`, the Cartesian-embedding reading, rejected in `models.tex` as a 0.5 %
+refinement of a small term). `earth_rotation` is a `bool` because it is a single term switched on
+or off, with no named alternatives.
+
+**Scope — what this step does NOT do** (all three are stated in `models.tex` and
+`main.tex` §Current assumptions):
+
+- No change to the state, the integration, or the meaning of `x`/`z`.
+- No curved ground: `h = -z` stays measured from the launch-point tangent plane. The true surface
+  drops `x²/2R_e` below it (8 m at 10 km, 71 m at 30 km). No curved-Earth impact event.
+- **No coupling to the Coriolis frame.** `sim/rotation.py` keeps its launch-site-fixed `Ω`
+  decomposition (`φ₀`, `χ` constants). The resulting inconsistency is `O(Ω·x/R_e)`, a relative
+  `3e-6` of the retained Coriolis acceleration at 10 km downrange and `3e-4` at 100 km — verified
+  numerically. Do not build a unified rotating frame; that is a curvilinear formulation the 2D
+  state cannot carry.
+- Zero effect on the rotational equation. Weight acts at the CoG, so `M_y` is untouched *exactly*,
+  for any direction — verified end-to-end (`domega/dt` delta is exactly `0.0`).
+
+**Checks for the step.** `gravity_direction="parallel"` reproduces every prior result bit-for-bit
+(assert on `derivatives()` arrays, the `earth_rotation` test's pattern). With `"radial"`: at
+`y[X] = 0` the direction is exactly `(0.0, 1.0)`; `‖z_hat_g‖ = 1` for arbitrary `x`;
+`dvx/dt` changes by exactly `-g·sin(φ)` and `dvz/dt` by `g·(cos φ − 1)` relative to `"parallel"`
+at the same state, and `domega/dt` by exactly zero; a flat-and-level state (`θ=0`) downrange
+acquires a *retarding* downrange acceleration, not an accelerating one.
+
+### 23.2 Step 39 — thrust-axis misalignment (`thrust_misalign_deg`)
+
+Spec: `rocket-2d.tex` eq. `thrust_vector`; `analysis.tex` §Moment and §With thrust, misaligned
+(eqs. `moment_full`, `moment_misaligned`, `alpha_trim`). Narrows the `main.tex` §Backlog item
+"Thrust-axis misalignment and control" to its control half.
+
+**Model.** One new `Params` field and one changed function body:
+
+```python
+# sim/params.py
+thrust_misalign_deg: float = 0.0   # fixed nozzle cant delta [deg], +towards +z_hat_r
+
+# sim/forces.py
+def thrust_body(t, s, p):
+    T = thrust_curve.thrust(t, s, p)
+    delta = np.radians(p.thrust_misalign_deg)
+    return np.array([T * np.cos(delta), T * np.sin(delta)])
+```
+
+**`sim/dynamics.py` needs no change at all.** This was designed in at Step 6: `M_thrust =
+_cross_y(aB, thrust)` is already the general 2D cross product of `aB = (-(l1+l2), 0)` with a
+general body-frame thrust vector, and
+
+```
+_cross_y(aB, (T cos d, T sin d)) = (l1 + l2) * T * sin(d) = (l_C - l_B) * T * sin(delta)
+```
+
+which is exactly the `M_δ` term of `analysis.tex` eq. `moment_misaligned` (`l1 + l2` is the code's
+spelling of `l_C − l_B`, the CoG-to-nozzle axial arm). **Verified numerically against the actual
+`_cross_y` and against `derivatives()` end-to-end**: with the thrust vector canted, `domega/dt`
+changes by exactly `(l1+l2)·T·sin(δ)/I` and nothing else in `dydt` moves. `dynamics.py`'s own
+comment ("written out … so a future gimbal or thrust misalignment … drops in with no change to
+this function's structure") is correct as written; the only edit it needs is to that comment.
+
+**Bit-for-bit.** `np.radians(0.0) == 0.0`, `np.cos(0.0) == 1.0`, `np.sin(0.0) == 0.0` exactly, so
+the default returns `array([T, 0.0])` bitwise. No separate on/off flag is needed — same pattern as
+`A_e: float = 0.0`.
+
+**Degrees at the edge.** `thrust_misalign_deg` follows the `lat0_deg`/`azimuth_deg`/`wind_dir_deg`
+convention: degrees in `Params`, converted with `np.radians` at first use, radians everywhere
+inside. Realistic values are 0.1–1.0°.
+
+**Not in this step** (both stated in `analysis.tex` §With thrust, misaligned): a commanded/gimbal
+`δ(t)` and any control law; and the lateral offsets `u_B`, `u_C`, which have no `Params` fields
+today (implicitly zero) — their term `(u_B−u_C)·T·cos δ` is derived in eq. `moment_full` but not
+parameterised. `dm/dt` is unaffected: it is driven by the thrust *magnitude*, which `δ` does not
+change.
+
+**Checks for the step.** `thrust_misalign_deg = 0.0` reproduces prior results bit-for-bit. With
+`δ ≠ 0` and `T > 0`: `M_y` shifts by exactly `(p.l1+p.l2)·T·sin(δ)`; the shift is **zero** when
+`T = 0` (after burnout — the `analysis.tex` "no thrust" cell); the shift is independent of `α`
+(evaluate at two angles of attack, same offset — the claim `∂θ̈/∂α` is unchanged); a statically
+stable airframe settles at a small nonzero trim `α` of the sign of `M_δ` rather than diverging
+(eq. `alpha_trim`), and reversing the sign of `δ` mirrors it.
+
+### 23.3 Step 40 — humid-air density (`humid_air`, `Td_K` column)
+
+Spec: `models.tex` §Atmosphere > Density (eqs. `virtual_temperature`, `magnus`). Resolves roadmap
+Backlog B5.
+
+**Formulas** (`T` in K, `T_d` in K, `p` in Pa, result in Pa/K/kg·m⁻³):
+
+```
+e_s(T_d) = 100 * 6.1094 * exp(17.625*(T_d-273.15) / ((T_d-273.15) + 243.04))     [Pa]
+e        = e_s(min(T_d, T))        # clamp: T_d > T is unphysical (supersaturation in noisy data)
+T_v      = T / (1 - (e/p)*(1 - eps)),   eps = R_d/R_v = 287.0528/461.5 = 0.6220
+rho      = p / (R_d * T_v)                        # replaces rho = p/(R_d*T)
+```
+
+The `100 *` (hPa→Pa) is the one easy mistake. `R_v = 461.5` is a new module constant in
+`atmosphere.py` beside `_R_D`; `_EPSILON` is computed from the two, never hard-coded as `0.622`,
+so the pair cannot drift.
+
+**Tier scope: `"sounding"` and `"field"` only. Not `"isa"`.** Same argument as `g_isa` (§14): the
+ISA is *defined* as dry air of fixed composition; a moist ISA is neither the standard nor a
+measurement. Tier 1 is untouched by this step.
+
+**File format — one new optional column** (extends §17's format; backwards compatible):
+
+```csv
+h_msl_m,p_Pa,T_K,Td_K,wdir_deg,wspd_ms
+380,96700,287.3,283.2,210,4.1
+```
+
+- Name `Td_K`, units kelvin, matching `T_K`. Sources publish dewpoint in °C; the conversion
+  happens when the file is prepared, exactly as `wdir`/`wspd` are converted to ENU `u`/`v` at load
+  time — the repository's canonical files are SI and internally consistent, not raw vendor dumps.
+- **Optional**: a file without the column loads exactly as today, with `Td` an all-`NaN` array.
+  An *empty field* on one row loads as `NaN` for that level, which §17 already allows.
+- No existing committed file needs to change. `tools/fetch_sounding.py` may emit the column later;
+  not required by this step.
+- Column *order* is irrelevant — `np.genfromtxt(..., names=True)` is keyed by header name.
+
+**`sim/soundings.py`:**
+
+```python
+class Sounding(NamedTuple):
+    ...                              # unchanged fields
+    Td: np.ndarray    # K, dewpoint; all-NaN when the column is absent   <-- appended last
+
+class SoundingState(NamedTuple):
+    ...                              # unchanged fields
+    Td: float         # K, NaN when unavailable                          <-- appended last
+```
+
+- `_load_sounding_file`: `Td = data["Td_K"].astype(float) if "Td_K" in data.dtype.names else
+  np.full(h.shape, np.nan)`. This is the *only* place the column's optionality is handled.
+- `interp_altitude`: interpolate `Td` **linearly in `h`, exactly like `T`**, and hold it at the
+  edge value outside the data range on both sides (the `u`/`v` rule, not the ISA-anchored `T`/`p`
+  rule — there is no standard dewpoint profile to anchor to, and the clamp below makes the held
+  value harmless). `rho` returned by this function **stays dry**, `p/(R_d*T)`: `interp_altitude`
+  has no `p: Params` argument and must not grow one (it is called from the `lru_cache`d
+  `_resample_case`). The humidity gate lives one level up.
+- Tier 3: `ResampledCase` gains `Td: np.ndarray  # (n_stations, n_levels)`; `_resample_case` fills
+  it from `interp_altitude`; `_combine` returns it as a fifth quantity — for `"idw"` one more
+  `w @ resampled.Td`, for `"rbf"` the stacked array goes from 4 to 5 blocks of `n_levels` (update
+  the slicing); `interp_field_at` passes `Td=Td` into the synthetic `Sounding`. Combining dewpoint
+  linearly across stations is consistent with combining `T` linearly.
+
+**`sim/atmosphere.py`** — the correction is applied here, where `p: Params` is in scope:
+
+```python
+_R_V = 461.5                 # specific gas constant for water vapour [J/(kg*K)]
+_EPSILON = _R_D / _R_V       # 0.6220
+
+def sat_vapor_pressure(T_K: float) -> float: ...        # Magnus/Alduchov-Eskridge, returns Pa
+def virtual_temperature(T: float, Td: float, p_Pa: float) -> float: ...
+def moist_density(p_Pa: float, T: float, Td: float) -> float: ...   # p/(R_d*T_v)
+```
+
+and in `_sounding_air_state` / `_field_air_state`, after the existing `interp_*` call:
+
+```python
+rho = state.rho
+if p.humid_air and np.isfinite(state.Td):
+    rho = moist_density(state.p, state.T, state.Td)
+return AirState(rho=rho, p=state.p, T=state.T, a=state.a, mu=state.mu)
+```
+
+`a` and `mu` stay dry-air quantities — deliberate, see `models.tex` §Density ("what is
+deliberately left dry"): a consistent moist `a` needs the mixture's `γ` too, the two effects
+partly cancel, and the residual ~0.2 % is far below the aero table's own uncertainty.
+
+**`Params`:** `humid_air: bool = False`. A `bool`, not a string: there are exactly two states
+(dry, or the virtual-temperature correction), the same shape as `earth_rotation`. An explicit gate
+rather than "apply it whenever the column happens to be present", because §21 already rejects
+inferring physics from what is in the data folder ("adding one file would then silently change the
+physics") — adding a column must not silently change the density either. With `humid_air=True` and
+no dewpoint data the fallback is dry air, level by level, so the flag is safe to leave on.
+
+**Checks for the step.** `humid_air=False` reproduces every prior result bit-for-bit (the `rho`
+expression is not even evaluated). `e_s(0 °C) = 610.94 Pa` and `e_s(20 °C) = 2333.4 Pa` (within
+0.4 % of the reference 611.2 / 2339 Pa — that *is* the Magnus fit's accuracy, do not "fix" it).
+`T_d = T` gives saturated air and the largest correction at that `(p,T)`; a dewpoint far below `T`
+gives a correction tending to zero; `T_v ≥ T` always, so `rho_moist ≤ rho_dry` always. Worked
+values to pin: `(T=287.3 K, T_d=283.15 K, p=96700 Pa)` → `e = 1226.0 Pa`, `T_v − T = 1.384 K`,
+`rho: 1.17254 → 1.16692` (−0.479 %); `(303.15, 299.15, 101325)` → −1.252 %. A sounding file with no
+`Td_K` column must load and run unchanged with `humid_air` either way. Tier 3 with one station must
+still reproduce tier 2 exactly, dewpoint included.

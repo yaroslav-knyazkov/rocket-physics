@@ -11,12 +11,15 @@ those constants with real models: relative wind/α first (now unblocked by `main
 **atmosphere and wind alike**, and finally Mach/α-dependent aero coefficients — **DONE and
 committed**. Phase 2.5 (Steps 33-37) is a documentation-and-review follow-up: drop the linear
 gravity model, fix the aero force to stay in body axis, add variable mass (CoG/I travel) and a
-Coriolis/centrifugal correction — **in progress, still 2D**. Phase 3 (Steps 28-32, renumbered from
-18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch ±90°, a rocket's
-nominal attitude) — **not worked on yet, ignored until Phase 2.5 is done**. Launch rail and
-recovery are moved to **Backlog / later**. Architecture reference: `architecture.md` §1-§10
-(Phase 1), §11-§22 (Phase 2, **with Phase 2.5 resolutions inline**). Rule for every step: re-read
-the relevant `main.tex` section first, because the user keeps extending the derivation.
+Coriolis/centrifugal correction — **DONE and committed**. Phase 2.6 (Steps 38-40) promotes three
+deferred items to real physics: non-parallel gravity, a fixed thrust-axis misalignment, and
+humid-air density — **specified, not yet implemented, still 2D**. Phase 3 (Steps 28-32,
+renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
+±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
+**Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
+(Phase 2, **with Phase 2.5 resolutions inline**), §23 (Phase 2.6). Physics reference:
+`latex/main.tex` plus `latex/sections/{rocket-2d,analysis,models}.tex`. Rule for every step:
+re-read the relevant LaTeX section first, because the user keeps extending the derivation.
 
 ---
 
@@ -507,6 +510,102 @@ new data dependency; stays a documented `\todo`, not a step, until that changes.
 
 ---
 
+## Phase 2.6 — Gravity direction, thrust misalignment, humid air (still 2D)
+
+Three additive steps, designed in one derivation/spec pass after Phase 2.5 closed. Each promotes
+a previously-deferred item to real physics; none changes the state vector, the solver, the events
+or the module map; each has a `Params` default that reproduces every prior step **bit-for-bit**.
+Same discipline as Phase 2.5 — one step, one commit, re-run the full regression suite after each.
+
+Spec location, per step: `architecture.md` §23.1 / §23.2 / §23.3 (implementation) plus the named
+LaTeX section (physics). **A developer needs only the one §23 subsection and the LaTeX section it
+names** — not the whole of either document.
+
+Same pass also restructured the LaTeX: `latex/sections/models.tex` is now ordered by force
+(Gravity, Thrust, Mass, Aerodynamics, then Atmosphere, Wind, Relative wind, Non-inertial), and
+§Analytical analysis moved out of `rocket-2d.tex` into its own `latex/sections/analysis.tex`
+(label `sec:analysis` unchanged). Documentation only; no code implication.
+
+### Step 38 — Non-parallel gravity: direction varying with downrange distance
+- **Files:** `sim/gravity.py`, `sim/forces.py`, `sim/params.py`, `tests/test_gravity.py`,
+  `tests/test_forces.py`
+- **Spec:** `latex/sections/models.tex` §Gravity > Direction (the construction, `φ = x/R_e`, and
+  the scope limits); `latex/sections/analysis.tex` §Forces for the body-axis reading
+  (`θ → θ + φ`); `architecture.md` §23.1 for the code. Promotes Backlog **B4** and resolves
+  `architecture.md` §22 item 7.
+- **Do:** add a second dispatch seam to `sim/gravity.py` — `z_hat_g(t, y, p)` over
+  `_GRAVITY_DIRECTIONS = {"parallel", "radial"}` — and make `forces.weight_inertial` return
+  `m * gravity.g(t, s, p) * gravity.z_hat_g(t, s, p)`. `"radial"` returns
+  `(-sin φ, cos φ)` with `φ = y[X]/p.R_e`. New field `gravity_direction: str = "parallel"`
+  (a string, not a bool: this is a choice among named models behind one symbol, the §12 pattern —
+  unlike `earth_rotation`, which is a single term switched on or off).
+- **Scope, explicitly not in this step:** no change to the state or to what `x`/`z` mean; no
+  curved ground and no curved-Earth impact event (`h = -z` stays measured from the launch-point
+  tangent plane, which the true surface falls `x²/2R_e` below — 8 m at 10 km); and **no coupling
+  to the Coriolis frame** — `sim/rotation.py` keeps its launch-site-fixed `Ω` decomposition. The
+  resulting inconsistency is `O(Ω·x/R_e)`, a relative `3e-6` of the retained Coriolis term at
+  10 km downrange (verified numerically). The two corrections stay independent and additive, as
+  `models.tex` §Non-inertial's closing caveat now states.
+- **Check:** `"parallel"` reproduces prior `derivatives()` output bit-for-bit. `"radial"`:
+  `‖z_hat_g‖ = 1` for any `x`; exactly `(0.0, 1.0)` at `x = 0`; relative to `"parallel"` at the
+  same state, `dvx/dt` shifts by exactly `-g·sin φ`, `dvz/dt` by `g·(cos φ − 1)`, and
+  `domega/dt` by **exactly zero** (weight acts at the CoG — no moment, whatever direction it
+  points). A level, downrange state gets a *retarding* downrange acceleration.
+- **Commit:** "Non-parallel gravity: local vertical rotates with downrange distance"
+
+### Step 39 — Thrust-axis misalignment (fixed nozzle cant)
+- **Files:** `sim/forces.py`, `sim/params.py`, `tests/test_forces.py`, `tests/test_dynamics.py`
+- **Spec:** `latex/sections/rocket-2d.tex` §Forces and moments (eq. `thrust_vector`);
+  `latex/sections/analysis.tex` §Moment, §With thrust misaligned (eqs. `moment_full`,
+  `moment_misaligned`, `alpha_trim`); `architecture.md` §23.2. Narrows `main.tex` §Backlog
+  "Thrust-axis misalignment and control" to its control half.
+- **Do:** `thrust_misalign_deg: float = 0.0` (degrees at the edge, radians inside — the
+  `lat0_deg`/`azimuth_deg` convention; no separate on/off flag, same pattern as `A_e = 0.0`), and
+  `thrust_body` returns `(T·cos δ, T·sin δ)` instead of `(T, 0)`.
+- **`sim/dynamics.py` needs no change at all** — verified against the actual code, not assumed.
+  `_cross_y(aB, thrust)` with `aB = (-(l1+l2), 0)` already yields `(l1+l2)·T·sin δ`, which is
+  exactly `analysis.tex`'s `M_δ = (l_C − l_B)·T·sin δ`. This is what that function was written
+  generically for (see its own Step-6 comment); only the comment needs updating. `dm/dt` is
+  driven by the thrust *magnitude* and is likewise untouched.
+- **Check:** `0.0` reproduces prior results bit-for-bit (`cos 0 = 1.0`, `sin 0 = 0.0` exactly).
+  With `δ ≠ 0`: `M_y` shifts by exactly `(p.l1+p.l2)·T·sin δ`; the shift is **zero** once
+  `T = 0` after burnout; the shift is independent of `α` (the static-stability derivative
+  `∂θ̈/∂α` is unchanged by a constant `δ` — check at two angles of attack); a statically stable
+  airframe settles at a small nonzero trim `α` of the sign of `M_δ` instead of diverging, and
+  reversing `δ` mirrors it.
+- **Commit:** "Thrust-axis misalignment: fixed nozzle cant and its pitching moment"
+
+### Step 40 — Humid-air density (virtual temperature) in the measured tiers
+- **Files:** `sim/soundings.py`, `sim/atmosphere.py`, `sim/params.py`, `tests/test_soundings.py`,
+  `tests/test_atmosphere.py`, optionally one file under `data/soundings/`
+- **Spec:** `latex/sections/models.tex` §Atmosphere > Density (eqs. `virtual_temperature`,
+  `magnus`); `architecture.md` §23.3 for the column name, the loader change and the exact
+  formulas. Resolves Backlog **B5**.
+- **Do:** one new *optional* CSV column `Td_K` (dewpoint, kelvin — SI at rest in the repo, the
+  same rule that converts `wdir`/`wspd` to ENU `u`/`v` at load time); `Sounding`,
+  `SoundingState` and `ResampledCase` each gain a `Td`; `interp_altitude` interpolates it
+  linearly in `h` and holds it at the edge outside the range, but keeps returning **dry** `rho`
+  (it has no `Params` and must not grow one — `_resample_case` caches it). The correction is
+  applied one level up, in `atmosphere.py`'s `_sounding_air_state`/`_field_air_state`, where
+  `Params` is in scope: `rho = p/(R_d·T_v)` with `T_v` from `e = e_s(min(T_d, T))`. Gate:
+  `humid_air: bool = False`.
+- **Scope:** measured tiers only. **ISA is not touched** — it is *defined* as dry air of fixed
+  composition, exactly the argument that keeps `g_isa = 9.80665` inside it regardless of the
+  gravity model. `a` and `μ` stay dry-air quantities too (a consistent moist `a` needs the
+  mixture's `γ`; the residual ~0.2 % is far below the aero table's own error).
+- **Check:** `humid_air=False` reproduces prior results bit-for-bit. `e_s(0 °C) = 610.94 Pa`,
+  `e_s(20 °C) = 2333.4 Pa` (0.4 % off the reference values — that is the Magnus fit's own
+  accuracy, not a bug). `T_v ≥ T` always, so `rho_moist ≤ rho_dry` always; `T_d = T` gives the
+  largest correction at that `(p,T)`; a very low dewpoint gives one tending to zero. Pinned
+  values: `(T=287.3 K, T_d=283.15 K, p=96700 Pa)` → `T_v − T = 1.384 K`, `rho 1.17254 → 1.16692`
+  (−0.479 %); `(303.15, 299.15, 101325)` → −1.252 %. A file with no `Td_K` column must load and
+  run unchanged either way, and tier 3 with one station must still equal tier 2 exactly.
+- **Gate:** the sounding file format was an approval-gated decision (`architecture.md` §22
+  item 2); this extends it, so §22 item 10 records the extension.
+- **Commit:** "Humid-air density: virtual-temperature correction in the sounding/field tiers"
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -589,16 +688,20 @@ A multi-MB coefficient set or a new geodesy dependency, to capture anomalies of 
 two orders of magnitude below the atmosphere model's own error. The `wgs84` variant of Step 11
 already covers the latitude and altitude dependence. See `architecture.md` §13.
 
-### B4 — Non-parallel gravity (direction varying with downrange distance)
-The one genuinely *new physics* among the gravity ideas, blocked by `main.tex` §Current
-assumptions ("`ẑ_g` fixed for the whole flight"). Needs a derivation update before it can be a
-step. See `architecture.md` §22 item 7. **Distinct from Phase 2.5 Step 37** (Coriolis): this is a
-static, position-dependent effect on `ẑ_g`'s direction under a non-rotating Earth; Step 37 is a
-dynamic, velocity-dependent fictitious force under a rotating one.
+### B4 — Non-parallel gravity (direction varying with downrange distance) — **PROMOTED to Step 38**
+Was blocked by `main.tex` §Current assumptions ("`ẑ_g` fixed for the whole flight"). The
+derivation now exists (`latex/sections/models.tex` §Gravity > Direction) and the step is
+specified in `architecture.md` §23.1. Still distinct from Step 37 (Coriolis): this is a static,
+position-dependent effect on `ẑ_g`'s direction under a non-rotating Earth; Step 37 is a dynamic,
+velocity-dependent fictitious force under a rotating one — and the two stay deliberately
+independent. **What is left in the backlog from this family** is the *curved ground*: altitude
+and the impact event measured from a curved surface rather than the launch-point tangent plane.
+That touches the termination event rather than a force, and is not scheduled.
 
-### B5 — Humidity / virtual temperature in the sounding tiers
-Soundings carry dewpoint; moist air is ~1 % less dense than dry air at the same `p`, `T`. A
-`T_virtual` correction is a few lines once the dewpoint column is carried through the loader.
+### B5 — Humidity / virtual temperature in the sounding tiers — **PROMOTED to Step 40**
+Soundings carry dewpoint; moist air is ~1 % less dense than dry air at the same `p`, `T`.
+Derived in `latex/sections/models.tex` §Atmosphere > Density, specified in `architecture.md`
+§23.3 (optional `Td_K` column, `humid_air` gate, measured tiers only).
 
 ### B6 — Crosswind (out-of-plane) effects
 Phase 2 discards the cross-plane wind component by construction (`architecture.md` §16); real
@@ -622,13 +725,21 @@ without adding a new data dependency. Revisit if/when such a source is added.
                                      ↓
                       21 → 22 → 23 → [24] → 25 → [26] → 27   Phase 2c: wind, aero coeffs, sweeps
                                      ↓
-                      33 → 34 → 35 → 36 → [37]                Phase 2.5: corrections/extensions
+                      33 → 34 → 35 → 36 → 37                 Phase 2.5: corrections/extensions
+                                     ↓
+                           38 · 39 · 40                      Phase 2.6: mutually independent
                                      ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
-Backlog (unscheduled): B1 launch rail · B2 recovery · B3 EGM gravity · B4 non-parallel gravity
-                       B5 humidity · B6 crosswind · B7 vertical wind (no fitting theory found)
+Backlog (unscheduled): B1 launch rail · B2 recovery · B3 EGM gravity · B6 crosswind
+                       B7 vertical wind (no fitting theory found) · curved ground (ex-B4 remainder)
+Promoted out of the backlog: B4 → Step 38 · B5 → Step 40
 ```
+
+Steps 38, 39 and 40 touch disjoint files (`gravity.py`+`forces.py` · `forces.py`+`params.py` ·
+`soundings.py`+`atmosphere.py`) and are physically independent of one another, so their order is
+free — but they are still **one step, one commit** each, and 38 and 39 both edit `forces.py`, so
+they are not to be done simultaneously.
 
 Steps in `[brackets]` are optional or gated. Step 21 (analytic wind) depends only on Step 13 and
 may be pulled forward. **Blocked or gated steps:**
@@ -639,7 +750,12 @@ may be pulled forward. **Blocked or gated steps:**
 | 16 | `main.tex` §Models > Thrust — the pressure-effect derivation is still a stub |
 | 25 | the sign of `l₁` / static stability convention (`architecture.md` §22 item 5) |
 | 30 | `main.tex` §Equations of motion extended to 3D (inertia tensor, `ω × Iω`) |
-| 37 | `main.tex` §Non-inertial frame corrections — the `Ω` tangent-plane projection is still a `\todo` (`architecture.md` §22 item 9) |
+| 37 | ~~`main.tex` §Non-inertial frame corrections — the `Ω` tangent-plane projection~~ — **resolved**, derived in `models.tex`, step done |
+| 40 | nothing technically, but the sounding-format extension (`Td_K`) touches an approval-gated decision — `architecture.md` §22 items 2 and 10 |
+
+Steps 38 and 39 are **not blocked**: both derivations now exist
+(`latex/sections/models.tex` §Gravity > Direction, `latex/sections/analysis.tex` §With thrust,
+misaligned) and both have a complete implementation spec in `architecture.md` §23.
 
 Step 15 (the old "CoG doesn't change" blocker) is superseded by Step 36 — resolved, see
 `architecture.md` §9 item 4 / §22 item 6.

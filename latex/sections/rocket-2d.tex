@@ -5,9 +5,15 @@
     \item $\mathcal{F}_g$ - gravitational field
     \item $\mathcal{F}_r$ - rocket
 \end{itemize}
-\ai{$\mathcal{F}_0$ and $\mathcal{F}_g$ share the same fixed orientation ($\hat{z}_g \equiv
-\hat{z}_0$, down) --- the gravity frame is kept notationally separate only so a curved/rotating
-Earth can be introduced later without renaming anything (\autoref{sec:assumptions}). $\mathcal{F}_r$
+\ai{$\mathcal{F}_0$ and $\mathcal{F}_g$ coincide at the launch point ($\hat{z}_g \equiv
+\hat{z}_0$, down) --- the gravity frame was kept notationally separate so a curved Earth could be
+introduced later without renaming anything, and that is now what has happened:
+$\hat{z}_g$ rotates with downrange distance while $\hat{z}_0$ does not
+(\autoref{sec:gravity} > Direction). Where the distinction matters the launch-point axes are
+written $\hat{x}_{g0}, \hat{z}_{g0}$ and the rotated ones $\hat{x}_g(\varphi),
+\hat{z}_g(\varphi)$; the two are the same thing whenever the rotation is disabled, which is the
+default (\autoref{sec:assumptions}). $\mathcal{F}_0$ --- the launch-point frame --- is the one
+the state $(x, z, \theta)$ is integrated in, always. $\mathcal{F}_r$
 is right-handed with $\hat{x}_r$ along the rocket's nose axis (positive forward), $\hat{z}_r$
 completing the pitch plane with it ($\hat{z}_r \equiv \hat{z}_g$ when $\theta = 0$), and
 $\hat{y}_r$ out of the pitch plane. Pitch $\theta$ is measured from the inertial horizontal,
@@ -17,18 +23,25 @@ positive nose-up; the pitch rate $\omega = \dot\theta$ is the rotation rate abou
 \subsection{Forces and moments}\label{sec:forces}
 Weight is the main force the rocket has to overcome to increase its altitude. It is written by
 \begin{equation}
-    \vec{W} = mg\hat{z}_g, 
+    \vec{W} = mg\hat{z}_g,
 \end{equation}
 where $m$ is mass of rocket, $g$ gravitational acceleration along direction of gravitational field $\hat{z}_g$.
+\ai{Both factors are models rather than constants: the magnitude $g$ and the direction
+$\hat{z}_g$ are supplied independently by \autoref{sec:gravity}, the latter rotating with
+downrange distance when that model is enabled.}
 
 To overcome weight thrust force is generated, by ejecting fuel at velocity and due to pressure differences. It is simply written as
-\begin{equation}
-    \vec{T} = T\hat{x}_r,
+\ai{\begin{equation} \label{eq:thrust_vector}
+    \vec{T} = T\left(\cos\delta\,\hat{x}_r + \sin\delta\,\hat{z}_r\right),
 \end{equation}
-where $T$ is thrust magnitude along axis of rocket $\hat{x}_r$. \ai{The thrust axis is taken to
-coincide with the body axis everywhere in this document. Giving the thrust an axis of its own ---
-a fixed nozzle misalignment, or a gimbal angle commanded by a control law --- is future work,
-\autoref{sec:backlog}.}
+where $T$ is the thrust magnitude (\autoref{sec:thrust}) and $\delta$ is the thrust cant angle:
+a small, constant misalignment of the nozzle axis from the body axis $\hat{x}_r$, positive
+towards $+\hat{z}_r$, in the pitch plane. $\delta = 0$ gives back the on-axis form
+$\vec{T} = T\hat{x}_r$ this document used throughout until this pass, and is the default
+everywhere. $\delta$ is a fixed manufacturing-type error, \emph{not} a commanded gimbal angle ---
+a gimbal, and the control law that would drive it, remain future work
+(\autoref{sec:backlog}). What a nonzero $\delta$ buys is the first nonvanishing thrust moment in
+the document, \autoref{sec:analysis_misaligned}.}
 
 Due to motion of rocket within fluid aerodynamic forces are present and given by
 \begin{equation}
@@ -72,137 +85,8 @@ propellant model of \autoref{sec:mass} is active --- they become $m(t)$,
 $I(t)$, and the centre of gravity $B$ itself travels as $l_B(t)$. And reinterpreting
 $\mathcal{F}_0$ as Earth-fixed rather than inertial adds one further translational term,
 $m\,\vec{a}_{Coriolis}^{\,2D}$, to \autoref{eq:eom_trans} and nothing at all to
-\autoref{eq:eom_rot} (\autoref{sec:noninertial}). Everything below in
-\autoref{sec:analysis} is the flat, non-rotating-Earth, constant-mass reading of these two
-equations.}
+\autoref{eq:eom_rot} (\autoref{sec:noninertial}). \autoref{sec:analysis} expands these two
+equations by hand in the non-rotating-Earth, constant-mass reading, carrying only the thrust
+cant $\delta$ of \autoref{eq:thrust_vector} and the gravity-direction angle $\varphi$ of
+\autoref{sec:gravity} explicitly; both are zero by default and both drop out when they are.}
 
-\subsection{Analytical analysis}\label{sec:analysis}
-\ai{Here ${}^r(\cdot)$ denotes a vector's components resolved along the body axes $\hat{x}_r,
-\hat{z}_r$ at the current instant --- i.e.\ $m\,{}^r\ddot{x} = (m\ddot{\vec{x}})\cdot\hat{x}_r$
---- \emph{not} a derivative taken within the rotating frame $\mathcal{F}_r$ itself (which would
-additionally need that frame's own rotation-coupling terms). The equations below are therefore
-just $\sum\vec{F}\cdot\hat{x}_r$, $\sum\vec{F}\cdot\hat{z}_r$ of \autoref{eq:eom_trans},
-expanded, and \autoref{eq:eom_rot} with the geometry of \autoref{sec:geometry} substituted in.}
-
-\subsubsection{Forces}\label{sec:analysis_forces}
-\ai{Thrust and the aerodynamic force are body-axis quantities already; only weight has to be
-resolved. With $\theta$ measured from the inertial horizontal, positive nose-up (\autoref{sec:frames}), the
-body axes read
-\begin{equation} \label{eq:body_axes_in_ground}
-    \hat{x}_r = \cos\theta\,\hat{x}_g - \sin\theta\,\hat{z}_g, \qquad
-    \hat{z}_r = \sin\theta\,\hat{x}_g + \cos\theta\,\hat{z}_g,
-\end{equation}
-so that $\vec{W}\cdot\hat{x}_r = -mg\sin\theta$ and $\vec{W}\cdot\hat{z}_r = +mg\cos\theta$,
-giving
-\begin{align}
-    m{}^r\ddot{x} &= -mg\sin{\theta} + T - A_x \label{eq:analytic_force_x}\\
-    m{}^r\ddot{z} &= mg\cos{\theta} - A_z \label{eq:analytic_force_z}
-\end{align}
-The two limiting attitudes fix the signs. Nose straight up ($\theta = 90^\circ$): weight is
-purely axial and purely retarding, $m{}^r\ddot{x} = -mg + T - A_x$, with no normal component at
-all. Nose horizontal ($\theta = 0$): $\hat{z}_r \equiv \hat{z}_g$, weight is purely normal,
-$m{}^r\ddot{z} = mg - A_z$, and does not oppose the thrust in the slightest.
-
-\textbf{Correction.} \autoref{eq:analytic_force_x} and \autoref{eq:analytic_force_z} previously
-carried $\cos\theta$ and $\sin\theta$ the other way round. That pair is correct only for a
-$\theta$ measured from the \emph{vertical}; this document, and the simulator's rotation matrix,
-measure $\theta$ from the horizontal (\autoref{sec:frames}), which swaps the two. The vertical-launch check
-above is the quickest way to see it: the old form gave $-mg\cos 90^\circ = 0$, i.e.\ a rocket
-standing on its tail feeling no weight along its own axis.}
-
-\subsubsection{Moment}\label{sec:analysis_moment}
-\ai{Substituting $\vec{BC} = \vec{AC}-\vec{AB}$ and $\vec{BD} = \vec{AD}-\vec{AB}$ from
-\autoref{sec:geometry} into \autoref{eq:eom_rot}, with $u_D \equiv 0$ and
-$\hat{x}_r\times\hat{z}_r = -\hat{y}_r$:
-\begin{equation} \label{eq:moment_full}
-    I\ddot{\theta} = (u_B - u_C)T - u_BA_x + (l_B - l_D)A_z - A_m
-\end{equation}
-Each term reads off the geometry directly: thrust acts at $C$, so only $C$'s lateral offset from
-the CoG gives it an arm; the aerodynamic force acts at $D$, so the axial arm $l_B - l_D$ carries
-its normal component $A_z$ and the lateral arm $u_B$ carries its axial component $A_x$.
-
-\textbf{Correction.} \autoref{eq:moment_full} previously read $(u_B - u_D)T$ for the thrust term
-and $(l_B - l_C)A_z$ for the normal-force term --- the point labels $C$ (thrust application
-point) and $D$ (aerodynamic reference point) interchanged between the two terms. This is
-independent of the sign fix in \autoref{sec:analysis_forces}: moments are taken about $B$, so weight never
-enters \autoref{eq:moment_full} and the two errors have nothing to do with each other. The form
-written here is the one the simulator implements, and it is also the form the note below on
-$l_C$ presupposes.
-
-$l_C$ does not appear in \autoref{eq:moment_full} at all. An on-axis thrust
-$\vec{T} = T\hat{x}_r$ applied at a point whose displacement from the CoG has axial part
-$(l_B-l_C)\hat{x}_r$ contributes $(l_B-l_C)T\,\hat{x}_r\times\hat{x}_r = 0$ from that part:
-sliding the application point forward or aft along the axis changes nothing, because the force is
-parallel to the displacement it would act through. Only the lateral offset $u_C$ survives, which
-is why the axial position of the nozzle is irrelevant to the pitching moment. $l_C$ becomes a
-live quantity the moment the thrust is allowed its own axis --- a gimbal deflection or a nozzle
-misalignment giving $\vec{T}$ a $\hat{z}_r$ component --- since a force with a component normal
-to $\hat{x}_r$ does care how far along the axis it is applied. That is future work,
-\autoref{sec:backlog}.
-
-\paragraph{No thrust.} The coast and descent phases are worth isolating from the boost phase.
-Setting $T = 0$ drops the thrust term and leaves the airframe's purely aerodynamic behaviour,
-free of any dependence on the motor's thrust level or on where the thrust acts --- so whatever
-stability it shows is a property of the geometry and the aerodynamic coefficients alone, not of
-the motor. It is also the case the static-stability analysis below is built on, which is the main
-reason for writing it out separately:
-\begin{equation} \label{eq:moment_nothrust}
-    I\ddot{\theta} = -u_BA_x + (l_B - l_D)A_z - A_m.
-\end{equation}}
-
-If thrust and weight axis are aligned then the equation turns into
-\ai{\begin{equation} \label{eq:moment_aligned}
-    I\ddot{\theta} = (l_B - l_D)A_z - A_m.
-\end{equation}
-Here ``aligned'' means $u_B = u_C = 0$: with the centre of gravity on the body axis, the
-remaining lateral arm in \autoref{eq:moment_nothrust} vanishes too, and the pitching behaviour
-reduces to the normal force acting through the arm $l_B - l_D$ against the airframe's own
-pitching moment.}
-
-\todo{actual section with thrust and no-thrust stability}
-\paragraph{Static stability} is a steady measure of stability of rocket due to disturbance, which for this case is angle of attack $\alpha$. We will use no thrust, axis aligned \autoref{eq:moment_aligned}. Before the analysis we need to expand and linearize $A_z, A_m$, which are given by
-\ai{\begin{equation} \label{eq:aero_linearised}
-    A_z = qc_zS,\quad A_m = qc_mSd_{ref},
-\end{equation}}
-where $q$ is dynamic pressure, $c_z, c_m$ are respectively lift and pitching moment coefficeints and \ai{$S, d_{ref}$} reference area and length, More on that in \ai{\autoref{sec:aero}, where the same two coefficients are written $C_N$ (normal force) and $C_m$ and the reference area and length are the same $S$, $d_{ref}$ (\autoref{eq:aero_magnitudes}).
-
-\textbf{Rename.} The reference area and length were written $A$ and $l$ here until this pass.
-They are now $S$ and $d_{ref}$ throughout: it matches \autoref{sec:aero} and the simulator, and
-it frees the letter $A$ for the two unrelated things it already denotes in this document --- the
-nose-tip point $A$ of \autoref{sec:geometry} and the force magnitudes $A_x, A_z, A_m$. The
-dynamic pressure $q$ comes from \autoref{sec:atmosphere} and \autoref{sec:relwind}.}
-
-Coefficents $c_z, c_m$ can be linearized by using
-\begin{align}
-    c_z &= c_{z,0} + \alpha c_{z,\alpha}, \\
-    c_m &= c_{m,0} + \alpha c_{m,\alpha}.
-\end{align}
-
-By taking partial derivative of angular acceleration by $\alpha$, we expect $\frac{\partial \ddot\theta}{\partial \alpha} < 0$ behavior, meaning the rocket will stabilize the trajectory. The expansion and derivative gives
-\ai{\begin{equation} \label{eq:dtheta_dalpha}
-    \frac{\partial \ddot\theta}{\partial \alpha} = \frac{qS}{I}\biggl[(l_B - l_D)c_{z,\alpha} - c_{m,\alpha}d_{ref}\biggr] < 0,
-\end{equation}
-which is met, provided $c_{z,\alpha} > 0$ (the normal force grows with angle of attack --- the
-normal case, and the only one in which dividing through by $c_{z,\alpha}$ preserves the sense of
-the inequality), when the stability margin $\textrm{SM}$ satisfies
-\begin{equation} \label{eq:static_margin}
-    \textrm{SM} = l_B - l_D < d_{ref}\frac{c_{m,\alpha}}{c_{z,\alpha}}.
-\end{equation}
-Both lengths are measured from the nose tip $A$ (\autoref{sec:geometry}), so $\textrm{SM} = l_B - l_D$ is
-\emph{negative} exactly when the aerodynamic reference point $D$ sits aft of the centre of
-gravity $B$ --- the familiar ``centre of pressure behind centre of gravity'' rule, with the sign
-carried by the ordering of the two lengths rather than by a separate convention. In the limiting
-case where $D$ is the centre of pressure itself, $c_{m,\alpha} = 0$ by definition and
-\autoref{eq:static_margin} collapses to precisely that rule. The simulator works with the
-positive distance $l_1 = l_D - l_B$ instead, i.e.\ $\textrm{SM} = -l_1$
-(\autoref{sec:aero}).
-
-\autoref{eq:static_margin} is dimensional. Quoting the margin non-dimensionally --- in
-calibers, i.e.\ divided by $d_{ref}$ --- is the rocketry convention and is left for later,
-\autoref{sec:backlog}.
-
-\textbf{Correction.} \autoref{eq:dtheta_dalpha} and \autoref{eq:static_margin} previously carried
-$l_B - l_C$, inherited from \autoref{eq:moment_aligned}'s interchanged point labels. The static
-margin is a centre-of-gravity-to-centre-of-pressure distance and cannot involve the thrust point
-$C$ at all; the substitution of $l_D$ for $l_C$ is the only change, and the form of every result
-in this subsection is otherwise unaffected.}

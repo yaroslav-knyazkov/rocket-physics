@@ -2,7 +2,22 @@
   "project": "rocket-trajectory",
   "complexity": "simple",
   "active_modules": ["architect", "developer"],
-  "current_stage": "phase2.5-complete",
+  "current_stage": "phase2.6-in-progress",
+  "phase2_6_doc_pass": {
+    "date": "2026-09-27",
+    "scope": "Documentation/derivation pass by architect, no code changes, preparing 3 new Phase 2.6 steps (38-40) at the user's request: implement gravity direction vs downrange (Backlog B4), thrust-axis misalignment, and humid-air density (Backlog B5). Also: reordered latex/sections/models.tex to Gravity->Thrust->Mass->Aerodynamics->Atmosphere->other (Wind/Relwind/Non-inertial) per user's explicit instruction (deliberately reintroduces some forward-references vs the finalization pass's dependency-first order, by user request); promoted 'Analytical analysis' out of rocket-2d.tex into its own latex/sections/analysis.tex (kept label sec:analysis so existing \\autoref targets survive), and filled the long-standing todo{actual section with thrust and no-thrust stability} with an organized derivation across no-thrust / aligned-with-thrust / misaligned-with-thrust configurations.",
+    "deliverables": ["latex/sections/analysis.tex (new)", "latex/sections/models.tex (reordered + Gravity>Direction + Density + Thrust>Direction rewritten)", "latex/sections/rocket-2d.tex (analysis subsection removed, thrust vector eq generalized)", "latex/main.tex (intro, input list, assumptions, backlog)", "architecture.md (new SS23.1/23.2/23.3 specs)", "roadmap.md (new Phase 2.6, Steps 38-40; Backlog B4/B5 marked PROMOTED)"],
+    "decisions": [
+      {"question": "gravity_direction Params field", "answer": "gravity_direction: str = \"parallel\" | \"radial\" (dispatch-dict pattern, orthogonal to gravity_model's magnitude selection). Architect's own call, consistent with project convention, not escalated."},
+      {"question": "thrust misalignment Params field", "answer": "thrust_misalign_deg: float = 0.0 (degrees-at-the-edges convention, matches A_e=0.0 inert-default pattern). Orchestrator's original proposal, confirmed unchanged."},
+      {"question": "rotation angle definition for gravity direction", "answer": "phi = x/R_e (arc-length reading, consistent with the radial gravity model's R_e+h and soundings' equirectangular ground-track projection). Architect's call, alternative (arctan) documented with its exact numeric cost (7e-6 rad at x=10km,h=30km) for auditability."},
+      {"question": "Sounding CSV format extension for humid air (Td_K column + humid_air bool gate)", "answer": "APPROVED by user 2026-09-27: optional Td_K (kelvin) column, gated by humid_air: bool = False, absent column = all-NaN = dry-air fallback, zero cost to existing files.", "status": "approved"},
+      {"question": "analysis.tex structural layout (contiguous moment cases vs literal requested order + summary table)", "answer": "APPROVED by user 2026-09-27: keep as architect wrote it (no-thrust -> static stability -> aligned -> misaligned, with a comparison table at the end of SSMoment tying the three configurations together)."}
+    ],
+    "risks_flagged": ["Forward references reintroduced by the reorder (deliberate, user-requested, autoref resolves regardless of order)", "Equation numbers all changed (numberwithin{equation}{subsection}); labels/autorefs unaffected", "Steps 38 and 39 both edit sim/forces.py -- must be sequential, not concurrent, despite being physically independent", "Step 40 touches 3 NamedTuples in sim/soundings.py; tier-3 RBF stacking goes 4->5 blocks, slicing arithmetic is the one place a silent off-by-one is possible -- flagged for QA attention", "eq:moment_full's lateral term (u_B-u_C)T cos(delta) is derived but has no code path (u_B/u_C have no Params fields) -- dead spec until parameterised, not a bug", "No LaTeX toolchain available -- not compiled, structural check only (51 labels, 191 refs, 0 dangling, 0 duplicates)"],
+    "verification": "No LaTeX toolchain in this environment -- NOT compiled. Structural check only (brace/environment balance, every autoref resolved, no dangling/duplicate labels). Compile locally before treating as final.",
+    "next": "Developer implements Steps 38, 39, 40 sequentially (sim/forces.py touched by both 38 and 39, so not parallelizable), one commit each, full regression suite after each."
+  },
   "report_finalization_pass": {
     "date": "2026-09-27",
     "scope": "Documentation-only finalization of the physics report (latex/main.tex + sections/{rocket-2d,models}.tex) after Phase 2.5 closed. Not a numbered roadmap step -- no code changes, nothing under sim/ or tests/ touched. Done in two architect passes (rate-limit interruption between them, no partial edits lost).",

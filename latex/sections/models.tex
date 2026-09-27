@@ -1,12 +1,247 @@
 \section{Models}\label{sec:models}
 \ai{Each subsection below gives the interchangeable models behind one symbol of
-\autoref{sec:rocket2d}. They are ordered so that every model's inputs are defined before it:
-first the air and its motion (\autoref{sec:atmosphere}, \autoref{sec:wind}), then the relative
-flow those two produce (\autoref{sec:relwind}), and then the three forces of
-\autoref{sec:forces} in the order they are introduced there --- weight (\autoref{sec:gravity},
-together with the frame corrections that belong with it, \autoref{sec:noninertial}), thrust
-(\autoref{sec:thrust}, together with the mass it consumes, \autoref{sec:mass}), and the
-aerodynamic force (\autoref{sec:aero}), which depends on all of the preceding.}
+\autoref{sec:rocket2d}. They are ordered by \emph{force}, following \autoref{sec:forces}: first
+the three forces themselves --- weight (\autoref{sec:gravity}), thrust (\autoref{sec:thrust}),
+together with the mass it consumes and the centre-of-gravity travel that follows
+(\autoref{sec:mass}), and the aerodynamic force (\autoref{sec:aero}) --- and then the shared
+environment the last of them is computed from: the air (\autoref{sec:atmosphere}), its motion
+(\autoref{sec:wind}), the relative flow those two produce (\autoref{sec:relwind}), and finally
+the fictitious-force corrections that come from the frame rather than from any force at all
+(\autoref{sec:noninertial}).
+
+\textbf{This ordering deliberately allows forward references.} Grouping by force means a model
+sometimes uses a quantity defined further down: \autoref{sec:thrust}'s pressure correction needs
+$p_{amb}$ from \autoref{sec:atmosphere}, and \autoref{sec:aero} needs $\rho$ and $q$ from
+\autoref{sec:atmosphere} and $\alpha$ from \autoref{sec:relwind}. That is the accepted cost of
+reading the three forces one after another instead of interleaving them with their inputs; every
+such symbol is cross-referenced at the point of use, and nothing below depends on being read
+strictly in order.}
+
+\subsection{Gravity}\label{sec:gravity}
+Interchangeable models for the gravitational acceleration magnitude $g$ used in
+$\vec{W} = mg\hat{z}_g$ (\ai{\autoref{sec:forces}}). \ai{Magnitude and direction are chosen
+independently and are listed separately below: any magnitude model may be combined with any
+direction model, since the two answer different questions (how strong, and which way). $h = -z$
+is altitude above the launch point, $R_e$ the Earth's radius.}
+
+\paragraph{Magnitude.}
+\begin{itemize}
+    \item \textbf{Constant} (Phase 1 baseline): $g = g_0$.
+    \item \textbf{Radial} (inverse-square): $g(h) = g_0\left(\dfrac{R_e}{R_e + h}\right)^2$ ---
+    exact for a spherically symmetric, non-rotating Earth. \ai{$R_e + h$ is the distance from
+    the Earth's centre, so $h$ is height above the \emph{local} surface --- the same reading of
+    the coordinates the direction model below uses. (Reading $h = -z$ instead as height above
+    the launch-point tangent plane would put the rocket at geocentric radius
+    $\sqrt{x^2+(R_e+h)^2}$, larger by a relative $10^{-6}$ at $x = 10\,\mathrm{km}$: too small
+    to be worth distinguishing, but worth naming, since the two readings are not the same
+    picture.)}
+    \item \textbf{Real data (WGS84)}: Somigliana normal gravity at the ellipsoid surface, plus the
+    second-order free-air correction to height above it:
+    \begin{gather}
+        \gamma_0(\phi) = \gamma_e\dfrac{1+k\sin^2\phi}{\sqrt{1-e^2\sin^2\phi}} \\
+        g(\phi, h) = \gamma_0\left[1 - \dfrac{2}{a_e}\left(1+f+m-2f\sin^2\phi\right)h + \dfrac{3}{a_e^2}h^2\right]
+    \end{gather}
+    with $\phi$ the launch site's geodetic latitude (fixed for the flight, \ai{\autoref{sec:assumptions}}),
+    $h$ the altitude above the ellipsoid, and published WGS84 constants $a_e = 6378137\,\mathrm{m}$,
+    $f = 1/298.257223563$, $m = 0.00344978650684$, $\gamma_e = 9.7803253359\,\mathrm{m/s^2}$,
+    $k = 0.00193185265241$, $e^2 = 0.00669437999013$. A gridded dataset (e.g.\ EGM2008) would
+    resolve anomalies two orders of magnitude below this model's own error and is not used here.
+    \ai{This variant already includes the Earth's rotation (centrifugal) contribution to the
+    \emph{magnitude} of $g$ through $\gamma_0(\phi)$ --- the equatorial-vs-polar difference in $g$
+    is a rotation effect, folded into the Somigliana formula. That is a separate, static effect
+    from the dynamic (Coriolis) correction to the equations of motion,
+    \autoref{sec:noninertial} below.}
+\end{itemize}
+
+\paragraph{Direction.}
+\ai{True gravitational acceleration points radially inward, toward the Earth's centre, so the
+local vertical is not the same direction at two points a finite distance apart. Two variants:
+\begin{itemize}
+    \item \textbf{Parallel} (the default): $\hat{z}_g \equiv \hat{z}_{g0}$, frozen at the launch
+    site's own local vertical for the whole flight. Every result in this document produced
+    before the variant below existed used this one.
+    \item \textbf{Radial} (non-parallel): $\hat{z}_g$ rotates with downrange distance, derived
+    immediately below.
+\end{itemize}
+
+\textbf{Construction.} Work in the launch-point frame $\mathcal{F}_0$, whose axes are
+$\hat{x}_{g0}$ (downrange, horizontal at the launch point) and $\hat{z}_{g0}$ (down). The
+Earth's centre $O$ therefore lies at $(0, R_e)$ in those coordinates --- directly below the
+launch point, since $\hat{z}_{g0}$ is the down direction there. Parametrise the spherical
+surface by the arc angle $\varphi$ subtended at $O$, measured from the launch point towards
+$+\hat{x}_{g0}$:
+\begin{equation} \label{eq:surface_point}
+    \vec{P}(\varphi) = \vec{O} + R_e\left(\sin\varphi\,\hat{x}_{g0} - \cos\varphi\,\hat{z}_{g0}\right)
+        = R_e\sin\varphi\,\hat{x}_{g0} + R_e(1-\cos\varphi)\,\hat{z}_{g0}
+\end{equation}
+which is the launch point itself at $\varphi = 0$ and drops away below the launch-point tangent
+plane by $R_e(1-\cos\varphi) \approx x^2/2R_e$ thereafter --- the Earth's curvature, stated here
+only to be explicit that the model below does \emph{not} use it. The local ``down'' at
+$\vec{P}(\varphi)$ is the unit vector from the surface point to the centre,
+$(\vec{O}-\vec{P})/R_e$, and the local downrange (horizontal) direction is the normalised
+surface tangent $R_e^{-1}\,\mathrm{d}\vec{P}/\mathrm{d}\varphi$:
+\begin{gather}
+    \hat{x}_g(\varphi) = \cos\varphi\,\hat{x}_{g0} + \sin\varphi\,\hat{z}_{g0}
+        \label{eq:xhat_g_rotated} \\
+    \hat{z}_g(\varphi) = -\sin\varphi\,\hat{x}_{g0} + \cos\varphi\,\hat{z}_{g0}
+        \label{eq:zhat_g_rotated}
+\end{gather}
+This is a rigid rotation of the launch-point basis about the axis normal to the flight plane:
+the pair is orthonormal for every $\varphi$, has determinant $+1$ (so the triad stays
+right-handed and $\hat{y}_g$ is untouched), and reduces to $\hat{x}_{g0}, \hat{z}_{g0}$ at
+$\varphi = 0$. Note which way it turns: the local horizon \emph{dips} (positive $\hat{z}_{g0}$,
+i.e.\ downward) as one moves downrange, and the local vertical tilts backwards, away from the
+flight direction.
+
+\textbf{The angle.} $\varphi$ is taken as
+\begin{equation} \label{eq:phi_downrange}
+    \varphi = \frac{x}{R_e},
+\end{equation}
+with $x$ the simulation's own downrange coordinate. This reads $x$ as ground arc length, which
+is the same reading the rest of the document already uses --- the ground track
+$(x\sin\chi, x\cos\chi)$ of \autoref{sec:atmosphere} > Field places stations on an
+equirectangular tangent plane on exactly that basis, and the radial magnitude model above reads
+$R_e + h$ as a geocentric radius on exactly that basis too. The alternative reading, $x$ as a
+Cartesian offset in the plane through $O$, gives $\varphi = \arctan\!\bigl(x/(R_e+h)\bigr)$
+instead; the two differ by $\varphi\,h/R_e$, i.e.\ by $7\times10^{-6}\,\mathrm{rad}$ at
+$x = 10\,\mathrm{km}$, $h = 30\,\mathrm{km}$ --- $0.5\%$ of the correction being made, and
+$7\times10^{-5}\,\mathrm{m/s^2}$ of acceleration. Not worth a second variant.
+
+\textbf{Weight.} The weight vector becomes, in launch-frame components,
+\begin{equation} \label{eq:weight_rotated}
+    \vec{W} = mg\,\hat{z}_g(\varphi)
+        = mg\left(-\sin\varphi\,\hat{x}_{g0} + \cos\varphi\,\hat{z}_{g0}\right),
+\end{equation}
+with $g$ from whichever magnitude model above is selected. That is the complete change: the
+downrange channel gains $-mg\sin\varphi$, the vertical channel is scaled by $\cos\varphi$, and
+nothing else in the equations of motion is touched. In particular the rotational equation
+\autoref{eq:eom_rot} is untouched for a reason that holds exactly and not just to leading order
+--- moments are taken about the centre of gravity, so weight contributes none whatever direction
+it points (\autoref{sec:analysis_moment}). In body axes the whole effect collapses to the
+substitution $\theta \to \theta + \varphi$ in the weight terms
+(\autoref{eq:analytic_force_x}, \autoref{eq:analytic_force_z}).
+
+\textbf{Magnitude, and what is still flat.} The retained term is
+$g\sin\varphi \approx g\,x/R_e$: $1.5\times10^{-2}\,\mathrm{m/s^2}$ at $x = 10\,\mathrm{km}$,
+growing linearly with downrange distance, and of the same order as the Coriolis term of
+\autoref{sec:noninertial} --- which is exactly why it is worth having, since carrying one
+without the other was the inconsistency that section's closing caveat used to record. What is
+\emph{not} lifted: the state $(x, z)$ and its integration are unchanged, $h = -z$ is still
+measured from the launch-point tangent plane rather than from the curved surface of
+\autoref{eq:surface_point} (a difference of $8\,\mathrm{m}$ at $x = 10\,\mathrm{km}$,
+$71\,\mathrm{m}$ at $30\,\mathrm{km}$), and there is no curved-ground impact condition. This
+model rotates gravity; it does not make the Earth round underneath the rocket
+(\autoref{sec:assumptions}).}
+
+\subsection{Thrust}\label{sec:thrust}
+Magnitude of thrust is the result of conservation of momentum (ejection of fuel) and pressure differences, given as
+\begin{equation}
+    T = \dot{m}v_e + A_e(p_e - p_{atm}),
+\end{equation}
+which can be computed analytically (internal combustion, nozzle).
+
+In real life, however the data from static test is used. It is given as a tabulated curve,
+linearly interpolated between measured $(t_i, T_i)$ points:
+\ai{\begin{equation}
+    T_{ref}(t) = \mathrm{lerp}\!\left(t; \{t_i\}, \{T_i\}\right)
+\end{equation}
+held at $T_1$ for $t < t_1$ and zero for $t > t_N$; burnout is the falling zero-crossing of
+$T_{ref}(t)$.}
+
+As the test is static, there is no variation in atmospheric pressure. To account for the change in
+altitude, \ai{the net thrust once the motor is flowing is}
+\begin{equation}
+    T(t, h) = T_{ref}(t) + A_e\left(p_{ref} - p_{amb}(h)\right), \qquad \text{only while } T_{ref}(t) > 0
+\end{equation}
+with $p_{amb}(h)$ from \ai{\autoref{sec:atmosphere}}, $A_e$ the nozzle exit area, and \ai{$p_{ref}$ the ambient
+pressure the curve was measured at (the test-stand pressure --- not necessarily the launch site's
+own pad pressure)}; $A_e = 0$ recovers $T_{ref}(t)$ exactly.
+
+\ai{\textbf{Direction.} Everything above is the thrust \emph{magnitude} $T$. Its direction is
+fixed separately, by the cant angle $\delta$ of \autoref{eq:thrust_vector} --- a constant of the
+airframe, not a function of $t$ or $h$, and zero by default. The two are independent: $\delta$
+scales no part of the magnitude model above, and the mass flow of \autoref{sec:mass} is driven
+by $T_{ref}(t)$ regardless of which way the nozzle points. The only coupling is the obvious one,
+that the axial component delivered is $T\cos\delta$ (\autoref{eq:analytic_force_x}) --- a
+$4\times10^{-5}$ relative loss at $\delta = 0.5^\circ$, negligible as a performance effect,
+while the $T\sin\delta$ that goes with it is not at all negligible as a \emph{moment}
+(\autoref{sec:analysis_misaligned}).}
+
+\ai{Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled in
+\autoref{sec:mass}, and are carried by \autoref{sec:eom}: $m$, $l_B$ and $I$ are all functions
+of time there. What \autoref{sec:assumptions} still holds fixed is one step further out
+--- how the thrust point $C$ and the aerodynamic reference point $D$ travel relative to a moving
+centre of gravity --- not $m$, $l_B$ or $I$ themselves.}
+
+\subsection{Mass and moment of inertia}\label{sec:mass}
+\ai{As propellant burns, mass leaves the rocket through the nozzle and both the center of gravity
+and the moment of inertia change over the burn. A minimal model, treating the rocket as two lumped
+masses --- dry structure (mass $m_d$, fixed centroid at $l_d$ from the nose tip $A$) and remaining
+propellant (mass $m_p(t) = m(t) - m_d$, centroid at $l_p$):
+\begin{gather}
+    \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0} \qquad \text{(or a measured mass-flow table, if available)} \\
+    l_B(t) = \frac{m_d\,l_d + m_p(t)\,l_p}{m_d + m_p(t)} \qquad \text{(CoG distance from the nose,
+    replaces the constant $l_B$ of \autoref{sec:geometry})} \\
+    I(t) = I_d + m_d\bigl(l_B(t)-l_d\bigr)^2 + I_p(t) + m_p(t)\bigl(l_B(t)-l_p\bigr)^2 \qquad
+    \text{(parallel-axis theorem)}
+\end{gather}
+with $I_d$, $I_p(t)$ the dry structure's and remaining propellant's own moments of inertia about
+their respective centroids, and $I_{sp}$ the motor's specific impulse.
+\todo{$I_p(t)$ and $l_p$ depend on the propellant grain geometry (cylindrical, tubular, end-burner,
+etc.) and how it recedes as it burns --- needs the motor's grain geometry to go beyond the
+"propellant centroid fixed at $l_p$" approximation above. Until resolved, $l_p$ constant and
+$I_p(t) \propto m_p(t)$ (uniform density, fixed shape) is the simplest placeholder.}}
+
+\subsection{Aerodynamics}\label{sec:aero}
+\paragraph{Force magnitudes.}
+\ai{$C_A(\alpha,M)$, $C_N(\alpha,M)$, $C_m(\alpha,M)$ and the CoP-to-CoG distance $l_1(\alpha,M)$
+come from one rectangular $(M,\alpha)$ table, or fall back to constants:
+\begin{equation}
+    C_A = C_{A0}, \qquad C_N = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_1 = l_1^{(0)}
+\end{equation}
+With a table: bracket and clamp $M$ at the grid edges (no extrapolation beyond the table's Mach
+range), interpolate linearly in $\alpha$ within each bracketing row, then blend the two rows
+linearly across the $M$ bracket. $l_1$ is the axial distance from the centre of gravity $B$ to
+the aerodynamic reference point $D$ of \autoref{sec:geometry}, positive with $D$ aft:
+$l_1 = l_D - l_B$, so $\vec{BD} = -l_1\hat{x}_r$ and $\textrm{SM} = -l_1$ in the notation of
+\autoref{sec:analysis}. Letting it vary as $l_1(\alpha,M)$ couples CoP travel back into the
+pitching moment.
+
+\ai{Implementation note: the fallback $C_N$, $C_m$ are evaluated as $C_{N\alpha}\sin\alpha$,
+$C_{m\alpha}\sin\alpha$ in code (identical to the formula above for small $\alpha$, within 0.4\%
+at $8.6^\circ$) rather than the raw linear form. This is a numerical-robustness fix, not a
+different physical model: $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch
+cut ($u<0$, $w$ crossing zero), which an unperturbed flight coasting tail-first through $V=0$ at
+apogee lands on exactly, and the unbounded linear form turns that into a solver-breaking jump in
+the moment every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is
+arguably more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side
+force a body of revolution has flying exactly tail-first by symmetry).}
+
+The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
+relative-wind frame $\hat{u},\hat{n}$ --- since $C_A, C_N$ are themselves body-axis (axial/normal)
+coefficients, the same convention the CFD/wind-tunnel data is extracted in, and their
+$\alpha$-dependence is already carried by the table:
+\begin{equation}
+    \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r, \qquad A_x = qSC_A(\alpha,M), \quad A_z = qSC_N(\alpha,M)
+\end{equation}
+matching \autoref{sec:forces}'s original Phase 1 form exactly, for every $\alpha$ --- not
+just $\alpha=0$. The pitching moment magnitude follows the same pattern, needing a reference
+length as well as a reference area:
+\begin{equation} \label{eq:aero_magnitudes}
+    A_m = qSd_{ref}C_m(\alpha,M)
+\end{equation}
+$S$ is the reference area and $d_{ref}$ the reference length --- in practice the body
+cross-section and its diameter. These are the same $S$, $d_{ref}$ that
+\autoref{sec:analysis} uses and the same $d_{ref}$ that forms the Reynolds number in
+\autoref{sec:reynolds_mach}: one reference area and one reference length for the whole
+document.}
+
+\paragraph{Coefficients.}
+\ai{What affects $C_A$, $C_N$, $C_m$: angle of attack $\alpha$ (nonlinear at high $\alpha$ once
+flow separates), Mach number $M$ (compressibility, transonic/supersonic drag rise), Reynolds
+number $Re$ (boundary-layer state, viscous/skin-friction contribution to $C_A$), and geometry
+(fin planform and cant, body-fin interference, surface finish). \todo{expand once the CFD/data
+extraction pipeline is defined.}}
 
 \subsection{Atmosphere}\label{sec:atmosphere}
 Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the
@@ -88,9 +323,69 @@ data given
 
 \subsubsection{Density}\label{sec:density}
 Humid air density calculation
-\ai{\todo{not modelled: radiosonde soundings carry dewpoint, and moist air is $\sim$1\% less
-dense than dry air at the same $p,T$ (a $T_{virtual}$ correction). A few lines once the dewpoint
-column is carried through the sounding loader; deferred to the backlog until then.}}
+\ai{
+
+Water vapour is lighter than dry air --- $M_v = 18.02$ against $M_d = 28.96\,\mathrm{g/mol}$ ---
+so at a given pressure and temperature, replacing some of the air with vapour makes the mixture
+\emph{less} dense, not more. Damp air is light air. The effect is at the percent level and it is
+one of the few corrections in this document that can be taken straight from measured data,
+because radiosondes report dewpoint alongside temperature and pressure.
+
+\textbf{Partial pressures.} Treat the mixture as two ideal gases sharing a volume, dry air at
+partial pressure $p - e$ and vapour at partial pressure $e$:
+\begin{equation}
+    \rho = \frac{p-e}{R_dT} + \frac{e}{R_vT}
+         = \frac{p}{R_dT}\left[1 - \frac{e}{p}\left(1 - \epsilon\right)\right], \qquad
+    \epsilon = \frac{R_d}{R_v} = \frac{287.0528}{461.5} = 0.6220
+\end{equation}
+The bracket is the whole correction, and it is always less than one. Folding it into an
+effective temperature instead of an effective density is the standard bookkeeping --- the
+\emph{virtual temperature}, the temperature dry air would need in order to have the moist
+mixture's density at the same pressure:
+\begin{equation} \label{eq:virtual_temperature}
+    T_v = \frac{T}{1 - \dfrac{e}{p}\left(1-\epsilon\right)}, \qquad
+    \rho = \frac{p}{R_dT_v}
+\end{equation}
+so that every formula keeps the dry-air gas constant $R_d$ and only the temperature fed to it
+changes. $T_v \geq T$ always, with equality for perfectly dry air.
+
+\textbf{Vapour pressure from dewpoint.} The dewpoint $T_d$ is \emph{defined} as the temperature
+to which the parcel must be cooled, at constant pressure and mixing ratio, to reach saturation
+--- so the actual vapour pressure of the parcel equals the \emph{saturation} vapour pressure
+evaluated at the dewpoint, $e = e_s(T_d)$. That identity is what makes the dewpoint column
+directly usable. For $e_s$ the Magnus form with the Alduchov--Eskridge coefficients is used,
+with $T_d$ in $^\circ\mathrm{C}$ and $e_s$ in hPa:
+\begin{equation} \label{eq:magnus}
+    e_s(T_d) = 6.1094\,\exp\!\left(\frac{17.625\,T_d}{T_d + 243.04}\right)
+\end{equation}
+This form is accurate to better than $0.4\%$ over $-40$ to $+50\,^\circ\mathrm{C}$, which covers
+every dewpoint a sounding reports; it is not extrapolated above that range, and it does not need
+to be, since there is no measurable moisture at the temperatures where it would degrade. The
+factor of 100 converting hPa to Pa before forming $e/p$ is the one easy mistake here.
+
+\textbf{Scope: measured tiers only.} The correction applies to the \textbf{sounding} and
+\textbf{field} tiers, and \emph{not} to ISA. That is not an omission: the International Standard
+Atmosphere is defined as dry air of fixed composition, and its pressure column is computed on
+that basis --- injecting moisture into it would give a profile that is neither the standard nor
+a measurement, the same argument that keeps $g_{isa} = 9.80665$ inside the ISA regardless of
+which gravity model \autoref{sec:gravity} selects. A sounding with no dewpoint data falls back
+to $\rho = p/(R_dT)$ level by level, so the correction is present exactly where there is data to
+support it.
+
+\textbf{Magnitude, and what is deliberately left dry.} At a warm, humid surface
+($T = 30\,^\circ\mathrm{C}$, $T_d = 26\,^\circ\mathrm{C}$, $p = 101325\,\mathrm{Pa}$) the
+correction is $-1.25\%$ in density; at a temperate surface
+($T = 14.2\,^\circ\mathrm{C}$, $T_d = 10\,^\circ\mathrm{C}$) $-0.48\%$; at a cold, dry one
+($T_d = -33\,^\circ\mathrm{C}$) $-0.017\%$; near the tropopause it is below $10^{-5}$ and
+vanishes on its own without needing a cutoff, because $e_s$ collapses with temperature. So this
+is a boundary-layer effect in practice --- which is where dynamic pressure is largest during the
+early ascent, so it is not negligible for that reason. The speed of sound and the viscosity are
+deliberately \emph{not} corrected: a consistent moist $a$ needs the mixture's own $\gamma$ as
+well as its $R$, the two effects partly cancel, and what remains is $\sim0.2\%$ in $a$, far
+below the uncertainty of the Mach-dependent coefficients it would feed
+(\autoref{sec:aero}). The hydrostatic interpolation of $p$ between levels likewise stays on
+dry $T$; strictly it should use $T_v$, but it is a within-layer interpolation of measured
+endpoints, not an integration over a deep column.}
 
 \subsubsection{Reynolds and Mach numbers}\label{sec:reynolds_mach}
 \ai{\begin{equation}
@@ -180,47 +475,6 @@ At $\alpha = 0$: $\hat{u} = \hat{x}_r$, $\hat{n} = \hat{z}_r$.
 lookup in \autoref{sec:aero}; the aerodynamic force itself is resolved along the fixed body
 axes $\hat{x}_r, \hat{z}_r$, \emph{not} along $\hat{u}, \hat{n}$ --- see \autoref{sec:aero}.}
 
-\subsection{Gravity}\label{sec:gravity}
-Interchangeable models for the gravitational acceleration magnitude $g$ used in
-$\vec{W} = mg\hat{z}_g$ (\ai{\autoref{sec:forces}}). All variants act along the fixed
-$\hat{z}_g$ direction under the flat, non-rotating Earth assumption
-(\ai{\autoref{sec:assumptions}}); $h = -z$ is altitude above the
-launch point, $R_e$ the Earth's radius.
-
-\paragraph{Magnitude.}
-\begin{itemize}
-    \item \textbf{Constant} (Phase 1 baseline): $g = g_0$.
-    \item \textbf{Radial} (inverse-square): $g(h) = g_0\left(\dfrac{R_e}{R_e + h}\right)^2$ ---
-    exact for a spherically symmetric, non-rotating Earth; still directed along $\hat{z}_g$ under
-    the flat-range assumption.
-    \item \textbf{Real data (WGS84)}: Somigliana normal gravity at the ellipsoid surface, plus the
-    second-order free-air correction to height above it:
-    \begin{gather}
-        \gamma_0(\phi) = \gamma_e\dfrac{1+k\sin^2\phi}{\sqrt{1-e^2\sin^2\phi}} \\
-        g(\phi, h) = \gamma_0\left[1 - \dfrac{2}{a_e}\left(1+f+m-2f\sin^2\phi\right)h + \dfrac{3}{a_e^2}h^2\right]
-    \end{gather}
-    with $\phi$ the launch site's geodetic latitude (fixed for the flight, \ai{\autoref{sec:assumptions}}),
-    $h$ the altitude above the ellipsoid, and published WGS84 constants $a_e = 6378137\,\mathrm{m}$,
-    $f = 1/298.257223563$, $m = 0.00344978650684$, $\gamma_e = 9.7803253359\,\mathrm{m/s^2}$,
-    $k = 0.00193185265241$, $e^2 = 0.00669437999013$. A gridded dataset (e.g.\ EGM2008) would
-    resolve anomalies two orders of magnitude below this model's own error and is not used here.
-    \ai{This variant already includes the Earth's rotation (centrifugal) contribution to the
-    \emph{magnitude} of $g$ through $\gamma_0(\phi)$ --- the equatorial-vs-polar difference in $g$
-    is a rotation effect, folded into the Somigliana formula. That is a separate, static effect
-    from the dynamic (Coriolis) correction to the equations of motion,
-    \autoref{sec:noninertial} below.}
-\end{itemize}
-
-\paragraph{Direction.}
-\ai{True gravitational acceleration points radially inward, toward the Earth's center. Over a
-flight's downrange extent $x$, the true local-vertical direction rotates by approximately
-$x/R_e$ relative to the launch-site vertical --- for a suborbital flight of a few kilometers to a
-few tens of kilometers this is a fraction of a milliradian, negligible against every other error
-source in this model. $\hat{z}_g$ is therefore frozen at the launch site's local vertical for the
-whole flight (\autoref{sec:assumptions}). A downrange-dependent gravity \emph{direction} would be the
-one genuinely new physics among the gravity variants above, but it needs this assumption lifted
-first; see \autoref{sec:backlog}.}
-
 \subsection{Non-inertial frame corrections (Earth's rotation)}\label{sec:noninertial}
 \ai{The WGS84 gravity model above already accounts for the Earth's rotation in the magnitude of
 $g$ (the static, equilibrium-shape effect, folded into $\gamma_0(\phi)$). A rotating Earth also
@@ -240,13 +494,17 @@ site.
 $(\hat{E},\hat{N},\hat{U})$ at the launch site $(\phi_0,\lambda_0)$, with $\phi_0$ the site's
 geodetic latitude (the same quantity written $\phi$ in \autoref{sec:gravity}). The flight-plane frame
 $\mathcal{F}_0$ is the NED-like triad already fixed by the launch heading $\chi$ (degrees
-clockwise from North, the direction of $+\hat{x}$, \autoref{sec:atmosphere} > Field) and by $\hat{z}_g$
+clockwise from North, the direction of $+\hat{x}$, \autoref{sec:atmosphere} > Field) and by $\hat{z}_{g0}$
 pointing \emph{down} (\autoref{sec:frames}, $h=-z$):
 \begin{gather}
-    \hat{x}_g = \sin\chi\,\hat{E} + \cos\chi\,\hat{N} \\
-    \hat{y}_g = \cos\chi\,\hat{E} - \sin\chi\,\hat{N} \\
-    \hat{z}_g = -\hat{U}
+    \hat{x}_{g0} = \sin\chi\,\hat{E} + \cos\chi\,\hat{N} \\
+    \hat{y}_{g0} = \cos\chi\,\hat{E} - \sin\chi\,\hat{N} \\
+    \hat{z}_{g0} = -\hat{U}
 \end{gather}
+These are the \emph{launch-point} axes, $\varphi = 0$ in the notation of \autoref{sec:gravity} >
+Direction. This whole subsection is written in them and stays in them: the $\vec{\Omega}$
+decomposition below is frozen at the launch site and does not follow a rotating $\hat{z}_g$ ---
+see the closing paragraph for what that costs.
 Nothing here is new: $\hat{x}_g$ is the downrange direction used by the ground track
 $(x\sin\chi, x\cos\chi)$ of \autoref{sec:atmosphere} > Field, and $\hat{y}_g$ is exactly the cross-plane
 direction whose wind component $w_y = u\cos\chi - v\sin\chi$ is computed and discarded in
@@ -391,110 +649,26 @@ order $10\,\mathrm{m}$ of displacement over a $30\,\mathrm{s}$ powered ascent. T
 having for impact-point prediction and is consistent with the centimetre-to-metre estimate quoted
 in \autoref{sec:assumptions}.
 
-It is, however, the \emph{same} order as an error this model still carries: freezing $\hat{z}_g$ at
-the launch-site vertical (\autoref{sec:gravity} > Direction) mis-points gravity by $x/R_e$, an effective
-$g\,x/R_e \approx 1.5\times10^{-2}\,\mathrm{m/s^2}$ at $x = 10\,\mathrm{km}$ and growing linearly
-with downrange. Adding Coriolis while keeping the frozen-vertical assumption therefore does not
-by itself make the trajectory accurate to the Coriolis level; the two corrections are independent
-and comparable, and the flat-Earth one dominates once the flight goes far enough downrange. Both
-are listed in \autoref{sec:assumptions} for that reason.}
+It used to be the \emph{same} order as an error this model carried elsewhere: freezing
+$\hat{z}_g$ at the launch-site vertical mis-pointed gravity by $x/R_e$, an effective
+$g\,x/R_e \approx 1.5\times10^{-2}\,\mathrm{m/s^2}$ at $x = 10\,\mathrm{km}$ and growing
+linearly with downrange, so that adding Coriolis while keeping the frozen vertical did not by
+itself make the trajectory accurate to the Coriolis level. That is no longer true: the rotating
+local vertical is now derived and available (\autoref{sec:gravity} > Direction), and the two
+corrections can be switched on together. They remain \emph{independent} --- one is a static,
+position-dependent effect on the direction of a real force, the other a dynamic,
+velocity-dependent fictitious force --- and they still must not be multiplied together.
 
-\subsection{Thrust}\label{sec:thrust}
-Magnitude of thrust is the result of conservation of momentum (ejection of fuel) and pressure differences, given as
-\begin{equation}
-    T = \dot{m}v_e + A_e(p_e - p_{atm}),
-\end{equation}
-which can be computed analytically (internal combustion, nozzle).
-
-In real life, however the data from static test is used. It is given as a tabulated curve,
-linearly interpolated between measured $(t_i, T_i)$ points:
-\ai{\begin{equation}
-    T_{ref}(t) = \mathrm{lerp}\!\left(t; \{t_i\}, \{T_i\}\right)
-\end{equation}
-held at $T_1$ for $t < t_1$ and zero for $t > t_N$; burnout is the falling zero-crossing of
-$T_{ref}(t)$.}
-
-As the test is static, there is no variation in atmospheric pressure. To account for the change in
-altitude, \ai{the net thrust once the motor is flowing is}
-\begin{equation}
-    T(t, h) = T_{ref}(t) + A_e\left(p_{ref} - p_{amb}(h)\right), \qquad \text{only while } T_{ref}(t) > 0
-\end{equation}
-with $p_{amb}(h)$ from \ai{\autoref{sec:atmosphere}}, $A_e$ the nozzle exit area, and \ai{$p_{ref}$ the ambient
-pressure the curve was measured at (the test-stand pressure --- not necessarily the launch site's
-own pad pressure)}; $A_e = 0$ recovers $T_{ref}(t)$ exactly.
-
-\ai{Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled in
-\autoref{sec:mass}, and are carried by \autoref{sec:eom}: $m$, $l_B$ and $I$ are all functions
-of time there. What \autoref{sec:assumptions} still holds fixed is one step further out
---- how the thrust point $C$ and the aerodynamic reference point $D$ travel relative to a moving
-centre of gravity --- not $m$, $l_B$ or $I$ themselves.}
-
-\subsection{Mass and moment of inertia}\label{sec:mass}
-\ai{As propellant burns, mass leaves the rocket through the nozzle and both the center of gravity
-and the moment of inertia change over the burn. A minimal model, treating the rocket as two lumped
-masses --- dry structure (mass $m_d$, fixed centroid at $l_d$ from the nose tip $A$) and remaining
-propellant (mass $m_p(t) = m(t) - m_d$, centroid at $l_p$):
-\begin{gather}
-    \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0} \qquad \text{(or a measured mass-flow table, if available)} \\
-    l_B(t) = \frac{m_d\,l_d + m_p(t)\,l_p}{m_d + m_p(t)} \qquad \text{(CoG distance from the nose,
-    replaces the constant $l_B$ of \autoref{sec:geometry})} \\
-    I(t) = I_d + m_d\bigl(l_B(t)-l_d\bigr)^2 + I_p(t) + m_p(t)\bigl(l_B(t)-l_p\bigr)^2 \qquad
-    \text{(parallel-axis theorem)}
-\end{gather}
-with $I_d$, $I_p(t)$ the dry structure's and remaining propellant's own moments of inertia about
-their respective centroids, and $I_{sp}$ the motor's specific impulse.
-\todo{$I_p(t)$ and $l_p$ depend on the propellant grain geometry (cylindrical, tubular, end-burner,
-etc.) and how it recedes as it burns --- needs the motor's grain geometry to go beyond the
-"propellant centroid fixed at $l_p$" approximation above. Until resolved, $l_p$ constant and
-$I_p(t) \propto m_p(t)$ (uniform density, fixed shape) is the simplest placeholder.}}
-
-\subsection{Aerodynamics}\label{sec:aero}
-\paragraph{Force magnitudes.}
-\ai{$C_A(\alpha,M)$, $C_N(\alpha,M)$, $C_m(\alpha,M)$ and the CoP-to-CoG distance $l_1(\alpha,M)$
-come from one rectangular $(M,\alpha)$ table, or fall back to constants:
-\begin{equation}
-    C_A = C_{A0}, \qquad C_N = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_1 = l_1^{(0)}
-\end{equation}
-With a table: bracket and clamp $M$ at the grid edges (no extrapolation beyond the table's Mach
-range), interpolate linearly in $\alpha$ within each bracketing row, then blend the two rows
-linearly across the $M$ bracket. $l_1$ is the axial distance from the centre of gravity $B$ to
-the aerodynamic reference point $D$ of \autoref{sec:geometry}, positive with $D$ aft:
-$l_1 = l_D - l_B$, so $\vec{BD} = -l_1\hat{x}_r$ and $\textrm{SM} = -l_1$ in the notation of
-\autoref{sec:analysis}. Letting it vary as $l_1(\alpha,M)$ couples CoP travel back into the
-pitching moment.
-
-\ai{Implementation note: the fallback $C_N$, $C_m$ are evaluated as $C_{N\alpha}\sin\alpha$,
-$C_{m\alpha}\sin\alpha$ in code (identical to the formula above for small $\alpha$, within 0.4\%
-at $8.6^\circ$) rather than the raw linear form. This is a numerical-robustness fix, not a
-different physical model: $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch
-cut ($u<0$, $w$ crossing zero), which an unperturbed flight coasting tail-first through $V=0$ at
-apogee lands on exactly, and the unbounded linear form turns that into a solver-breaking jump in
-the moment every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is
-arguably more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side
-force a body of revolution has flying exactly tail-first by symmetry).}
-
-The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
-relative-wind frame $\hat{u},\hat{n}$ --- since $C_A, C_N$ are themselves body-axis (axial/normal)
-coefficients, the same convention the CFD/wind-tunnel data is extracted in, and their
-$\alpha$-dependence is already carried by the table:
-\begin{equation}
-    \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r, \qquad A_x = qSC_A(\alpha,M), \quad A_z = qSC_N(\alpha,M)
-\end{equation}
-matching \autoref{sec:forces}'s original Phase 1 form exactly, for every $\alpha$ --- not
-just $\alpha=0$. The pitching moment magnitude follows the same pattern, needing a reference
-length as well as a reference area:
-\begin{equation} \label{eq:aero_magnitudes}
-    A_m = qSd_{ref}C_m(\alpha,M)
-\end{equation}
-$S$ is the reference area and $d_{ref}$ the reference length --- in practice the body
-cross-section and its diameter. These are the same $S$, $d_{ref}$ that
-\autoref{sec:analysis} uses and the same $d_{ref}$ that forms the Reynolds number in
-\autoref{sec:reynolds_mach}: one reference area and one reference length for the whole
-document.}
-
-\paragraph{Coefficients.}
-\ai{What affects $C_A$, $C_N$, $C_m$: angle of attack $\alpha$ (nonlinear at high $\alpha$ once
-flow separates), Mach number $M$ (compressibility, transonic/supersonic drag rise), Reynolds
-number $Re$ (boundary-layer state, viscous/skin-friction contribution to $C_A$), and geometry
-(fin planform and cant, body-fin interference, surface finish). \todo{expand once the CFD/data
-extraction pipeline is defined.}}
+\paragraph{One residual inconsistency, and why it is left standing.} The decomposition
+\autoref{eq:omega_components} is evaluated once, at the launch site's latitude $\phi_0$ and
+heading $\chi$, and is \emph{not} re-evaluated as the rocket travels downrange --- so
+$\vec{\Omega}$ is resolved in the launch-point triad while gravity, if the radial direction
+model is enabled, is resolved in the rotated one. Deliberately so: building a single consistently
+rotating frame would replace both corrections with a curvilinear formulation the 2D state cannot
+carry (it would need the metric terms of motion over a sphere, not just a rotated basis). The
+cost of leaving them independent is bounded and small. Along the ground track the latitude
+changes by $x\cos\chi/R_e$ and the heading by the meridian convergence, so $\Omega_y$ drifts by
+$O(\Omega\,x/R_e)$, i.e.\ a relative $3\times10^{-6}$ of the retained Coriolis acceleration at
+$x = 10\,\mathrm{km}$ and $3\times10^{-4}$ at $100\,\mathrm{km}$ --- five orders of magnitude
+smaller than the gravity-direction term the same $x/R_e$ produces, because the Coriolis term is
+itself $10^{-3}$ of gravity to begin with. Both are listed in \autoref{sec:assumptions}.}
