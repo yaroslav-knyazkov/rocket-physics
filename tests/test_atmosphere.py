@@ -14,9 +14,17 @@ import os
 import numpy as np
 import pytest
 
-from sim.atmosphere import _R_ISA, air_state
+from sim.atmosphere import (
+    _R_D,
+    _R_ISA,
+    air_state,
+    moist_density,
+    sat_vapor_pressure,
+    virtual_temperature,
+)
 from sim.integrate import run_sim
 from sim.params import Params
+from sim.soundings import interp_altitude as soundings_interp_altitude
 from sim.soundings import load_case
 from sim.state import State, X, Z
 
@@ -449,3 +457,221 @@ def test_field_two_stations_density_monotonic_along_ground_track():
         rhos.append(air_state(0.0, y, p).rho)
 
     assert all(a > b for a, b in zip(rhos, rhos[1:])), rhos
+
+
+# ----------------------------------------------------------------------
+# Step 40: humid-air density -- virtual-temperature correction
+# (architecture.md SS23.3; main.tex SSModels > Atmosphere > Density)
+# ----------------------------------------------------------------------
+
+
+def test_sat_vapor_pressure_pinned_values():
+    """Magnus/Alduchov-Eskridge formula, pinned at 0 degC and 20 degC
+    (architecture.md SS23.3). The ~0.2-0.4% gap to the more "textbook"
+    611.2/2339 Pa reference values is the Magnus fit's own known accuracy
+    -- not something to chase closer here.
+
+    Note: the ticket's own pinned value at 20 degC (2333.4 Pa) is a
+    slightly-under-rounded version of what `100*6.1094*exp(17.625*Tc/(Tc+
+    243.04))` actually evaluates to at Tc=20 -- 2333.4406 Pa, verified
+    independently here with `decimal` at 50-digit precision, i.e. this is
+    not a floating-point artefact. 2333.4406 is used as the pinned value
+    below (1e-2 abs_tol around the *exact* formula result), per this
+    ticket's own instruction to trust an independently-verified
+    from-scratch computation over a hand-typed reference number -- flagged
+    in the handoff report rather than silently "fixed" by loosening the
+    tolerance instead."""
+    assert math.isclose(sat_vapor_pressure(273.15), 610.94, abs_tol=1e-2)
+    assert math.isclose(sat_vapor_pressure(293.15), 2333.4406, abs_tol=1e-2)
+
+
+def test_virtual_temperature_and_moist_density_pinned_reference_values():
+    """Hand-derived reference values from architecture.md SS23.3, to
+    1e-3 relative tolerance (these are not exact closed forms)."""
+    T, Td, p_Pa = 287.3, 283.15, 96700.0
+    T_v = virtual_temperature(T, Td, p_Pa)
+    rho_moist = moist_density(p_Pa, T, Td)
+    rho_dry = p_Pa / (_R_D * T)
+
+    assert math.isclose(T_v - T, 1.384, rel_tol=1e-3)
+    assert math.isclose(rho_moist, 1.16692, rel_tol=1e-3)
+    assert math.isclose(rho_dry, 1.17254, rel_tol=1e-3)
+    assert math.isclose((rho_moist - rho_dry) / rho_dry, -0.00479, abs_tol=2e-4)
+
+    T2, Td2, p2 = 303.15, 299.15, 101325.0
+    rho_moist2 = moist_density(p2, T2, Td2)
+    rho_dry2 = p2 / (_R_D * T2)
+    assert math.isclose((rho_moist2 - rho_dry2) / rho_dry2, -0.01252, abs_tol=2e-4)
+
+
+def test_virtual_temperature_gte_and_moist_density_lte_dry_for_arbitrary_inputs():
+    """For any physically valid input (Td <= T), T_v >= T always and
+    rho_moist <= rho_dry always -- moist air is less dense, never denser
+    (architecture.md SS23.3)."""
+    cases = [
+        (300.0, 300.0, 101325.0),   # saturated -- largest correction
+        (250.0, 210.0, 50000.0),    # cold, dry -- correction near zero
+        (310.0, 305.0, 95000.0),    # warm, humid
+        (216.65, -60.0 + 273.15, 22632.06),  # tropopause-like, very dry
+        (293.15, 293.15, 101325.0),  # Td == T exactly
+    ]
+    for T, Td, p_Pa in cases:
+        T_v = virtual_temperature(T, Td, p_Pa)
+        rho_dry = p_Pa / (_R_D * T)
+        rho_moist = moist_density(p_Pa, T, Td)
+        assert T_v >= T, (T, Td, p_Pa)
+        assert rho_moist <= rho_dry, (T, Td, p_Pa)
+
+
+def test_virtual_temperature_clamps_supersaturated_dewpoint():
+    """Td > T is unphysical (implied supersaturation from noisy data); the
+    min(Td, T) clamp makes it harmless -- same result as Td == T exactly
+    (architecture.md SS23.3)."""
+    T, p_Pa = 290.0, 95000.0
+    assert math.isclose(
+        virtual_temperature(T, 295.0, p_Pa),  # Td > T
+        virtual_temperature(T, T, p_Pa),      # clamped equivalent
+    )
+
+
+def _write_humid_sounding(case_dir, station, h, p_vals, T_vals, Td_vals):
+    """Write a sounding CSV with a Td_K column and the given per-row
+    (h, p, T, Td) values (architecture.md SS23.3's file format)."""
+    os.makedirs(case_dir, exist_ok=True)
+    path = os.path.join(case_dir, f"{station}_202601010000.csv")
+    lines = [
+        f"# station: {station}",
+        "# lat_deg: 0.0",
+        "# lon_deg: 0.0",
+        "# elevation_m: 0",
+        "# time_utc: 2026-01-01T00:00:00Z",
+        "h_msl_m,p_Pa,T_K,Td_K,wdir_deg,wspd_ms",
+    ]
+    for h_i, p_i, T_i, Td_i in zip(h, p_vals, T_vals, Td_vals):
+        lines.append(f"{h_i},{p_i},{T_i},{Td_i},180,0.0")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def test_isa_density_unaffected_by_humid_air_flag():
+    """The ISA tier is dry air by definition and must never be touched by
+    `humid_air` -- `_isa_air_state` was not even modified in Step 40, so
+    this is a regression guard on that invariant."""
+    h = 5000.0
+    air_dry = air_state(0.0, _y_at_altitude(h), dataclasses.replace(_P, humid_air=False))
+    air_humid_flag = air_state(0.0, _y_at_altitude(h), dataclasses.replace(_P, humid_air=True))
+    assert air_dry == air_humid_flag
+
+
+def test_humid_air_false_is_bit_for_bit_dry_even_with_dewpoint_data_present():
+    """With `humid_air=False` (the default), the sounding tier's density
+    stays exactly `p/(R_d*T)` -- `moist_density` is never evaluated -- even
+    when the sounding *does* have dewpoint data available. Reproduces the
+    pre-Step-40 code path bit-for-bit; only `humid_air=True` engages the
+    correction."""
+    case = "test_humid_flag_off"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    h_nodes = [0.0, 1000.0, 2000.0]
+    p_vals = [101325.0, 89900.0, 79500.0]
+    T_vals = [293.15, 286.65, 280.15]
+    Td_vals = [289.15, 280.65, 270.15]
+    _write_humid_sounding(case_dir, "HOFF", h_nodes, p_vals, T_vals, Td_vals)
+
+    try:
+        load_case.cache_clear()
+        p_off = dataclasses.replace(
+            _P, atmosphere_model="sounding", sounding_case=case, humid_air=False
+        )
+        for h in (200.0, 900.0, 1800.0):
+            air = air_state(0.0, _y_at_altitude(h), p_off)
+            assert math.isclose(air.rho, air.p / (_R_D * air.T), rel_tol=1e-12), h
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_humid_air_true_applies_moist_density_when_dewpoint_present():
+    """With `humid_air=True` and dewpoint data present, the sounding tier's
+    `rho` matches `moist_density(p, T, Td)` computed independently from the
+    same (p, T, Td) triple -- and is strictly lower than the dry value."""
+    case = "test_humid_flag_on"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    h_nodes = [0.0, 1000.0, 2000.0]
+    p_vals = [101325.0, 89900.0, 79500.0]
+    T_vals = [293.15, 286.65, 280.15]
+    Td_vals = [289.15, 280.65, 270.15]
+    _write_humid_sounding(case_dir, "HON", h_nodes, p_vals, T_vals, Td_vals)
+
+    try:
+        load_case.cache_clear()
+        p_on = dataclasses.replace(
+            _P, atmosphere_model="sounding", sounding_case=case, humid_air=True
+        )
+        snd = load_case(case)[0]
+        for h in (200.0, 900.0, 1800.0):
+            air = air_state(0.0, _y_at_altitude(h), p_on)
+            snd_state = soundings_interp_altitude(snd, h)
+            rho_dry = air.p / (_R_D * air.T)
+            expected = moist_density(air.p, air.T, snd_state.Td)
+
+            assert math.isclose(air.rho, expected, rel_tol=1e-9), h
+            assert air.rho < rho_dry, h
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)
+
+
+def test_sounding_without_td_column_dry_fallback_regardless_of_humid_air_flag():
+    """A sounding CSV with no Td_K column loads fine and runs correctly
+    with `humid_air` either True or False -- `interp_altitude`'s Td is
+    all-NaN, so `np.isfinite` gates the correction off, and `rho` stays
+    dry either way (architecture.md SS23.3). Uses the real committed
+    "example" case (no Td_K column)."""
+    load_case.cache_clear()
+    for flag in (False, True):
+        p_snd = dataclasses.replace(
+            _P,
+            atmosphere_model="sounding",
+            sounding_case="example",
+            h0_m=380.0,
+            humid_air=flag,
+        )
+        air = air_state(0.0, _y_at_altitude(0.0), p_snd)
+        assert math.isclose(air.rho, air.p / (_R_D * air.T), rel_tol=1e-12), flag
+
+
+def test_field_tier_humid_air_matches_sounding_tier_single_station():
+    """Same "field tier with a single station reproduces the sounding
+    tier exactly" guarantee as Step 20, now exercised with `humid_air=True`
+    and dewpoint data present, through the full `atmosphere.air_state`
+    seam."""
+    case = "test_humid_field_single"
+    case_dir = os.path.join(_SOUNDINGS_DIR, case)
+    h_nodes = [0.0, 1000.0, 2000.0]
+    p_vals = [101325.0, 89900.0, 79500.0]
+    T_vals = [293.15, 286.65, 280.15]
+    Td_vals = [289.15, 280.65, 270.15]
+    _write_humid_sounding(case_dir, "HFS", h_nodes, p_vals, T_vals, Td_vals)
+
+    try:
+        load_case.cache_clear()
+        p_field = dataclasses.replace(
+            _P, atmosphere_model="field", sounding_case=case, humid_air=True
+        )
+        p_snd = dataclasses.replace(
+            _P, atmosphere_model="sounding", sounding_case=case, humid_air=True
+        )
+        for h in (200.0, 900.0, 1800.0):
+            y = _y_at_altitude(h)
+            want = air_state(0.0, y, p_snd)
+            got = air_state(0.0, y, p_field)
+            assert math.isclose(got.rho, want.rho, rel_tol=1e-9), h
+    finally:
+        load_case.cache_clear()
+        for fname in os.listdir(case_dir):
+            os.remove(os.path.join(case_dir, fname))
+        os.rmdir(case_dir)

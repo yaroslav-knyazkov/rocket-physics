@@ -33,6 +33,14 @@ _T_0 = 273.15         # Sutherland reference temperature [K]
 _S_MU = 110.4         # Sutherland's constant for air [K]
 _R_ISA = 6356766.0    # effective Earth radius used for geopotential altitude [m]
 
+# Step 40: humid-air (virtual-temperature) density correction constants
+# (main.tex SSModels > Atmosphere > Density; architecture.md SS23.3). Module-
+# level, same rationale as _R_D above -- physical constants, not Params
+# fields. _EPSILON is *computed* from _R_D/_R_V, never hard-coded as 0.622,
+# so the two constants cannot drift apart.
+_R_V = 461.5          # specific gas constant for water vapour [J/(kg*K)]
+_EPSILON = _R_D / _R_V  # R_d/R_v ~= 0.6220
+
 # 7-layer ISA table (architecture.md SS14): (base geopotential altitude
 # H_b [m], lapse rate L [K/m], base temperature T_b [K], base pressure
 # p_b [Pa]). Covers troposphere through mesosphere (H up to ~80 km); the
@@ -86,6 +94,42 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     )
 
 
+def sat_vapor_pressure(T_K: float) -> float:
+    """Saturation vapour pressure at temperature `T_K` [K], Magnus/
+    Alduchov-Eskridge formula (main.tex SSModels > Atmosphere > Density,
+    eq:magnus; architecture.md SS23.3). Returns Pa.
+
+    The `6.1094` coefficient is in hPa; the `100.0` factor converts to Pa
+    -- "the one easy mistake here" per the spec, deliberately spelled out
+    rather than folded into a re-derived constant. Accurate to <0.4% over
+    -40..+50 degC; not extrapolated beyond that (no sounding needs it to
+    be, per the spec's own note).
+    """
+    Tc = T_K - 273.15
+    return 100.0 * 6.1094 * np.exp(17.625 * Tc / (Tc + 243.04))
+
+
+def virtual_temperature(T: float, Td: float, p_Pa: float) -> float:
+    """Virtual temperature: the temperature dry air would need to have the
+    moist mixture's density at the same pressure (main.tex eq:virtual_
+    temperature; architecture.md SS23.3). `T_v >= T` always.
+
+    `Td` is clamped to `min(Td, T)` before computing the vapour pressure --
+    a guard against noisy data implying supersaturation (Td > T is
+    unphysical).
+    """
+    e = sat_vapor_pressure(min(Td, T))
+    return T / (1.0 - (e / p_Pa) * (1.0 - _EPSILON))
+
+
+def moist_density(p_Pa: float, T: float, Td: float) -> float:
+    """Moist-air density via the virtual-temperature correction:
+    rho = p/(R_d*T_v) (main.tex eq:virtual_temperature; architecture.md
+    SS23.3). Always <= the dry-air density p/(R_d*T), since T_v >= T.
+    """
+    return p_Pa / (_R_D * virtual_temperature(T, Td, p_Pa))
+
+
 def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     """Tier 2: one station's measured profile, interpolated in altitude
     (architecture.md SS14, SS17; roadmap.md Step 18).
@@ -102,6 +146,13 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     (Step 17); its `p`/`T`/`rho`/`a`/`mu` fields are repackaged into
     `AirState` as-is -- `u`/`v` (wind) are dropped, that is wind.py's
     concern (Step 22), not atmosphere's.
+
+    Step 40: if `p.humid_air` is set and the interpolated dewpoint is
+    finite, `rho` is replaced with the virtual-temperature-corrected
+    `moist_density(state.p, state.T, state.Td)`; otherwise (flag off, or a
+    sounding with no `Td_K` data) `rho` stays the dry value from
+    `interp_altitude`. `a`/`mu` are never corrected (architecture.md
+    SS23.3, main.tex SSDensity's "what is deliberately left dry").
     """
     # Imported here, not at module level, to avoid a circular import:
     # sim.soundings imports sim.atmosphere (for the shared ISA constants
@@ -112,8 +163,12 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     snd = soundings.load_case(p.sounding_case)[0]
     state = soundings.interp_altitude(snd, h_msl)
 
+    rho = state.rho
+    if p.humid_air and np.isfinite(state.Td):
+        rho = moist_density(state.p, state.T, state.Td)
+
     return AirState(
-        rho=state.rho, p=state.p, T=state.T, a=state.a, mu=state.mu
+        rho=rho, p=state.p, T=state.T, a=state.a, mu=state.mu
     )
 
 
@@ -130,7 +185,9 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     interpolates the combined profile in altitude exactly as tier 2. Its
     `p`/`T`/`rho`/`a`/`mu` fields are repackaged into `AirState` as-is,
     same as tier 2 -- `u`/`v` (wind) are dropped, that is wind.py's
-    concern (Step 23), not atmosphere's.
+    concern (Step 23), not atmosphere's. Same Step 40 humid-air correction
+    as `_sounding_air_state` above (`p.humid_air` gate, dry fallback when
+    the combined dewpoint is not finite).
 
     This is the first atmosphere model whose output depends on `y[X]`
     (the rocket's horizontal ground position), not just `y[Z]`: tiers 1
@@ -150,8 +207,12 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
     state = soundings.interp_field(p.sounding_case, y, h_msl, p)
 
+    rho = state.rho
+    if p.humid_air and np.isfinite(state.Td):
+        rho = moist_density(state.p, state.T, state.Td)
+
     return AirState(
-        rho=state.rho, p=state.p, T=state.T, a=state.a, mu=state.mu
+        rho=rho, p=state.p, T=state.T, a=state.a, mu=state.mu
     )
 
 

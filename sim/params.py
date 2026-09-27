@@ -133,3 +133,16 @@ class Params:
     # is a fixed, small (manufacturing-grade, ~0.1-1.0 deg) nozzle cant, not
     # a commanded gimbal angle -- there is no control law here.
     thrust_misalign_deg: float = 0.0  # fixed nozzle cant delta [deg], + toward +z_hat_r
+
+    # Step 40: humid-air density -- virtual-temperature correction (main.tex
+    # SSModels > Atmosphere > Density; architecture.md SS23.3). Same "unset =
+    # bit-for-bit reproduces every prior step" convention as `earth_rotation`/
+    # `m_d`/`wind_model`: `False` (the default) means `_sounding_air_state`/
+    # `_field_air_state` never even evaluate `moist_density`, `rho` stays the
+    # dry `p/(R_d*T)` from `sim.soundings.interp_altitude`. `True` applies
+    # the correction wherever the sounding/field data has a finite dewpoint
+    # (`Td_K` column); with no dewpoint data the fallback is dry air, level
+    # by level, so the flag is safe to leave on. Tier "isa" is never
+    # affected -- the ISA is dry air by definition (architecture.md SS14's
+    # `g_isa` argument, reused here).
+    humid_air: bool = False

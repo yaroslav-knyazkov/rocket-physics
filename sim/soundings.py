@@ -49,7 +49,12 @@ station; tier 3's horizontal combination across stations is Step 19):
   T       linear in h
   p       linear in ln(p) vs h, then exponentiated back
   u, v    linear in h
+  Td      linear in h, edge-held outside the range like u/v (Step 40,
+          architecture.md SS23.3) -- optional column, all-NaN when absent
   rho     derived, rho = p/(R_d*T) -- never interpolated independently
+          (this module's own `rho` stays dry; the humid-air correction is
+          applied one level up, in sim/atmosphere.py, where `p: Params`
+          and `p.humid_air` are in scope)
   a, mu   derived from interpolated T, same formulas as atmosphere.py
 
 Outside the data range:
@@ -101,6 +106,7 @@ class Sounding(NamedTuple):
     T: np.ndarray  # K (may be NaN)
     u: np.ndarray  # m/s ENU east component, derived at load time
     v: np.ndarray  # m/s ENU north component, derived at load time
+    Td: np.ndarray  # K, dewpoint (Step 40); all-NaN when the column is absent
 
 
 class SoundingState(NamedTuple):
@@ -114,6 +120,7 @@ class SoundingState(NamedTuple):
     mu:  float  # Pa*s, dynamic viscosity
     u:   float  # m/s, ENU east wind component
     v:   float  # m/s, ENU north wind component
+    Td:  float  # K, dewpoint (Step 40); NaN when unavailable
 
 
 # ----------------------------------------------------------------------
@@ -152,6 +159,15 @@ def _load_sounding_file(path: str) -> Sounding:
     T = data["T_K"].astype(float)
     wdir = data["wdir_deg"].astype(float)
     wspd = data["wspd_ms"].astype(float)
+    # Step 40: optional dewpoint column. Absent entirely -> all-NaN, the
+    # only place this column's optionality is handled (architecture.md
+    # SS23.3). An empty field on one row already loads as NaN via
+    # genfromtxt, same as any other column.
+    Td = (
+        data["Td_K"].astype(float)
+        if "Td_K" in data.dtype.names
+        else np.full(h.shape, np.nan)
+    )
 
     if h.size > 1 and not np.all(np.diff(h) > 0):
         raise ValueError(f"{path}: h_msl_m must be strictly increasing")
@@ -166,7 +182,7 @@ def _load_sounding_file(path: str) -> Sounding:
         lon=float(meta.get("lon_deg", "nan")),
         elev=float(meta.get("elevation_m", "nan")),
         time_utc=meta.get("time_utc", ""),
-        h=h, p=p, T=T, u=u, v=v,
+        h=h, p=p, T=T, u=u, v=v, Td=Td,
     )
 
 
@@ -308,17 +324,23 @@ def interp_altitude(snd: Sounding, h: float) -> SoundingState:
         p = snd.p[0] * np.exp(k * (h - h_arr[0]))
         u = float(snd.u[0])
         v = float(snd.v[0])
+        Td = float(snd.Td[0])
     elif h > h_arr[-1]:
         H_top = _geopotential(h_arr[-1])
         H = _geopotential(h)
         T, p = _isa_anchored_state(H, H_top, snd.T[-1], snd.p[-1])
         u = float(snd.u[-1])
         v = float(snd.v[-1])
+        Td = float(snd.Td[-1])
     else:
         T = float(np.interp(h, h_arr, snd.T))
         p = float(np.exp(np.interp(h, h_arr, np.log(snd.p))))
         u = float(np.interp(h, h_arr, snd.u))
         v = float(np.interp(h, h_arr, snd.v))
+        # Td: linear in h, held at the edge value outside the range (the
+        # u/v rule -- see above -- not the ISA-anchored T/p rule; there is
+        # no standard dewpoint profile to anchor an extrapolation to).
+        Td = float(np.interp(h, h_arr, snd.Td))
 
     T = float(T)
     p = float(p)
@@ -327,7 +349,7 @@ def interp_altitude(snd: Sounding, h: float) -> SoundingState:
     mu = _MU_0 * (T / _T_0) ** 1.5 * (_T_0 + _S_MU) / (T + _S_MU)
 
     return SoundingState(
-        p=p, T=T, rho=float(rho), a=float(a), mu=float(mu), u=u, v=v
+        p=p, T=T, rho=float(rho), a=float(a), mu=float(mu), u=u, v=v, Td=Td
     )
 
 
@@ -377,6 +399,7 @@ class ResampledCase(NamedTuple):
     ln_p: np.ndarray  # (n_stations, n_levels), ln(Pa)
     u: np.ndarray     # (n_stations, n_levels), m/s
     v: np.ndarray     # (n_stations, n_levels), m/s
+    Td: np.ndarray    # (n_stations, n_levels), K, dewpoint (Step 40)
 
 
 @functools.lru_cache(maxsize=None)
@@ -404,6 +427,7 @@ def _resample_case(
     ln_p = np.empty((n_stations, n_levels))
     u = np.empty((n_stations, n_levels))
     v = np.empty((n_stations, n_levels))
+    Td = np.empty((n_stations, n_levels))
 
     for i, snd in enumerate(stations):
         for j, level in enumerate(h):
@@ -412,11 +436,12 @@ def _resample_case(
             ln_p[i, j] = np.log(state.p)
             u[i, j] = state.u
             v[i, j] = state.v
+            Td[i, j] = state.Td
 
     lat = np.array([s.lat for s in stations], dtype=float)
     lon = np.array([s.lon for s in stations], dtype=float)
 
-    return ResampledCase(h=h, lat=lat, lon=lon, T=T, ln_p=ln_p, u=u, v=v)
+    return ResampledCase(h=h, lat=lat, lon=lon, T=T, ln_p=ln_p, u=u, v=v, Td=Td)
 
 
 def project_latlon(lat_deg: float, lon_deg: float, p) -> "tuple[float, float]":
@@ -446,7 +471,7 @@ def _combine(resampled: ResampledCase, E: float, N: float, p):
     """Weight every station in `resampled` at tangent-plane point `(E, N)`
     and combine their level arrays into one profile, dispatching on
     `p.horizontal_interp` (architecture.md SS17's table). Returns
-    `(T, ln_p, u, v)`, each `(n_levels,)`.
+    `(T, ln_p, u, v, Td)`, each `(n_levels,)`.
     """
     phi0 = np.radians(p.lat0_deg)
     station_E = p.R_e * np.cos(phi0) * np.radians(resampled.lon - p.lon0_deg)
@@ -465,13 +490,15 @@ def _combine(resampled: ResampledCase, E: float, N: float, p):
         ln_p = w @ resampled.ln_p
         u = w @ resampled.u
         v = w @ resampled.v
+        Td = w @ resampled.Td
     elif p.horizontal_interp == "rbf":
         # scipy.interpolate.RBFInterpolator, verified present in the
         # installed scipy 1.18.1 (architecture.md SS17). d can carry
         # several output columns at once (evaluated as one linear system
         # since the kernel only depends on the station coordinates, not
-        # the values), so T/ln_p/u/v are stacked into one (n_stations,
-        # 4*n_levels) array and combined with a single call.
+        # the values), so T/ln_p/u/v/Td (Step 40 adds Td) are stacked into
+        # one (n_stations, 5*n_levels) array and combined with a single
+        # call.
         #
         # griddata/LinearNDInterpolator are explicitly rejected by
         # architecture.md SS17 (NaN outside the convex hull of the
@@ -489,15 +516,20 @@ def _combine(resampled: ResampledCase, E: float, N: float, p):
         y = np.column_stack([station_E, station_N])
         n = resampled.h.size
         stacked = np.concatenate(
-            [resampled.T, resampled.ln_p, resampled.u, resampled.v], axis=1
+            [resampled.T, resampled.ln_p, resampled.u, resampled.v, resampled.Td],
+            axis=1,
         )
         rbf = RBFInterpolator(y, stacked, kernel="thin_plate_spline", smoothing=0.0)
         combined = rbf(np.array([[E, N]]))[0]
-        T, ln_p, u, v = combined[:n], combined[n:2 * n], combined[2 * n:3 * n], combined[3 * n:]
+        T = combined[0 * n:1 * n]
+        ln_p = combined[1 * n:2 * n]
+        u = combined[2 * n:3 * n]
+        v = combined[3 * n:4 * n]
+        Td = combined[4 * n:5 * n]
     else:
         raise KeyError(f"Unknown horizontal_interp: {p.horizontal_interp!r}")
 
-    return T, ln_p, u, v
+    return T, ln_p, u, v, Td
 
 
 def interp_field_at(case: str, E: float, N: float, h: float, p) -> SoundingState:
@@ -513,11 +545,11 @@ def interp_field_at(case: str, E: float, N: float, h: float, p) -> SoundingState
     atmosphere tier 3 / Step 23's wind tier 3 actually call.
     """
     resampled = _resample_case(case, p.grid_top_m, p.grid_step_m)
-    T, ln_p, u, v = _combine(resampled, E, N, p)
+    T, ln_p, u, v, Td = _combine(resampled, E, N, p)
 
     combined = Sounding(
         station="<field>", lat=float("nan"), lon=float("nan"), elev=float("nan"),
-        time_utc="", h=resampled.h, p=np.exp(ln_p), T=T, u=u, v=v,
+        time_utc="", h=resampled.h, p=np.exp(ln_p), T=T, u=u, v=v, Td=Td,
     )
     return interp_altitude(combined, h)
 

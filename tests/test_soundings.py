@@ -198,6 +198,193 @@ def test_wind_enu_conversion_cardinal_directions(
 
 
 # ----------------------------------------------------------------------
+# Step 40: dewpoint (Td) column -- loading and altitude interpolation
+# (architecture.md SS23.3). Uses a small synthetic case written to a temp
+# folder under data/soundings/, never a committed example file.
+# ----------------------------------------------------------------------
+
+
+def _write_td_sounding(case_dir, station="TDSC"):
+    """Write a 3-row sounding *with* a Td_K column, at the exact format
+    architecture.md SS23.3 specifies (column order irrelevant -- genfromtxt
+    is keyed by header name, so Td_K is placed between T_K and wdir_deg
+    exactly like the spec's own example row)."""
+    os.makedirs(case_dir, exist_ok=True)
+    path = os.path.join(case_dir, f"{station}_202601010000.csv")
+    with open(path, "w") as f:
+        f.write(f"# station: {station}\n")
+        f.write("# lat_deg: 10.0\n")
+        f.write("# lon_deg: 20.0\n")
+        f.write("# elevation_m: 0\n")
+        f.write("# time_utc: 2026-01-01T00:00:00Z\n")
+        f.write("h_msl_m,p_Pa,T_K,Td_K,wdir_deg,wspd_ms\n")
+        f.write("0,101325,293.15,289.15,180,0\n")
+        f.write("1000,89900,286.65,280.65,180,0\n")
+        f.write("2000,79500,280.15,270.15,180,0\n")
+
+
+def test_load_sounding_with_td_column_populates_values():
+    """A file with a Td_K column loads Td with the exact values from that
+    column (architecture.md SS23.3)."""
+    case = "test_td_present"
+    case_dir = os.path.join(_CASE_DIR, case)
+    _write_td_sounding(case_dir)
+    try:
+        load_case.cache_clear()
+        snd = load_case(case)[0]
+        assert np.allclose(snd.Td, [289.15, 280.65, 270.15])
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_load_sounding_without_td_column_is_all_nan():
+    """A file with no Td_K column loads Td as an all-NaN array of the same
+    shape as h -- this is the only place the column's optionality is
+    handled (architecture.md SS23.3). Uses the real committed "example"
+    case, which has no Td_K column."""
+    load_case.cache_clear()
+    snd = load_case("example")[0]
+    assert snd.Td.shape == snd.h.shape
+    assert np.all(np.isnan(snd.Td))
+
+
+def test_interp_altitude_td_linear_in_range():
+    """Td interpolates linearly in h within the data range, same rule as
+    T (architecture.md SS23.3)."""
+    case = "test_td_interp"
+    case_dir = os.path.join(_CASE_DIR, case)
+    _write_td_sounding(case_dir)
+    try:
+        load_case.cache_clear()
+        snd = load_case(case)[0]
+
+        # Strictly between rows 0 (h=0, Td=289.15) and 1 (h=1000, Td=280.65).
+        h = 400.0
+        got = interp_altitude(snd, h)
+        expected_Td = 289.15 + (280.65 - 289.15) * (h - 0.0) / 1000.0
+        assert math.isclose(got.Td, expected_Td, rel_tol=1e-9)
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_interp_altitude_td_held_at_edge_both_directions():
+    """Outside the data range, Td is held at the edge value on *both*
+    sides -- the u/v rule, not the ISA-anchored T/p extrapolation rule
+    (architecture.md SS23.3: "there is no standard dewpoint profile to
+    anchor an extrapolation to")."""
+    case = "test_td_edge_hold"
+    case_dir = os.path.join(_CASE_DIR, case)
+    _write_td_sounding(case_dir)
+    try:
+        load_case.cache_clear()
+        snd = load_case(case)[0]
+
+        below = interp_altitude(snd, -500.0)
+        assert math.isclose(below.Td, snd.Td[0], rel_tol=1e-9)
+
+        above = interp_altitude(snd, 20000.0)
+        assert math.isclose(above.Td, snd.Td[-1], rel_tol=1e-9)
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_interp_altitude_td_nan_when_column_absent():
+    """A sounding with no Td_K column (all-NaN Td array) interpolates to
+    NaN everywhere -- in range, below bottom, and above top -- never
+    crashing (architecture.md SS23.3's "dry fallback" case, exercised at
+    the loader/interpolator level)."""
+    load_case.cache_clear()
+    snd = load_case("example")[0]
+
+    for h in (snd.h[0] - 100.0, (snd.h[0] + snd.h[1]) / 2.0, snd.h[-1] + 5000.0):
+        got = interp_altitude(snd, h)
+        assert np.isnan(got.Td), h
+
+
+def test_field_single_station_with_dewpoint_matches_tier2_exactly():
+    """Roadmap Step 40's stated check: tier 3 (field) with a single station
+    reproduces tier 2 (sounding) exactly, *with dewpoint present* -- this
+    is the test that would catch a `ResampledCase`/`_combine` wiring
+    mistake in the Td plumbing (e.g. forgetting to carry `Td` through
+    `_resample_case`/`interp_field_at`)."""
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_td_field_single"
+    case_dir = os.path.join(_CASE_DIR, case)
+    _write_td_sounding(case_dir)
+    try:
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+        snd = load_case(case)[0]
+        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=10.0, lon0_deg=20.0)
+
+        for h in (200.0, 1500.0):
+            want = interp_altitude(snd, h)
+            got = interp_field_at(case, 0.0, 0.0, h, p_params)
+            assert math.isclose(got.Td, want.Td, rel_tol=1e-9), h
+    finally:
+        _cleanup_case(case_dir)
+
+
+def test_rbf_stacking_includes_td_at_correct_offset():
+    """Roadmap Step 40's flagged risk: `_combine`'s `"rbf"` path stacks
+    T/ln_p/u/v/Td into one (n_stations, 5*n_levels) block and slices the
+    combined result back apart. A wrong slice width/offset would pull Td
+    from the wrong block (e.g. ln_p's, which sits at very different
+    magnitude) even though every station here shares an identical profile,
+    so this test would fail loudly rather than silently under an
+    off-by-one -- same technique as the existing RBF constant-profile
+    smoke test, extended with a Td column.
+    """
+    load_case.cache_clear()
+    _resample_case.cache_clear()
+    case = "test_td_rbf_triangle"
+    case_dir = os.path.join(_CASE_DIR, case)
+    h_nodes = [0.0, 20000.0]
+    T_vals = [288.15, 210.0]
+    p_vals = [101325.0, 5000.0]
+    Td_vals = [283.15, 205.0]
+
+    def _write_station_with_td(station, lat, lon):
+        os.makedirs(case_dir, exist_ok=True)
+        path = os.path.join(case_dir, f"{station}_202601010000.csv")
+        lines = [
+            f"# station: {station}",
+            f"# lat_deg: {lat}",
+            f"# lon_deg: {lon}",
+            "# elevation_m: 0",
+            "# time_utc: 2026-01-01T00:00:00Z",
+            "h_msl_m,p_Pa,T_K,Td_K,wdir_deg,wspd_ms",
+        ]
+        for h_i, p_i, T_i, Td_i in zip(h_nodes, p_vals, T_vals, Td_vals):
+            lines.append(f"{h_i},{p_i},{T_i},{Td_i},180,0.0")
+        with open(path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+
+    try:
+        _write_station_with_td("TDA", 0.0, 0.0)
+        _write_station_with_td("TDB", 1.0, 0.0)
+        _write_station_with_td("TDC", 0.0, 1.0)
+        load_case.cache_clear()
+        _resample_case.cache_clear()
+
+        p_params = Params(
+            m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0,
+            horizontal_interp="rbf",
+        )
+        snd_A = load_case(case)[0]
+        want = interp_altitude(snd_A, 6000.0)
+
+        E, N = project_latlon(0.3, 0.3, p_params)  # inside the triangle
+        got = interp_field_at(case, E, N, 6000.0, p_params)
+        assert math.isclose(got.T, want.T, rel_tol=1e-6)
+        assert math.isclose(got.p, want.p, rel_tol=1e-6)
+        assert math.isclose(got.Td, want.Td, rel_tol=1e-6)
+    finally:
+        _cleanup_case(case_dir)
+
+
+# ----------------------------------------------------------------------
 # Extrapolation: continuity at both seams, sanity far above the top
 # ----------------------------------------------------------------------
 
@@ -683,6 +870,13 @@ if __name__ == "__main__":
     test_isa_synthetic_case_matches_isa_within_half_percent_between_nodes()
     for wdir, us, vs in [(0.0, 0.0, -1.0), (90.0, -1.0, 0.0), (180.0, 0.0, 1.0), (270.0, 1.0, 0.0)]:
         test_wind_enu_conversion_cardinal_directions(wdir, us, vs)
+    test_load_sounding_with_td_column_populates_values()
+    test_load_sounding_without_td_column_is_all_nan()
+    test_interp_altitude_td_linear_in_range()
+    test_interp_altitude_td_held_at_edge_both_directions()
+    test_interp_altitude_td_nan_when_column_absent()
+    test_field_single_station_with_dewpoint_matches_tier2_exactly()
+    test_rbf_stacking_includes_td_at_correct_offset()
     test_extrapolation_continuous_at_both_seams()
     test_extrapolation_above_top_stays_finite_and_physically_reasonable()
     test_below_bottom_extrapolation_uses_local_lapse_rate()
