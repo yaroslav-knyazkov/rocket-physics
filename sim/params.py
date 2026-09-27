@@ -52,6 +52,15 @@ class Params:
     gravity_model: str = "constant"     # constant | radial | wgs84
     atmosphere_model: str = "isa"       # isa | sounding | field
 
+    # Step 38: non-parallel gravity direction (main.tex SSModels > Gravity >
+    # Direction; architecture.md SS23.1). Orthogonal to `gravity_model`
+    # above -- that dispatch is the *magnitude*, this one is the
+    # *direction*, and any magnitude may combine with either direction.
+    # "parallel" (the default) is today's fixed z_hat_g = (0, 1): bit-for-
+    # bit every prior step. "radial" rotates the local vertical with
+    # downrange distance (main.tex eq:zhat_g_rotated), phi = x/R_e.
+    gravity_direction: str = "parallel"  # parallel | radial
+
     # launch site / Earth (architecture.md SS13, SS15, SS17)
     R_e:         float = 6371000.0  # mean Earth radius [m] (radial gravity)
     lat0_deg:    float = 0.0   # geodetic latitude of the launch site [deg] (wgs84 gravity)

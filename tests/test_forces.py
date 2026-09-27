@@ -197,3 +197,79 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     # broadside to the relative wind) -- observed ~-1.65 rad.
     assert abs(alpha_buggy_2s) > math.pi / 2
 
+
+def test_gravity_direction_parallel_reproduces_derivatives_bit_for_bit():
+    """`p.gravity_direction = "parallel"` (the default) -- the on/off gate
+    for Step 38's non-parallel gravity -- must give bit-for-bit identical
+    derivatives regardless of `R_e`/downrange position `x`, exactly the
+    same "gated field is inert when off" property
+    `test_earth_rotation_off_reproduces_derivatives_bit_for_bit`
+    (tests/test_dynamics.py) exercises for Step 37's `p.earth_rotation`.
+    `x` and `R_e` are the two quantities the "radial" direction variant
+    reads (`phi = x/R_e`) and "parallel" must not -- so varying both here
+    and still getting an identical result is the real check.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, gravity_direction="parallel")
+    p_a = Params(R_e=6371000.0, **common)
+    p_b = Params(R_e=1000.0, **common)
+    s = State(x=0.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
+    s2 = State(x=50_000.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
+
+    dydt_a = derivatives(5.0, np.array(s), p_a)
+    dydt_b = derivatives(5.0, np.array(s), p_b)
+    dydt_a2 = derivatives(5.0, np.array(s2), p_a)
+    dydt_b2 = derivatives(5.0, np.array(s2), p_b)
+
+    assert np.array_equal(dydt_a, dydt_b)
+    assert np.array_equal(dydt_a2, dydt_b2)
+    assert np.array_equal(dydt_a, dydt_a2)
+
+
+def test_gravity_direction_radial_matches_closed_form_and_leaves_moment_exactly_zero():
+    """`gravity_direction="radial"` vs `"parallel"` at the same state
+    (main.tex eq:weight_rotated): the added translational acceleration is
+    exactly `[-g*sin(phi), g*(cos(phi)-1)]`, `phi = x/R_e`, and the moment
+    equation is untouched -- `domega/dt` is asserted *exactly* equal (not
+    `np.isclose`), since weight passes through the CoG by construction and
+    contributes no moment whatever direction it points (this is the
+    load-bearing physical claim of this step, main.tex
+    SSAnalysis_moment referenced from eq:weight_rotated).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, R_e=6371000.0)
+    p_par = Params(gravity_direction="parallel", **common)
+    p_rad = Params(gravity_direction="radial", **common)
+    s = State(x=50_000.0, z=-1000.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
+    y = np.array(s)
+
+    dydt_par = derivatives(5.0, y, p_par)
+    dydt_rad = derivatives(5.0, y, p_rad)
+
+    phi = s.x / common["R_e"]
+    g0 = p_par.g  # gravity_model="constant" (the default) -- g is exactly p.g
+
+    assert math.isclose(dydt_rad[VX] - dydt_par[VX], -g0 * math.sin(phi),
+                         rel_tol=1e-9, abs_tol=1e-12)
+    assert math.isclose(dydt_rad[VZ] - dydt_par[VZ], g0 * (math.cos(phi) - 1.0),
+                         rel_tol=1e-9, abs_tol=1e-12)
+    assert dydt_rad[OMEGA] == dydt_par[OMEGA]
+
+
+def test_gravity_direction_radial_adds_retarding_downrange_acceleration():
+    """At `theta=0` (nose horizontal) and `x > 0`, the radial-direction
+    correction tilts `z_hat_g` backwards (away from the flight direction,
+    main.tex's own reading of eq:zhat_g_rotated), so weight gains a
+    *negative* (retarding) downrange component -- it must not accelerate
+    further downrange travel.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, R_e=6371000.0)
+    p_par = Params(gravity_direction="parallel", **common)
+    p_rad = Params(gravity_direction="radial", **common)
+    s = State(x=50_000.0, z=-1000.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    y = np.array(s)
+
+    W_par = weight_inertial(0.0, y, p_par)
+    W_rad = weight_inertial(0.0, y, p_rad)
+
+    assert W_par[0] == 0.0
+    assert W_rad[0] < 0.0
+

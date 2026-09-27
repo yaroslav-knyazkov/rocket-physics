@@ -48,6 +48,14 @@ SSModels > Mass and moment of inertia) -- the fixed `p.m` otherwise,
 bit-for-bit unchanged. `thrust_body`/`aero_force_body`/`aero_moment_y`
 are untouched by Step 36 -- they depend on `t`/flow state, not directly
 on mass.
+
+Step 38: `weight_inertial` no longer assumes `z_hat_g = (0, 1)` inline --
+it multiplies by `gravity.z_hat_g(t, s, p)` (main.tex SSModels > Gravity >
+Direction; architecture.md SS23.1), which dispatches on
+`p.gravity_direction` ("parallel", the default, returns exactly `(0, 1)`,
+bit-for-bit unchanged; "radial" rotates it with downrange distance). This
+is a direction-only change, orthogonal to the magnitude dispatch
+`gravity.g` already performs.
 """
 
 import numpy as np
@@ -69,9 +77,13 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
     fixed `p.m` otherwise (main.tex SSModels > Mass and moment of
     inertia; params.py's `m_d` on/off gate). Bit-for-bit `p.m` when the
     model is off, matching every other Phase 2 model-selection seam.
+
+    Step 38: `z_hat_g` is the model-selected direction from
+    sim/gravity.py (`p.gravity_direction`), not the fixed `(0, 1)` --
+    see the gravity.py docstring for the two variants.
     """
     m = s[M] if p.m_d is not None else p.m
-    return np.array([0.0, m * gravity.g(t, s, p)])
+    return m * gravity.g(t, s, p) * gravity.z_hat_g(t, s, p)
 
 
 def thrust_body(t: float, s, p) -> np.ndarray:

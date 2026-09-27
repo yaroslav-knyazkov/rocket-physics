@@ -1,25 +1,34 @@
-"""Gravitational acceleration magnitude, three interchangeable models
-(main.tex SSModels > Gravity; architecture.md SS12 "the dispatch-dict
-extension of the SS4 seam", SS13 "sim/gravity.py -- gravity models").
+"""Gravitational acceleration magnitude and direction (main.tex SSModels >
+Gravity; architecture.md SS12 "the dispatch-dict extension of the SS4
+seam", SS13 "sim/gravity.py -- gravity models", SS23.1 "non-parallel
+gravity").
 
-All variants return the scalar magnitude `g`; the direction is always the
-fixed z_hat_g = z_hat_i (down) under the flat-Earth assumption, so
-`forces.weight_inertial` becomes `[0, m*gravity.g(t, y, p)]` and nothing
-else changes.
+Magnitude and direction are two orthogonal dispatches, selected
+independently by `p.gravity_model` and `p.gravity_direction`: any
+magnitude variant may be combined with either direction variant.
+`forces.weight_inertial` is `m*gravity.g(t, y, p)*gravity.z_hat_g(t, y, p)`.
 
-Step 10 implemented "constant" and "radial" (plus "linear", removed at
-Phase 2.5 Step 34 -- it was strictly dominated by "radial": a first-order
-truncation of the same inverse-square law that goes negative above
-h = R_e/2, for no accuracy or cost advantage). Step 11 added "wgs84" -- the
-real-data variant (architecture.md SS13).
+Step 10 implemented the magnitude side, "constant" and "radial" (plus
+"linear", removed at Phase 2.5 Step 34 -- it was strictly dominated by
+"radial": a first-order truncation of the same inverse-square law that
+goes negative above h = R_e/2, for no accuracy or cost advantage). Step 11
+added "wgs84" -- the real-data magnitude variant (architecture.md SS13).
+
+Step 38 (Phase 2.5) added the direction dispatch: "parallel" (the
+default), the fixed z_hat_g = z_hat_i = (0, 1) every prior step used
+under the flat-Earth assumption, or "radial", which rotates the local
+vertical with downrange distance (main.tex eq:zhat_g_rotated,
+architecture.md SS23.1): `phi = x/R_e`,
+`z_hat_g(phi) = (-sin(phi), cos(phi))`.
 
 `p.g` is the Phase 1 constant, read here as `g0` -- the reference value at
-h = 0 that every model reduces to.
+h = 0 that every magnitude model reduces to.
 """
 
 import numpy as np
 
 from sim.flow import altitude_agl, altitude_msl
+from sim.state import X
 
 
 def _g_constant(t: float, y: np.ndarray, p) -> float:
@@ -94,3 +103,38 @@ def g(t: float, y: np.ndarray, p) -> float:
     Gravity), dispatching on `p.gravity_model`.
     """
     return _GRAVITY_MODELS[p.gravity_model](t, y, p)
+
+
+def _dir_parallel(t: float, y: np.ndarray, p) -> np.ndarray:
+    """z_hat_g fixed at the launch site's own local vertical for the whole
+    flight (main.tex SSModels > Gravity > Direction) -- today's behaviour,
+    unconditionally, for every prior step and the default here.
+    """
+    return np.array([0.0, 1.0])
+
+
+def _dir_radial(t: float, y: np.ndarray, p) -> np.ndarray:
+    """z_hat_g rotates with downrange distance (main.tex eq:zhat_g_rotated,
+    architecture.md SS23.1): `phi = x/R_e`,
+    `z_hat_g(phi) = (-sin(phi), cos(phi))` -- a rigid rotation of the
+    launch-point basis, unit norm for every `phi`, reducing to
+    `_dir_parallel` at `phi = 0`.
+    """
+    phi = y[X] / p.R_e
+    return np.array([-np.sin(phi), np.cos(phi)])
+
+
+# Module-private dispatch dict, same convention as `_GRAVITY_MODELS` above:
+# the public seam is `z_hat_g(t, y, p)`, orthogonal to `g(t, y, p)` -- any
+# magnitude may combine with either direction.
+_GRAVITY_DIRECTIONS = {
+    "parallel": _dir_parallel,
+    "radial": _dir_radial,
+}
+
+
+def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
+    """Unit vector for the local gravity ("down") direction (main.tex
+    SSModels > Gravity > Direction), dispatching on `p.gravity_direction`.
+    """
+    return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)

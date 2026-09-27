@@ -11,7 +11,7 @@ import math
 import numpy as np
 import pytest
 
-from sim.gravity import g
+from sim.gravity import g, z_hat_g
 from sim.params import Params
 from sim.state import State
 
@@ -23,6 +23,14 @@ def _y_at_altitude(h: float) -> np.ndarray:
     other components zero -- only altitude matters to gravity.g.
     """
     s = State(x=0.0, z=-h, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    return np.array(s)
+
+
+def _y_at_downrange(x: float) -> np.ndarray:
+    """State vector at downrange position x, all other components zero --
+    only x matters to gravity.z_hat_g's "radial" variant.
+    """
+    s = State(x=x, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
     return np.array(s)
 
 
@@ -106,6 +114,33 @@ def test_wgs84_h0_m_offsets_altitude_msl():
     p_high = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.0, h0_m=2000.0)
     y0 = _y_at_altitude(0.0)
     assert g(0.0, y0, p_high) < g(0.0, y0, p_sea)
+
+
+def test_z_hat_g_parallel_is_the_fixed_up_vector_regardless_of_downrange_position():
+    """"parallel" (the default, main.tex SSModels > Gravity > Direction) is
+    z_hat_g = (0, 1) for every x -- the direction is frozen at the launch
+    site's own local vertical, so it must not read y[X] at all.
+    """
+    p = dataclasses.replace(_P, gravity_direction="parallel")
+    for x in (0.0, 1e3, 1e5, 1e6):
+        z = z_hat_g(0.0, _y_at_downrange(x), p)
+        assert np.array_equal(z, np.array([0.0, 1.0]))
+
+
+def test_z_hat_g_radial_matches_parallel_at_zero_downrange_and_has_unit_norm():
+    """"radial" (main.tex eq:zhat_g_rotated) reduces to the parallel vector
+    exactly at x = 0 (phi = 0), and stays a unit vector for every phi --
+    it is a rigid rotation of the launch-point basis, never a rescaling.
+    """
+    p = dataclasses.replace(_P, gravity_direction="radial")
+
+    z0 = z_hat_g(0.0, _y_at_downrange(0.0), p)
+    assert z0[0] == 0.0
+    assert z0[1] == 1.0
+
+    for x in (1e3, 1e4, 1e5, 1e6):
+        z = z_hat_g(0.0, _y_at_downrange(x), p)
+        assert math.isclose(np.linalg.norm(z), 1.0, rel_tol=0.0, abs_tol=1e-12)
 
 
 def test_unknown_gravity_model_raises_keyerror():
