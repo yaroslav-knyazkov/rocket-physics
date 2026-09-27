@@ -78,6 +78,57 @@ diagnostic must be nonzero at `azimuth=0°/180°`; a later "Checks" bullet, copi
 numerically. No harm done, but a reminder to double-check dispatch prompts for internal
 consistency, not just against the spec.
 
+## Report finalization pass (2026-09-27, not a numbered roadmap step)
+
+Documentation-only pass over `latex/main.tex` + `sections/{rocket-2d,models}.tex` after Phase 2.5
+closed, at the user's request. No code changes; nothing under `sim/` or `tests/` touched. Done by
+the architect in two runs (a rate-limit interruption in between; no partial edits were lost — the
+tree was clean before the retry).
+
+**Two real bugs found and fixed in `rocket-2d.tex` §Analytical analysis** (both pre-existing user
+text, both independently re-derived and cross-checked against the running code before being
+touched — same discipline as Steps 15/25/37):
+1. **θ sign convention.** The force equations assumed θ measured from the vertical
+   (`-mg cosθ`/`mg sinθ`), contradicting §Frames' stated — and code-matching — convention of θ
+   measured from the horizontal. Corrected to `-mg sinθ`/`mg cosθ`, verified against
+   `sim/frames.py`'s `R_body_to_inertial`. No code change needed; `sim/dynamics.py` already
+   implements the correct form.
+2. **C/D point-label swap in the moment equation.** Had the thrust point `C` and the aerodynamic
+   reference point `D` interchanged between the two terms (`(u_B-u_D)T ... + (l_B-l_C)A_z` instead
+   of `(u_B-u_C)T ... + (l_B-l_D)A_z`). Verified against `sim/dynamics.py`'s actual cross-product
+   terms numerically. Independent of bug 1 (moments are taken about the CoG, weight doesn't
+   appear). The user's own pre-existing todo — "write that `l_C` is irrelevant" — only holds under
+   the corrected form, which is corroborating evidence this was a transcription slip. Propagates
+   mechanically into the static-stability derivative and the SM formula (`l_B-l_C` → `l_B-l_D`),
+   same structure otherwise.
+
+**Structural changes:**
+- `models.tex` subsections reordered so every model's inputs precede its use (Atmosphere → Wind →
+  Relative wind/AoA → Gravity → Non-inertial corrections → Thrust → Mass/MOI → Aerodynamics),
+  fixing 4 forward-references.
+- New **§Backlog and future work** (end of `main.tex`): thrust-axis misalignment/control,
+  wing-body aero/analytic CoP/airframe/air brake, dimensionless stability margin, dynamic
+  stability analysis — each as "what it is / waiting on what" — plus an index pointing at
+  deferrals already stated elsewhere (grain geometry, moist air, vertical wind, aero-coefficient
+  CFD expansion — all left untouched, verified byte-identical to `HEAD`).
+- §Current assumptions rewritten — it was stale after Steps 36/37 (still claimed constant
+  mass/CoG/I and zero Earth-rotation term).
+- Three follow-up decisions the user chose from a comparison table:
+  1. **Symbol collision** (reference area/length written `A,l` in one place, `S,d_ref` in
+     another): renamed to `S`/`d_ref` throughout §Analytical analysis to match `models.tex`/the
+     simulator. Exposed and fixed two related gaps along the way — `A_m`'s magnitude equation was
+     missing from `models.tex` despite the code computing it (added), and the Reynolds number's
+     `l_ref` was a redundant second reference length (renamed to `d_ref`).
+  2. **Point-label mismatch** (report's A/B/C/D vs. code's `l1`/`l2`): documented the bridge only
+     (`l_1 = l_D - l_B`, `SM = -l_1`); no code rename. Left as a future roadmap step if ever wanted.
+  3. **Cross-references**: every section/subsection across all three files is now labelled, and
+     all ~90 textual "§ Name > Subname" references converted to `\autoref`.
+
+**Not verified:** no LaTeX toolchain is available in this environment, so nothing was compiled —
+only checked statically (brace/environment balance, every `\autoref` target defined, zero leftover
+textual `\S Capital` references). **Compile locally (two passes) and do a visual read-through
+before treating this as final.**
+
 Also surfaced by the architect, not fixed (genuinely out of scope for Step 37): `rocket-2d.tex`
 §Analytical analysis's force equations assume θ measured from the vertical, conflicting with
 §Frames and the actual code (θ measured from horizontal, nose-up) — a pre-existing inconsistency

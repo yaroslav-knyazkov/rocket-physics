@@ -1,8 +1,162 @@
-\section{Models}
+\section{Models}\label{sec:models}
+\ai{Each subsection below gives the interchangeable models behind one symbol of
+\autoref{sec:rocket2d}. They are ordered so that every model's inputs are defined before it:
+first the air and its motion (\autoref{sec:atmosphere}, \autoref{sec:wind}), then the relative
+flow those two produce (\autoref{sec:relwind}), and then the three forces of
+\autoref{sec:forces} in the order they are introduced there --- weight (\autoref{sec:gravity},
+together with the frame corrections that belong with it, \autoref{sec:noninertial}), thrust
+(\autoref{sec:thrust}, together with the mass it consumes, \autoref{sec:mass}), and the
+aerodynamic force (\autoref{sec:aero}), which depends on all of the preceding.}
 
-\subsection{Relative wind and angle of attack}
+\subsection{Atmosphere}\label{sec:atmosphere}
+Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the
+local air density $\rho$, together with everything needed to form the Reynolds and Mach numbers
+of the relative flow (\ai{\autoref{sec:relwind}}), and the local speed of sound $a$ and
+dynamic viscosity $\mu$.
+
+\subsubsection{Model tiers}\label{sec:atmos_tiers}
+\ai{Three tiers, increasing in fidelity, all exposing the same $(\rho, T, p, a, \mu)$ interface:
+\begin{enumerate}
+    \item \textbf{ISA} (International Standard Atmosphere): the standard piecewise-linear
+    temperature-lapse model (troposphere + lower stratosphere), pressure from the hydrostatic
+    equation, density from the ideal gas law, speed of sound $a = \sqrt{\gamma R_{specific} T}$,
+    viscosity from Sutherland's law.
+    \item \textbf{Real atmosphere} (single station): measured/forecast sounding data ($T(h)$,
+    $p(h)$ at one geographic location and time), interpolated in altitude only.
+    \item \textbf{Real atmosphere} (multi-station, spatially interpolated): the same kind of
+    measured data from several geographic locations, interpolated in altitude, horizontal
+    position, and optionally time, to estimate local conditions along the actual ground track.
+\end{enumerate}
+
+\paragraph{ISA.} Geopotential altitude from geometric altitude above mean sea level $h_{msl}$:
+\begin{equation}
+    H = \frac{R_{isa}h_{msl}}{R_{isa}+h_{msl}}, \qquad R_{isa} = 6356766\,\mathrm{m}
+\end{equation}
+Seven layers, base geopotential altitude $H_b$, lapse rate $L$, base temperature/pressure $T_b, p_b$:
+\begin{center}
+\begin{tabular}{l c c c c}
+Layer & $H_b$ [m] & $L$ [K/m] & $T_b$ [K] & $p_b$ [Pa] \\
+troposphere  & 0     & $-0.0065$ & 288.15 & 101325   \\
+tropopause   & 11000 & $0$       & 216.65 & 22632.06 \\
+stratosphere & 20000 & $+0.0010$ & 216.65 & 5474.889 \\
+stratosphere & 32000 & $+0.0028$ & 228.65 & 868.0187 \\
+stratopause  & 47000 & $0$       & 270.65 & 110.9063 \\
+mesosphere   & 51000 & $-0.0028$ & 270.65 & 66.93887 \\
+mesosphere   & 71000 & $-0.0020$ & 214.65 & 3.956420 \\
+\end{tabular}
+\end{center}
+Within the layer containing $H$:
+\begin{gather}
+    T = T_b + L(H-H_b) \\
+    p = p_b(T/T_b)^{-g_{isa}/(LR_d)} \ \ (L\neq0), \qquad
+    p = p_b\exp\!\left(\dfrac{-g_{isa}(H-H_b)}{R_dT_b}\right) \ \ (L=0) \\
+    \rho = \frac{p}{R_dT}, \qquad a = \sqrt{\gamma R_dT}, \qquad
+    \mu = \mu_0\left(\frac{T}{T_0}\right)^{3/2}\frac{T_0+S_\mu}{T+S_\mu}
+\end{gather}
+with $R_d = 287.0528\,\mathrm{J/(kg\,K)}$, $\gamma = 1.4$, $g_{isa} = 9.80665\,\mathrm{m/s^2}$ (the
+ISA's own fixed value, independent of \autoref{sec:gravity}), $\mu_0 = 1.716\times10^{-5}\,\mathrm{Pa\,s}$,
+$T_0 = 273.15\,\mathrm{K}$, $S_\mu = 110.4\,\mathrm{K}$ (Sutherland's law).
+
+\paragraph{Sounding.} One station's measured $(h_{msl}, p, T, u, v)$ profile:
+\begin{equation}
+    T(h) = \mathrm{lerp}(h;\{h_i\},\{T_i\}), \quad
+    p(h) = \exp\mathrm{lerp}(h;\{h_i\},\{\ln p_i\}), \quad
+    u(h),v(h) = \mathrm{lerp}(h;\{h_i\},\{u_i,v_i\})
+\end{equation}
+$\rho, a, \mu$ are derived from the interpolated $T, p$ exactly as ISA above -- never interpolated
+directly, to stay thermodynamically consistent. Below the lowest level the profile continues with
+the sounding's own local lapse rate; above the highest, an ISA-shaped profile re-anchored at
+$(h_{top}, T_{top}, p_{top})$ keeps $T, p$ continuous at the seam. Wind is held at the edge value
+outside the data range.
+
+\paragraph{Field.} $N$ stations projected onto a tangent plane centred at the launch site
+$(\phi_0,\lambda_0)$, together with the rocket's own ground position $(x\sin\chi, x\cos\chi)$
+($x$ = downrange coordinate, $\chi$ = launch heading, degrees clockwise from North, the direction
+of $+\hat{x}$):
+\begin{equation}
+    E = R_e\cos\phi_0\,(\lambda-\lambda_0), \qquad N = R_e\,(\phi-\phi_0)
+\end{equation}
+weighted by inverse squared distance and combined into one profile:
+\begin{equation}
+    w_i = \frac{1}{d_i^2+\varepsilon^2}, \qquad \hat{w}_i = \frac{w_i}{\sum_j w_j}, \qquad
+    (T, \ln p, u, v) = \sum_i \hat{w}_i\,(T_i, \ln p_i, u_i, v_i)
+\end{equation}
+then interpolated in altitude exactly as the sounding tier. A single station reduces every
+$\hat{w}_i$ to 1 and reproduces the sounding tier exactly.}
+
+data given
+
+\subsubsection{Density}\label{sec:density}
+Humid air density calculation
+\ai{\todo{not modelled: radiosonde soundings carry dewpoint, and moist air is $\sim$1\% less
+dense than dry air at the same $p,T$ (a $T_{virtual}$ correction). A few lines once the dewpoint
+column is carried through the sounding loader; deferred to the backlog until then.}}
+
+\subsubsection{Reynolds and Mach numbers}\label{sec:reynolds_mach}
+\ai{\begin{equation}
+    Re = \frac{\rho V d_{ref}}{\mu}, \qquad M = \frac{V}{a}
+\end{equation}
+with $V$ from \autoref{sec:relwind}, $d_{ref}$ the reference length (the body diameter --- the
+same $d_{ref}$ that normalises the aerodynamic coefficients, \autoref{sec:aero}), $\mu$ the
+dynamic viscosity, and $a$ the local speed of sound, both from the tier above.}
+
+\subsection{Wind}\label{sec:wind}
+\ai{Goal: given time $t$ and position (altitude $h$, and horizontal position for the interpolated
+tier), provide the wind velocity $\vec{v}_w$ in $\mathcal{F}_0$, used in
+$\vec{v}_{rel} = \vec{v} - \vec{v}_w$ (\autoref{sec:relwind}). Same three-tier
+structure as \autoref{sec:atmosphere}:
+\begin{enumerate}
+    \item \textbf{Simple analytic model}: e.g. constant wind plus an altitude-dependent shear
+    profile, optionally with seeded gusts.
+    \item \textbf{Real wind data} (single station): measured/forecast wind profile $\vec{v}_w(h)$
+    at one location and time.
+    \item \textbf{Real wind data} (multi-station, spatially interpolated): wind profiles from
+    multiple locations, interpolated in altitude, horizontal position, and optionally time.
+\end{enumerate}
+
+\paragraph{Flight-plane projection.} The launch heading $\chi$ (\autoref{sec:atmosphere}) fixes the
+2D flight plane. A horizontal wind given as ENU components $(u,v)$, or as meteorological
+speed/direction $(W,\psi)$ with $u=-W\sin\psi,\ v=-W\cos\psi$ ($\psi$ = the direction the wind
+blows \emph{from}), projects onto it as
+\begin{gather}
+    w_x = u\sin\chi + v\cos\chi = -W\cos(\psi-\chi) \\
+    w_y = u\cos\chi - v\sin\chi = -W\sin(\psi-\chi)
+\end{gather}
+with $w_x$ the downrange (along-plane) component feeding $\vec{v}_w$ and $w_z = 0$ (no vertical
+wind modelled). $w_y$, the cross-plane component, is computed and discarded: crosswind
+weathercocking needs the out-of-plane freedom only Phase 3 has.
+
+\paragraph{Analytic.} Power-law shear, constant direction, and optional deterministic gusts:
+\begin{gather}
+    W(h) = W_{ref}\left(\max(h,h_{ref})/h_{ref}\right)^{n}, \qquad \psi = \psi_0 \\
+    \Delta W(t) = \sigma\sum_i w_i\sin(\omega_it+\varphi_i)
+\end{gather}
+$h$ is altitude above the local ground, $n\approx1/7$ the shear exponent (the classic open-terrain
+value; smoother terrain is lower, rougher/urban/forested terrain higher, up to $\sim$0.4), valid
+within the atmospheric surface/boundary layer only --- roughly the lowest few hundred meters to
+1--2\,km depending on stability, above which the sounding tiers below should be used instead.
+$\Delta W(t)$ added to $W(h)$ before the projection above (then clamped non-negative, since $W$
+is a speed). The $\{\omega_i,\varphi_i,w_i\}$ are drawn once and frozen -- the adaptive solver
+samples the right-hand side at arbitrary, repeated and rejected times, so a fresh random draw per
+call would make $\Delta W$ a non-function of $t$. $\sigma=0$ disables gusts entirely.
+
+\paragraph{Sounding / field.} The same measured $(u,v)$ profiles and interpolation as
+\autoref{sec:atmosphere}, projected through the formula above; never interpolated as $(W,\psi)$,
+since direction wraps at $360^\circ$.
+
+\paragraph{Vertical wind.} All tiers above return horizontal wind only ($w_z = 0$);
+updrafts/downdrafts are not modelled (\autoref{sec:assumptions}). Two standard families exist in the
+literature for deriving a vertical component: (1) terrain-slope / mass-continuity orographic lift,
+$w \approx \vec{v}_h\cdot\nabla h_{terrain}$, which needs a terrain elevation model this project
+does not have; (2) thermal/convective updraft parameterizations (as used in the soaring/glider
+literature), which need surface heat-flux or insolation data outside the radiosonde soundings used
+here. Neither fits the current data pipeline (station soundings + a simple analytic profile)
+without adding a new data source, so this stays unimplemented for now.
+\todo{revisit if/when a terrain or NWP vertical-velocity data source is added.}}
+
+\subsection{Relative wind and angle of attack}\label{sec:relwind}
 Let $\vec{v}$ be the rocket's velocity relative to $\mathcal{F}_0$, and $\vec{v}_w$ the wind
-velocity relative to $\mathcal{F}_0$ (a model output, \S Wind). The rocket's velocity
+velocity relative to $\mathcal{F}_0$ (a model output, \ai{\autoref{sec:wind}}). The rocket's velocity
 relative to the surrounding air is
 \begin{equation}
     \vec{v}_{rel} = \vec{v} - \vec{v}_w = u\hat{x}_r + w\hat{z}_r
@@ -23,13 +177,14 @@ $\hat{u}$ within $\mathcal{F}_r$):
 \end{equation}
 At $\alpha = 0$: $\hat{u} = \hat{x}_r$, $\hat{n} = \hat{z}_r$.
 \ai{$\hat{u}, \hat{n}$ feed the dynamic pressure $q$ and, through $\alpha$, the coefficient
-lookup in \S Aerodynamics; the aerodynamic force itself is resolved along the fixed body axes
-$\hat{x}_r, \hat{z}_r$, \emph{not} along $\hat{u}, \hat{n}$ --- see \S Aerodynamics.}
+lookup in \autoref{sec:aero}; the aerodynamic force itself is resolved along the fixed body
+axes $\hat{x}_r, \hat{z}_r$, \emph{not} along $\hat{u}, \hat{n}$ --- see \autoref{sec:aero}.}
 
-\subsection{Gravity}
+\subsection{Gravity}\label{sec:gravity}
 Interchangeable models for the gravitational acceleration magnitude $g$ used in
-$\vec{W} = mg\hat{z}_g$ (\S Forces). All variants act along the fixed $\hat{z}_g$ direction under
-the flat, non-rotating Earth assumption (\S Current assumptions); $h = -z$ is altitude above the
+$\vec{W} = mg\hat{z}_g$ (\ai{\autoref{sec:forces}}). All variants act along the fixed
+$\hat{z}_g$ direction under the flat, non-rotating Earth assumption
+(\ai{\autoref{sec:assumptions}}); $h = -z$ is altitude above the
 launch point, $R_e$ the Earth's radius.
 
 \paragraph{Magnitude.}
@@ -44,7 +199,7 @@ launch point, $R_e$ the Earth's radius.
         \gamma_0(\phi) = \gamma_e\dfrac{1+k\sin^2\phi}{\sqrt{1-e^2\sin^2\phi}} \\
         g(\phi, h) = \gamma_0\left[1 - \dfrac{2}{a_e}\left(1+f+m-2f\sin^2\phi\right)h + \dfrac{3}{a_e^2}h^2\right]
     \end{gather}
-    with $\phi$ the launch site's geodetic latitude (fixed for the flight, \S Current assumptions),
+    with $\phi$ the launch site's geodetic latitude (fixed for the flight, \ai{\autoref{sec:assumptions}}),
     $h$ the altitude above the ellipsoid, and published WGS84 constants $a_e = 6378137\,\mathrm{m}$,
     $f = 1/298.257223563$, $m = 0.00344978650684$, $\gamma_e = 9.7803253359\,\mathrm{m/s^2}$,
     $k = 0.00193185265241$, $e^2 = 0.00669437999013$. A gridded dataset (e.g.\ EGM2008) would
@@ -52,8 +207,8 @@ launch point, $R_e$ the Earth's radius.
     \ai{This variant already includes the Earth's rotation (centrifugal) contribution to the
     \emph{magnitude} of $g$ through $\gamma_0(\phi)$ --- the equatorial-vs-polar difference in $g$
     is a rotation effect, folded into the Somigliana formula. That is a separate, static effect
-    from the dynamic (Coriolis) correction to the equations of motion, \S Non-inertial frame
-    corrections below.}
+    from the dynamic (Coriolis) correction to the equations of motion,
+    \autoref{sec:noninertial} below.}
 \end{itemize}
 
 \paragraph{Direction.}
@@ -62,11 +217,11 @@ flight's downrange extent $x$, the true local-vertical direction rotates by appr
 $x/R_e$ relative to the launch-site vertical --- for a suborbital flight of a few kilometers to a
 few tens of kilometers this is a fraction of a milliradian, negligible against every other error
 source in this model. $\hat{z}_g$ is therefore frozen at the launch site's local vertical for the
-whole flight (\S Current assumptions). A downrange-dependent gravity \emph{direction} would be the
+whole flight (\autoref{sec:assumptions}). A downrange-dependent gravity \emph{direction} would be the
 one genuinely new physics among the gravity variants above, but it needs this assumption lifted
-first; see the backlog.}
+first; see \autoref{sec:backlog}.}
 
-\subsection{Non-inertial frame corrections (Earth's rotation)}
+\subsection{Non-inertial frame corrections (Earth's rotation)}\label{sec:noninertial}
 \ai{The WGS84 gravity model above already accounts for the Earth's rotation in the magnitude of
 $g$ (the static, equilibrium-shape effect, folded into $\gamma_0(\phi)$). A rotating Earth also
 introduces two velocity/position-dependent fictitious forces into the translational equations of
@@ -83,19 +238,19 @@ genuinely new here and depends on the flight's own velocity and heading, not jus
 site.
 \paragraph{Tangent-plane basis.} Work in the local East--North--Up triad
 $(\hat{E},\hat{N},\hat{U})$ at the launch site $(\phi_0,\lambda_0)$, with $\phi_0$ the site's
-geodetic latitude (the same quantity written $\phi$ in \S Gravity). The flight-plane frame
+geodetic latitude (the same quantity written $\phi$ in \autoref{sec:gravity}). The flight-plane frame
 $\mathcal{F}_0$ is the NED-like triad already fixed by the launch heading $\chi$ (degrees
-clockwise from North, the direction of $+\hat{x}$, \S Atmosphere > Field) and by $\hat{z}_g$
-pointing \emph{down} (\S Frames, $h=-z$):
+clockwise from North, the direction of $+\hat{x}$, \autoref{sec:atmosphere} > Field) and by $\hat{z}_g$
+pointing \emph{down} (\autoref{sec:frames}, $h=-z$):
 \begin{gather}
     \hat{x}_g = \sin\chi\,\hat{E} + \cos\chi\,\hat{N} \\
     \hat{y}_g = \cos\chi\,\hat{E} - \sin\chi\,\hat{N} \\
     \hat{z}_g = -\hat{U}
 \end{gather}
 Nothing here is new: $\hat{x}_g$ is the downrange direction used by the ground track
-$(x\sin\chi, x\cos\chi)$ of \S Atmosphere > Field, and $\hat{y}_g$ is exactly the cross-plane
+$(x\sin\chi, x\cos\chi)$ of \autoref{sec:atmosphere} > Field, and $\hat{y}_g$ is exactly the cross-plane
 direction whose wind component $w_y = u\cos\chi - v\sin\chi$ is computed and discarded in
-\S Wind > Flight-plane projection. The triad is right-handed,
+\autoref{sec:wind} > Flight-plane projection. The triad is right-handed,
 $\hat{x}_g\times\hat{y}_g = \hat{z}_g$, which can be checked directly from the three lines above
 ($(\sin\chi,\cos\chi,0)\times(\cos\chi,-\sin\chi,0) = (0,0,-1)$ in ENU components). $\hat{y}_g$
 points to the \emph{right} of the downrange direction.
@@ -159,7 +314,7 @@ smallness argument --- the discarded lateral acceleration is of the same order a
 one, and for some geometries larger. It is dropped because the model has no lateral degree of
 freedom to receive it: the out-of-plane Coriolis deflection (the familiar right-hand deflection
 in the northern hemisphere) is physically real, and a 2D planar model simply cannot represent it.
-This is the same closure already applied to the crosswind component $w_y$ in \S Wind, and it is
+This is the same closure already applied to the crosswind component $w_y$ in \autoref{sec:wind}, and it is
 lifted by the same future work (Phase 3, full 6-DOF), not by anything in this section.
 
 Two consequences follow immediately and should be stated so results are not over-read:
@@ -175,7 +330,7 @@ Two consequences follow immediately and should be stated so results are not over
 \begin{equation} \label{eq:coriolis_2d}
     \vec{a}_{Coriolis}^{\,2D} = 2\Omega\cos\phi_0\sin\chi\left(v_z\,\hat{x}_g - v_x\,\hat{z}_g\right)
 \end{equation}
-i.e.\ componentwise, with the state variables of \S Equations of motion ($v_x = \dot{x}$
+i.e.\ componentwise, with the state variables of \autoref{sec:eom} ($v_x = \dot{x}$
 downrange, $v_z = \dot{z}$ \emph{downward}, so an ascending rocket has $v_z < 0$):
 \begin{align}
     a_{Coriolis,x} &= +2\Omega\cos\phi_0\sin\chi\;\dot{z} \\
@@ -206,7 +361,7 @@ from \autoref{eq:omega_components}, has in-plane components
 This is bounded by $\Omega^2|\vec{s}| = 5.3\times10^{-9}\,|\vec{s}|$, i.e.\
 $5\times10^{-5}\,\mathrm{m/s^2}$ even at $|\vec{s}| = 10\,\mathrm{km}$ --- roughly three orders of
 magnitude below the Coriolis term, and its \emph{vertical} part is in any case already folded into
-the WGS84 free-air correction through the constant $m$ in \S Gravity (double-counting it would be
+the WGS84 free-air correction through the constant $m$ in \autoref{sec:gravity} (double-counting it would be
 a small error in the wrong direction). Recommendation: implement the Coriolis term only, and leave
 the residual centrifugal term documented here but unimplemented.
 
@@ -217,16 +372,16 @@ proportion to mass, so their resultant acts at the centre of gravity $B$ and con
 of order $2I\Omega\omega$, i.e.\ an angular acceleration of order
 $2\Omega\omega \approx 1.5\times10^{-4}\,\mathrm{rad/s^2}$ at $\omega = 1\,\mathrm{rad/s}$. It is
 negligible against the aerodynamic pitching moment and is dropped; the rotational equation of
-\S Equations of motion is unchanged.
+\autoref{sec:eom} is unchanged.
 
-\paragraph{Result to add to \S Equations of motion.} The translational equation gains one term:
+\paragraph{Result to add to the equations of motion.} The translational equation of \autoref{sec:eom} gains one term:
 \begin{equation}
     m\vec{\ddot{x}} = \vec{W} + \vec{T} + \vec{A}_f + m\,\vec{a}_{Coriolis}^{\,2D}
 \end{equation}
 with $\vec{a}_{Coriolis}^{\,2D}$ from \autoref{eq:coriolis_2d}, evaluated directly in
 $\mathcal{F}_0$ (no body-axis rotation needed --- it is already a ground-frame expression, like
 $\vec{W}$). $\phi_0$ and $\chi$ are the launch-site latitude and heading already used by
-\S Gravity and \S Wind respectively; no new parameter is introduced.
+\autoref{sec:gravity} and \autoref{sec:wind} respectively; no new parameter is introduced.
 
 \paragraph{Magnitudes, and an honest consistency caveat.} The retained term scales as
 $2\Omega\cos\phi_0\sin\chi\,V$: at $V = 300\,\mathrm{m/s}$ it is at most
@@ -234,17 +389,17 @@ $4.4\times10^{-2}\,\mathrm{m/s^2}$ (equatorial East launch) and about
 $2.8\times10^{-2}\,\mathrm{m/s^2}$ at $\phi_0 = 50^\circ$ --- some $0.3\%$ of $g$, accumulating to
 order $10\,\mathrm{m}$ of displacement over a $30\,\mathrm{s}$ powered ascent. That is worth
 having for impact-point prediction and is consistent with the centimetre-to-metre estimate quoted
-in \S Current assumptions.
+in \autoref{sec:assumptions}.
 
 It is, however, the \emph{same} order as an error this model still carries: freezing $\hat{z}_g$ at
-the launch-site vertical (\S Gravity > Direction) mis-points gravity by $x/R_e$, an effective
+the launch-site vertical (\autoref{sec:gravity} > Direction) mis-points gravity by $x/R_e$, an effective
 $g\,x/R_e \approx 1.5\times10^{-2}\,\mathrm{m/s^2}$ at $x = 10\,\mathrm{km}$ and growing linearly
 with downrange. Adding Coriolis while keeping the frozen-vertical assumption therefore does not
 by itself make the trajectory accurate to the Coriolis level; the two corrections are independent
 and comparable, and the flat-Earth one dominates once the flight goes far enough downrange. Both
-are listed in \S Current assumptions for that reason.}
+are listed in \autoref{sec:assumptions} for that reason.}
 
-\subsection{Thrust}
+\subsection{Thrust}\label{sec:thrust}
 Magnitude of thrust is the result of conservation of momentum (ejection of fuel) and pressure differences, given as
 \begin{equation}
     T = \dot{m}v_e + A_e(p_e - p_{atm}),
@@ -264,15 +419,17 @@ altitude, \ai{the net thrust once the motor is flowing is}
 \begin{equation}
     T(t, h) = T_{ref}(t) + A_e\left(p_{ref} - p_{amb}(h)\right), \qquad \text{only while } T_{ref}(t) > 0
 \end{equation}
-with $p_{amb}(h)$ from \S Atmosphere, $A_e$ the nozzle exit area, and \ai{$p_{ref}$ the ambient
+with $p_{amb}(h)$ from \ai{\autoref{sec:atmosphere}}, $A_e$ the nozzle exit area, and \ai{$p_{ref}$ the ambient
 pressure the curve was measured at (the test-stand pressure --- not necessarily the launch site's
 own pad pressure)}; $A_e = 0$ recovers $T_{ref}(t)$ exactly.
 
-\ai{Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled in \S Mass
-and moment of inertia; \S Current assumptions still holds today (constant $m$) until that model is
-wired into \S Equations of motion.}
+\ai{Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled in
+\autoref{sec:mass}, and are carried by \autoref{sec:eom}: $m$, $l_B$ and $I$ are all functions
+of time there. What \autoref{sec:assumptions} still holds fixed is one step further out
+--- how the thrust point $C$ and the aerodynamic reference point $D$ travel relative to a moving
+centre of gravity --- not $m$, $l_B$ or $I$ themselves.}
 
-\subsection{Mass and moment of inertia}
+\subsection{Mass and moment of inertia}\label{sec:mass}
 \ai{As propellant burns, mass leaves the rocket through the nozzle and both the center of gravity
 and the moment of inertia change over the burn. A minimal model, treating the rocket as two lumped
 masses --- dry structure (mass $m_d$, fixed centroid at $l_d$ from the nose tip $A$) and remaining
@@ -280,7 +437,7 @@ propellant (mass $m_p(t) = m(t) - m_d$, centroid at $l_p$):
 \begin{gather}
     \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0} \qquad \text{(or a measured mass-flow table, if available)} \\
     l_B(t) = \frac{m_d\,l_d + m_p(t)\,l_p}{m_d + m_p(t)} \qquad \text{(CoG distance from the nose,
-    replaces the constant $l_B$ of \S Geometry)} \\
+    replaces the constant $l_B$ of \autoref{sec:geometry})} \\
     I(t) = I_d + m_d\bigl(l_B(t)-l_d\bigr)^2 + I_p(t) + m_p(t)\bigl(l_B(t)-l_p\bigr)^2 \qquad
     \text{(parallel-axis theorem)}
 \end{gather}
@@ -291,7 +448,7 @@ etc.) and how it recedes as it burns --- needs the motor's grain geometry to go 
 "propellant centroid fixed at $l_p$" approximation above. Until resolved, $l_p$ constant and
 $I_p(t) \propto m_p(t)$ (uniform density, fixed shape) is the simplest placeholder.}}
 
-\subsection{Aerodynamics}
+\subsection{Aerodynamics}\label{sec:aero}
 \paragraph{Force magnitudes.}
 \ai{$C_A(\alpha,M)$, $C_N(\alpha,M)$, $C_m(\alpha,M)$ and the CoP-to-CoG distance $l_1(\alpha,M)$
 come from one rectangular $(M,\alpha)$ table, or fall back to constants:
@@ -300,8 +457,11 @@ come from one rectangular $(M,\alpha)$ table, or fall back to constants:
 \end{equation}
 With a table: bracket and clamp $M$ at the grid edges (no extrapolation beyond the table's Mach
 range), interpolate linearly in $\alpha$ within each bracketing row, then blend the two rows
-linearly across the $M$ bracket. $l_1(\alpha,M)$ feeds directly into \S Geometry's
-$\vec{aA}=-l_1\hat{x}_r$, coupling CoP travel back into the pitching moment.
+linearly across the $M$ bracket. $l_1$ is the axial distance from the centre of gravity $B$ to
+the aerodynamic reference point $D$ of \autoref{sec:geometry}, positive with $D$ aft:
+$l_1 = l_D - l_B$, so $\vec{BD} = -l_1\hat{x}_r$ and $\textrm{SM} = -l_1$ in the notation of
+\autoref{sec:analysis}. Letting it vary as $l_1(\alpha,M)$ couples CoP travel back into the
+pitching moment.
 
 \ai{Implementation note: the fallback $C_N$, $C_m$ are evaluated as $C_{N\alpha}\sin\alpha$,
 $C_{m\alpha}\sin\alpha$ in code (identical to the formula above for small $\alpha$, within 0.4\%
@@ -320,7 +480,17 @@ $\alpha$-dependence is already carried by the table:
 \begin{equation}
     \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r, \qquad A_x = qSC_A(\alpha,M), \quad A_z = qSC_N(\alpha,M)
 \end{equation}
-matching \S Forces' original Phase 1 form exactly, for every $\alpha$ --- not just $\alpha=0$.}
+matching \autoref{sec:forces}'s original Phase 1 form exactly, for every $\alpha$ --- not
+just $\alpha=0$. The pitching moment magnitude follows the same pattern, needing a reference
+length as well as a reference area:
+\begin{equation} \label{eq:aero_magnitudes}
+    A_m = qSd_{ref}C_m(\alpha,M)
+\end{equation}
+$S$ is the reference area and $d_{ref}$ the reference length --- in practice the body
+cross-section and its diameter. These are the same $S$, $d_{ref}$ that
+\autoref{sec:analysis} uses and the same $d_{ref}$ that forms the Reynolds number in
+\autoref{sec:reynolds_mach}: one reference area and one reference length for the whole
+document.}
 
 \paragraph{Coefficients.}
 \ai{What affects $C_A$, $C_N$, $C_m$: angle of attack $\alpha$ (nonlinear at high $\alpha$ once
@@ -328,149 +498,3 @@ flow separates), Mach number $M$ (compressibility, transonic/supersonic drag ris
 number $Re$ (boundary-layer state, viscous/skin-friction contribution to $C_A$), and geometry
 (fin planform and cant, body-fin interference, surface finish). \todo{expand once the CFD/data
 extraction pipeline is defined.}}
-
-\subsection{Atmosphere}
-Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the
-local air density $\rho$, together with everything needed to form the Reynolds and Mach numbers
-of the relative flow (\S Relative wind and angle of attack), and the local speed of sound $a$ and
-dynamic viscosity $\mu$.
-
-\subsubsection{models}
-\ai{Three tiers, increasing in fidelity, all exposing the same $(\rho, T, p, a, \mu)$ interface:
-\begin{enumerate}
-    \item \textbf{ISA} (International Standard Atmosphere): the standard piecewise-linear
-    temperature-lapse model (troposphere + lower stratosphere), pressure from the hydrostatic
-    equation, density from the ideal gas law, speed of sound $a = \sqrt{\gamma R_{specific} T}$,
-    viscosity from Sutherland's law.
-    \item \textbf{Real atmosphere} (single station): measured/forecast sounding data ($T(h)$,
-    $p(h)$ at one geographic location and time), interpolated in altitude only.
-    \item \textbf{Real atmosphere} (multi-station, spatially interpolated): the same kind of
-    measured data from several geographic locations, interpolated in altitude, horizontal
-    position, and optionally time, to estimate local conditions along the actual ground track.
-\end{enumerate}
-
-\paragraph{ISA.} Geopotential altitude from geometric altitude above mean sea level $h_{msl}$:
-\begin{equation}
-    H = \frac{R_{isa}h_{msl}}{R_{isa}+h_{msl}}, \qquad R_{isa} = 6356766\,\mathrm{m}
-\end{equation}
-Seven layers, base geopotential altitude $H_b$, lapse rate $L$, base temperature/pressure $T_b, p_b$:
-\begin{center}
-\begin{tabular}{l c c c c}
-Layer & $H_b$ [m] & $L$ [K/m] & $T_b$ [K] & $p_b$ [Pa] \\
-troposphere  & 0     & $-0.0065$ & 288.15 & 101325   \\
-tropopause   & 11000 & $0$       & 216.65 & 22632.06 \\
-stratosphere & 20000 & $+0.0010$ & 216.65 & 5474.889 \\
-stratosphere & 32000 & $+0.0028$ & 228.65 & 868.0187 \\
-stratopause  & 47000 & $0$       & 270.65 & 110.9063 \\
-mesosphere   & 51000 & $-0.0028$ & 270.65 & 66.93887 \\
-mesosphere   & 71000 & $-0.0020$ & 214.65 & 3.956420 \\
-\end{tabular}
-\end{center}
-Within the layer containing $H$:
-\begin{gather}
-    T = T_b + L(H-H_b) \\
-    p = p_b(T/T_b)^{-g_{isa}/(LR_d)} \ \ (L\neq0), \qquad
-    p = p_b\exp\!\left(\dfrac{-g_{isa}(H-H_b)}{R_dT_b}\right) \ \ (L=0) \\
-    \rho = \frac{p}{R_dT}, \qquad a = \sqrt{\gamma R_dT}, \qquad
-    \mu = \mu_0\left(\frac{T}{T_0}\right)^{3/2}\frac{T_0+S_\mu}{T+S_\mu}
-\end{gather}
-with $R_d = 287.0528\,\mathrm{J/(kg\,K)}$, $\gamma = 1.4$, $g_{isa} = 9.80665\,\mathrm{m/s^2}$ (the
-ISA's own fixed value, independent of \S Gravity), $\mu_0 = 1.716\times10^{-5}\,\mathrm{Pa\,s}$,
-$T_0 = 273.15\,\mathrm{K}$, $S_\mu = 110.4\,\mathrm{K}$ (Sutherland's law).
-
-\paragraph{Sounding.} One station's measured $(h_{msl}, p, T, u, v)$ profile:
-\begin{equation}
-    T(h) = \mathrm{lerp}(h;\{h_i\},\{T_i\}), \quad
-    p(h) = \exp\mathrm{lerp}(h;\{h_i\},\{\ln p_i\}), \quad
-    u(h),v(h) = \mathrm{lerp}(h;\{h_i\},\{u_i,v_i\})
-\end{equation}
-$\rho, a, \mu$ are derived from the interpolated $T, p$ exactly as ISA above -- never interpolated
-directly, to stay thermodynamically consistent. Below the lowest level the profile continues with
-the sounding's own local lapse rate; above the highest, an ISA-shaped profile re-anchored at
-$(h_{top}, T_{top}, p_{top})$ keeps $T, p$ continuous at the seam. Wind is held at the edge value
-outside the data range.
-
-\paragraph{Field.} $N$ stations projected onto a tangent plane centred at the launch site
-$(\phi_0,\lambda_0)$, together with the rocket's own ground position $(x\sin\chi, x\cos\chi)$
-($x$ = downrange coordinate, $\chi$ = launch heading, degrees clockwise from North, the direction
-of $+\hat{x}$):
-\begin{equation}
-    E = R_e\cos\phi_0\,(\lambda-\lambda_0), \qquad N = R_e\,(\phi-\phi_0)
-\end{equation}
-weighted by inverse squared distance and combined into one profile:
-\begin{equation}
-    w_i = \frac{1}{d_i^2+\varepsilon^2}, \qquad \hat{w}_i = \frac{w_i}{\sum_j w_j}, \qquad
-    (T, \ln p, u, v) = \sum_i \hat{w}_i\,(T_i, \ln p_i, u_i, v_i)
-\end{equation}
-then interpolated in altitude exactly as the sounding tier. A single station reduces every
-$\hat{w}_i$ to 1 and reproduces the sounding tier exactly.}
-
-data given
-
-\subsubsection{density}
-Humid air density calculation
-\ai{\todo{not modelled: radiosonde soundings carry dewpoint, and moist air is $\sim$1\% less
-dense than dry air at the same $p,T$ (a $T_{virtual}$ correction). A few lines once the dewpoint
-column is carried through the sounding loader; deferred to the backlog until then.}}
-
-\subsubsection{reynolds, mach}
-\ai{\begin{equation}
-    Re = \frac{\rho V l_{ref}}{\mu}, \qquad M = \frac{V}{a}
-\end{equation}
-with $V$ from \S Relative wind and angle of attack, $l_{ref}$ a reference length (e.g.\ body
-diameter), $\mu$ the dynamic viscosity, and $a$ the local speed of sound, both from the tier
-above.}
-
-\subsection{Wind}
-\ai{Goal: given time $t$ and position (altitude $h$, and horizontal position for the interpolated
-tier), provide the wind velocity $\vec{v}_w$ in $\mathcal{F}_0$, used in
-$\vec{v}_{rel} = \vec{v} - \vec{v}_w$ (\S Relative wind and angle of attack). Same three-tier
-structure as \S Atmosphere:
-\begin{enumerate}
-    \item \textbf{Simple analytic model}: e.g. constant wind plus an altitude-dependent shear
-    profile, optionally with seeded gusts.
-    \item \textbf{Real wind data} (single station): measured/forecast wind profile $\vec{v}_w(h)$
-    at one location and time.
-    \item \textbf{Real wind data} (multi-station, spatially interpolated): wind profiles from
-    multiple locations, interpolated in altitude, horizontal position, and optionally time.
-\end{enumerate}
-
-\paragraph{Flight-plane projection.} The launch heading $\chi$ (\S Atmosphere) fixes the
-2D flight plane. A horizontal wind given as ENU components $(u,v)$, or as meteorological
-speed/direction $(W,\psi)$ with $u=-W\sin\psi,\ v=-W\cos\psi$ ($\psi$ = the direction the wind
-blows \emph{from}), projects onto it as
-\begin{gather}
-    w_x = u\sin\chi + v\cos\chi = -W\cos(\psi-\chi) \\
-    w_y = u\cos\chi - v\sin\chi = -W\sin(\psi-\chi)
-\end{gather}
-with $w_x$ the downrange (along-plane) component feeding $\vec{v}_w$ and $w_z = 0$ (no vertical
-wind modelled). $w_y$, the cross-plane component, is computed and discarded: crosswind
-weathercocking needs the out-of-plane freedom only Phase 3 has.
-
-\paragraph{Analytic.} Power-law shear, constant direction, and optional deterministic gusts:
-\begin{gather}
-    W(h) = W_{ref}\left(\max(h,h_{ref})/h_{ref}\right)^{n}, \qquad \psi = \psi_0 \\
-    \Delta W(t) = \sigma\sum_i w_i\sin(\omega_it+\varphi_i)
-\end{gather}
-$h$ is altitude above the local ground, $n\approx1/7$ the shear exponent (the classic open-terrain
-value; smoother terrain is lower, rougher/urban/forested terrain higher, up to $\sim$0.4), valid
-within the atmospheric surface/boundary layer only --- roughly the lowest few hundred meters to
-1--2\,km depending on stability, above which the sounding tiers below should be used instead.
-$\Delta W(t)$ added to $W(h)$ before the projection above (then clamped non-negative, since $W$
-is a speed). The $\{\omega_i,\varphi_i,w_i\}$ are drawn once and frozen -- the adaptive solver
-samples the right-hand side at arbitrary, repeated and rejected times, so a fresh random draw per
-call would make $\Delta W$ a non-function of $t$. $\sigma=0$ disables gusts entirely.
-
-\paragraph{Sounding / field.} The same measured $(u,v)$ profiles and interpolation as
-\S Atmosphere, projected through the formula above; never interpolated as $(W,\psi)$,
-since direction wraps at $360^\circ$.
-
-\paragraph{Vertical wind.} All tiers above return horizontal wind only ($w_z = 0$);
-updrafts/downdrafts are not modelled (\S Current assumptions). Two standard families exist in the
-literature for deriving a vertical component: (1) terrain-slope / mass-continuity orographic lift,
-$w \approx \vec{v}_h\cdot\nabla h_{terrain}$, which needs a terrain elevation model this project
-does not have; (2) thermal/convective updraft parameterizations (as used in the soaring/glider
-literature), which need surface heat-flux or insolation data outside the radiosonde soundings used
-here. Neither fits the current data pipeline (station soundings + a simple analytic profile)
-without adding a new data source, so this stays unimplemented for now.
-\todo{revisit if/when a terrain or NWP vertical-velocity data source is added.}}
