@@ -194,6 +194,59 @@ parallel, despite being physically independent corrections. Exact function signa
 fields/formulas for all three are pinned in `architecture.md` §23.1/§23.2/§23.3 and in the
 architect's dispatch — no developer should need to re-derive anything, only implement and test.
 
+## Phase 2.6 milestone: COMPLETE (2026-09-27) — Steps 38, 39, 40 implemented and committed
+
+All three steps done sequentially (38→39 both touch `sim/forces.py`, done one at a time as
+planned), each independently verified by the orchestrator (diff review + a from-scratch `pytest`
+run) before committing — not taken on the developer's self-report alone.
+
+- **Step 38 — non-parallel gravity** (commit `da77aa6`). `sim/gravity.py` gains
+  `z_hat_g(t,y,p)`, dispatching on new `Params.gravity_direction` ("parallel" default = the fixed
+  `(0,1)` every prior step used; "radial" = `(-sin(x/R_e), cos(x/R_e))`), orthogonal to the
+  existing `gravity_model` magnitude dispatch. `weight_inertial` now multiplies by it instead of
+  the hard-coded `(0,1)`. 128/128 tests (5 new): `"parallel"` bit-for-bit regardless of `R_e`/`x`;
+  `z_hat_g` stays unit-norm; `"radial"`'s translational shift matches the closed form
+  `[-g·sinφ, g·(cosφ-1)]` exactly; `domega/dt` is **exactly** (not approximately) unchanged, since
+  weight passes through the CoG and contributes no moment regardless of direction.
+- **Step 39 — thrust-axis misalignment** (commit `f3089aa`). `thrust_body` gains
+  `Params.thrust_misalign_deg` (default `0.0`), returning `T·(cosδ, sinδ)` instead of the on-axis
+  `(T, 0)`. `sim/dynamics.py` needed **zero functional change** — its existing generic
+  cross-product moment machinery already produces `(l1+l2)·T·sinδ`, independently re-verified
+  numerically before trusting the architect's claim. Fixed manufacturing-grade misalignment only,
+  not a commanded/control-law gimbal (that stays backlog). 134/134 tests (6 new): bit-for-bit at
+  `δ=0`; moment shift matches the closed form exactly; shift is exactly zero post-burnout; the
+  shift is identical at two different angles of attack (confirming a constant `δ` shifts the trim
+  point without touching the static-stability slope `∂θ̈/∂α`); a statically stable airframe trims
+  toward the sign of `δ` instead of diverging, and reversing `δ`'s sign mirrors it.
+- **Step 40 — humid-air density** (commit `069abce`), the sounding-CSV-format extension approved
+  by the user beforehand. New optional `Td_K` (dewpoint, kelvin) column, absent = all-NaN = dry
+  fallback. `sim/soundings.py` carries `Td` through `Sounding`/`SoundingState`/`ResampledCase` and
+  tier-3 IDW/RBF combination — the RBF stacking arithmetic was rewritten explicitly (4→5 blocks)
+  specifically to make an off-by-one slicing mistake visible at the diff level, and a dedicated
+  test exercises exactly that. `sim/atmosphere.py` gains `sat_vapor_pressure`/
+  `virtual_temperature`/`moist_density` (Magnus formula; `R_d/R_v` computed, never hard-coded);
+  applied in the sounding/field tiers only when `Params.humid_air` is set and dewpoint is finite —
+  ISA stays dry-air by definition, untouched. 150/150 tests (16 new). One correction the developer
+  found and flagged rather than silently accepting: the dispatch prompt's reference value
+  `sat_vapor_pressure(20°C) = 2333.4 Pa` was a typo against the stated formula — independently
+  re-derived to `2333.4406 Pa` (50-digit precision) and pinned to the verified value instead.
+
+**Also landed in the same block, doc/derivation-only** (commit `17da67b`, before the three code
+steps): `models.tex` reordered to **Gravity → Thrust → Mass → Aerodynamics → Atmosphere → other**
+(a deliberate, user-requested reversal of the report-finalization pass's dependency-first order —
+reintroduces some forward-references, flagged transparently rather than "corrected" back); and
+"Analytical analysis" promoted out of `rocket-2d.tex` into its own `latex/sections/analysis.tex`
+(label `sec:analysis` preserved), filling the long-standing `\todo{actual section with thrust and
+no-thrust stability}` with an organized derivation across no-thrust / aligned / misaligned-thrust
+configurations.
+
+**Not verified:** still no LaTeX toolchain in this environment — the doc pass was structurally
+checked only (51 labels, 191 cross-references, 0 dangling/duplicate). **Compile locally before
+treating the report as final**, same standing caveat as every prior doc pass this project has had.
+
+**Test suite: 150/150 passing**, up from 123 at the start of this block (5 + 6 + 16 new, one step
+at a time, each independently re-run by the orchestrator before its commit).
+
 ## Gravity models complete (all 4 main.tex variants)
 Step 10-11 finished all four gravity variants (constant/linear/radial/wgs84). Next steps move to
 atmosphere.

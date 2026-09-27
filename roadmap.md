@@ -13,7 +13,7 @@ committed**. Phase 2.5 (Steps 33-37) is a documentation-and-review follow-up: dr
 gravity model, fix the aero force to stay in body axis, add variable mass (CoG/I travel) and a
 Coriolis/centrifugal correction — **DONE and committed**. Phase 2.6 (Steps 38-40) promotes three
 deferred items to real physics: non-parallel gravity, a fixed thrust-axis misalignment, and
-humid-air density — **specified, not yet implemented, still 2D**. Phase 3 (Steps 28-32,
+humid-air density — **DONE and committed, still 2D**. Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
 **Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
@@ -526,7 +526,7 @@ Same pass also restructured the LaTeX: `latex/sections/models.tex` is now ordere
 §Analytical analysis moved out of `rocket-2d.tex` into its own `latex/sections/analysis.tex`
 (label `sec:analysis` unchanged). Documentation only; no code implication.
 
-### Step 38 — Non-parallel gravity: direction varying with downrange distance
+### Step 38 — Non-parallel gravity: direction varying with downrange distance — done, commit `da77aa6`
 - **Files:** `sim/gravity.py`, `sim/forces.py`, `sim/params.py`, `tests/test_gravity.py`,
   `tests/test_forces.py`
 - **Spec:** `latex/sections/models.tex` §Gravity > Direction (the construction, `φ = x/R_e`, and
@@ -553,7 +553,7 @@ Same pass also restructured the LaTeX: `latex/sections/models.tex` is now ordere
   points). A level, downrange state gets a *retarding* downrange acceleration.
 - **Commit:** "Non-parallel gravity: local vertical rotates with downrange distance"
 
-### Step 39 — Thrust-axis misalignment (fixed nozzle cant)
+### Step 39 — Thrust-axis misalignment (fixed nozzle cant) — done, commit `f3089aa`
 - **Files:** `sim/forces.py`, `sim/params.py`, `tests/test_forces.py`, `tests/test_dynamics.py`
 - **Spec:** `latex/sections/rocket-2d.tex` §Forces and moments (eq. `thrust_vector`);
   `latex/sections/analysis.tex` §Moment, §With thrust misaligned (eqs. `moment_full`,
@@ -575,7 +575,7 @@ Same pass also restructured the LaTeX: `latex/sections/models.tex` is now ordere
   reversing `δ` mirrors it.
 - **Commit:** "Thrust-axis misalignment: fixed nozzle cant and its pitching moment"
 
-### Step 40 — Humid-air density (virtual temperature) in the measured tiers
+### Step 40 — Humid-air density (virtual temperature) in the measured tiers — done, commit `069abce`
 - **Files:** `sim/soundings.py`, `sim/atmosphere.py`, `sim/params.py`, `tests/test_soundings.py`,
   `tests/test_atmosphere.py`, optionally one file under `data/soundings/`
 - **Spec:** `latex/sections/models.tex` §Atmosphere > Density (eqs. `virtual_temperature`,
