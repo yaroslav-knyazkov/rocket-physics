@@ -20,6 +20,7 @@ sounding (station LKPR).
 
 import dataclasses
 import math
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,6 +31,10 @@ from sim.integrate import run_sim
 from sim.params import Params
 from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
 from sim.state import State, X, Z, VX, VZ, THETA, OMEGA
+
+# Generated artifacts (plots, trajectory.csv) go under output/, kept out of
+# the repo root -- created on demand, gitignored wholesale (.gitignore).
+_OUTPUT_DIR = Path(__file__).parent / "output"
 
 
 def _flight_summary(result, p) -> dict:
@@ -157,20 +162,22 @@ def main() -> None:
     print(f"Impact time:         {impact_time:.4f} s")
     print(f"Downrange at impact: {downrange_impact:.4f} m")
 
+    _OUTPUT_DIR.mkdir(exist_ok=True)
+
     fig_traj = plot_trajectory(result)
     fig_hist = plot_time_histories(result)
     # Always save to files -- this may run in a non-interactive/headless
     # context (e.g. no display), where plt.show() would either do nothing
     # or raise. Saving PNGs guarantees usable artifacts either way.
-    fig_traj.savefig("trajectory.png")
-    fig_hist.savefig("time_histories.png")
-    print("Saved plots to trajectory.png and time_histories.png")
+    fig_traj.savefig(_OUTPUT_DIR / "trajectory.png")
+    fig_hist.savefig(_OUTPUT_DIR / "time_histories.png")
+    print(f"Saved plots to {_OUTPUT_DIR / 'trajectory.png'} and {_OUTPUT_DIR / 'time_histories.png'}")
 
     # Optional one-line CSV dump (architecture.md SS7 "Persistence") for
     # diffing runs -- time, x, z, theta, omega on the same fine grid used
     # above for the summary stats.
     np.savetxt(
-        "trajectory.csv",
+        _OUTPUT_DIR / "trajectory.csv",
         np.column_stack(
             [t_grid, y_grid[X], y_grid[Z], y_grid[THETA], y_grid[OMEGA]]
         ),
@@ -178,7 +185,7 @@ def main() -> None:
         header="t,x,z,theta,omega",
         comments="",
     )
-    print("Saved trajectory.csv")
+    print(f"Saved {_OUTPUT_DIR / 'trajectory.csv'}")
 
     # ------------------------------------------------------------------
     # Step 27: model comparison sweeps (architecture.md SS12). Additional
@@ -199,8 +206,8 @@ def main() -> None:
         {v: d["result"] for v, d in gravity_sweep.items()},
         title="Gravity model comparison",
     )
-    fig_gravity.savefig("gravity_sweep.png")
-    print("Saved gravity_sweep.png")
+    fig_gravity.savefig(_OUTPUT_DIR / "gravity_sweep.png")
+    print(f"Saved {_OUTPUT_DIR / 'gravity_sweep.png'}")
 
     # (b) ISA vs. a real sounding (station LKPR, data/soundings/example,
     # Step 17), where roadmap.md Step 27 expects the comparison to "show
@@ -229,8 +236,8 @@ def main() -> None:
         {v: d["result"] for v, d in atmo_sweep.items()},
         title="Atmosphere model comparison (LKPR)",
     )
-    fig_atmo.savefig("atmosphere_sweep.png")
-    print("Saved atmosphere_sweep.png")
+    fig_atmo.savefig(_OUTPUT_DIR / "atmosphere_sweep.png")
+    print(f"Saved {_OUTPUT_DIR / 'atmosphere_sweep.png'}")
 
     try:
         plt.show()
