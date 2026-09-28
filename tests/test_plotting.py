@@ -19,12 +19,17 @@ matplotlib.use("Agg")  # headless: this must run before pyplot is imported
 import matplotlib.figure
 import numpy as np
 
-from run import sweep
-from sim.gravity import g
+from run import _flight_summary, sweep
+from sim.gravity import altitude_agl, g
 from sim.integrate import Result, run_sim
 from sim.params import Params
-from sim.plotting import plot_trajectory_overlay
-from sim.state import State
+from sim.plotting import (
+    _dense_time_grid,
+    plot_time_histories,
+    plot_trajectory,
+    plot_trajectory_overlay,
+)
+from sim.state import State, X, Z
 
 # Same base scenario as run.py's own default (motor_curve="placeholder.csv",
 # aero_model="constant" -- Phase 1 style constant axial drag), so the
@@ -139,3 +144,139 @@ def test_plot_trajectory_overlay_returns_valid_figure_for_two_variants():
     assert len(fig.axes) == 2
     for ax in fig.axes:
         assert len(ax.lines) == 2  # one line per variant
+
+
+# ---------------------------------------------------------------------
+# Step 45 (Phase 2.8; architecture.md SS25.5): the reported/plotted
+# altitude becomes `gravity.altitude_agl(y, r.params)`, bit-for-bit
+# unchanged under the default `gravity_direction="parallel"`.
+# ---------------------------------------------------------------------
+
+# A tilted (x != 0 throughout) scenario, reused across the checks below --
+# the vertical run.py default (x == 0 always) cannot distinguish a
+# converted from an unconverted call site (architecture.md SS25.5).
+_TILT_S0 = State(x=0.0, z=0.0, vx=50.0, vz=0.0, theta=math.radians(80.0), omega=0.0)
+_TILT_AERO_KW = dict(
+    aero_model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5,
+    C_N_alpha=2.0, C_m_alpha=-0.5,
+)
+
+
+def test_plotted_altitude_bit_for_bit_under_parallel():
+    """architecture.md SS25.6/SS25.9: under the default
+    `gravity_direction="parallel"`, `plot_trajectory`/`plot_time_histories`/
+    `plot_trajectory_overlay`'s altitude series are bitwise what they were
+    pre-Step-45 -- pulled off the returned figure (`ax.lines[i].get_ydata()`)
+    and compared against `-y[Z]`-style reference arrays built the old way,
+    on the same dense grid `_dense_time_grid` produces.
+    """
+    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=50.0, **_TILT_AERO_KW)
+    r = run_sim(p, _TILT_S0)
+
+    t = _dense_time_grid(r)
+    y = r.raw.sol(t)
+    expected = -y[Z]  # the pre-Step-45 formula, on the same operand
+
+    fig_traj = plot_trajectory(r)
+    assert np.array_equal(fig_traj.axes[0].lines[0].get_ydata(), expected)
+
+    fig_hist = plot_time_histories(r)
+    assert np.array_equal(fig_hist.axes[0].lines[0].get_ydata(), expected)
+
+    fig_overlay = plot_trajectory_overlay({"only": r})
+    assert np.array_equal(fig_overlay.axes[0].lines[0].get_ydata(), expected)
+    assert np.array_equal(fig_overlay.axes[1].lines[0].get_ydata(), expected)
+
+
+def test_plot_trajectory_overlay_reads_each_variants_own_params():
+    """architecture.md SS25.9: `Result.params` is read *per line*, not
+    once -- two `Result`s built from the *same* underlying trajectory
+    (t/y/events/raw identical) but deliberately different `params`
+    (`gravity_direction`) must draw two different altitude series, and
+    each must match `altitude_agl` computed with its own `params`
+    directly -- isolating the "params read per line" wiring from any
+    physics difference between the two runs.
+    """
+    p_par = dataclasses.replace(_P, gravity_direction="parallel")
+    r = run_sim(p_par, _TILT_S0)
+
+    p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    r_relabelled = Result(t=r.t, y=r.y, events=r.events, raw=r.raw, params=p_rad)
+
+    fig = plot_trajectory_overlay({"parallel": r, "radial": r_relabelled})
+    y_par = fig.axes[1].lines[0].get_ydata()
+    y_rad = fig.axes[1].lines[1].get_ydata()
+    t = fig.axes[1].lines[0].get_xdata()
+
+    assert not np.array_equal(y_par, y_rad)
+
+    y_hist = r.raw.sol(t)
+    assert np.array_equal(y_par, altitude_agl(y_hist, p_par))
+    assert np.array_equal(y_rad, altitude_agl(y_hist, p_rad))
+
+
+def test_flight_summary_apogee_altitude_equals_helper_directly():
+    """architecture.md SS25.9: `_flight_summary(result, p)["apogee_altitude"]`
+    equals `altitude_agl(result.raw.sol(t_apogee), p)` exactly, for all
+    three direction models, on a tilted (x != 0) run."""
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        **_TILT_AERO_KW,
+    )
+    for direction in ("parallel", "radial", "elliptical"):
+        p = Params(**common, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
+        result = run_sim(p, _TILT_S0)
+        summary = _flight_summary(result, p)
+        t_apogee = result.events["apogee"]
+        expected = altitude_agl(result.raw.sol(t_apogee), p)
+        assert summary["apogee_altitude"] == expected
+
+
+def test_apogee_altitude_geometric_magnitude_for_tilted_radial_run():
+    """architecture.md SS25.9's "Geometric magnitude" check, and the
+    separate assertion `main()`'s inline apogee-altitude copy needs
+    (architecture.md SS25.5): `main()` does not call `_flight_summary`, so
+    its own expression -- `altitude_agl(result.raw.sol(apogee_time), p)`,
+    mirrored verbatim here (`main()` itself writes plot/CSV files and
+    prints, so it is not structured for isolated invocation) -- is
+    exercised on a tilted "radial" run, where it differs from the flat
+    value, unlike the committed vertical `run.py` scenario where the two
+    coincide and a missed conversion would be invisible.
+
+    For the run's own apogee state `y_a`, `apogee_altitude - (-y_a[Z])`
+    equals the closed form `x*sin(phi) - z*cos(phi) - R*(1-cos(phi)) + z`
+    exactly, is strictly positive, and is within a few percent of
+    `x_a**2 / (2*R_e)` (the small-angle approximation).
+    """
+    R_e = 6371000.0
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        **_TILT_AERO_KW, gravity_direction="radial", R_e=R_e,
+    )
+    result = run_sim(p, _TILT_S0)
+
+    apogee_time = result.events["apogee"]
+    y_a = result.raw.sol(apogee_time)
+    apogee_altitude = altitude_agl(y_a, p)  # main()'s own expression
+
+    x_a, z_a = y_a[X], y_a[Z]
+    phi = x_a / R_e
+    closed_form = x_a * math.sin(phi) - z_a * math.cos(phi) - R_e * (1.0 - math.cos(phi)) + z_a
+    diff = apogee_altitude - (-z_a)
+    approx = x_a ** 2 / (2.0 * R_e)
+
+    assert math.isclose(diff, closed_form, rel_tol=1e-9)
+    assert diff > 0.0
+    assert math.isclose(diff, approx, rel_tol=0.05)
+
+
+def test_reported_altitude_is_agl_not_msl_with_h0_m():
+    """architecture.md SS25.9's guard: with `h0_m=380.0`, the reported/
+    plotted altitude at `z=0` (the pad, `t=0`) is `0.0`, not `380.0` --
+    the check against `altitude_msl` being wired in by mistake, which
+    would silently raise every LKPR-sweep curve by 380 m."""
+    p = dataclasses.replace(_P, h0_m=380.0)
+    result = run_sim(p, _S0)
+
+    altitude = plot_trajectory(result).axes[0].lines[0].get_ydata()
+    assert math.isclose(altitude[0], 0.0, abs_tol=1e-9)

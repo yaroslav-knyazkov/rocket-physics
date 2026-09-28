@@ -12,6 +12,13 @@ Step 21: `_wind_inertial` now delegates to `sim.wind.wind_inertial`
 (architecture.md SS16) instead of the inline zeros stub. Its default,
 `p.wind_model == "none"`, still returns exactly zero, so every result
 computed before this step is unchanged.
+
+Step 45 (Phase 2.8): the altitude conventions (`altitude_agl`/`altitude_msl`)
+that used to live here have moved to `sim/gravity.py`, beside the
+surface-curvature construction (`curvature_radius`/`ground_depth`) they are
+now derived from (architecture.md SS25.3) -- `gravity.altitude_agl(y, p)` is
+`-gravity.ground_depth(0.0, y, p)`. `flow_state`/`Flow`/`_wind_inertial`
+here are untouched; this module never called either helper.
 """
 
 from typing import NamedTuple
@@ -19,7 +26,7 @@ from typing import NamedTuple
 import numpy as np
 
 from sim.frames import to_body
-from sim.state import THETA, VX, VZ, Z
+from sim.state import THETA, VX, VZ
 from sim.atmosphere import AirState, air_state
 
 
@@ -38,11 +45,12 @@ def _wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
     """Wind velocity in the inertial frame, (w_x, w_z) -- delegates to
     sim.wind.wind_inertial (architecture.md SS16, roadmap.md Step 21).
 
-    Imported locally, not at module level, to avoid a circular import:
-    sim.wind imports sim.flow.altitude_agl (its power-law shear profile is
-    referenced to altitude AGL), so sim.flow cannot import sim.wind at
-    module scope -- same convention as sim.atmosphere's `_sounding_air_state`/
-    `_field_air_state` importing sim.soundings locally for the same reason.
+    Imported locally, not at module level, kept as originally structured at
+    Step 21 (the original circular-import reason -- `sim.wind` importing
+    `sim.flow.altitude_agl` -- no longer applies after Step 45 moved that
+    helper to `sim.gravity`, architecture.md SS25.3, but this function
+    keeps the local import unchanged: touching `flow.py`'s import structure
+    is out of Step 45's scope).
 
     Kept as a function (not inlined at the call site) so flow_state itself
     never changes when the wind model changes.
@@ -78,25 +86,3 @@ def flow_state(t: float, y: np.ndarray, p) -> Flow:
 
     return Flow(V=V, alpha=alpha, u_hat=u_hat, n_hat=n_hat,
                 air=air, q=q, M=M, Re=Re)
-
-
-def altitude_agl(y: np.ndarray) -> float:
-    """Height above the launch point, h = -z (main.tex SSGravity; z is
-    down-positive, zero at the launch point -- architecture.md SS15
-    "Altitude conventions").
-    """
-    return -y[Z]
-
-
-def altitude_msl(y: np.ndarray, p) -> float:
-    """Height above mean sea level, h_msl = p.h0_m - z.
-
-    `p.h0_m` (the launch site's MSL elevation) is not yet a Params field --
-    it arrives with the site block in Step 11 (architecture.md SS18).
-    `getattr(..., 0.0)` mirrors that field's eventual default, so this
-    function is already correct both before and after Step 11 lands, and
-    reduces to `altitude_agl` exactly while `h0_m` is absent/zero
-    (architecture.md SS15: "p.h0_m defaults to 0.0, which makes the two
-    identical").
-    """
-    return altitude_agl(y) + getattr(p, "h0_m", 0.0)

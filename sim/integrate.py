@@ -26,6 +26,14 @@ specifically so the existing sign convention still applies (see that
 function's own docstring for why a literal `h_true` substitution would be
 wrong). `_apogee_event`/`_burnout_event` are untouched -- this is an
 impact/ground-event-only change (architecture.md SS24.2's scope note).
+
+Step 45 (Phase 2.8; architecture.md SS25.5): `Result` gains a fifth field,
+`params`, set in both `Result(...)` constructions below -- the `Params`
+that produced the run, so `sim/plotting.py` can read `r.params` for the
+curved altitude without a `p` argument on every plotting function (one
+`Params` per `Result`, right even for a sweep's `dict[str, Result]`). No
+event function is touched by this: `_ground_event`/`_apogee_event`/
+`_burnout_event` are exactly as Step 42/14 left them.
 """
 
 from typing import Any, NamedTuple, Optional
@@ -43,6 +51,7 @@ class Result(NamedTuple):
     y: np.ndarray                     # state history, shape (6, N)
     events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
+    params: Any                       # the Params that produced this run -- Step 45, architecture.md SS25.5
 
 
 def _ground_event(t, y, p):
@@ -62,6 +71,21 @@ _ground_event.direction = 1  # z increasing through 0 == falling (z is down-posi
 
 
 def _apogee_event(t, y, p):
+    """Apogee event: `y[VZ]` crosses from negative (rising) to positive
+    (falling), in the launch-frame vertical velocity -- unchanged by
+    Step 45 (Phase 2.8; architecture.md SS25.5/SS25.8), deliberately.
+    Apogee still means "the top of the trajectory in the launch frame";
+    what Step 45 changes is only the *altitude value* reported at that
+    instant (`run.py`, now `gravity.altitude_agl`), never *which instant*
+    is apogee. On a curved (`gravity_direction != "parallel"`) run the
+    reported curved altitude at this event's time is consequently *not*
+    the maximum of the curved altitude over the flight
+    (`dh_true/dt = +0.47 m/s` at `vx=300 m/s, x=10 km` where `vz=0`,
+    architecture.md SS24.2/SS25.5) -- a documented property of reporting a
+    surface-referenced altitude at a launch-frame apogee, not a defect.
+    Redefining apogee as `max h_true` is a separate modelling decision with
+    its own tests (architecture.md SS25.8) -- do not "finish the job" here.
+    """
     # Same gotcha as the ground event: vz is exactly 0 at t=0 (launch from
     # rest). Guard the first 0.1 s so an under-thrust scenario cannot be
     # mistaken for an instantaneous apogee.
@@ -229,6 +253,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
         y=y_arr,
         events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
         raw=_RK4Raw(sol=_LinearInterpolant(t_arr, y_arr)),
+        params=p,
     )
 
 
@@ -276,4 +301,5 @@ def run_sim(
         y=sol.y,
         events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
         raw=sol,
+        params=p,
     )

@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from sim.atmosphere import (
+    _G_ISA,
     _R_D,
     _R_ISA,
     air_state,
@@ -22,6 +23,7 @@ from sim.atmosphere import (
     sat_vapor_pressure,
     virtual_temperature,
 )
+from sim.gravity import altitude_msl
 from sim.integrate import run_sim
 from sim.params import Params
 from sim.soundings import interp_altitude as soundings_interp_altitude
@@ -40,6 +42,13 @@ def _y_at_altitude(h: float) -> np.ndarray:
     other components zero -- only altitude matters to atmosphere.air_state.
     """
     s = State(x=0.0, z=-h, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    return np.array(s)
+
+
+def _y_at(x: float, z: float) -> np.ndarray:
+    """State vector at (x, z), all other components zero -- Step 45's
+    curvature-aware altitude tests need x != 0 as well as z."""
+    s = State(x=x, z=z, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
     return np.array(s)
 
 
@@ -142,6 +151,66 @@ def test_isa_ignores_gravity_model():
         dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.5),
     )
     assert air_const == air_wgs84
+
+
+# ----------------------------------------------------------------------
+# Step 45 (Phase 2.8; architecture.md SS25.4/SS25.9): h_msl now goes
+# through sim.gravity.altitude_msl instead of the inlined -y[Z] + h0_m,
+# curvature-aware once p.gravity_direction is non-"parallel".
+# ----------------------------------------------------------------------
+
+
+def test_isa_ignores_gravity_model_at_nonzero_downrange_under_curved_direction():
+    """The flip side of `test_isa_ignores_gravity_model` above, newly load-
+    bearing since Step 45 (architecture.md SS25.9): atmosphere.py now
+    imports sim.gravity for the surface-geometry seam, so SS14's "must not
+    call gravity.g()" is no longer guaranteed by the absence of an import
+    at all -- this test guarantees it structurally. Sweeping
+    `p.gravity_model` at a curved `gravity_direction` and x != 0 (so
+    `altitude_msl` is actually doing curvature arithmetic) must still leave
+    every `air_state` field exactly unchanged.
+    """
+    y = _y_at(10_000.0, -1000.0)
+    common = dict(gravity_direction="radial", lat0_deg=50.0, R_e=6371000.0)
+    air_const = air_state(0.0, y, dataclasses.replace(_P, gravity_model="constant", **common))
+    air_radial = air_state(0.0, y, dataclasses.replace(_P, gravity_model="radial", **common))
+    air_wgs84 = air_state(0.0, y, dataclasses.replace(_P, gravity_model="wgs84", **common))
+    assert air_const == air_radial == air_wgs84
+
+
+def test_isa_constants_are_still_the_isa_standards_own_values():
+    """architecture.md SS25.2/SS25.8: `_R_ISA`/`_G_ISA` are constants of the
+    ISA standard's own definition and must not become curvature-aware --
+    only the `h_msl` fed into the ISA formula changes with Step 45."""
+    assert _R_ISA == 6356766.0
+    assert _G_ISA == 9.80665
+
+
+def test_isa_rho_pinned_parallel_vs_radial():
+    """architecture.md SS25.7's pinned table: at (x=10km, z=-1000, R_e=
+    6371000), ISA rho moves from 1.111659912 ("parallel") to 1.110803679
+    ("radial") -- a -7.7023e-4 relative change, the air reading thinner at
+    the true (curved) altitude than the flat reading said."""
+    y = _y_at(10_000.0, -1000.0)
+    p_par = dataclasses.replace(_P, gravity_direction="parallel")
+    p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+
+    rho_par = air_state(0.0, y, p_par).rho
+    rho_rad = air_state(0.0, y, p_rad).rho
+
+    assert math.isclose(rho_par, 1.111659912, rel_tol=1e-8)
+    assert math.isclose(rho_rad, 1.110803679, rel_tol=1e-8)
+    assert math.isclose((rho_rad - rho_par) / rho_par, -7.7023e-4, rel_tol=1e-2)
+
+
+def test_isa_rho_thermodynamically_consistent_under_curved_altitude():
+    """rho == p/(R_d*T) must still hold exactly under a curved
+    `gravity_direction`, not just under the flat default (architecture.md
+    SS25.9)."""
+    y = _y_at(10_000.0, -1000.0)
+    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    air = air_state(0.0, y, p)
+    assert math.isclose(air.rho, air.p / (_R_D * air.T), rel_tol=1e-12)
 
 
 def test_h0_m_shifts_altitude_to_msl():
@@ -333,6 +402,30 @@ def test_sounding_real_example_density_lower_than_isa_at_station_elevation():
 
     assert air_snd.T > air_isa.T
     assert air_snd.rho < air_isa.rho
+
+
+def test_sounding_tier2_reads_the_same_h_msl_as_soundings_interp_altitude():
+    """architecture.md SS25.9's tier-2 consistency check: at a curved,
+    non-zero-downrange state, `_sounding_air_state`'s `h_msl` lookup is
+    exactly `gravity.altitude_msl(y, p)`, and its output matches
+    `soundings.interp_altitude` queried at that same `h_msl` directly --
+    the check that the atmosphere tier-2 call site was actually converted,
+    not merely reproducing ISA-like values by coincidence.
+    """
+    p = dataclasses.replace(
+        _P, atmosphere_model="sounding", sounding_case="example",
+        h0_m=380.0, gravity_direction="radial", R_e=6371000.0,
+    )
+    y = _y_at(10_000.0, -500.0)
+
+    h_msl = altitude_msl(y, p)
+    snd = load_case(p.sounding_case)[0]
+    want = soundings_interp_altitude(snd, h_msl)
+
+    got = air_state(0.0, y, p)
+
+    assert math.isclose(got.p, want.p, rel_tol=1e-12)
+    assert math.isclose(got.T, want.T, rel_tol=1e-12)
 
 
 def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():

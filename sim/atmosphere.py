@@ -6,12 +6,20 @@ implemented at Step 12. Tier 2, "sounding" (one station's measured profile,
 interpolated in altitude via sim/soundings.py), is added at Step 18. Tier 3,
 "field" (N stations, spatially interpolated, SS17), is added at Step 20,
 reusing Step 19's horizontal-combination machinery in sim/soundings.py.
+
+Step 45 (Phase 2.8; models.tex SSGravity > Direction, eq. `h_true`;
+architecture.md SS25): the three tiers' `h_msl` lookup now goes through
+`sim.gravity.altitude_msl(y, p)` instead of the inlined flat
+`-y[Z] + p.h0_m` -- curvature-aware once `p.gravity_direction` is non-
+"parallel", bit-for-bit unchanged under the default. This module still must
+NOT call `gravity.g()` (architecture.md SS14) -- the new import exists
+solely for the surface-geometry seam, not the gravity magnitude.
 """
 
 from typing import NamedTuple
 
 import numpy as np
-from sim.state import Z
+from sim.gravity import altitude_msl
 
 
 class AirState(NamedTuple):
@@ -69,8 +77,9 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     whatever gravity model the scenario selected -- so this must NOT call
     gravity.g() (architecture.md SS14, roadmap.md Step 12 "Careful").
     """
-    # Compute h_msl = -z + h0_m (z is down-positive)
-    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    # h_msl via gravity.altitude_msl (Step 45): curvature-aware, bit-for-bit
+    # -y[Z] + h0_m under the default "parallel" gravity_direction.
+    h_msl = altitude_msl(y, p)
     H = _R_ISA * h_msl / (_R_ISA + h_msl)
 
     H_b, L, T_b, p_b = _LAYERS[0]
@@ -141,8 +150,8 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     silently ignored, same as tier 3 reproducing tier 2 exactly with a
     single station (roadmap.md Step 20's check).
 
-    Same `h_msl` convention as `_isa_air_state` above (h_msl = -y[Z] +
-    p.h0_m), then `sim.soundings.interp_altitude` does the actual lookup
+    Same `h_msl` convention as `_isa_air_state` above (`altitude_msl(y, p)`,
+    Step 45), then `sim.soundings.interp_altitude` does the actual lookup
     (Step 17); its `p`/`T`/`rho`/`a`/`mu` fields are repackaged into
     `AirState` as-is -- `u`/`v` (wind) are dropped, that is wind.py's
     concern (Step 22), not atmosphere's.
@@ -159,7 +168,7 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     # and layer table used in its above-top extrapolation).
     from sim import soundings
 
-    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    h_msl = altitude_msl(y, p)
     snd = soundings.load_case(p.sounding_case)[0]
     state = soundings.interp_altitude(snd, h_msl)
 
@@ -177,7 +186,7 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     SS17; roadmap.md Step 20).
 
     Same `h_msl` convention as `_isa_air_state`/`_sounding_air_state` above
-    (h_msl = -y[Z] + p.h0_m). Delegates the actual work to
+    (`altitude_msl(y, p)`, Step 45). Delegates the actual work to
     `sim.soundings.interp_field` (Step 19), which combines every station
     in `p.sounding_case` horizontally at the rocket's current ground
     position -- `(x*sin(A), x*cos(A))` with `x = y[X]` and
@@ -204,7 +213,7 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     # `_sounding_air_state` above.
     from sim import soundings
 
-    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    h_msl = altitude_msl(y, p)
     state = soundings.interp_field(p.sounding_case, y, h_msl, p)
 
     rho = state.rho

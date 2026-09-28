@@ -1,16 +1,21 @@
 """Result -> figures (architecture.md SS5, SS6).
 
-The only module allowed to know altitude = -z (architecture.md SS2). Every
-other module works in z-down inertial coordinates; this one flips the sign
-purely for human-readable output. Likewise, degrees only ever appear here
-(and in run.py inputs) -- theta/omega stay in radians everywhere else.
+Step 45 (Phase 2.8; architecture.md SS25.5): the plotted altitude is
+`gravity.altitude_agl(y, r.params)`, not a re-typed `-y[Z]` -- this module
+now *asks* `sim.gravity` for the altitude instead of knowing the flat
+convention itself; the `-z` knowledge moved with the helper
+(architecture.md SS25.3). Under the default `gravity_direction =
+"parallel"` this is bitwise `-y[Z]`, unchanged from every prior step.
+Degrees still only ever appear here (and in run.py inputs) -- theta/omega
+stay in radians everywhere else.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
+from sim.gravity import altitude_agl
 from sim.integrate import Result
-from sim.state import X, Z, VX, VZ, THETA, OMEGA
+from sim.state import X, VX, VZ, THETA, OMEGA
 
 
 def _dense_time_grid(r: Result, n: int = 500) -> np.ndarray:
@@ -31,12 +36,12 @@ def _dense_time_grid(r: Result, n: int = 500) -> np.ndarray:
 
 
 def plot_trajectory(r: Result):
-    """Downrange x vs altitude (-z), i.e. the flight path (Step 7)."""
+    """Downrange x vs altitude AGL, i.e. the flight path (Step 7)."""
     t = _dense_time_grid(r)
     y = r.raw.sol(t)
 
     downrange = y[X]
-    altitude = -y[Z]
+    altitude = altitude_agl(y, r.params)
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(downrange, altitude)
@@ -75,7 +80,7 @@ def plot_trajectory_overlay(results: "dict[str, Result]", title: str = "Model co
         t = _dense_time_grid(r)
         y = r.raw.sol(t)
         downrange = y[X]
-        altitude = -y[Z]
+        altitude = altitude_agl(y, r.params)
 
         ax_traj.plot(downrange, altitude, label=str(label))
         ax_alt.plot(t, altitude, label=str(label))
@@ -106,7 +111,7 @@ def plot_time_histories(r: Result):
     t = _dense_time_grid(r)
     y = r.raw.sol(t)
 
-    altitude = -y[Z]
+    altitude = altitude_agl(y, r.params)
     speed = np.hypot(y[VX], y[VZ])
     theta_deg = np.degrees(y[THETA])
     omega_deg = np.degrees(y[OMEGA])

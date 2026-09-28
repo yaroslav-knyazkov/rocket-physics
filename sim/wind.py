@@ -36,14 +36,24 @@ and cached per seed (`_gust_realization`, `@lru_cache`, same convention as
 `thrust_curve._load_motor_curve`/`soundings.load_case`). `gust_sigma = 0.0`
 (the default) skips the realization/RNG entirely and returns exactly
 `0.0`, so gusts are off, not merely small.
+
+Step 45 (Phase 2.8; models.tex SSGravity > Direction, eq. `h_true`;
+architecture.md SS25): tier 1's `h` and tiers 2/3's `h_msl` now go through
+`sim.gravity.altitude_agl`/`altitude_msl(y, p)` instead of the flat
+`altitude_agl(y)` (tier 1) / inlined `-y[Z] + p.h0_m` (tiers 2/3) --
+curvature-aware once `p.gravity_direction` is non-"parallel", bit-for-bit
+unchanged under the default. Tiers 2/3 curve for the same reason
+`sim/atmosphere.py`'s tiers 2/3 do: both read the *same* sounding file at
+the *same* level, and re-referencing one to a curved altitude while the
+other stayed flat would sample two different rows of one profile for one
+state.
 """
 
 import functools
 
 import numpy as np
 
-from sim.flow import altitude_agl
-from sim.state import Z
+from sim.gravity import altitude_agl, altitude_msl
 
 
 def _no_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
@@ -119,7 +129,7 @@ def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     only ever engages when `gust_sigma` is comparable to or larger than
     `W_ref` itself; for `gust_sigma == 0.0` it is a no-op.
     """
-    h = altitude_agl(y)
+    h = altitude_agl(y, p)
     h_ref = p.wind_ref_h_m
     W = p.wind_ref_ms * (max(h, h_ref) / h_ref) ** p.wind_shear_exp
     W = max(W + _gust(t, p), 0.0)
@@ -140,8 +150,8 @@ def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     established for Steps 18/20: a case folder with more than one file is
     a tier-3 ("field") concern, arriving unchanged at Step 23.
 
-    Same `h_msl` convention as the atmosphere tiers, h_msl = -y[Z] +
-    p.h0_m -- *not* `altitude_agl` like tier 1's power-law shear profile
+    Same `h_msl` convention as the atmosphere tiers, `altitude_msl(y, p)`
+    (Step 45) -- *not* `altitude_agl` like tier 1's power-law shear profile
     above. A measured sounding is a set of altitude-MSL rows tied to a
     real station; re-referencing it to the launch site's AGL altitude
     would shift every row by `p.h0_m` for no physical reason, exactly the
@@ -192,7 +202,7 @@ def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     # sim.soundings imports sim.atmosphere for its shared ISA constants.
     from sim import soundings
 
-    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    h_msl = altitude_msl(y, p)
     snd = soundings.load_case(p.sounding_case)[0]
     state = soundings.interp_altitude(snd, h_msl)
 
@@ -206,8 +216,8 @@ def _field_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     """Tier 3: N stations, spatially interpolated (architecture.md SS16,
     SS17; roadmap.md Step 23).
 
-    Same `h_msl` convention as `_sounding_wind` above (h_msl = -y[Z] +
-    p.h0_m, not `altitude_agl`). Delegates the horizontal combination
+    Same `h_msl` convention as `_sounding_wind` above (`altitude_msl(y, p)`,
+    not `altitude_agl`). Delegates the horizontal combination
     *and* altitude interpolation to `sim.soundings.interp_field` (Step
     19) -- the same call `sim.atmosphere._field_air_state` makes for
     Step 20 -- then reuses `_sounding_wind`'s own ENU -> flight-plane
@@ -220,7 +230,7 @@ def _field_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     # `_sounding_wind` above.
     from sim import soundings
 
-    h_msl = -y[Z] + getattr(p, "h0_m", 0.0)
+    h_msl = altitude_msl(y, p)
     state = soundings.interp_field(p.sounding_case, y, h_msl, p)
 
     A = np.radians(p.azimuth_deg)

@@ -25,6 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sim.flow import flow_state
+from sim.gravity import altitude_agl
 from sim.integrate import run_sim
 from sim.params import Params
 from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
@@ -45,7 +46,7 @@ def _flight_summary(result, p) -> dict:
     apogee_time = result.events["apogee"]
     impact_time = result.events["ground"]
     apogee_altitude = (
-        -result.raw.sol(apogee_time)[Z] if apogee_time is not None else None
+        altitude_agl(result.raw.sol(apogee_time), p) if apogee_time is not None else None
     )
 
     t_end = impact_time if impact_time is not None else result.t[-1]
@@ -127,7 +128,10 @@ def main() -> None:
     # rather than taking -min(z) over the adaptive-step samples: RK45's
     # accepted steps rarely land exactly on the apogee, so a raw min()
     # under-estimates it. dense_output=True gives us that interpolant.
-    apogee_altitude = -result.raw.sol(apogee_time)[Z]
+    # altitude_agl (Step 45, architecture.md SS25.5) reads the curved
+    # ground under gravity_direction != "parallel"; under the default
+    # "parallel" it is bitwise -result.raw.sol(apogee_time)[Z], unchanged.
+    apogee_altitude = altitude_agl(result.raw.sol(apogee_time), params)
 
     # Max speed and downrange-at-impact: sample the dense interpolant on a
     # fine uniform grid over the whole recorded flight (apogee is a

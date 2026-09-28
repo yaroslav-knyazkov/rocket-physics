@@ -711,3 +711,70 @@ def test_unknown_wind_model_raises_keyerror():
     p = dataclasses.replace(Params(m=0.5, I=0.05, l1=0.3, l2=0.4), wind_model="not-a-real-model")
     with pytest.raises(KeyError):
         wind_inertial(0.0, np.zeros(6), p)
+
+
+# ----------------------------------------------------------------------
+# Step 45 (Phase 2.8; architecture.md SS25.4/SS25.9): tier 1's `h` and
+# tiers 2/3's `h_msl` now go through sim.gravity.altitude_agl/altitude_msl
+# instead of the flat `altitude_agl(y)`/inlined `-y[Z] + p.h0_m`, curvature-
+# aware once p.gravity_direction is non-"parallel".
+# ----------------------------------------------------------------------
+
+
+def _y_at(x: float, z: float) -> np.ndarray:
+    """State vector at (x, z), all other components zero."""
+    s = State(x=x, z=z, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    return np.array(s)
+
+
+def test_tier1_W_pinned_parallel_vs_radial():
+    """architecture.md SS25.7's pinned table: at (x=10km, z=-1000,
+    R_e=6371000), tier-1 shear wind speed W moves from 9.659841585
+    ("parallel") to 9.670644585 ("radial") -- a *stronger* wind at the
+    higher true altitude, a positive shear exponent's expected direction.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, wind_model="analytic",
+        azimuth_deg=0.0, wind_dir_deg=0.0,  # pure headwind: w_x == -W exactly
+        wind_ref_ms=5.0, wind_ref_h_m=10.0, wind_shear_exp=0.143,
+    )
+    y = _y_at(10_000.0, -1000.0)
+    p_par = Params(**common, gravity_direction="parallel")
+    p_rad = Params(**common, gravity_direction="radial", R_e=6371000.0)
+
+    W_par = -wind_inertial(0.0, y, p_par)[0]
+    W_rad = -wind_inertial(0.0, y, p_rad)[0]
+
+    assert math.isclose(W_par, 9.659841585, rel_tol=1e-8)
+    assert math.isclose(W_rad, 9.670644585, rel_tol=1e-8)
+    assert math.isclose((W_rad - W_par) / W_par, 1.1183e-3, rel_tol=1e-2)
+
+
+def test_tier2_and_tier3_field_read_the_same_h_msl_as_atmosphere():
+    """architecture.md SS25's "orthogonality consequence" applied across
+    modules: wind tier 2 and atmosphere tier 2 read the *same* sounding
+    file at the *same* h_msl for one state, so curving one and not the
+    other would be a genuine inconsistency, not a stylistic one (SS25.4).
+    Confirmed at a curved, non-zero-downrange state against the committed
+    `example` case.
+    """
+    from sim import soundings
+    from sim.gravity import altitude_msl
+
+    p = dataclasses.replace(
+        Params(m=0.5, I=0.05, l1=0.3, l2=0.4),
+        wind_model="sounding", sounding_case="example",
+        h0_m=380.0, gravity_direction="radial", R_e=6371000.0,
+    )
+    y = _y_at(10_000.0, -500.0)
+
+    h_msl = altitude_msl(y, p)
+    snd = soundings.load_case(p.sounding_case)[0]
+    want = soundings.interp_altitude(snd, h_msl)
+
+    A = math.radians(p.azimuth_deg)
+    want_along = want.u * math.sin(A) + want.v * math.cos(A)
+
+    got_along, _ = wind_horizontal_enu(0.0, y, p)
+
+    assert math.isclose(got_along, want_along, rel_tol=1e-12)

@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 
-from sim.flow import altitude_agl, altitude_msl, flow_state
+from sim.flow import flow_state
 from sim.params import Params
 from sim.state import State
 
@@ -101,23 +101,6 @@ def test_v_zero_on_the_pad_gives_alpha_zero_no_exception():
 
     assert flow.V == 0.0
     assert flow.alpha == 0.0
-
-
-def test_altitude_agl_is_minus_z():
-    s = State(x=0.0, z=-1650.7, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
-    y = np.array(s)
-    assert math.isclose(altitude_agl(y), 1650.7, rel_tol=1e-12)
-
-
-def test_altitude_msl_falls_back_to_agl_when_h0_m_absent():
-    """Params has no h0_m field yet (that's Step 11's site block), so
-    altitude_msl must reduce exactly to altitude_agl until it exists
-    (architecture.md SS15: 'p.h0_m defaults to 0.0, which makes the two
-    identical').
-    """
-    s = State(x=0.0, z=-500.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
-    y = np.array(s)
-    assert altitude_msl(y, _P) == altitude_agl(y)
 
 
 def test_flow_has_new_fields():

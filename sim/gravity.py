@@ -38,10 +38,20 @@ Step 42 (Phase 2.7) adds `ground_depth(t, y, p)` beside the direction
 dispatch above (models.tex SSGravity > Direction, "Ground and impact
 condition", eq. `h_true`; architecture.md SS24.2): the curved-ground
 generalisation of `y[Z]` that `sim/integrate.py`'s ground-impact event now
-reads, reusing this module's `curvature_radius(p)` seam. Impact/apogee
-event scope only -- the atmosphere/wind/gravity-magnitude altitude lookups
-in this module (`_g_radial`/`_g_wgs84` above) deliberately keep reading
-`h = -z`; see `ground_depth`'s own docstring and roadmap.md Backlog B8.
+reads, reusing this module's `curvature_radius(p)` seam.
+
+Step 45 (Phase 2.8) adds `altitude_agl(y, p)`/`altitude_msl(y, p)` beside
+`ground_depth` (models.tex SSGravity > Direction, eq. `h_true`;
+architecture.md SS25), moved here from `sim/flow.py` (SS25.3) so this
+module is self-contained (numpy + `sim.state` only) and sits at the bottom
+of the import stack. `altitude_agl` is exactly `-ground_depth(0.0, y, p)`
+-- one unary minus, no re-typed trigonometry -- so `_g_radial`/`_g_wgs84`
+below, the atmosphere/wind tiers (`sim/atmosphere.py`, `sim/wind.py`) and
+the reported/plotted altitude (`run.py`, `sim/plotting.py`) all now read
+the curved altitude once a non-parallel `p.gravity_direction` is active,
+promoting roadmap Backlog B8 in full. Prior to this step `_g_radial`/
+`_g_wgs84` deliberately kept reading the flat `h = -z` even under a curved
+direction model; that gap is what Step 45 closes.
 
 `p.g` is the Phase 1 constant, read here as `g0` -- the reference value at
 h = 0 that every magnitude model reduces to.
@@ -49,7 +59,6 @@ h = 0 that every magnitude model reduces to.
 
 import numpy as np
 
-from sim.flow import altitude_agl, altitude_msl
 from sim.state import X, Z
 
 
@@ -59,8 +68,15 @@ def _g_constant(t: float, y: np.ndarray, p) -> float:
 
 
 def _g_radial(t: float, y: np.ndarray, p) -> float:
-    """g0*(R_e/(R_e+h))^2 -- exact for a spherical, non-rotating Earth."""
-    h = altitude_agl(y)
+    """g0*(R_e/(R_e+h))^2 -- exact for a spherical, non-rotating Earth.
+
+    `h = altitude_agl(y, p)` (Step 45): under a curved `p.gravity_direction`
+    this reads the curved-ground altitude, not the flat `-z` -- `p.R_e`
+    itself stays the geocentric falloff radius unchanged (architecture.md
+    SS25.2: `p.R_e` and `curvature_radius(p)` are different quantities,
+    never substituted for one another).
+    """
+    h = altitude_agl(y, p)
     return p.g * (p.R_e / (p.R_e + h)) ** 2
 
 
@@ -86,9 +102,10 @@ def _g_wgs84(t: float, y: np.ndarray, p) -> float:
 
     phi = p.lat0_deg (the launch site latitude; under the flat-range
     assumption it does not change during the flight), h = h_msl =
-    p.h0_m - z (architecture.md SS15 "Altitude conventions"). The
-    ellipsoid/geoid distinction is ignored -- far below the model's own
-    error here (architecture.md SS13).
+    altitude_msl(y, p) (Step 45, architecture.md SS25.3) -- under a curved
+    `p.gravity_direction` this is the curved-ground MSL altitude, not the
+    flat `p.h0_m - z`. The ellipsoid/geoid distinction is ignored -- far
+    below the model's own error here (architecture.md SS13).
     """
     phi = np.radians(p.lat0_deg)
     sin2phi = np.sin(phi) ** 2
@@ -207,7 +224,7 @@ def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
     return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)
 
 
-def ground_depth(t: float, y: np.ndarray, p) -> float:
+def ground_depth(t: float, y: np.ndarray, p) -> "float | np.ndarray":
     """Signed depth of the rocket below the ground surface, DOWN-positive --
     the curved-ground generalisation of `y[Z]` (models.tex SSGravity >
     Direction, eq:h_true, negated: architecture.md SS24.2). Negative in
@@ -238,5 +255,39 @@ def ground_depth(t: float, y: np.ndarray, p) -> float:
         return y[Z]               # returned unchanged -- bit-for-bit
     phi = y[X] / R
     return y[Z] * np.cos(phi) - y[X] * np.sin(phi) + R * (1.0 - np.cos(phi))
+
+
+def altitude_agl(y: np.ndarray, p) -> "float | np.ndarray":
+    """Height above the ground, up-positive -- `h_true` (models.tex
+    SSGravity > Direction, eq:h_true; architecture.md SS25).
+
+    Exactly `-ground_depth(t, y, p)`: one construction, one implementation,
+    so the altitude the models read and the surface the impact event finds
+    can never disagree. `ground_depth` ignores `t` (the reference surface
+    does not move), so the `0.0` below is a placeholder, not a time.
+
+    Under the default `gravity_direction = "parallel"` this is `-y[Z]`
+    bitwise -- the pre-Step-45 `flow.altitude_agl(y)`, on the same operand
+    (architecture.md SS25.6).
+
+    Vectorises unchanged over a `(6, N)` state-history array (`ground_depth`
+    is pure elementwise numpy): `y[Z]`/`y[X]` become length-`N` rows and
+    `np.cos`/`np.sin` broadcast, giving a length-`N` result. This is
+    load-bearing for `sim/plotting.py` (architecture.md SS25.5) -- do not
+    narrow this annotation back to `float`.
+    """
+    return -ground_depth(0.0, y, p)
+
+
+def altitude_msl(y: np.ndarray, p) -> "float | np.ndarray":
+    """Height above mean sea level, `h_agl + p.h0_m`.
+
+    Unchanged in form from the pre-Step-45 `flow.altitude_msl`: the MSL
+    surface is concentric with the reference surface, `h0_m` below it, so
+    the offset is exactly `h0_m` on a curved surface as on a flat one.
+    Curvature reaches it entirely through `altitude_agl` above -- this
+    function has no curvature code of its own.
+    """
+    return altitude_agl(y, p) + getattr(p, "h0_m", 0.0)
 
 
