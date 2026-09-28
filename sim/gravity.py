@@ -34,6 +34,15 @@ bit-for-bit), `_R_chi(p)` for "elliptical". `phi0`/`chi` reuse `p.lat0_deg`/
 plane heading used by `wind.py`/`soundings.py`/`rotation.py`) -- no new
 `Params` fields.
 
+Step 42 (Phase 2.7) adds `ground_depth(t, y, p)` beside the direction
+dispatch above (models.tex SSGravity > Direction, "Ground and impact
+condition", eq. `h_true`; architecture.md SS24.2): the curved-ground
+generalisation of `y[Z]` that `sim/integrate.py`'s ground-impact event now
+reads, reusing this module's `curvature_radius(p)` seam. Impact/apogee
+event scope only -- the atmosphere/wind/gravity-magnitude altitude lookups
+in this module (`_g_radial`/`_g_wgs84` above) deliberately keep reading
+`h = -z`; see `ground_depth`'s own docstring and roadmap.md Backlog B8.
+
 `p.g` is the Phase 1 constant, read here as `g0` -- the reference value at
 h = 0 that every magnitude model reduces to.
 """
@@ -41,7 +50,7 @@ h = 0 that every magnitude model reduces to.
 import numpy as np
 
 from sim.flow import altitude_agl, altitude_msl
-from sim.state import X
+from sim.state import X, Z
 
 
 def _g_constant(t: float, y: np.ndarray, p) -> float:
@@ -196,5 +205,38 @@ def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
     SSModels > Gravity > Direction), dispatching on `p.gravity_direction`.
     """
     return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)
+
+
+def ground_depth(t: float, y: np.ndarray, p) -> float:
+    """Signed depth of the rocket below the ground surface, DOWN-positive --
+    the curved-ground generalisation of `y[Z]` (models.tex SSGravity >
+    Direction, eq:h_true, negated: architecture.md SS24.2). Negative in
+    flight, zero at impact, increasing through zero as the rocket descends,
+    for *every* direction model -- so `integrate._ground_event` keeps
+    `direction = 1`, `terminal = True` unchanged; substituting `h_true`
+    itself (up-positive, falling through zero) without also flipping the
+    event's sign convention would make it hunt for the rocket leaving the
+    ground upward and never terminate.
+
+    `R = curvature_radius(p)` is `None` for "parallel" -- the flat
+    launch-point tangent plane, where `ground_depth` returns `y[Z]`
+    unchanged, with no arithmetic performed on that path at all: bit-for-bit.
+    For "radial"/"elliptical", with `phi = y[X]/R`:
+
+        ground_depth = z*cos(phi) - x*sin(phi) + R*(1 - cos(phi))
+
+    which is exactly `z` at `x = 0` (`cos 0 = 1`, `sin 0 = 0`,
+    `R*(1-1) = 0`, bitwise).
+
+    The `R is None` branch is mandatory, not a stylistic shortcut: `h_true`
+    only degenerates to `-z` in the limit `R -> infinity`, never at the
+    code's finite `p.R_e` -- and passing `float("inf")` is not a substitute,
+    since `inf*(1 - cos(phi))` at `phi = 0` is `inf*0.0 = nan`.
+    """
+    R = curvature_radius(p)
+    if R is None:                 # "parallel": flat launch-point tangent plane
+        return y[Z]               # returned unchanged -- bit-for-bit
+    phi = y[X] / R
+    return y[Z] * np.cos(phi) - y[X] * np.sin(phi) + R * (1.0 - np.cos(phi))
 
 

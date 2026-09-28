@@ -13,6 +13,19 @@ location, no step control" is an accepted, documented limitation of this
 path, not a bug).
 
 Step 14: Adds burnout event detection for thrust curve cutoff.
+
+Step 42 (Phase 2.7; main.tex/models.tex SSGravity > Direction, eq. `h_true`;
+architecture.md SS24.2): the ground-impact event -- both the RK45 event
+function `_ground_event` and `_run_rk4`'s manual crossing detection -- reads
+`sim.gravity.ground_depth(t, y, p)` instead of the literal `y[Z]`.
+`ground_depth` returns `y[Z]` unchanged (bit-for-bit) when
+`p.gravity_direction == "parallel"`, and the curved-ground depth otherwise
+(`gravity_direction in {"radial", "elliptical"}`). `_ground_event.direction`
+and `.terminal` are unchanged -- `ground_depth` is built DOWN-positive
+specifically so the existing sign convention still applies (see that
+function's own docstring for why a literal `h_true` substitution would be
+wrong). `_apogee_event`/`_burnout_event` are untouched -- this is an
+impact/ground-event-only change (architecture.md SS24.2's scope note).
 """
 
 from typing import Any, NamedTuple, Optional
@@ -22,7 +35,7 @@ from scipy.integrate import solve_ivp
 
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
-from sim import thrust_curve
+from sim import gravity, thrust_curve
 
 
 class Result(NamedTuple):
@@ -39,7 +52,9 @@ def _ground_event(t, y, p):
     # away. Guard the first 0.1 s.
     if t < 0.1:
         return 1.0
-    return y[Z]
+    # Step 42 (architecture.md SS24.2): ground_depth is y[Z] itself for
+    # "parallel" (bit-for-bit), and the curved-ground depth otherwise.
+    return gravity.ground_depth(t, y, p)
 
 
 _ground_event.terminal = True
@@ -173,12 +188,17 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
             frac = -y[VZ] / (y_next[VZ] - y[VZ])
             t_apogee = t + frac * dt_step
 
-        # Ground impact: z crosses from negative to positive (z is
-        # down-positive, so this is the rocket returning to launch
-        # altitude). Guard the first 0.1 s exactly like _ground_event --
-        # z is exactly 0 at t=0 and must not be mistaken for impact.
-        if t_next >= 0.1 and y[Z] < 0.0 <= y_next[Z]:
-            frac = -y[Z] / (y_next[Z] - y[Z])
+        # Ground impact: ground_depth crosses from negative to positive
+        # (DOWN-positive, so this is the rocket returning to/through the
+        # ground surface -- Step 42, architecture.md SS24.2). Guard the
+        # first 0.1 s exactly like _ground_event -- ground_depth is exactly
+        # 0 at t=0 and must not be mistaken for impact. `d_now`/`d_next`
+        # replace the old literal `y[Z]`/`y_next[Z]`, bit-for-bit identical
+        # to them when `p.gravity_direction == "parallel"`.
+        d_now = gravity.ground_depth(t, y, p)
+        d_next = gravity.ground_depth(t_next, y_next, p)
+        if t_next >= 0.1 and d_now < 0.0 <= d_next:
+            frac = -d_now / (d_next - d_now)
             t_ground = t + frac * dt_step
             y_ground = y + frac * (y_next - y)
             ts.append(t_ground)

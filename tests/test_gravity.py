@@ -11,9 +11,9 @@ import math
 import numpy as np
 import pytest
 
-from sim.gravity import _R_chi, curvature_radius, g, z_hat_g
+from sim.gravity import _R_chi, curvature_radius, g, ground_depth, z_hat_g
 from sim.params import Params
-from sim.state import State
+from sim.state import State, Z
 
 _P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
@@ -31,6 +31,13 @@ def _y_at_downrange(x: float) -> np.ndarray:
     only x matters to gravity.z_hat_g's "radial" variant.
     """
     s = State(x=x, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    return np.array(s)
+
+
+def _y_at(x: float, z: float) -> np.ndarray:
+    """State vector at (x, z), all other components zero -- only x/z
+    matter to gravity.ground_depth."""
+    s = State(x=x, z=z, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
     return np.array(s)
 
 
@@ -289,3 +296,90 @@ def test_unknown_gravity_direction_raises_keyerror():
     with pytest.raises(KeyError):
         z_hat_g(0.0, _y_at_downrange(0.0), p)
 
+
+# ---------------------------------------------------------------------
+# Step 42 (Phase 2.7): curved-ground impact condition, `ground_depth`
+# (architecture.md SS24.2). Impact/apogee event scope only -- see
+# sim/integrate.py's tests for the event-level regression checks.
+# ---------------------------------------------------------------------
+
+
+def test_ground_depth_parallel_is_y_z_itself_at_arbitrary_x_z():
+    """"parallel" (`curvature_radius(p) is None`): `ground_depth` returns
+    `y[Z]` unchanged -- exact equality (bit-for-bit), not an approximation.
+    (Not an `is` identity check: indexing a numpy array returns a fresh
+    scalar object each time, so `y[Z] is y[Z]` is `False` even trivially,
+    independent of anything `ground_depth` does -- `==` is the correct and
+    sufficient check for "returned unchanged" here.)"""
+    p = dataclasses.replace(_P, gravity_direction="parallel")
+    for x, z in ((0.0, 0.0), (0.0, -5000.0), (10_000.0, -5000.0), (-3000.0, 200.0)):
+        y = _y_at(x, z)
+        assert ground_depth(0.0, y, p) == y[Z]
+
+
+def test_ground_depth_curved_is_exact_z_at_zero_downrange():
+    """For "radial"/"elliptical": at x=0, phi=0, so `ground_depth` collapses
+    to `z*1 - 0 + R*(1-1) = z` bitwise -- the same property `ground_depth`'s
+    docstring claims."""
+    for direction in ("radial", "elliptical"):
+        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        for z in (0.0, -5000.0, 3000.0):
+            y = _y_at(0.0, z)
+            assert ground_depth(0.0, y, p) == z
+
+
+# architecture.md SS24.2's pinned h_true(x, 0) table with R = R_e, negated
+# (ground_depth = -h_true): the flat z=0 plane sits this far *above* the
+# curved ground at each downrange distance.
+_PINNED_NEG_H_TRUE = {
+    1_000.0: -0.078481,
+    4_600.0: -1.660650,
+    10_000.0: -7.848057,
+    30_000.0: -70.632162,
+}
+
+
+def test_ground_depth_radial_matches_pinned_h_true_table():
+    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    for x, expected in _PINNED_NEG_H_TRUE.items():
+        y = _y_at(x, 0.0)
+        assert math.isclose(ground_depth(0.0, y, p), expected, rel_tol=1e-5)
+
+
+def test_ground_depth_parallel_would_be_wrong_for_a_tilted_scenario():
+    """The mandatory-branch point (architecture.md SS24.2): the curved
+    formula does NOT degenerate to `-z` (i.e. to `ground_depth`'s own
+    "parallel" value, `z`) at finite `R_e` for any `x != 0` -- only in the
+    limit `R -> infinity`. Confirms the "parallel" branch is a real branch,
+    not something the algebra would give for free."""
+    p_curved = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    for x in (1_000.0, 4_600.0, 10_000.0, 30_000.0):
+        y = _y_at(x, 0.0)
+        assert not math.isclose(ground_depth(0.0, y, p_curved), 0.0, abs_tol=1e-6)
+
+
+def test_ground_depth_differs_from_small_angle_approximation_by_pinned_residual():
+    """architecture.md SS24.2: `ground_depth` differs from the small-angle
+    form `-(x^2/2R - z) = z - x^2/2R` by a pinned residual at
+    (x=10km, z=-5000) and (x=100km, z=-5000) -- itself the check that the
+    *exact* trigonometric form was implemented, not the approximation."""
+    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    z = -5000.0
+
+    for x, expected in ((10_000.0, 6.164e-3), (100_000.0, 0.664)):
+        small_angle = z - x ** 2 / (2.0 * p.R_e)
+        exact = ground_depth(0.0, _y_at(x, z), p)
+        assert math.isclose(exact - small_angle, expected, rel_tol=1e-2)
+
+
+def test_ground_depth_radial_and_elliptical_differ_at_same_lat0_and_azimuth():
+    """"radial" and "elliptical" share `_dir_curved`/`ground_depth`'s
+    formula shape but different `curvature_radius(p)` (Step 41), so they
+    must give different impact-depth readings at the same non-cardinal,
+    non-equatorial launch site and nonzero x."""
+    common = dict(lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
+    p_rad = dataclasses.replace(_P, gravity_direction="radial", **common)
+    p_ell = dataclasses.replace(_P, gravity_direction="elliptical", **common)
+    y = _y_at(10_000.0, 0.0)
+
+    assert not math.isclose(ground_depth(0.0, y, p_rad), ground_depth(0.0, y, p_ell), rel_tol=1e-6)
