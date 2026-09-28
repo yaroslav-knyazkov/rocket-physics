@@ -21,8 +21,12 @@ thrust-axis misalignment, humid-air density); it is self-contained — a develop
 of those three needs §23's own subsection plus the LaTeX section it names, not the whole document.
 §24 holds the **Steps 41-44** additions (elliptical gravity direction, curved-ground impact
 condition, lateral offsets `u_B`/`u_C`, pitch-damping `c_mq` scaffold) on the same self-contained
-terms. Note the LaTeX section files moved to `latex/sections-ai/` in the same session §24 was
-written; §23's `latex/sections/...` citations refer to the same content at the new path.
+terms. §25 holds **Step 45** (the curved altitude `h_true` threaded into every altitude reader —
+atmosphere, wind, the radial/WGS84 gravity magnitudes, and the reported/plotted altitude in
+`run.py`/`plotting.py`), which completes what §24.2 deliberately left to backlog B8; every event
+*trigger* is deliberately untouched there. Note the LaTeX section files moved to `latex/sections-ai/` in the
+same session §24 was written; §23's `latex/sections/...` citations refer to the same content at the
+new path.
 
 ---
 
@@ -71,6 +75,12 @@ Consequences:
 - `W = m g ẑ` with `g = +9.80665` is exactly the equation in `main.tex` — no sign fixups.
 - Altitude is `-z`. The **only** place that negation appears is `plotting.py` and the printed
   summary. Nothing in the physics ever refers to "altitude".
+  **Superseded at Step 45 (§25).** Altitude is `gravity.altitude_agl(y, p)` — the height above the
+  *curved* reference surface, which is `-z` exactly under the default `gravity_direction =
+  "parallel"`. `plotting.py` and the printed summary now call that helper like everyone else, so
+  the negation lives in exactly one place (`gravity.ground_depth`) rather than in the reporting
+  layer. The rest of this bullet stands: nothing in the physics refers to "altitude" except the
+  models that genuinely need one (§25.4).
 - It generalises directly to standard aerospace NED for Phase 3 (no convention change at 6-DOF).
 
 **Body frame `Fr`:** `x̂_r` along the nose, `ẑ_r` "belly-ward", `ŷ_r ≡ ŷ` (pitch axis, identical
@@ -240,6 +250,8 @@ derivatives(t: float, y: np.ndarray, p: Params) -> np.ndarray
 run_sim(p: Params, s0: State, t_max: float = 300.0,
         method: str = "RK45", rtol=1e-8, atol=1e-10) -> Result
 #   Result: NamedTuple(t: ndarray, y: ndarray(6,N), events: dict[str, float], raw: OdeResult)
+#          + params: Params  — appended at Step 45 (§25.5), so a Result is self-describing and
+#            plotting.py can resolve the altitude convention without a signature change
 #   events: {"apogee": t_apogee, "ground": t_impact}
 
 # plotting.py
@@ -533,7 +545,11 @@ direction was the fixed `ẑ_g = ẑ_i` (down) for all of Phase 2, so `forces.we
 The magnitude table below is unaffected and combines freely with either direction.
 
 Altitude used by all variants: `h = -y[Z]` (above the launch point) — plus `p.h0_m` when a
-mean-sea-level altitude is needed (`wgs84`); see §15 "Altitude conventions".
+mean-sea-level altitude is needed (`wgs84`); see §15 "Altitude conventions". **Superseded at
+Step 45** (§25): `h` is now the height above the *curved* reference surface, `altitude_agl(y, p)` /
+`altitude_msl(y, p)`, which reduces to `−y[Z]` bit-for-bit under the default
+`gravity_direction = "parallel"`. The magnitude table below is unchanged — only the `h` fed into it
+is, and `p.R_e` remains the geocentric radius of the `radial` falloff (§25.2).
 
 | `gravity_model` | Formula | Notes |
 |---|---|---|
@@ -722,6 +738,15 @@ is treated as sea level starts the rocket in ~4.5 % too dense air. `p.h0_m` defa
 which makes the two identical and keeps every Phase 1 check intact. Two module-level helpers in
 `flow.py` (`altitude_agl(y)`, `altitude_msl(y, p)`) are the only places the negation appears
 outside `plotting.py`.
+
+> **Superseded at Step 45 (§25).** The two helpers moved to `sim/gravity.py` — beside
+> `curvature_radius`/`ground_depth`, the construction they now delegate to — and both take
+> `Params`: `altitude_agl(y, p)`, `altitude_msl(y, p)`. `h_agl` is no longer `−y[Z]` but the height
+> above the *curved* reference surface (`h_true`), which equals `−y[Z]` bit-for-bit under the
+> default `gravity_direction = "parallel"`. The row "used by" for `h_agl` gains the tier-1 wind
+> shear profile, and for `h_msl` the three atmosphere tiers and wind tiers 2/3, which until Step 45
+> each inlined their own copy of `−y[Z] + p.h0_m`. The table's *meanings* are unchanged; only their
+> expressions and their home are. See §25.3 for the replacement table.
 
 ### Performance note (deliberate, do not "optimise")
 
@@ -2128,3 +2153,745 @@ collides visually with `gravity_model="wgs84"`); reuse of `lat0_deg`/`azimuth_de
 living in `gravity.py` (recommended); leaving `_apogee_event` on `vz = 0` (recommended); the
 `u_B`/`u_C` field names; the `c_mq` column's absent-means-`p.c_mq` fallback; and — the only one that
 is not cosmetic — the `c_mq` sign resolution of §24.4 and the corresponding LaTeX correction.
+
+---
+
+## 25. Phase 2.8 — curved altitude for every altitude-dependent model (Step 45)
+
+One additive step, promoting roadmap Backlog **B8** — the half of `models.tex` eq. `h_true` that
+§24.2 deliberately left behind when Step 42 landed the impact event. Same discipline as §23/§24:
+one step, one commit, a default that reproduces every prior step **bit-for-bit**, tests for every
+new behaviour. It changes no state vector, no solver, no event, and adds **no `Params` field** —
+the gate is the *existing* `gravity_direction`, whose default `"parallel"` is the bit-for-bit path.
+
+| Step | Physics | Gate | Modules touched |
+|---|---|---|---|
+| 45 | every altitude-dependent model **and every reported/plotted altitude** reads the height above the **curved** reference surface, not the launch-point tangent plane | existing `gravity_direction = "parallel"` (default ⇒ flat ⇒ bit-for-bit) | `gravity.py`, `flow.py`, `atmosphere.py`, `wind.py`, `integrate.py`, `plotting.py`, `run.py` |
+
+**Contents:** §25.1 the model and what is already in the code · §25.2 the orthogonality
+consequence, named and justified · §25.3 where the helpers live and the exact signatures · §25.4
+the per-file change list · §25.5 reported and plotted altitude · §25.6 bit-for-bit · §25.7 pinned
+numbers · §25.8 scope — what this step does NOT do · §25.9 checks for the step · §25.10 rejected
+options.
+
+> **Scope amendment (user decision, recorded before implementation).** This section originally
+> recommended leaving `run.py`'s reported "apogee altitude" and `plotting.py`'s altitude axis at the
+> flat `−z`, matching Step 42, and flagged that as the one open question. **The user overrode that
+> recommendation: "I want convention to be radial. I want stuff to be physically correct."** The
+> reported and plotted altitude is therefore **in scope for Step 45**, specified in §25.5. The
+> recommendation and its reasoning are kept in §25.10 (rejected options) rather than deleted,
+> because one half of it survives the override intact and is now a *requirement*: the apogee
+> **event** is still triggered at `vz = 0` in the launch frame, and only the altitude *value*
+> reported at that instant becomes curved (§25.5, §25.8).
+
+**A developer implementing this step needs §25 and `latex/sections-ai/models.tex` §Gravity >
+Direction (the paragraphs "Construction (elliptical)" and "Ground and impact condition", eq.
+`h_true`) — plus §24.1/§24.2 for the machinery it reuses. Not the whole of either document.**
+
+### 25.1 Step 45 — the model, and what is already implemented
+
+Spec: `latex/sections-ai/models.tex` §Gravity > Direction, eq. `h_true` and the sentence that
+follows it — `h_true` "is the altitude to use, in place of `−z`, for every altitude-dependent model
+once a non-parallel direction model is active — the atmosphere and wind tiers, and the radial/WGS84
+magnitude models". §24.2 implemented the *ground event* half of that sentence and recorded the rest
+as backlog **B8**; this step implements the rest, unchanged in derivation.
+
+**There is no new formula.** `sim/gravity.ground_depth(t, y, p)` (Step 42) already *is* `−h_true`,
+exactly, for all three direction models, with the mandatory `R is None` flat branch. The altitude
+this step needs is therefore its negation and nothing else:
+
+```
+h_agl(y, p)  =  −ground_depth(0.0, y, p)
+             =  −y[Z]                                                  ("parallel", bitwise)
+             =  x·sin φ − z·cos φ − R·(1 − cos φ),  φ = x/R             ("radial"/"elliptical")
+                with R = curvature_radius(p)  (§24.1: p.R_e or _R_chi(p))
+h_msl(y, p)  =  h_agl(y, p) + p.h0_m
+```
+
+**Do not re-type the trigonometric form anywhere.** The whole point of the seam Step 42 built is
+that the curved-surface geometry has exactly one implementation; a second copy in `flow.py` (or in
+`atmosphere.py`) is the same drift hazard §24.1 refused for `_WGS84_A`/`_WGS84_E2` and §23.3 refused
+for `_EPSILON`. Negating `ground_depth` costs one unary minus and guarantees the two can never
+disagree about where the ground is. A test asserts the identity directly (§25.9).
+
+**Why `h_msl = h_agl + h0_m` survives the change untouched.** The MSL surface is the sphere
+concentric with the reference surface, `h0_m` below it, so a height measured above one differs from
+a height above the other by exactly `h0_m` — the same relation as in the flat case, for the same
+reason. Consequently `altitude_msl` needs **no** curvature code of its own: it becomes
+curvature-aware for free, through `altitude_agl`. (This is worth stating because the opposite choice
+— leaving `h_msl` flat while `h_agl` curves — would cost *extra* code, not less, and would put two
+different altitudes in play at one state. Recorded as a rejected option, §25.10.)
+
+**Why the effect is real but small, and why that is not a reason to cut corners.** At 10 km
+downrange the curved ground has dropped ~7.85 m below the tangent plane, so every altitude lookup
+is reading a height ~7.85 m too low today. That moves ISA density by ~0.08-0.10 % and gravity
+magnitude by ~2.5 × 10⁻⁶ relative (§25.7 pins both). This is a fidelity-completeness step, exactly
+as B8's own text says — not a bug fix. It gets the same rigour as everything else: the bit-for-bit
+argument is written out, the invariants are asserted exactly rather than approximately, and the
+numbers are pinned.
+
+### 25.2 The orthogonality consequence — named, not smuggled in
+
+§23.1 established `p.gravity_model` (magnitude: `constant`/`radial`/`wgs84`) and
+`p.gravity_direction` (direction: `parallel`/`radial`/`elliptical`) as two **orthogonal** dispatches:
+any magnitude combines with any direction, and §24.1 reinforced it with a test
+("sweeping `p.R_e` must not move an `elliptical`-direction result, and sweeping
+`lat0_deg`/`azimuth_deg` must not move a `radial`-direction one").
+
+Curvature lives in exactly one place in this codebase — `gravity.curvature_radius(p)`, which keys
+off `p.gravity_direction`. So once `_g_radial`/`_g_wgs84` take a curved `h`, they source that
+curvature from `gravity_direction`. **State the consequence plainly rather than discovering it in a
+test:**
+
+> Selecting `gravity_direction = "elliptical"` changes the `h` that the gravity-*magnitude* formula
+> consumes, even with `gravity_model = "radial"` unchanged. `gravity_model` is therefore no longer
+> the *sole* input to the magnitude answer; `gravity_direction` now has a small magnitude-side
+> effect, through `h`.
+
+What this is, and is not:
+
+- **It is not a collapse of the dispatch.** The two dicts stay separate and untouched. `g(t, y, p)`
+  still dispatches purely on `p.gravity_model`; `z_hat_g(t, y, p)` still dispatches purely on
+  `p.gravity_direction`. No combinatorial product of names appears, no variant is added or removed,
+  and `gravity_model = "constant"` remains *exactly* `p.g` for every direction (the constant law has
+  no `h` in it at all — assert this, §25.9). The coupling is through a **shared input**, not a
+  shared dispatch. §24.2's item 2 read this as "collapsing the orthogonality"; on inspection that
+  overstated it, and this section is the correction of record.
+- **It is the physically coherent reading.** `h` is a geometric fact about where the rocket is
+  relative to the reference surface. The magnitude law answers "how does `g` fall off with height";
+  the direction/curvature model answers "what does height *mean*". One state has one altitude. The
+  alternative — ISA and the wind shear reading a curved `h` while `_g_radial` reads a flat one at
+  the same instant — is the actual inconsistency, and it is the one B8 exists to remove.
+- **It is tiny, and its size is pinned.** `parallel → radial` at `x = 10 km` moves `_g_radial` by
+  `−2.46 × 10⁻⁶` relative; `radial → elliptical` at `φ₀ = 50°, χ = 90°` moves it by a further
+  ~`7.6 × 10⁻⁹` (the two curvature radii differ by 0.309 %, of a 7.85 m correction).
+- **It is asserted deliberately, not tolerated.** §25.9 requires a test that *pins the coupling*:
+  with `gravity_model = "radial"` held fixed, changing `gravity_direction` **must** move `g` by the
+  pinned amount. Without that test, a future reader "restoring orthogonality" would silently revert
+  this step.
+
+**The three radii, and the one that must not be substituted for another.** With this step there are
+four Earth-sized constants in play at once. Confusing them is the single realistic way to get this
+step wrong:
+
+| Quantity | Value / source | Role | Keyed off |
+|---|---|---|---|
+| `p.R_e` | `6371000.0` (`Params`) | **geocentric distance** in the `radial` *magnitude* law `g₀(R_e/(R_e+h))²` | `gravity_model` |
+| `gravity.curvature_radius(p)` | `None` / `p.R_e` / `_R_chi(p)` | **radius of curvature** of the reference surface — what "ground" and "altitude" mean | `gravity_direction` |
+| `gravity._WGS84_A` | `6378137.0` | ellipsoid semi-major axis, inside Somigliana **and** inside `_R_chi` | fixed physical constant |
+| `atmosphere._R_ISA` | `6356766.0` | the ISA standard's own geometric→geopotential conversion radius | fixed, part of the ISA *definition* |
+
+`_R_chi(p)` is a **curvature** radius (Euler/Meusnier), *not* a distance to the Earth's centre. It
+must never be substituted into `(R_e/(R_e+h))²`: the inverse-square falloff is governed by the
+distance to the mass, which the osculating-sphere construction says nothing about. For
+`gravity_direction = "radial"` the two happen to coincide (a sphere's curvature radius *is* its
+centre distance); for `"elliptical"` they differ by ~20 km and the difference is meaningless.
+Likewise `_R_ISA` stays `6356766.0` whatever the direction model — it is part of the ISA's
+definition, exactly like `_G_ISA = 9.80665` (§14). **Only the `h_msl` fed into the ISA changes.**
+
+### 25.3 Where the helpers live, and the exact signatures
+
+**`altitude_agl` and `altitude_msl` move from `sim/flow.py` to `sim/gravity.py`**, beside
+`curvature_radius`/`ground_depth`, and both take `Params`:
+
+```python
+# sim/gravity.py  (new, immediately after ground_depth)
+
+def altitude_agl(y: np.ndarray, p) -> float:
+    """Height above the ground, up-positive -- `h_true` (models.tex
+    SSGravity > Direction, eq:h_true; architecture.md SS25).
+
+    Exactly `-ground_depth(t, y, p)`: one construction, one implementation,
+    so the altitude the models read and the surface the impact event finds
+    can never disagree. `ground_depth` ignores `t` (the reference surface
+    does not move), so the `0.0` below is a placeholder, not a time.
+
+    Under the default `gravity_direction = "parallel"` this is `-y[Z]`
+    bitwise -- the pre-Step-45 `flow.altitude_agl(y)`, on the same operand.
+    """
+    return -ground_depth(0.0, y, p)
+
+
+def altitude_msl(y: np.ndarray, p) -> float:
+    """Height above mean sea level, `h_agl + p.h0_m`.
+
+    Unchanged in form from the pre-Step-45 `flow.altitude_msl`: the MSL
+    surface is concentric with the reference surface, `h0_m` below it, so
+    the offset is exactly `h0_m` on a curved surface as on a flat one.
+    Curvature reaches it entirely through `altitude_agl` above.
+    """
+    return altitude_agl(y, p) + getattr(p, "h0_m", 0.0)
+```
+
+**Why they move rather than staying in `flow.py` and importing gravity.** This is the one structural
+decision in the step, and the import graph settles it:
+
+- Today `gravity → flow` (module level, for the two helpers) and `flow → atmosphere` (module level)
+  and `wind → flow` (module level). Leaving the helpers in `flow.py` would add `flow → gravity`
+  (for the curvature) and `atmosphere → flow` (for `h_msl`) — **two new cycles**, resolvable only
+  with two more function-scope imports, and it would mean `_g_radial` asking `flow` for a number
+  that `gravity` computes. A round trip through a higher-level module to reach a lower-level fact.
+- Moving them **deletes** the `gravity → flow` edge instead of adding edges. `gravity.py` becomes
+  self-contained (numpy + `sim.state` only) and sits at the bottom of the stack, which is what it
+  already is physically: it owns the Earth's shape. `atmosphere → gravity` and `wind → gravity` are
+  then plain module-level imports with no cycle anywhere, and `flow.py` — which never calls either
+  helper — simply stops defining them.
+- It puts the altitude next to the curvature it is derived from, which is where `models.tex` puts
+  it too (both live in §Gravity > Direction), and is the same argument §24.2 used to keep
+  `ground_depth` in `gravity.py` rather than in `integrate.py`.
+
+**`(y, p)`, not `(t, y, p)`.** `altitude_msl` already had `(y, p)`; `altitude_agl` gains `p` to
+match. `t` is not added: the reference surface is time-invariant, and every caller would pass a
+value that is thrown away. (`ground_depth` keeps its `(t, y, p)` because it is shaped as a
+`solve_ivp` event function.)
+
+**No compatibility alias in `flow.py`.** A re-export (`from sim.gravity import altitude_agl, ...`)
+would leave two import paths for one function and hide where it lives. `flow.py` gets a docstring
+note pointing at `gravity.py` instead, and its two callers are updated. There is no external
+consumer of this package.
+
+**Replacement for §15's altitude-conventions table:**
+
+| Symbol | Meaning | Expression | Home | Used by |
+|---|---|---|---|---|
+| `z` | state, **down-positive**, zero at the launch point | `y[Z]` | `state.py` | the physics |
+| `ground_depth` | depth below the ground, down-positive | `−h_true` | `gravity.py` | `integrate._ground_event`, `_run_rk4` |
+| `h_agl` | above the ground (curved surface), up-positive | `altitude_agl(y, p)` = `−ground_depth` | `gravity.py` | `_g_radial`, `wind._analytic_wind` (tier 1 shear) |
+| `h_msl` | above mean sea level | `altitude_msl(y, p)` = `h_agl + p.h0_m` | `gravity.py` | `_g_wgs84`, atmosphere tiers 1/2/3, wind tiers 2/3 |
+| reported "altitude" | height above the ground under the rocket, for humans | `altitude_agl(y, p)` — **the same function**, called on a `(6, N)` array | `gravity.py` | `plotting.py`'s three altitude series, `run.py`'s two apogee-altitude readouts (§25.5) |
+
+After this step there is no separate "reporting" altitude convention at all: the number printed
+beside the apogee and the number plotted on the vertical axis are the *same* `altitude_agl` the
+physics reads. That is the point of the user's override — one altitude, everywhere.
+
+### 25.4 The change, file by file
+
+Five files were surveyed; four change. Nothing else in `sim/` touches an altitude.
+
+**`sim/flow.py`** — remove `altitude_agl` and `altitude_msl` (they move, §25.3). Add a one-paragraph
+note to the module docstring recording that the altitude conventions moved to `gravity.py` at
+Step 45, and why (they are derived from the surface-curvature construction that lives there).
+`flow_state`, `Flow`, `_wind_inertial` are untouched; `flow.py` never called either helper. `Z`
+then becomes unused in `flow.py`'s `from sim.state import THETA, VX, VZ, Z` — drop it. (The same
+happens in `atmosphere.py`, `wind.py` and `plotting.py`; see below and §25.5. **After this step,
+`y[Z]` is read as an *altitude* in exactly one place in the whole package: `gravity.ground_depth`.**
+Every other altitude in `sim/` and in `run.py` — physics, reporting and plotting alike — goes
+through `altitude_agl`/`altitude_msl`. That single-reader property is the cleanest statement of what
+Step 45 buys, and it is worth asserting by grep in review. `dynamics.py`'s `dydt[Z] = y[VZ]` is an
+index into the derivative vector, and `run.py`'s `trajectory.csv` dump writes the raw state column
+`z` (§25.8) — neither is an altitude, neither counts.)
+
+**`sim/gravity.py`** — four edits:
+
+1. Delete `from sim.flow import altitude_agl, altitude_msl` (the module becomes self-contained).
+2. Add `altitude_agl(y, p)` and `altitude_msl(y, p)` exactly as in §25.3.
+3. `_g_radial`: `h = altitude_agl(y)` → `h = altitude_agl(y, p)`. The formula
+   `p.g * (p.R_e / (p.R_e + h)) ** 2` is **unchanged** — `p.R_e` stays the geocentric radius
+   (§25.2).
+4. `_g_wgs84`: `h = altitude_msl(y, p)` — the call is already spelled that way and does not change;
+   only the function it resolves to does. Update its docstring's "`h = h_msl = p.h0_m − z`" to the
+   curved reading, and update the module docstring's Step-42 paragraph, which currently says the
+   magnitude models "deliberately keep reading `h = −z`; see roadmap.md Backlog B8".
+
+**`sim/atmosphere.py`** — add `from sim.gravity import altitude_msl` at module level (no cycle:
+`gravity` imports only numpy and `sim.state` after edit 1 above), then replace the **three**
+independent inlined copies of the flat altitude:
+
+| Function | Current line | Becomes |
+|---|---|---|
+| `_isa_air_state` | `h_msl = -y[Z] + getattr(p, "h0_m", 0.0)` | `h_msl = altitude_msl(y, p)` |
+| `_sounding_air_state` | same | same |
+| `_field_air_state` | same | same |
+
+The `from sim.state import Z` import becomes unused in this module if nothing else reads `Z` —
+check and remove it if so. **`_G_ISA` and `_R_ISA` do not change, and `atmosphere.py` still must not
+call `gravity.g()`** (§14): the new import exists solely for the surface-geometry seam. Because that
+prohibition used to be enforced structurally (there was no import at all) and is now enforced only
+by discipline, §25.9 adds a regression test pinning it.
+
+**`sim/wind.py`** — change `from sim.flow import altitude_agl` to
+`from sim.gravity import altitude_agl, altitude_msl`, then three edits:
+
+| Function | Current | Becomes | Note |
+|---|---|---|---|
+| `_analytic_wind` (tier 1) | `h = altitude_agl(y)` | `h = altitude_agl(y, p)` | AGL is *right* here and gets *more* right: a power-law shear profile is referenced to the ground under the rocket, and with a curved surface that ground is further away than `−z` says. The docstring's existing AGL-vs-MSL argument stands unchanged. |
+| `_sounding_wind` (tier 2) | `h_msl = -y[Z] + getattr(p, "h0_m", 0.0)` | `h_msl = altitude_msl(y, p)` | |
+| `_field_wind` (tier 3) | same | same | |
+
+Tiers 2/3 **do** change, and the reason is sharper than "consistency": at any given state, wind
+tier 2 and atmosphere tier 2 read *the same sounding file* and must read it at *the same level*. If
+only the atmosphere curved, the two would sample different rows of one profile for one state — a
+genuine inconsistency, not a stylistic one. `from sim.state import Z` becomes unused here too;
+check and remove.
+
+**`sim/soundings.py`** — **no change. Confirmed by inspection**, not assumed: it receives `h_msl` as
+a plain `float` argument from `interp_altitude(snd, h_msl)` / `interp_field(case, y, h_msl, p)` and
+computes no altitude of its own. Its only `_geopotential(h_msl)` helper converts an altitude it is
+given. (It does read `y[X]` for the horizontal station projection — out of scope, §25.8.)
+
+**`sim/dynamics.py`, `sim/forces.py`, `sim/rotation.py`, `sim/aero.py`** — no change.
+`rotation.py`'s Coriolis decomposition uses `lat0_deg`/`azimuth_deg` and no altitude;
+`forces.thrust_body`'s pressure correction gets `p_amb` from `air_state` and therefore inherits the
+curved altitude with no edit of its own.
+
+**`sim/integrate.py`, `sim/plotting.py`, `run.py`** — the reported/plotted altitude, specified in
+**§25.5**. `integrate.py`'s *event* logic is untouched (it already consumes `ground_depth` from
+Step 42); its only change is one new `Result` field.
+
+### 25.5 Reported and plotted altitude (`run.py`, `sim/plotting.py`, `Result.params`)
+
+Per the scope amendment at the top of §25: the printed apogee altitude and every plotted altitude
+series become the curved `altitude_agl(y, p)`. Four things have to be got right, and three of them
+are traps.
+
+#### AGL, not MSL — the reported quantity keeps its meaning
+
+Use **`altitude_agl`**, not `altitude_msl`. Today's reported altitude is `−y[Z]`, i.e. height above
+the *launch point*; its curved generalisation is height above the *ground under the rocket*, which
+is `altitude_agl`. Switching to `altitude_msl` would additionally add `p.h0_m` and silently raise
+every plotted curve of the LKPR atmosphere sweep by 380 m — a change of *meaning*, not of surface,
+and not what "make the convention radial" asks for. The axis label stays `"Altitude [m]"`.
+
+#### The apogee **event** is not touched — only the number reported at it
+
+`integrate._apogee_event` stays `y[VZ]`, `direction = 1`, `terminal = False`, **unchanged**. This
+step does not go near the trigger. Apogee continues to mean *the top of the trajectory in the launch
+frame*; what changes is only the altitude *value* reported at that instant.
+
+The two are genuinely different questions, and the difference is a known, deliberate property rather
+than a defect: §24.2 computed `dh_true/dt = (x cos φ + z sin φ)vx/R − vz cos φ`, which is `+0.47 m/s`
+at `vx = 300 m/s, x = 10 km` where `vz = 0`. So on a curved run the reported curved altitude at
+`t_apogee` is **not** the maximum of the curved altitude over the flight; the two differ by ~0.05 s
+of flight time and a second-order amount of altitude. Redefining apogee as `max h_true` remains out
+of scope (§25.8) — it is a modelling decision about the *event*, and §24.2's warning stands:
+mixing an event redefinition into a step about altitude is how the apogee/impact pair gets silently
+broken. Put this paragraph in `_apogee_event`'s docstring, so the next reader does not "finish the
+job".
+
+#### The mechanism: `Result` gains `params`
+
+`plot_trajectory(r)`, `plot_time_histories(r)` and `plot_trajectory_overlay(results, title)` receive
+only `Result`s, and now need `Params`. **Add `params` as a fifth field to `integrate.Result`**,
+appended last (the `Sounding.Td` / `_AeroTable.C_mq` precedent, §23.3/§24.4):
+
+```python
+class Result(NamedTuple):
+    t: np.ndarray
+    y: np.ndarray
+    events: dict[str, Optional[float]]
+    raw: Any
+    params: Any    # the Params that produced this run -- Step 45, architecture.md SS25.5
+```
+
+set in the **two** places `Result` is constructed, both in `integrate.py`, both with `p` already in
+scope: `run_sim`'s return and `_run_rk4`'s return, each gaining `params=p`.
+
+Why this and not a `p` argument on the three plotting functions:
+
+- `plot_trajectory_overlay` takes `dict[str, Result]` built by `run.py`'s `sweep()` — **one Params
+  per variant**, by construction. A single `p` parameter would be wrong in general (it happens to be
+  harmless for the two committed sweeps, which vary `gravity_model`/`atmosphere_model` and share a
+  `gravity_direction`, but the function is generic and the next sweep might vary the direction
+  itself). `r.params` is right per line, automatically.
+- `Result` is constructed in exactly two places and consumed by attribute everywhere — **audited:
+  there is no positional unpacking of `Result` anywhere in `sim/`, `tests/` or `run.py`** — so
+  appending a field is contained.
+- `Params` is a frozen dataclass with no numpy arrays in it (§17: "`Params` holds names and paths"),
+  so `Result` stays printable and comparable, and a `Result` finally becomes self-describing about
+  which models produced it — which §12 already wanted for saved runs.
+
+#### `altitude_agl` must work on the `(6, N)` history array — it already does
+
+`plotting.py` computes altitude for a whole sampled history at once (`y = r.raw.sol(t)`, shape
+`(6, N)`). `ground_depth`'s body is pure elementwise numpy — `y[Z]` and `y[X]` become length-`N`
+rows, `np.cos`/`np.sin` broadcast, and the `"parallel"` branch returns the `y[Z]` row unchanged — so
+`altitude_agl(y, p)` and `altitude_msl(y, p)` **already vectorise with no code change**. Two things
+follow, both required of the step:
+
+- Widen the return annotations to `"float | np.ndarray"` on `ground_depth`, `altitude_agl` and
+  `altitude_msl`, and say so in their docstrings. The vectorised use is now load-bearing, not
+  incidental; an annotation saying `float` invites someone to "fix" it with a `float()` cast, which
+  would break `plotting.py` in a way no gravity test would catch.
+- Assert it: the vectorised call over a `(6, N)` array equals the per-column loop **exactly**
+  (`np.array_equal`), for all three direction models (§25.9).
+
+`curvature_radius(p)` is scalar and `R is None` is a scalar branch, so neither vectorises *into* a
+per-sample decision — correct, because the direction model is a property of the run, not of the
+sample.
+
+#### The exact call sites
+
+| File · function | Current | Becomes |
+|---|---|---|
+| `run.py` · `_flight_summary` | `apogee_altitude = -result.raw.sol(apogee_time)[Z]` | `altitude_agl(result.raw.sol(apogee_time), p)` |
+| `run.py` · `main` | `apogee_altitude = -result.raw.sol(apogee_time)[Z]` | `altitude_agl(result.raw.sol(apogee_time), params)` |
+| `plotting.py` · `plot_trajectory` | `altitude = -y[Z]` | `altitude = altitude_agl(y, r.params)` |
+| `plotting.py` · `plot_trajectory_overlay` | `altitude = -y[Z]` (inside the per-variant loop) | `altitude = altitude_agl(y, r.params)` — each variant's own `r` |
+| `plotting.py` · `plot_time_histories` | `altitude = -y[Z]` | `altitude = altitude_agl(y, r.params)` |
+| `integrate.py` · `run_sim`, `_run_rk4` | `Result(t=…, y=…, events=…, raw=…)` | `+ params=p` |
+
+**`run.py` has two independent copies of the apogee-altitude expression** — `_flight_summary` (used
+by `sweep`) and `main` (which does *not* call `_flight_summary`, it recomputes inline). Both must
+change. Converting only one is the realistic failure mode here, and it is **invisible in the
+committed scenario's printed output** (which is vertical, see below), so it has to be caught by a
+test that exercises a tilted curved run through both paths. Same hazard, same shape, as
+`atmosphere.py`'s three inlined copies (§25.4).
+
+`plotting.py`'s module docstring currently opens "The only module allowed to know altitude = -z" —
+rewrite it: it is now the module that *asks* `gravity.altitude_agl` for the altitude, and the `-z`
+knowledge has moved with the helper. `Z` becomes unused in `plotting.py`'s `from sim.state import`
+line — drop it. In `run.py`, `Z` is **still used** by the `trajectory.csv` dump — keep it there.
+
+#### What deliberately does not change in `run.py`
+
+- **`trajectory.csv`'s `z` column stays the raw state.** The column is named `z` and *is* the state
+  variable, down-positive — not an altitude claim, and already physically correct. Converting it
+  would stop the dump being a state dump and would break run-to-run diffs for reasons unrelated to
+  this step. (Adding a separate `h` column is a reasonable idea and is explicitly a different,
+  optional step.)
+- **Downrange needs no change at all.** `y[X]` is *already* arc length along the reference surface:
+  §23.1 defines `φ = x/R`, i.e. `x` is measured along the ground, not as a chord. So
+  `downrange_impact`, the CSV's `x` column and the trajectory plot's horizontal axis are already the
+  physically correct ground-track distance. Do not "correct" them with an `R sin φ` factor — that
+  would convert a correct arc length into a chord.
+- **`set_aspect("equal")` stays.** With both axes now surface-referenced, `plot_trajectory` draws
+  the path in surface-following coordinates (arc length along the ground against height above it).
+  That is exactly the right picture and the equal aspect is still meaningful; nothing is being
+  "unbent".
+
+#### The recorded sweep outputs — resolved by proof, not by regeneration
+
+The only **committed** record of `run.py` output is `PROJECT-STATUS.md`'s Step-27 bullet, the
+fenced "Actual printed sweep tables" block (the `gravity_model` and `atmosphere_model` tables).
+`trajectory.png`, `time_histories.png`, `gravity_sweep.png`, `atmosphere_sweep.png` and
+`trajectory.csv` are all **gitignored** (`.gitignore`: `*.png`, `trajectory.csv`) — untracked,
+regenerated on every `python run.py`, nothing to migrate.
+
+**Those recorded tables do not move, and the step must prove it — twice over:**
+
+1. `run.py`'s `params` never sets `gravity_direction`, so it is `"parallel"`: flat, bit-for-bit
+   (§25.6), for every number in both tables.
+2. Even if it were curved, that scenario is **exactly vertical**. `θ₀ = π/2`, `vx₀ = 0`,
+   `A_z = A_m = 0`, `wind_model = "none"`, and in the atmosphere sweep `aero_model="coefficients"`
+   produces `A_z = qS·C_N(α=0) = 0` and `A_m = 0` — so `ax ≡ 0`, `x ≡ 0.0` for the whole flight, and
+   `altitude_agl` returns `−z` **bitwise** at `x = 0` for *every* direction model (§24.2's `cos 0 = 1,
+   sin 0 = 0, R(1−1) = 0` argument). Both sweeps inherit this.
+
+Therefore **`PROJECT-STATUS.md`'s Step-27 block is not edited by this step.** It is a dated record of
+what Step 27 printed, and the project already treats it that way: it still lists the `linear` gravity
+model, removed at Phase 2.5 Step 34, and Step 34 did not rewrite it.
+
+**This is a checkable scope item, not an afterthought.** The step must:
+
+- re-run `python run.py` and confirm the printed sweep tables match the recorded block to the printed
+  precision, for the rows that still exist (`constant`, `radial`, `wgs84` — `linear` is gone — and
+  both atmosphere rows);
+- if any number *has* moved, the discrepancy predates Step 45 (it would have been introduced
+  somewhere in Steps 33-44) and must be investigated and recorded explicitly before Step 45 is
+  committed, **not silently absorbed into this step's commit**;
+- record the verification in the usual tracker commit (`PROJECT-STATUS.md` / `status.json`), stating
+  that the sweeps were re-run and are unchanged — the same shape as every prior phase's
+  "Record Phase 2.x completion" commit.
+
+No test in the suite pins an absolute apogee altitude — `tests/test_plotting.py`'s four sweep tests
+are all ordering/relative comparisons (`constant < radial`, `wgs84 > radial`, `sounding > isa`),
+and all run with the default `"parallel"` direction. **Audited; they pass unchanged.** Confirm that
+before starting rather than assuming it.
+
+### 25.6 Bit-for-bit, worked out rather than asserted
+
+The default `gravity_direction = "parallel"` makes `curvature_radius(p)` return `None`, so
+`ground_depth` returns `y[Z]` with **no arithmetic performed on that path at all** (§24.2). Then:
+
+- `altitude_agl(y, p)` = `-(y[Z])`. IEEE negation is a sign-bit flip: exact for every finite value,
+  for ±0.0, ±inf and NaN. The pre-Step-45 `flow.altitude_agl(y)` evaluated `-y[Z]` — *the same
+  operation on the same operand*. **Bitwise identical**, not merely equal.
+- `altitude_msl(y, p)` = `altitude_agl(y, p) + getattr(p, "h0_m", 0.0)` — the same two operations,
+  same order, same operands as before. Bitwise identical.
+- The five inlined sites in `atmosphere.py`/`wind.py` evaluated `-y[Z] + getattr(p, "h0_m", 0.0)`;
+  they now evaluate `(-y[Z]) + getattr(p, "h0_m", 0.0)` through two function calls. Identical
+  expression tree, identical operands. Bitwise identical.
+- `_g_radial`/`_g_wgs84` receive a bitwise-identical `h` and their own formulas are untouched.
+- `ground_depth` itself is **not edited**, so Step 42's pinned values and the impact event are
+  untouched by construction.
+- **The reporting path (§25.5) is bit-for-bit under `"parallel"` too, for the same one reason.**
+  `run.py`'s two `-result.raw.sol(t_a)[Z]` become `altitude_agl(result.raw.sol(t_a), p)`, which
+  under `"parallel"` is `-(y_a[Z])` — the same operation on the same operand. `plotting.py`'s three
+  `-y[Z]` become `altitude_agl(y, r.params)`, which under `"parallel"` returns `-(y[Z])` on the
+  whole `(6, N)` row — numpy's unary negation, elementwise, exact. Every plotted point and every
+  printed apogee altitude is bitwise what it was.
+- **`Result.params` cannot perturb anything.** It is an appended field on a NamedTuple, read by
+  nobody except `plotting.py`, and `Params` is frozen. No existing consumer reads `Result`
+  positionally (audited, §25.5), so `r.t`/`r.y`/`r.events`/`r.raw` resolve exactly as before.
+- **`_apogee_event`, `_ground_event` and `_burnout_event` are not edited at all**, so event times
+  are unchanged by construction on both integrator paths — the reporting change reads the
+  interpolant at the same instant as before.
+
+**Therefore the entire existing test suite must pass unmodified.** That is the step's headline
+check, and it is stated as a hard rule in §25.9: the only test edits permitted by this step are the
+two `tests/test_flow.py` altitude tests, which must move to `tests/test_gravity.py` and gain the `p`
+argument (their import line would otherwise fail at collection). **Any other test that needs editing
+is a bug in the step, not in the test.**
+
+The curved-direction tests that already exist (`tests/test_forces.py`'s four
+`gravity_direction` tests, `tests/test_gravity.py`'s `ground_depth` tests) also pass unchanged, for
+a second and independent reason: they all run with `gravity_model = "constant"` and
+`aero_model = "constant"`, so no altitude is consulted on their paths. **Audit that claim before
+starting** — if any of them is later given a non-constant gravity or aero model, its numbers move,
+by design.
+
+### 25.7 Pinned numbers
+
+**One state, five consequences.** `State(x = 10 000.0, z = −1000.0, …)`, `R_e = 6371000.0`,
+`h0_m = 0.0`, comparing `gravity_direction = "parallel"` against `"radial"`:
+
+| Quantity | Configuration | `"parallel"` | `"radial"` | Relative change |
+|---|---|---|---|---|
+| `altitude_agl` [m] | — | `1000.000000` | `1007.846825` | `+7.846825 m` |
+| **reported apogee altitude / plotted altitude** [m] | §25.5 — it *is* `altitude_agl` now | `1000.000000` | `1007.846825` | `+7.846825 m` |
+| `_g_radial` [m/s²] | `gravity_model="radial"`, `g=9.80665` | `9.803572196959` | `9.803548051707` | `−2.4629e−6` |
+| `_g_wgs84` [m/s²] | `gravity_model="wgs84"`, `lat0_deg=50.0` | `9.807617683881` | `9.807593486449` | `−2.4672e−6` |
+| ISA `rho` [kg/m³] | `atmosphere_model="isa"` | `1.111659912` | `1.110803679` | `−7.7023e−4` |
+| tier-1 `W` [m/s] | `wind_ref_ms=5.0`, `wind_ref_h_m=10.0`, `wind_shear_exp=0.143` | `9.659841585` | `9.670644585` | `+1.1183e−3` |
+
+Note the signs: the rocket is **higher** than the flat reading said, so `g` is **smaller**, the air
+is **thinner**, the sheared wind is **stronger**, and the reported altitude is **larger**. All five
+follow from one `+7.846825 m`.
+
+**The committed `run.py` scenario moves by exactly zero — pin that too.** Its printed summary,
+both sweep tables and all four figures are unchanged by this step, for two independent reasons
+(§25.5): `gravity_direction` is the default `"parallel"`, and the flight is exactly vertical
+(`x ≡ 0.0`, where `altitude_agl` returns `−z` bitwise for *every* direction model). The pinned
+values are therefore `PROJECT-STATUS.md`'s own recorded Step-27 tables, unchanged to the printed
+four decimals — e.g. `constant 4609.2267 m / 30.1209 s`, `radial 4612.2651 m / 30.1465 s`,
+`wgs84 4624.2535 m / 30.2202 s`, and `isa 682.3775 m` vs `sounding 685.1434 m`. This is a
+*negative* pin — the step is wrong if any of them moves.
+
+**The `h_true` table (§24.2's, un-negated — now read as altitudes rather than depths):** at `z = 0`,
+`R = R_e`, `altitude_agl` = `+0.078481 / +1.660650 / +7.848057 / +70.632162` m at
+`x = 1 / 4.6 / 10 / 30` km. These are the same literals `tests/test_gravity.py::_PINNED_NEG_H_TRUE`
+already carries, with the sign flipped — reuse them, do not re-derive them.
+
+**`altitude_agl` depends on `z` as well as `x`** (the exact form, not the `x²/2R` approximation):
+at `x = 10 km` the correction is `+7.848057 m` at `z = 0`, `+7.846825 m` at `z = −1000`,
+`+7.841897 m` at `z = −5000`. A test that only ever checks `z = 0` cannot tell the exact form from
+the approximation; §24.2's small-angle-residual test already covers this for `ground_depth` and does
+not need repeating, but the `z`-dependence is worth one assertion.
+
+**Elliptical vs radial**, `φ₀ = 50°, χ = 90°` (so `R_χ = 6390702.0442` against `R_e = 6371000.0`,
+§24.1's pinned value), at `x = 10 km, z = 0`: `altitude_agl` is `7.823862 m` elliptical against
+`7.848057 m` radial — a difference of `−0.024195 m`, i.e. `0.31 %` of a 7.85 m correction. Fed into
+`_g_radial` that is a `~7.6e−9` relative change in `g`: the magnitude-side effect of
+`gravity_direction` described in §25.2, at its realistic size.
+
+**Scale-height reading**, for anyone checking the density pin by hand: `Δρ/ρ ≈ −Δh/H` with
+`H ≈ 10.2 km` at 1 km altitude (`−7.7e−4` for `+7.85 m` ✓) and `H ≈ 8.5 km` higher up, which is
+where §24.2's "~0.09 %" figure came from. Both are far below the atmosphere model's own error — the
+same threshold §23.3 used to leave `a` and `μ` dry and §13 used to reject EGM2008. This step is
+taken for *consistency*, not accuracy: it is no longer defensible for the impact event to know the
+ground curves while the air above it does not.
+
+### 25.8 Scope — what this step does NOT do
+
+- **No change to any event's trigger — this is the hard line of the step.** `_apogee_event` stays
+  `y[VZ]`, `direction = 1`, `terminal = False`; `_ground_event` stays `ground_depth` with
+  `direction = 1`, `terminal = True` (Step 42); `_burnout_event` stays `t − t_burn`.
+  `sim/integrate.py`'s **only** edit is the new `Result.params` field (§25.5). The reported altitude
+  becoming curved is a change to a *number read at an instant*, not to *which instant*. A developer
+  who "finishes the job" by also moving the apogee trigger has changed the physics of the run, not
+  its reporting, and has broken the pairing §24.2 warned about.
+- **Apogee is not redefined as `max h_true`.** On a curved run the reported curved altitude at
+  `t_apogee` is *not* the maximum of the curved altitude over the flight — `dh_true/dt` is
+  `+0.47 m/s` at `vx = 300 m/s, x = 10 km` where `vz = 0` (§24.2), so the two definitions differ by
+  ~0.05 s and a second-order amount of altitude. That is a known, documented property of reporting a
+  surface-referenced altitude at a launch-frame apogee, and redefining the event is a separate
+  modelling decision with its own tests.
+- **`trajectory.csv`'s `z` column stays the raw, down-positive state** (§25.5). It is labelled `z`,
+  it is the state variable, and it is already physically correct; converting it would stop the dump
+  being a state dump. Adding a separate `h` column is a different, optional step.
+- **Downrange is not touched.** `y[X]` is already arc length along the reference surface by
+  construction (`φ = x/R`, §23.1), so `downrange_impact`, the CSV's `x` column and the plots'
+  horizontal axis are already right. Do not apply an `R sin φ` "correction" — it would turn a
+  correct arc length into a chord.
+- **No new sweep or scenario in `run.py`.** The committed scenario stays vertical and
+  `"parallel"`, which is why its recorded outputs are unchanged (§25.5, §25.7). Adding a tilted
+  curved-direction sweep so the new behaviour is visible in the shipped output is a reasonable
+  follow-up and is explicitly *not* this step.
+- **`PROJECT-STATUS.md`'s Step-27 recorded sweep tables are not rewritten** (§25.5). They are a
+  dated record — they still list the `linear` model removed at Step 34 — and this step proves they
+  do not move rather than regenerating them.
+- **No `ω_n`/`ζ` reporting** (still §24.4's separate optional step) and no other addition to the
+  printed summary.
+- **No change to `_G_ISA` (`9.80665`) or `_R_ISA` (`6356766.0`).** Both are constants of the ISA
+  standard's own definition, exactly as §14 states; only the `h_msl` handed to the ISA changes.
+  `atmosphere.py` still must not call `gravity.g()`.
+- **`p.R_e` keeps its role** as the geocentric radius of the `radial` magnitude falloff. Do not
+  substitute `curvature_radius(p)` into `(R_e/(R_e+h))²` (§25.2).
+- **No change to the horizontal station projection.** `soundings.interp_field` still reads `y[X]`
+  as a tangent-plane distance rather than an arc length. The mismatch is `x³/6R²` —
+  `4.1 mm` at 10 km, `0.11 m` at 30 km — against station spacings of tens of kilometres and an
+  IDW `ε` of 500 m. Not worth a step.
+- **No `Params` field, no new model string, no new dispatch dict.** The gate is the existing
+  `gravity_direction`. This is the first step since Step 38 that adds no field at all; that is a
+  feature, and it is why the bit-for-bit argument is as short as it is.
+- **No caching of `curvature_radius(p)`**, for §24.1's reason (~10 flops, `Params` is not hashable
+  across every field, §15 "do not optimise"). `altitude_agl` is now called ~4-6× per RHS evaluation
+  instead of ~2×; at microseconds per call this is irrelevant (§7).
+- **No third-order ellipsoid fidelity** (φ₀ stays frozen at the launch site) and **no Coriolis
+  coupling** — both inherited unchanged from §24.1/§23.1.
+- **No geoid/MSL refinement.** `h_msl = h_agl + h0_m` treats the mean-sea-level surface as
+  concentric with the reference surface. The ellipsoid/geoid distinction is already ignored by
+  `_g_wgs84` (§13) and is far below this step's own effect size.
+- **No terrain.** "Ground" is the smooth reference surface, as in §24.2.
+
+### 25.9 Checks for the step
+
+**Regression (the headline check).**
+
+- The **entire existing suite passes unmodified**, with the single permitted exception of
+  `tests/test_flow.py`'s `test_altitude_agl_is_minus_z` and
+  `test_altitude_msl_falls_back_to_agl_when_h0_m_absent`, which move to `tests/test_gravity.py`,
+  import from `sim.gravity`, and pass `p`. Any other test needing an edit is a bug in the step.
+- A full `run_sim` on **both** integrator paths (RK45 and `method="rk4"`), with the default
+  `gravity_direction = "parallel"` and a configuration that actually exercises every altitude
+  consumer (`gravity_model="wgs84"`, `atmosphere_model="isa"`, `aero_model="coefficients"`,
+  `wind_model="analytic"`), reproduces the pre-Step-45 `events`, `t` and `y` arrays **bit-for-bit**
+  (`np.array_equal`). Repeat once with `atmosphere_model="sounding"` + `wind_model="sounding"` on
+  the committed `example` case, so the tier-2 path is covered too.
+- Include a **tilted** scenario with `x ≠ 0` throughout — under `"parallel"` it must still be
+  bit-for-bit, and it is the only configuration in which a mistake in the flat branch could show up
+  (the vertical default has `x ≡ 0`, where the curved formula also returns `−z`; say so in the
+  test's docstring, as Step 42's tests do).
+- `tests/test_plotting.py`'s four sweep tests pass unchanged (all ordering/relative, all
+  `"parallel"` — audited, §25.5). Re-run `python run.py` and confirm the printed sweep tables match
+  `PROJECT-STATUS.md`'s recorded Step-27 block to the printed precision for the rows that still
+  exist; a discrepancy predates this step and must be investigated and recorded, not absorbed
+  (§25.5).
+
+**Reported and plotted altitude (§25.5).**
+
+- **Bit-for-bit under `"parallel"`:** `run.py`'s printed apogee altitude and `plotting.py`'s three
+  altitude series are bitwise what they were. Assert the plotting one directly — call
+  `plot_trajectory`/`plot_time_histories`/`plot_trajectory_overlay`, pull the line data back off the
+  returned figure (`ax.lines[0].get_ydata()`), and `np.array_equal` it against `-r.y[Z]`-style
+  reference arrays built the old way.
+- **Reported == the helper, not a re-derivation:** `_flight_summary(result, p)["apogee_altitude"]`
+  equals `altitude_agl(result.raw.sol(result.events["apogee"]), p)` **exactly**, for all three
+  directions. Same assertion for `main()`'s inline copy — and it must be a *separate* assertion,
+  because `main()` does not call `_flight_summary` and converting only one of the two is this
+  change's realistic failure mode (§25.5). Exercise both through a **tilted** curved run, where the
+  two differ from the flat value.
+- **Geometric magnitude:** for a tilted `"radial"` run, `apogee_altitude − (−y_a[Z])` at that run's
+  own apogee state `y_a` equals `x·sin φ − z·cos φ − R(1−cos φ) + z` evaluated on `y_a` exactly, is
+  strictly positive, and is within a few per cent of `x_a²/2R_e`. Do not pin an absolute apogee
+  altitude for a simulated trajectory — pin the *difference*, computed from the state the run
+  actually reached.
+- **Synthetic pin:** at `(x = 10 km, z = −1000)`, `R_e = 6371000`, the reported altitude is
+  `1007.846825 m` under `"radial"` against `1000.000000 m` under `"parallel"` (§25.7's table).
+- **AGL not MSL:** with `h0_m = 380.0`, the reported/plotted altitude at `z = 0` is `0.0`, not
+  `380.0` — the guard against `altitude_msl` being wired in by mistake, which would silently raise
+  every LKPR-sweep curve by 380 m.
+- **Vectorisation:** `altitude_agl(y_2d, p)` over a `(6, N)` history equals the per-column loop
+  `[altitude_agl(y_2d[:, i], p) for i in range(N)]` **exactly** (`np.array_equal`), for all three
+  directions, and returns shape `(N,)`.
+- **`Result.params`:** `run_sim(...).params is p` on **both** integrator paths (RK45 and `rk4`), and
+  `plot_trajectory_overlay` on a two-variant sweep draws each line with *its own* variant's
+  `params` — construct two Results with deliberately different `gravity_direction` values and check
+  the two plotted altitude series differ accordingly (the check that `r.params` is read per line,
+  not once).
+- **The apogee trigger is unchanged:** assert `_apogee_event.direction == 1` and
+  `_apogee_event.terminal is False` as attributes, and that `result.events["apogee"]` is bitwise
+  identical between the pre- and post-step runs — the regression guard on this step's one real
+  hazard, mirroring Step 42's `_ground_event` attribute assertions.
+
+**Identity and structure.**
+
+- `altitude_agl(y, p) == -gravity.ground_depth(0.0, y, p)` exactly, for all three direction models,
+  at several `(x, z)` including `x = 0` and large `x` — the anti-duplication guard.
+- `altitude_agl(y, p_parallel) == -y[Z]` exactly, for arbitrary `x`, `z`, including `x ≠ 0`.
+- `altitude_msl(y, p) == altitude_agl(y, p) + p.h0_m` exactly, for all three directions and a
+  nonzero `h0_m`.
+- `altitude_agl(y, p) == -y[Z]` exactly at `x = 0.0` for **all three** directions (`cos 0 = 1`,
+  `sin 0 = 0`, `R(1−1) = 0` — bitwise, §24.2's argument).
+- An unknown `gravity_direction` raises `KeyError` from `altitude_agl` too — i.e. from inside the
+  atmosphere and wind paths as well — with no silent flat fallback (§7, and §24.1's own test).
+- `sim/gravity.py` no longer imports `sim/flow.py`: assert it structurally if convenient (e.g. that
+  `sim.gravity` imports cleanly with `sim.flow` absent from `sys.modules`), or at minimum state it
+  in the module docstring.
+
+**Curved-model values.**
+
+- `altitude_agl` at `z = 0`, `"radial"`, `R_e = 6371000`, matches `+0.078481 / +1.660650 /
+  +7.848057 / +70.632162` m at `x = 1 / 4.6 / 10 / 30` km — the existing `_PINNED_NEG_H_TRUE`
+  literals with the sign flipped.
+- `altitude_agl` is **strictly greater** than `−y[Z]` for every `x ≠ 0` under a curved direction
+  (the ground fell away beneath a rocket that did not), and equal at `x = 0`.
+- `altitude_agl` depends on `z`, not only on `x`: `+7.848057 / +7.846825 / +7.841897` m at
+  `x = 10 km` for `z = 0 / −1000 / −5000`.
+- `"elliptical"` at `φ₀ = 50°, χ = 90°` gives `7.823862 m` where `"radial"` gives `7.848057 m`
+  (`x = 10 km, z = 0`) — a live, distinguishable code path.
+
+**Physics consequences (one state, four pins — §25.7's table, asserted as differences, not
+re-derived in the test).**
+
+- `_g_radial`: `9.803572196959 → 9.803548051707` (`−2.4629e−6` relative) between `"parallel"` and
+  `"radial"` at `(x = 10 km, z = −1000)`.
+- `_g_wgs84` at `lat0_deg = 50.0`: `9.807617683881 → 9.807593486449` (`−2.4672e−6`).
+- ISA `rho`: `1.111659912 → 1.110803679` (`−7.7023e−4`); and `rho`, `p`, `T` all move in the
+  thermodynamically consistent direction (thinner, lower pressure, warmer or cooler per the layer's
+  own lapse) — check `rho == p/(R_d·T)` still holds exactly.
+- Tier-1 wind `W`: `9.659841585 → 9.670644585` (`+1.1183e−3`), i.e. a *stronger* wind at a *higher*
+  true altitude under a positive shear exponent.
+- Tier 2 consistency: at one state, `atmosphere._sounding_air_state` and `wind._sounding_wind` read
+  the committed `example` sounding at **the same** `h_msl` — compute `altitude_msl(y, p)` in the
+  test and assert both models' outputs equal `soundings.interp_altitude(snd, that_h)`'s
+  corresponding fields. This is the check that the five call sites were all converted, and all
+  converted the same way.
+
+**Orthogonality, pinned in both directions (§25.2).**
+
+- With `gravity_model = "constant"`, `g(t, y, p)` is exactly `p.g` for **all three** directions, at
+  any `x` — the constant law has no `h` in it and must stay immune.
+- With `gravity_model = "radial"` held fixed, sweeping `gravity_direction` across
+  `parallel/radial/elliptical` **does** change `g`, by the pinned amounts above. This test exists
+  specifically so that nobody "restores orthogonality" by reverting the step; its docstring must say
+  so and cite §25.2.
+- With `gravity_direction = "elliptical"` and `gravity_model = "radial"`: sweeping `p.R_e` changes
+  `g` (it is the falloff radius) but leaves `altitude_agl` **exactly** unchanged (curvature comes
+  from `_R_chi`). With `gravity_direction = "radial"`, sweeping `p.R_e` changes both. This is the
+  sharpest available test that the two roles of "an Earth radius" were not conflated (§25.2), and it
+  extends §24.1's own `R_e`-sweep test rather than replacing it.
+- With `gravity_direction = "elliptical"`, sweeping `lat0_deg`/`azimuth_deg` moves `altitude_agl`;
+  with `"radial"` it does not.
+
+**`atmosphere.py`'s ISA invariant, newly in need of a guard (§25.4).**
+
+- Sweeping `p.gravity_model` across `constant/radial/wgs84` leaves every `air_state(...)` field
+  **exactly** unchanged, at a state with `x ≠ 0` and a curved direction active. `atmosphere.py` now
+  imports `sim.gravity`, so §14's "the atmosphere must not call `gravity.g()`" is no longer
+  guaranteed by the absence of an import; this test guarantees it instead.
+- `_R_ISA` and `_G_ISA` are still `6356766.0` and `9.80665` (a literal assertion is cheap and
+  documents the rule where a reader will hit it).
+
+### 25.10 Rejected options
+
+| Rejected | Why |
+|---|---|
+| Keep `altitude_agl`/`altitude_msl` in `flow.py` and import `gravity` from there | Adds two import cycles (`flow → gravity` and `atmosphere → flow`), each needing a function-scope import to break, and routes `_g_radial`'s altitude request up through `flow` and back down to `gravity`. Moving the helpers *removes* an edge instead of adding two (§25.3). |
+| A new `sim/surface.py` (or `sim/ground.py`) holding the curvature, the ground and the altitudes | Tempting now that the surface seam has four public functions and four consumers — but `_R_chi` needs `_WGS84_A`/`_WGS84_E2`, which `_g_wgs84` also needs. Splitting means either a second copy of those constants (forbidden, §24.1) or a `gravity ↔ surface` cycle, and it churns three just-landed steps. `gravity.py` is the module that owns the Earth's shape in this codebase; §24.2 already settled this for `ground_depth`. |
+| Re-typing the `h_true` trigonometry in a new `altitude_agl` body | Two implementations of one surface, free to drift — the exact hazard §24.1 and §23.3 legislated against. `−ground_depth(...)` is one unary minus and cannot disagree with the impact event. |
+| Refactoring `ground_depth` into a shared private `_h_true(y, p)` with `ground_depth = −_h_true` | Bitwise safe (IEEE subtraction is exactly antisymmetric, so `−fl(fl(A−B)−C) == fl(fl(B−A)+C)`, and `−(−y[Z]) == y[Z]` exactly) — but it churns a function that landed one step ago and whose pinned tests are the project's guard on the one sign mistake that phase invited, in exchange for removing a documented placeholder `0.0`. Not worth it. |
+| Making `altitude_agl` take `(t, y, p)` for signature uniformity | The reference surface is time-invariant; every caller would pass a value that is discarded. `(y, p)` matches `altitude_msl`'s existing shape. |
+| Keeping a `flow.altitude_agl` alias for compatibility | Two import paths for one function, in a package with no external consumers. Update the two callers. |
+| Leaving `altitude_msl` flat while `altitude_agl` curves | Would put two different altitudes in play at one state, and would cost *extra* code: `altitude_msl` is `altitude_agl + h0_m` today and inherits curvature for free. The MSL surface is concentric with the reference surface, so the offset really is exactly `h0_m` (§25.1). |
+| Leaving wind tiers 2/3 flat because they are "MSL, not AGL" | They read the *same sounding file* as atmosphere tiers 2/3. Curving one and not the other would sample two different rows of one profile for one state. |
+| Adding a `Params` flag to gate the curved altitude separately from `gravity_direction` | A second source of truth for "is the ground curved". `gravity_direction = "parallel"` already means "flat", and §21 already rejects inferring physics from anything other than an explicit model string. |
+| Substituting `curvature_radius(p)` for `p.R_e` in `_g_radial`'s falloff | `_R_chi` is a radius of *curvature*, not a geocentric distance; the inverse-square law is governed by distance to the mass (§25.2). |
+| Making the ISA's `_R_ISA` (geopotential conversion) curvature-aware | Part of the ISA standard's own definition, exactly like `_G_ISA = 9.80665` (§14). Only the input `h_msl` changes. |
+| ~~Leaving `run.py`'s reported apogee altitude and `plotting.py` at `−z`~~ | **Rejected by the user**, who asked for the radial convention everywhere ("I want stuff to be physically correct"). The original argument was that it is a reporting decision mixed into a physics step. Its surviving half is now a *requirement*, not a deferral: the apogee **event** stays `vz = 0` and only the reported *value* curves (§25.5, §25.8). Its other half — that recorded sweep outputs would shift — turned out to be false for the committed scenario, which is vertical and `"parallel"` (§25.5); that is now a pinned negative check rather than a reason to defer. |
+| Adding a `p: Params` argument to the three `plotting.py` functions | `plot_trajectory_overlay` takes a dict of `Result`s from a *sweep* — one `Params` per variant. A single `p` argument is wrong in general, and would happen to be harmless only for the two committed sweeps. `Result.params` is right per line (§25.5). |
+| Redefining apogee as the maximum of `h_true` | Changes *which instant* apogee is, not just the number reported at it — a separate modelling decision with its own tests, and §24.2's warning about breaking the apogee/impact pair applies directly. The ~0.05 s / second-order-altitude difference is documented instead (§25.8). |
+| Reporting `altitude_msl` instead of `altitude_agl` | Changes the reported quantity's *meaning* (adds `p.h0_m`), silently raising every LKPR-sweep curve by 380 m. The step changes the surface the altitude is measured from, not what is being measured (§25.5). |
+| Converting `trajectory.csv`'s `z` column to an altitude | It is labelled `z`, it *is* the state, and it is already correct; converting it would stop the dump being a state dump and would break run-to-run diffs for unrelated reasons. A separate `h` column is a different, optional step (§25.8). |
+| Applying an `R sin φ` "correction" to downrange | `y[X]` is already arc length along the reference surface by construction (`φ = x/R`, §23.1). The "correction" would convert a correct arc length into a chord. |
+| Regenerating `PROJECT-STATUS.md`'s Step-27 sweep tables | They do not move (vertical scenario, `"parallel"` default — §25.5), and the file is a dated changelog: it still lists the `linear` model removed at Step 34, which Step 34 did not rewrite. Prove they are unchanged; do not edit the record. |
