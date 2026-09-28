@@ -151,3 +151,13 @@ class Params:
     # affected -- the ISA is dry air by definition (architecture.md SS14's
     # `g_isa` argument, reused here).
     humid_air: bool = False
+
+    # Step 43: lateral (off-axis) offsets of the CoG (B) and the thrust point (C)
+    # from the body axis, measured along +z_hat_r (towards the belly), metres.
+    # rocket-2d.tex SSGeometry: AB = -l_B*x_hat_r - u_B*z_hat_r, likewise AC with
+    # u_C; u_D == 0 by definition. As-built manufacturing quantities to be swept,
+    # not functions of the flight state -- the same standing as
+    # thrust_misalign_deg. 0.0 (the default) recovers the on-axis geometry
+    # bit-for-bit.
+    u_B: float = 0.0   # lateral offset of the centre of gravity [m]
+    u_C: float = 0.0   # lateral offset of the thrust application point [m]

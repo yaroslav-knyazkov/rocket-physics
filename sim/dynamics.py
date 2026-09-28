@@ -235,10 +235,16 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # effect (that is explicitly a *future* gimbal-model concern, per the
     # "on-axis thrust ... intentionally zero today" comment below) rather
     # than model the CoP travel this step actually asks for.
+    # Step 43 (roadmap.md; architecture.md SS24.3; rocket-2d.tex SSGeometry):
+    # lateral (off-axis) offsets `u_B` (CoG), `u_C` (thrust point) along
+    # +z_hat_r. `u_D == 0` by definition, so `aA`'s lateral component is
+    # `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
+    # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
+    # both arrays are bitwise identical to the pre-Step-43 literals below.
     flow = flow_state(t, y, p)
     l1_aero = aero.cop_l1(flow.alpha, flow.M, p)
-    aA = np.array([-l1_aero, 0.0])         # CoP position
-    aB = np.array([-(p.l1 + p.l2), 0.0])   # thrust application point
+    aA = np.array([-l1_aero, p.u_B])                     # CoP position
+    aB = np.array([-(p.l1 + p.l2), p.u_B - p.u_C])       # thrust application point
 
     # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
     # to T) produces zero pitching moment -- that was the only case here

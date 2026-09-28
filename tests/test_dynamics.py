@@ -446,3 +446,53 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
 
     for a_pos, a_neg in zip(alphas_pos, alphas_neg):
         assert math.isclose(a_pos, -a_neg, rel_tol=1e-6, abs_tol=1e-8)
+
+
+# ---------------------------------------------------------------------
+# Step 43: lateral offsets u_B, u_C (architecture.md SS24.3; rocket-2d.tex
+# SSGeometry; analysis.tex eq:moment_full). A lateral offset acts exactly
+# like a thrust-cant offset on the thrust moment (eq:alpha_trim with M_delta
+# replaced by the combined term), so this test mirrors
+# `test_misaligned_thrust_trims_stable_airframe_instead_of_diverging` above.
+# ---------------------------------------------------------------------
+
+
+def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
+    """A statically stable airframe (same fixture as the Step 39 trim
+    test) with `u_B != 0` (CoG offset from the body axis, `u_C = 0`) trims
+    at a small nonzero `alpha` instead of diverging, exactly like a
+    physical thrust cant did in Step 39 -- architecture.md SS24.3's closed
+    form says `1mm` of offset over the `l2 = 0.4 m`-ish arm is equivalent
+    to a `~0.1 deg`-scale cant. Negating the offset mirrors `alpha(t)`.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0,
+        motor_curve="placeholder.csv",
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    sample_times = [0.1, 0.2, 0.3, 0.4]
+
+    # --- Baseline: u_B = u_C = 0.0 -> the trivial aligned equilibrium ---
+    p_baseline = Params(u_B=0.0, u_C=0.0, **common)
+    r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
+    for t in sample_times:
+        alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
+        assert math.isclose(alpha, 0.0, abs_tol=1e-9)
+
+    # --- Positive u_B: alpha(t) takes a consistent, bounded sign --------
+    p_pos = Params(u_B=0.001, u_C=0.0, **common)
+    r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
+    alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
+    for a in alphas_pos:
+        assert a != 0.0
+        assert abs(a) < 0.5  # bounded -- nowhere near the tumbling regime
+
+    # --- Negative u_B: mirrors the positive case almost exactly ---------
+    p_neg = Params(u_B=-0.001, u_C=0.0, **common)
+    r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
+    alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
+
+    for a_pos, a_neg in zip(alphas_pos, alphas_neg):
+        assert math.isclose(a_pos, -a_neg, rel_tol=1e-6, abs_tol=1e-8)

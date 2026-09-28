@@ -11,14 +11,14 @@ import math
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import thrust_curve
+from sim import aero, thrust_curve
 from sim.dynamics import derivatives
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
 from sim.integrate import run_sim
 from sim.params import Params
-from sim.state import OMEGA, THETA, VX, VZ, X, Z, State
+from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State
 
 
 def test_thrust_moment_is_zero_on_axis():
@@ -461,4 +461,178 @@ def test_moment_shift_is_independent_of_angle_of_attack():
         shift = (dydt_misaligned[OMEGA] - dydt_aligned[OMEGA]) * p_aligned.I
 
         assert math.isclose(shift, expected_shift, rel_tol=1e-12)
+
+
+# ---------------------------------------------------------------------
+# Step 43: lateral offsets u_B, u_C (architecture.md SS24.3; rocket-2d.tex
+# SSGeometry; analysis.tex eq:moment_full).
+# ---------------------------------------------------------------------
+
+
+def test_lateral_offsets_default_reproduce_derivatives_bit_for_bit():
+    """`u_B = u_C = 0.0` (the default) -- the on/off gate for Step 43 --
+    must give bit-for-bit identical `derivatives()` output to a Params
+    without the fields set at all, at several states, with a table-driven
+    CoP (`aero_table`) and with `thrust_misalign_deg != 0` both exercised
+    (the two other lateral-geometry-adjacent seams), per architecture.md
+    SS24.3's "Checks for the step".
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
+    )
+    states = [
+        State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0),
+        State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05),
+    ]
+    t = 0.5
+
+    for extra in (
+        {},
+        {"aero_table": "example.csv"},
+        {"thrust_misalign_deg": 3.0},
+        {"aero_table": "example.csv", "thrust_misalign_deg": 3.0},
+    ):
+        p_implicit = Params(**common, **extra)
+        p_explicit = Params(u_B=0.0, u_C=0.0, **common, **extra)
+        for s in states:
+            y = np.array(s)
+            dydt_implicit = derivatives(t, y, p_implicit)
+            dydt_explicit = derivatives(t, y, p_explicit)
+            assert np.array_equal(dydt_implicit, dydt_explicit)
+
+
+def test_lateral_offsets_shift_moment_by_closed_form():
+    """`M_y` shifts by exactly `(u_B-u_C)*T*cos(delta) - u_B*A_x` relative
+    to the zero-offset case at the same state (architecture.md SS24.3):
+    evaluate both and difference them, do not re-derive `M_y`.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.5, C_N_alpha=2.0, C_m_alpha=0.3,
+        thrust_misalign_deg=0.2,
+    )
+    p_zero = Params(u_B=0.0, u_C=0.0, **common)
+    p_offset = Params(u_B=0.001, u_C=-0.002, **common)
+    s = State(x=0.0, z=-100.0, vx=50.0, vz=-10.0, theta=1.3, omega=0.02)
+    y = np.array(s)
+    t = 0.5
+
+    T = thrust_curve.thrust(t, y, p_zero)
+    assert T > 0.0  # otherwise the thrust term would not be exercised
+    delta = math.radians(p_zero.thrust_misalign_deg)
+    flow = flow_state(t, y, p_zero)
+    A_x = flow.q * p_zero.S * aero.C_A(flow.alpha, flow.M, p_zero)
+
+    expected_shift = (p_offset.u_B - p_offset.u_C) * T * math.cos(delta) - p_offset.u_B * A_x
+
+    My_zero = derivatives(t, y, p_zero)[OMEGA] * p_zero.I
+    My_offset = derivatives(t, y, p_offset)[OMEGA] * p_offset.I
+
+    assert math.isclose(My_offset - My_zero, expected_shift, rel_tol=1e-9)
+
+
+def test_lateral_offset_closed_form_matches_thrust_moment_exactly():
+    """The two thrust terms combine into a single closed form,
+    `T*sqrt((u_B-u_C)^2+(l_C-l_B)^2)*sin(delta + atan2(u_B-u_C, l_C-l_B))`
+    (architecture.md SS24.3): reproduces `M_thrust` exactly (isolated here
+    via `T=0` aero to leave only the thrust term in `M_y`).
+    """
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        A_x=0.0, A_z=0.0, A_m=0.0,  # "constant" aero regime, all zero -> isolates thrust term
+        thrust_misalign_deg=0.2,
+        u_B=0.001, u_C=-0.0005,
+    )
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+    t = 0.5
+
+    T = thrust_curve.thrust(t, y, p)
+    assert T > 0.0
+    delta = math.radians(p.thrust_misalign_deg)
+    l_C_minus_l_B = p.l1 + p.l2
+    u_diff = p.u_B - p.u_C
+
+    expected_M_thrust = T * math.sqrt(u_diff**2 + l_C_minus_l_B**2) * math.sin(
+        delta + math.atan2(u_diff, l_C_minus_l_B)
+    )
+
+    M_y = derivatives(t, y, p)[OMEGA] * p.I
+    assert math.isclose(M_y, expected_M_thrust, rel_tol=1e-12)
+
+
+def test_lateral_offset_equal_ub_uc_zeroes_thrust_term_but_not_aero_term():
+    """With `u_B == u_C != 0` the thrust term is exactly zero (only the
+    *difference* matters for thrust) while the `-u_B*A_x` term is not --
+    the sharpest available test that the two fields are not conflated
+    (architecture.md SS24.3).
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        A_x=0.5, A_z=0.0, A_m=0.0,
+    )
+    p_zero_offset = Params(u_B=0.0, u_C=0.0, **common)
+    p_equal_offset = Params(u_B=0.002, u_C=0.002, **common)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+    t = 0.5  # mid-burn -- T > 0
+
+    T = thrust_curve.thrust(t, y, p_zero_offset)
+    assert T > 0.0
+
+    My_zero = derivatives(t, y, p_zero_offset)[OMEGA] * p_zero_offset.I
+    My_equal = derivatives(t, y, p_equal_offset)[OMEGA] * p_equal_offset.I
+
+    # Thrust term unaffected (u_B - u_C == 0): only the -u_B*A_x term shifts.
+    expected_shift = -p_equal_offset.u_B * common["A_x"]
+    assert math.isclose(My_equal - My_zero, expected_shift, rel_tol=1e-12)
+    assert not math.isclose(expected_shift, 0.0, abs_tol=1e-15)
+
+
+def test_lateral_offset_at_alpha_zero_no_thrust_moment_is_exactly_minus_uB_Ax():
+    """At `alpha = 0`, `T = 0`: `M_y == -u_B*A_x` exactly, the only
+    surviving term of eq:moment_full (architecture.md SS24.3).
+    """
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        A_x=0.75, A_z=0.0, A_m=0.0,
+        u_B=0.0015, u_C=0.003,
+    )
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+    t = 10.0  # past burnout -- T == 0
+
+    T = thrust_curve.thrust(t, y, p)
+    assert T == 0.0
+
+    M_y = derivatives(t, y, p)[OMEGA] * p.I
+    assert math.isclose(M_y, -p.u_B * p.A_x, rel_tol=1e-12, abs_tol=1e-15)
+
+
+def test_lateral_offsets_do_not_affect_translation_only_rotation():
+    """architecture.md SS24.3, "No effect on the translational equation":
+    `u_B`/`u_C` are moment arms only -- `dvx/dt`, `dvz/dt`, `dm/dt` are
+    identical with and without the offsets at the same state, only
+    `dydt[OMEGA]` differs.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        A_x=0.5, A_z=0.3, A_m=0.1,
+    )
+    p_zero = Params(u_B=0.0, u_C=0.0, **common)
+    p_offset = Params(u_B=0.002, u_C=-0.001, **common)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    y = np.array(s)
+    t = 0.0
+
+    dydt_zero = derivatives(t, y, p_zero)
+    dydt_offset = derivatives(t, y, p_offset)
+
+    assert dydt_zero[VX] == dydt_offset[VX]
+    assert dydt_zero[VZ] == dydt_offset[VZ]
+    assert dydt_zero[M] == dydt_offset[M]
+    assert not math.isclose(dydt_zero[OMEGA], dydt_offset[OMEGA], rel_tol=1e-9)
 
