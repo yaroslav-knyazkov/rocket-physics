@@ -940,6 +940,17 @@ force at one point and ignores the body's own contribution and every unsteady ef
 the same family: `c_mα̇` (plunge damping), which `analysis.tex` folds into `c_mq` via the
 short-period approximation `α̇ ≈ θ̇`, and reporting `ω_n`/`ζ` from `run.py`.
 
+**2026-09-28 research pass** (`latex/research/c_mq_pitch_damping.md`): surveyed Nielsen's *Missile
+Aerodynamics*, Barrowman's 1966 thesis, OpenRocket/Niskanen's strip-theory method, and the classical
+Munk/Bryson slender-body closed form. OpenRocket's actual formula was verified directly against its
+GitHub source (`BarrowmanStabilityCalculator.java`) rather than taken from memory: it needs body/fin
+*planform geometry* (not `C_Nα`) this project doesn't track, and bakes in an explicit `×3` calibration
+factor plus a hard cap at the static moment ("higher damping yields much more realistic apogee turn")
+— a tuned engineering approximation, not a first-principles derivation. Nielsen's and the classical
+slender-body method both need a body radius/volume profile `d_ref` alone can't supply. Presented to
+the user with these findings; **decision: leave the Step 44 test fixture in place**, no code change.
+Revisit if fin geometry is ever modeled for other reasons.
+
 ---
 
 ## Dependency summary
