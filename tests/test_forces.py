@@ -276,6 +276,53 @@ def test_gravity_direction_radial_adds_retarding_downrange_acceleration():
 
 
 # ---------------------------------------------------------------------
+# Step 41 (Phase 2.7): elliptical gravity direction (architecture.md
+# SS24.1) at the derivatives() level -- the "radial" tests above already
+# cover z_hat_g itself in isolation (tests/test_gravity.py has the rest of
+# Step 41's own unit tests, e.g. R_chi's pinned values).
+# ---------------------------------------------------------------------
+
+
+def test_gravity_direction_elliptical_reproduces_parallel_and_radial_domega_unchanged():
+    """`gravity_direction="elliptical"` must leave `domega/dt` *exactly*
+    equal to the "parallel"/"radial" cases at the same state -- weight
+    passes through the CoG regardless of which direction model is active,
+    so it contributes no moment whatever direction it points (the same
+    load-bearing claim `test_gravity_direction_radial_matches_closed_form_
+    and_leaves_moment_exactly_zero` makes for "radial").
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, lat0_deg=50.0, azimuth_deg=90.0)
+    p_par = Params(gravity_direction="parallel", **common)
+    p_ell = Params(gravity_direction="elliptical", **common)
+    s = State(x=10_000.0, z=-1000.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
+    y = np.array(s)
+
+    dydt_par = derivatives(5.0, y, p_par)
+    dydt_ell = derivatives(5.0, y, p_ell)
+
+    assert dydt_ell[OMEGA] == dydt_par[OMEGA]
+
+
+def test_gravity_direction_elliptical_differs_from_radial_at_the_same_state():
+    """"radial" and "elliptical" must give a genuinely different
+    translational acceleration at the same non-equatorial, non-cardinal
+    launch site (architecture.md SS24.1's pinned Delta_phi = 4.839e-6 rad
+    at phi0=50, chi=90, x=10km) -- otherwise "elliptical" would be a dead
+    code path.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, R_e=6371000.0, lat0_deg=50.0, azimuth_deg=90.0)
+    p_rad = Params(gravity_direction="radial", **common)
+    p_ell = Params(gravity_direction="elliptical", **common)
+    s = State(x=10_000.0, z=-1000.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
+    y = np.array(s)
+
+    W_rad = weight_inertial(0.0, y, p_rad)
+    W_ell = weight_inertial(0.0, y, p_ell)
+
+    assert not math.isclose(W_rad[0], W_ell[0], rel_tol=1e-9)
+
+
+# ---------------------------------------------------------------------
 # Step 39: thrust-axis misalignment (architecture.md SS23.2; main.tex
 # eq:thrust_vector, analysis.tex eq:moment_full/moment_misaligned).
 # ---------------------------------------------------------------------

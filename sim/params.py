@@ -55,11 +55,16 @@ class Params:
     # Step 38: non-parallel gravity direction (main.tex SSModels > Gravity >
     # Direction; architecture.md SS23.1). Orthogonal to `gravity_model`
     # above -- that dispatch is the *magnitude*, this one is the
-    # *direction*, and any magnitude may combine with either direction.
+    # *direction*, and any magnitude may combine with any direction.
     # "parallel" (the default) is today's fixed z_hat_g = (0, 1): bit-for-
     # bit every prior step. "radial" rotates the local vertical with
     # downrange distance (main.tex eq:zhat_g_rotated), phi = x/R_e.
-    gravity_direction: str = "parallel"  # parallel | radial
+    # Step 41 (Phase 2.7; architecture.md SS24.1) adds "elliptical": the
+    # WGS84 ellipsoid normal via its osculating sphere in the flight-plane
+    # azimuth, phi = x/R_chi(lat0_deg, azimuth_deg) -- reuses those two
+    # existing fields (the launch site's one latitude/heading), no new
+    # `Params` fields.
+    gravity_direction: str = "parallel"  # parallel | radial | elliptical
 
     # launch site / Earth (architecture.md SS13, SS15, SS17)
     R_e:         float = 6371000.0  # mean Earth radius [m] (radial gravity)

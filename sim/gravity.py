@@ -21,6 +21,19 @@ vertical with downrange distance (main.tex eq:zhat_g_rotated,
 architecture.md SS23.1): `phi = x/R_e`,
 `z_hat_g(phi) = (-sin(phi), cos(phi))`.
 
+Step 41 (Phase 2.7) adds a third direction value, "elliptical" (models.tex
+SSGravity > Direction, paragraph "Construction (elliptical)"; architecture.md
+SS24.1): the WGS84 ellipsoid normal, replaced near the launch point by its
+osculating sphere in the flight-plane azimuth `chi` (Euler/Meusnier radius of
+curvature `R_chi(phi0, chi)`). "radial" and "elliptical" now share one
+`_dir_curved(t, y, p)` body, differing only in which radius
+`curvature_radius(p)` returns for `p.gravity_direction` -- `p.R_e` for
+"radial" (the *same* expression with the *same* operands as before, hence
+bit-for-bit), `_R_chi(p)` for "elliptical". `phi0`/`chi` reuse `p.lat0_deg`/
+`p.azimuth_deg` (already the WGS84 latitude used by `_g_wgs84` and the flight-
+plane heading used by `wind.py`/`soundings.py`/`rotation.py`) -- no new
+`Params` fields.
+
 `p.g` is the Phase 1 constant, read here as `g0` -- the reference value at
 h = 0 that every magnitude model reduces to.
 """
@@ -113,23 +126,68 @@ def _dir_parallel(t: float, y: np.ndarray, p) -> np.ndarray:
     return np.array([0.0, 1.0])
 
 
-def _dir_radial(t: float, y: np.ndarray, p) -> np.ndarray:
-    """z_hat_g rotates with downrange distance (main.tex eq:zhat_g_rotated,
-    architecture.md SS23.1): `phi = x/R_e`,
-    `z_hat_g(phi) = (-sin(phi), cos(phi))` -- a rigid rotation of the
-    launch-point basis, unit norm for every `phi`, reducing to
-    `_dir_parallel` at `phi = 0`.
+def _R_chi(p) -> float:
+    """Osculating-sphere radius of curvature in the flight-plane azimuth
+    `chi` (Euler/Meusnier), models.tex SSGravity > Direction, "Construction
+    (elliptical)"; architecture.md SS24.1. Reuses `_WGS84_A`/`_WGS84_E2`
+    (already defined above for `_g_wgs84`) -- no second copy of those
+    constants.
+
+        M(phi)   = a_e*(1-e^2) / (1-e^2*sin^2(phi))^1.5   # meridional radius
+        N(phi)   = a_e / sqrt(1-e^2*sin^2(phi))            # prime-vertical radius
+        R_chi    = 1 / (cos^2(chi)/M(phi0) + sin^2(chi)/N(phi0))
+
+    `phi0 = p.lat0_deg` (the launch site's WGS84 geodetic latitude, the same
+    quantity `_g_wgs84` uses), `chi = p.azimuth_deg` (the flight-plane
+    heading, the same quantity `wind.py`/`soundings.py`/`rotation.py` use).
     """
-    phi = y[X] / p.R_e
+    phi0 = np.radians(p.lat0_deg)
+    chi = np.radians(p.azimuth_deg)
+    s2 = np.sin(phi0) ** 2
+    M = _WGS84_A * (1.0 - _WGS84_E2) / (1.0 - _WGS84_E2 * s2) ** 1.5
+    N = _WGS84_A / np.sqrt(1.0 - _WGS84_E2 * s2)
+    return float(1.0 / (np.cos(chi) ** 2 / M + np.sin(chi) ** 2 / N))
+
+
+# Curvature radius of the ground/vertical construction, per direction model
+# (architecture.md SS24.1). `None` == flat: the launch-point tangent plane,
+# no curvature at all. Same dispatch-dict convention as
+# `_GRAVITY_MODELS`/`_GRAVITY_DIRECTIONS`, so an unknown `gravity_direction`
+# raises KeyError here too.
+_CURVATURE_RADII = {
+    "parallel":   lambda p: None,
+    "radial":     lambda p: p.R_e,
+    "elliptical": _R_chi,
+}
+
+
+def curvature_radius(p) -> "float | None":
+    """Radius of the sphere the local vertical (and, from Step 42, the
+    ground) is constructed on, per `p.gravity_direction`. `None` for the
+    flat "parallel" model (architecture.md SS24.1)."""
+    return _CURVATURE_RADII[p.gravity_direction](p)
+
+
+def _dir_curved(t: float, y: np.ndarray, p) -> np.ndarray:
+    """z_hat_g rotated with downrange distance, on a sphere of radius
+    `curvature_radius(p)` (main.tex eq:zhat_g_rotated, `phi = x/R`) -- a
+    rigid rotation of the launch-point basis, unit norm for every `phi`,
+    reducing to `_dir_parallel` at `phi = 0`. Shared by "radial" (where
+    `curvature_radius(p)` returns `p.R_e`, so `phi = y[X]/p.R_e` is the
+    *same expression with the same operands* as the pre-Step-41 `_dir_radial`
+    -- bit-for-bit) and "elliptical" (where it returns `_R_chi(p)`).
+    """
+    phi = y[X] / curvature_radius(p)
     return np.array([-np.sin(phi), np.cos(phi)])
 
 
 # Module-private dispatch dict, same convention as `_GRAVITY_MODELS` above:
 # the public seam is `z_hat_g(t, y, p)`, orthogonal to `g(t, y, p)` -- any
-# magnitude may combine with either direction.
+# magnitude may combine with any direction.
 _GRAVITY_DIRECTIONS = {
     "parallel": _dir_parallel,
-    "radial": _dir_radial,
+    "radial": _dir_curved,      # was _dir_radial
+    "elliptical": _dir_curved,
 }
 
 
@@ -138,3 +196,5 @@ def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
     SSModels > Gravity > Direction), dispatching on `p.gravity_direction`.
     """
     return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)
+
+
