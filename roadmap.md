@@ -20,8 +20,8 @@ Backlog B8: the curved altitude `h_true` that Step 42 gave the impact event is t
 *every* altitude reader in the package — the atmosphere tiers, the tier-1 wind shear, the
 radial/WGS84 gravity magnitudes and, by the user's own scope call, the reported and plotted
 altitude in `run.py`/`plotting.py` — with no new `Params` field, every event trigger untouched, and
-the existing `gravity_direction = "parallel"` as the bit-for-bit gate — **specified, not yet
-implemented**.
+the existing `gravity_direction = "parallel"` as the bit-for-bit gate — **DONE and committed, still
+2D**.
 Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
@@ -1022,7 +1022,23 @@ reported at that instant becomes curved.
   `soundings.interp_altitude(snd, that_h)`. This is the check that all five call sites were
   converted, and converted the same way.
 - **Commit:** "Curved altitude everywhere: h_true feeds the atmosphere, wind, gravity magnitude and
-  the reported/plotted altitude"
+  the reported/plotted altitude" — **done**, spec `7390f73`, implementation `355a170`. Full suite
+  220/220. Bit-for-bit under `"parallel"` confirmed by running `run.py` against both the pre- and
+  post-Step-45 code and diffing byte-for-byte identical output, not merely asserted.
+
+  **Finding, recorded rather than fixed here (out of Step 45's scope):** `run.py`'s printed sweep
+  tables no longer match `PROJECT-STATUS.md`'s Step-27 "Actual printed sweep tables" block —
+  `apogee_alt`/`apogee_t` agree to within ~0.02–0.2 (floating-point-level noise), but `max_q` and
+  `impact_t` have moved by several percent in both sweeps (e.g. `constant`'s `max_q` 54853→61015
+  Pa, `impact_t` 62.47→59.33 s). **Confirmed unrelated to Step 45**: stashing this step's changes
+  and re-running `run.py` against the exact pre-Step-45 code reproduces today's numbers exactly,
+  byte-for-byte — the divergence predates this step, introduced somewhere across Steps 28-44 and
+  never re-verified against the Step-27 record since (that record already carried one other known
+  staleness: it still lists the `linear` gravity model, removed at Step 34). Not investigated
+  further here per architecture.md SS25.5's instruction not to absorb it into this commit. Worth a
+  dedicated look if the sweep tables' accuracy matters going forward — candidates are whatever
+  changed `A_x`/motor-curve handling or the drag model between Steps 28 and 44, but this is a guess,
+  not a finding.
 
 ---
 
@@ -1189,7 +1205,7 @@ Revisit if fin geometry is ever modeled for other reasons.
                                      ↓
                       41 → 42  ·  43  ·  44                  Phase 2.7: only 41→42 is a real dep
                                      ↓
-                                    45                       Phase 2.8: needs 41 and 42
+                                    45                       Phase 2.8: needs 41 and 42 — DONE
                                      ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 

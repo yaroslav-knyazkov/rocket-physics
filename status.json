@@ -1,8 +1,11 @@
 {
   "project": "rocket-trajectory",
   "complexity": "simple",
-  "active_modules": ["architect", "developer"],
-  "current_stage": "phase2.7-complete",
+  "active_modules": [
+    "architect",
+    "developer"
+  ],
+  "current_stage": "phase2.8-complete",
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
     "what_happened": "The developer subagent implementing Steps 41-44 was terminated mid-task by a session-limit API error, right after finishing Step 42's implementation+tests and while running the full suite to verify before its first commit -- so Steps 41 and 42 existed only as uncommitted working-tree changes (nothing committed yet, despite the one-step-one-commit instruction) when the session resumed. Steps 43/44 (sim/dynamics.py, sim/forces.py, sim/aero.py) were confirmed untouched.",
@@ -13,7 +16,10 @@
       "Reran full suite: 168/168 passing.",
       "Split the single uncommitted working-tree diff into two separate commits along the developer's own Step 41/Step 42 docstring boundaries (which were already clearly demarcated), using `git stash push -- sim/integrate.py` to isolate Step 42's integrator changes while trimming sim/gravity.py and tests/test_gravity.py back to their Step-41-only state, committing, then restoring (stash pop + re-adding the removed ground_depth function/tests) and committing Step 42 separately -- preserving the project's one-step-one-commit discipline that the crash had interrupted."
     ],
-    "commits": ["f5d0120 (Step 41)", "bdc7e07 (Step 42)"],
+    "commits": [
+      "f5d0120 (Step 41)",
+      "bdc7e07 (Step 42)"
+    ],
     "next": "Steps 43 (lateral offsets u_B/u_C) and 44 (c_mq pitch-damping scaffold) not yet started; redelegating to a fresh developer invocation."
   },
   "phase2_7_milestone_complete": {
@@ -23,42 +29,131 @@
     "next": "The 5 items explicitly deferred by the user this session remain open, none scheduled: commanded gimbal control law, Barrowman wing-body aero build-up, real propellant grain-geometry dimensions, vertical wind (pending user's own research), and the CFD/wind-tunnel data-extraction pipeline that would populate real aero_table values (including a real c_mq). Phase 3 (3D, full 6-DOF) still not started."
   },
   "phase2_7_completed_steps": [
-    {"step": 41, "name": "Elliptical gravity direction: osculating-sphere radius of curvature", "commit": "f5d0120", "note": "sim/gravity.py adds gravity_direction=\"elliptical\": the WGS84 ellipsoid normal, approximated near the launch point by its osculating sphere in the flight-plane azimuth chi (Euler/Meusnier R_chi(phi0,chi) = 1/(cos^2(chi)/M(phi0)+sin^2(chi)/N(phi0))). Reuses existing lat0_deg/azimuth_deg Params fields, no new fields. \"radial\" and \"elliptical\" now share one _dir_curved(t,y,p) body via a new curvature_radius(p) seam (None=parallel/flat, p.R_e=radial, _R_chi(p)=elliptical); \"radial\" evaluates the same expression on the same operands as before (bit-for-bit). 162/162 tests passing (12 new in test_gravity.py incl. pinned M/N/R_chi values at 3 latitudes, 2 new in test_forces.py at the derivatives() level)."},
-    {"step": 42, "name": "Curved-ground impact condition (ground_depth)", "commit": "bdc7e07", "note": "sim/gravity.py adds ground_depth(t,y,p), the curved-ground generalisation of y[Z] reusing Step 41's curvature_radius(p) seam; wired into both integrator paths (RK45 _ground_event and _run_rk4's manual crossing detection) in sim/integrate.py, replacing the literal y[Z] read. Scope: impact/apogee event only (user-approved decision) -- atmosphere/wind/gravity-magnitude altitude lookups deliberately untouched, deferred as roadmap.md Backlog B8. Two traps handled per architecture.md SS24.2: (1) the curved formula does NOT degenerate to -z for gravity_direction=\"parallel\" at finite R_e, only as R->infinity, so ground_depth has an explicit `R is None` branch rather than relying on algebraic collapse; (2) ground_depth is built DOWN-positive matching y[Z]'s existing sign convention (h_true itself is up-positive), so _ground_event's direction/terminal attributes stay unchanged rather than needing a flip. 168/168 tests passing (7 new, incl. the mandatory-branch and pinned-small-angle-residual checks)."},
-    {"step": 43, "name": "Lateral offsets u_B, u_C in the pitching-moment geometry", "commit": "ad359eb", "note": "sim/params.py gains u_B/u_C (both default 0.0). sim/dynamics.py: aA=(-l1_aero, p.u_B) (CoG-to-aero-point), aB=(-(p.l1+p.l2), p.u_B-p.u_C) (CoG-to-thrust-point) -- matched the architect's traced derivation (eq:moment_full's two new terms landing in different cross products with different companions) against the real _cross_y code exactly, no surprises found. u_B=u_C=0.0 bit-for-bit verified explicitly (combined with the aero table and thrust misalignment already active, not just in isolation). 175/175 tests passing (7 new across test_forces.py/test_dynamics.py: bit-for-bit default, closed-form moment shift, combined-cant closed form, u_B==u_C thrust-cancellation-but-not-aero-term case, alpha=0/no-thrust residual, translation invariance, trajectory-level trim)."},
-    {"step": 44, "name": "Pitch-damping c_mq scaffold", "commit": "ff10242", "note": "sim/params.py gains c_mq=0.0. sim/aero.py: new C_mq(alpha,M,p), optional aero_table column (absent -> falls back to p.c_mq, a documented exception to the table's normal 'wins completely' rule). sim/forces.py's aero_moment_y (\"coefficients\" branch, not dynamics.py -- confirmed as the actual moment-assembly site per the architect's own flagged uncertainty) adds the damping term division-free: 0.25*rho*V*S*d_ref**2*omega*C_mq, algebraically equivalent to q_hat*C_mq's textbook form but avoiding the 0.0*inf=nan trap at V=0 (every unperturbed flight's apogee) that Step 35 already hit once. c_mq=0.0 bit-for-bit verified. Sign convention matches the LaTeX fix from the doc pass: c_mq>0 is damping in this project's nose-down-positive A_m convention, verified with a trajectory-level test showing damped < undamped < anti-damped envelope-decay ratios strictly ordered (also surfaced, and correctly left alone, a real finding: even c_mq=0 shows mild amplitude decay from the full nonlinear 2D model's own translational/rotational coupling at V0=100 m/s -- not a bug, just why the test compares relative decay rates rather than asserting a flat baseline). 187/187 tests passing (12 new in test_aero.py/test_forces.py)."}
+    {
+      "step": 41,
+      "name": "Elliptical gravity direction: osculating-sphere radius of curvature",
+      "commit": "f5d0120",
+      "note": "sim/gravity.py adds gravity_direction=\"elliptical\": the WGS84 ellipsoid normal, approximated near the launch point by its osculating sphere in the flight-plane azimuth chi (Euler/Meusnier R_chi(phi0,chi) = 1/(cos^2(chi)/M(phi0)+sin^2(chi)/N(phi0))). Reuses existing lat0_deg/azimuth_deg Params fields, no new fields. \"radial\" and \"elliptical\" now share one _dir_curved(t,y,p) body via a new curvature_radius(p) seam (None=parallel/flat, p.R_e=radial, _R_chi(p)=elliptical); \"radial\" evaluates the same expression on the same operands as before (bit-for-bit). 162/162 tests passing (12 new in test_gravity.py incl. pinned M/N/R_chi values at 3 latitudes, 2 new in test_forces.py at the derivatives() level)."
+    },
+    {
+      "step": 42,
+      "name": "Curved-ground impact condition (ground_depth)",
+      "commit": "bdc7e07",
+      "note": "sim/gravity.py adds ground_depth(t,y,p), the curved-ground generalisation of y[Z] reusing Step 41's curvature_radius(p) seam; wired into both integrator paths (RK45 _ground_event and _run_rk4's manual crossing detection) in sim/integrate.py, replacing the literal y[Z] read. Scope: impact/apogee event only (user-approved decision) -- atmosphere/wind/gravity-magnitude altitude lookups deliberately untouched, deferred as roadmap.md Backlog B8. Two traps handled per architecture.md SS24.2: (1) the curved formula does NOT degenerate to -z for gravity_direction=\"parallel\" at finite R_e, only as R->infinity, so ground_depth has an explicit `R is None` branch rather than relying on algebraic collapse; (2) ground_depth is built DOWN-positive matching y[Z]'s existing sign convention (h_true itself is up-positive), so _ground_event's direction/terminal attributes stay unchanged rather than needing a flip. 168/168 tests passing (7 new, incl. the mandatory-branch and pinned-small-angle-residual checks)."
+    },
+    {
+      "step": 43,
+      "name": "Lateral offsets u_B, u_C in the pitching-moment geometry",
+      "commit": "ad359eb",
+      "note": "sim/params.py gains u_B/u_C (both default 0.0). sim/dynamics.py: aA=(-l1_aero, p.u_B) (CoG-to-aero-point), aB=(-(p.l1+p.l2), p.u_B-p.u_C) (CoG-to-thrust-point) -- matched the architect's traced derivation (eq:moment_full's two new terms landing in different cross products with different companions) against the real _cross_y code exactly, no surprises found. u_B=u_C=0.0 bit-for-bit verified explicitly (combined with the aero table and thrust misalignment already active, not just in isolation). 175/175 tests passing (7 new across test_forces.py/test_dynamics.py: bit-for-bit default, closed-form moment shift, combined-cant closed form, u_B==u_C thrust-cancellation-but-not-aero-term case, alpha=0/no-thrust residual, translation invariance, trajectory-level trim)."
+    },
+    {
+      "step": 44,
+      "name": "Pitch-damping c_mq scaffold",
+      "commit": "ff10242",
+      "note": "sim/params.py gains c_mq=0.0. sim/aero.py: new C_mq(alpha,M,p), optional aero_table column (absent -> falls back to p.c_mq, a documented exception to the table's normal 'wins completely' rule). sim/forces.py's aero_moment_y (\"coefficients\" branch, not dynamics.py -- confirmed as the actual moment-assembly site per the architect's own flagged uncertainty) adds the damping term division-free: 0.25*rho*V*S*d_ref**2*omega*C_mq, algebraically equivalent to q_hat*C_mq's textbook form but avoiding the 0.0*inf=nan trap at V=0 (every unperturbed flight's apogee) that Step 35 already hit once. c_mq=0.0 bit-for-bit verified. Sign convention matches the LaTeX fix from the doc pass: c_mq>0 is damping in this project's nose-down-positive A_m convention, verified with a trajectory-level test showing damped < undamped < anti-damped envelope-decay ratios strictly ordered (also surfaced, and correctly left alone, a real finding: even c_mq=0 shows mild amplitude decay from the full nonlinear 2D model's own translational/rotational coupling at V0=100 m/s -- not a bug, just why the test compares relative decay rates rather than asserting a flat baseline). 187/187 tests passing (12 new in test_aero.py/test_forces.py)."
+    }
   ],
   "phase2_6_completed_steps": [
-    {"step": 38, "name": "Non-parallel gravity: local vertical rotates with downrange distance", "commit": "da77aa6", "note": "sim/gravity.py gains z_hat_g(t,y,p) dispatching on new Params.gravity_direction (\"parallel\" default = fixed (0,1), \"radial\" = (-sin(x/R_e),cos(x/R_e))), orthogonal to the existing gravity_model magnitude dispatch. forces.weight_inertial multiplies by it instead of the fixed (0,1). Direction-only, independent of Coriolis. 128/128 tests passing (5 new): parallel bit-for-bit regardless of R_e/x; z_hat_g unit-norm; radial's translational shift matches the closed form exactly; domega/dt exactly (not approximately) unchanged since weight passes through the CoG."},
-    {"step": 39, "name": "Thrust-axis misalignment: fixed nozzle cant and its pitching moment", "commit": "f3089aa", "note": "sim/forces.py's thrust_body gains Params.thrust_misalign_deg (default 0.0), returning T*(cos(delta),sin(delta)) instead of the on-axis (T,0). sim/dynamics.py needed NO functional change -- its generic cross-product moment machinery already produces (l1+l2)*T*sin(delta), verified numerically before trusting the spec. Fixed misalignment only, not a commanded gimbal/control law (that stays backlog). 134/134 tests passing (6 new): bit-for-bit at delta=0; moment shift matches closed form exactly; shift is exactly zero post-burnout; shift is identical at two different angles of attack (constant delta doesn't touch the static-stability slope); stable airframe trims toward the sign of delta instead of diverging."},
-    {"step": 40, "name": "Humid-air density: virtual-temperature correction in the sounding/field tiers", "commit": "069abce", "note": "User-approved sounding CSV format extension: optional Td_K (dewpoint, kelvin) column, all-NaN when absent (dry fallback). sim/soundings.py carries Td through Sounding/SoundingState/ResampledCase and tier-3 IDW/RBF combination (RBF stacking rewritten explicitly 4->5 blocks to make off-by-one risk visible). sim/atmosphere.py gains sat_vapor_pressure/virtual_temperature/moist_density (Magnus formula, R_d/R_v computed not hard-coded); _sounding_air_state/_field_air_state apply the correction when Params.humid_air is set and dewpoint is finite; ISA untouched (dry by definition). 150/150 tests passing (16 new). One reference-value correction found and fixed by developer: sat_vapor_pressure(293.15) independently re-derived to 2333.4406 Pa (50-digit precision) against a dispatch-prompt typo of 2333.4 -- flagged transparently rather than force-matched."}
+    {
+      "step": 38,
+      "name": "Non-parallel gravity: local vertical rotates with downrange distance",
+      "commit": "da77aa6",
+      "note": "sim/gravity.py gains z_hat_g(t,y,p) dispatching on new Params.gravity_direction (\"parallel\" default = fixed (0,1), \"radial\" = (-sin(x/R_e),cos(x/R_e))), orthogonal to the existing gravity_model magnitude dispatch. forces.weight_inertial multiplies by it instead of the fixed (0,1). Direction-only, independent of Coriolis. 128/128 tests passing (5 new): parallel bit-for-bit regardless of R_e/x; z_hat_g unit-norm; radial's translational shift matches the closed form exactly; domega/dt exactly (not approximately) unchanged since weight passes through the CoG."
+    },
+    {
+      "step": 39,
+      "name": "Thrust-axis misalignment: fixed nozzle cant and its pitching moment",
+      "commit": "f3089aa",
+      "note": "sim/forces.py's thrust_body gains Params.thrust_misalign_deg (default 0.0), returning T*(cos(delta),sin(delta)) instead of the on-axis (T,0). sim/dynamics.py needed NO functional change -- its generic cross-product moment machinery already produces (l1+l2)*T*sin(delta), verified numerically before trusting the spec. Fixed misalignment only, not a commanded gimbal/control law (that stays backlog). 134/134 tests passing (6 new): bit-for-bit at delta=0; moment shift matches closed form exactly; shift is exactly zero post-burnout; shift is identical at two different angles of attack (constant delta doesn't touch the static-stability slope); stable airframe trims toward the sign of delta instead of diverging."
+    },
+    {
+      "step": 40,
+      "name": "Humid-air density: virtual-temperature correction in the sounding/field tiers",
+      "commit": "069abce",
+      "note": "User-approved sounding CSV format extension: optional Td_K (dewpoint, kelvin) column, all-NaN when absent (dry fallback). sim/soundings.py carries Td through Sounding/SoundingState/ResampledCase and tier-3 IDW/RBF combination (RBF stacking rewritten explicitly 4->5 blocks to make off-by-one risk visible). sim/atmosphere.py gains sat_vapor_pressure/virtual_temperature/moist_density (Magnus formula, R_d/R_v computed not hard-coded); _sounding_air_state/_field_air_state apply the correction when Params.humid_air is set and dewpoint is finite; ISA untouched (dry by definition). 150/150 tests passing (16 new). One reference-value correction found and fixed by developer: sat_vapor_pressure(293.15) independently re-derived to 2333.4406 Pa (50-digit precision) against a dispatch-prompt typo of 2333.4 -- flagged transparently rather than force-matched."
+    }
   ],
   "phase2_7_doc_pass": {
     "date": "2026-09-27",
     "scope": "Documentation/derivation pass (orchestrator, iterated with user feedback) rewriting latex/main.tex + latex/sections-ai/{rocket-2d,models,analysis}.tex into template.tex's terse, equation-forward style with a first pass that over-compressed (reverted per user), then restored explanatory flow while fixing frame notation (ground frame now x_hat_0/z_hat_0, no more g0 conflation; new dedicated thrust frame F_t with x_hat_t=cos(delta)x_hat_r+sin(delta)z_hat_r), adding physics not previously derived: elliptical gravity direction (osculating sphere via Euler/Meusnier radius of curvature R_chi(phi0,chi), O=Earth center vs O*=launch point distinguished per user request), curved-ground/true-impact-altitude h_true(x,z), caliber static margin SM=l1/d_ref (sign flipped so stable=positive), and a dynamic-stability framework (pitch-damping derivative c_mq, short-period ODE, omega_n/zeta). Then delegated to architect subagent (not yet developer) to spec these as new roadmap Steps 41-44; architect found and the user confirmed a real sign-convention bug in the new c_mq derivation (see decisions below), fixed by orchestrator directly in analysis.tex before developer starts.",
-    "deliverables": ["latex/main.tex (assumptions/backlog rewritten)", "latex/sections-ai/rocket-2d.tex (frames: F_0/F_g/F_r/F_t)", "latex/sections-ai/models.tex (Gravity>Direction: radial O/O* construction + new elliptical variant + curved-ground h_true; Mass split into Mass/CoG/MOI subsubsections; Aerodynamics: coefficients now stated as database-sourced; Non-inertial: renamed g0->0 symbols)", "latex/sections-ai/analysis.tex (thrust-frame moment derivation, lateral offsets u_B/u_C treated as live params not backlog, caliber SM, new Dynamic stability subsection with c_mq, sign-corrected)", "architecture.md SS24 (Steps 41-44 specs, by architect subagent)", "roadmap.md Phase 2.7 section + B8/B9 backlog items (by architect subagent)"],
-    "decisions": [
-      {"question": "c_mq sign convention (textbook C_mq<0-for-stable vs this project's flipped A_m/c_m sign convention from 2026-09-19)", "answer": "APPROVED by user 2026-09-27: fixed in analysis.tex to require c_mq>0 for a stable, damped airframe (matches the existing c_m,alpha>0-for-stability convention already in eq:dtheta_dalpha). M_q redefined without the erroneous leading minus sign (which also fixed an internal algebra inconsistency the architect caught, independent of the sign-convention question). No sim/ code affected -- this is a documentation-only fix, Step 44 not yet implemented."},
-      {"question": "Step 42 (curved ground) scope: impact/apogee event only, or also switch atmosphere/wind/gravity-magnitude altitude lookups to h_true", "answer": "APPROVED by user 2026-09-27: event only, per architect's recommendation (effect on altitude models is <0.1% at 10km; full switch would ripple through 4 modules + most of the test suite and break gravity_model/gravity_direction orthogonality). Full altitude-model swap deferred as new backlog item B8."},
-      {"question": "Step 44 aero_table CSV: c_mq column absent -> fall back to Params.c_mq constant, or strict 0.0", "answer": "APPROVED by user 2026-09-27: falls back to Params.c_mq (documented exception to aero.py's 'table wins completely' rule; behaves identically to strict 0.0 for every file that exists today)."},
-      {"question": "Steps 41-44 naming/scope calls (gravity_direction='elliptical' value name, reuse lat0_deg/azimuth_deg for phi0/chi rather than new fields, curvature_radius living in gravity.py, apogee event stays vz=0 not d(h_true)/dt=0, Params fields named u_B/u_C literally, u_B excluded from the variable-mass/MOI model per Step 36 precedent)", "answer": "Architect's own calls, consistent with project convention, not escalated -- all recommendations accepted as written in architecture.md SS24."}
+    "deliverables": [
+      "latex/main.tex (assumptions/backlog rewritten)",
+      "latex/sections-ai/rocket-2d.tex (frames: F_0/F_g/F_r/F_t)",
+      "latex/sections-ai/models.tex (Gravity>Direction: radial O/O* construction + new elliptical variant + curved-ground h_true; Mass split into Mass/CoG/MOI subsubsections; Aerodynamics: coefficients now stated as database-sourced; Non-inertial: renamed g0->0 symbols)",
+      "latex/sections-ai/analysis.tex (thrust-frame moment derivation, lateral offsets u_B/u_C treated as live params not backlog, caliber SM, new Dynamic stability subsection with c_mq, sign-corrected)",
+      "architecture.md SS24 (Steps 41-44 specs, by architect subagent)",
+      "roadmap.md Phase 2.7 section + B8/B9 backlog items (by architect subagent)"
     ],
-    "risks_flagged": ["Step 42 is the highest-risk of the four: h_true does NOT algebraically degenerate to -z for gravity_direction='parallel' at finite R_e (only as R->infinity), so an explicit branch is mandatory, not stylistic -- and the naive regression test (run.py's default vertical trajectory, x=0) would pass even with this bug, since h_true(0,z)=-z exactly regardless. h_true also has the opposite sign convention from the existing z-crossing event (h_true is up-positive and falls through zero at impact; y[Z] is down-positive and rises), so a literal substitution without also flipping direction/terminal would make solve_ivp hunt for the rocket leaving the ground and never terminate.", "Step 44's q_hat=omega*d_ref/(2V) is a NaN generator if implemented as literally written (0.0*inf at V=0, which an unperturbed vertical flight passes through at every apogee) -- architect specified a division-free equivalent form instead.", "Step 43's u_B appears in two different cross products with different companions ((u_B-u_C)T*cos(delta) in the thrust-point arm, -u_B*A_x in the aero-point arm) -- not a single substitution, traced through sim/dynamics.py's actual _cross_y calls by the architect rather than assumed.", "latex/sections/ no longer exists (renamed sections-ai/ this session) -- architecture.md SS23's older citations to latex/sections/*.tex still resolve by filename match but the path segment is stale; noted in SS24, not fixed retroactively in SS23."],
+    "decisions": [
+      {
+        "question": "c_mq sign convention (textbook C_mq<0-for-stable vs this project's flipped A_m/c_m sign convention from 2026-09-19)",
+        "answer": "APPROVED by user 2026-09-27: fixed in analysis.tex to require c_mq>0 for a stable, damped airframe (matches the existing c_m,alpha>0-for-stability convention already in eq:dtheta_dalpha). M_q redefined without the erroneous leading minus sign (which also fixed an internal algebra inconsistency the architect caught, independent of the sign-convention question). No sim/ code affected -- this is a documentation-only fix, Step 44 not yet implemented."
+      },
+      {
+        "question": "Step 42 (curved ground) scope: impact/apogee event only, or also switch atmosphere/wind/gravity-magnitude altitude lookups to h_true",
+        "answer": "APPROVED by user 2026-09-27: event only, per architect's recommendation (effect on altitude models is <0.1% at 10km; full switch would ripple through 4 modules + most of the test suite and break gravity_model/gravity_direction orthogonality). Full altitude-model swap deferred as new backlog item B8."
+      },
+      {
+        "question": "Step 44 aero_table CSV: c_mq column absent -> fall back to Params.c_mq constant, or strict 0.0",
+        "answer": "APPROVED by user 2026-09-27: falls back to Params.c_mq (documented exception to aero.py's 'table wins completely' rule; behaves identically to strict 0.0 for every file that exists today)."
+      },
+      {
+        "question": "Steps 41-44 naming/scope calls (gravity_direction='elliptical' value name, reuse lat0_deg/azimuth_deg for phi0/chi rather than new fields, curvature_radius living in gravity.py, apogee event stays vz=0 not d(h_true)/dt=0, Params fields named u_B/u_C literally, u_B excluded from the variable-mass/MOI model per Step 36 precedent)",
+        "answer": "Architect's own calls, consistent with project convention, not escalated -- all recommendations accepted as written in architecture.md SS24."
+      }
+    ],
+    "risks_flagged": [
+      "Step 42 is the highest-risk of the four: h_true does NOT algebraically degenerate to -z for gravity_direction='parallel' at finite R_e (only as R->infinity), so an explicit branch is mandatory, not stylistic -- and the naive regression test (run.py's default vertical trajectory, x=0) would pass even with this bug, since h_true(0,z)=-z exactly regardless. h_true also has the opposite sign convention from the existing z-crossing event (h_true is up-positive and falls through zero at impact; y[Z] is down-positive and rises), so a literal substitution without also flipping direction/terminal would make solve_ivp hunt for the rocket leaving the ground and never terminate.",
+      "Step 44's q_hat=omega*d_ref/(2V) is a NaN generator if implemented as literally written (0.0*inf at V=0, which an unperturbed vertical flight passes through at every apogee) -- architect specified a division-free equivalent form instead.",
+      "Step 43's u_B appears in two different cross products with different companions ((u_B-u_C)T*cos(delta) in the thrust-point arm, -u_B*A_x in the aero-point arm) -- not a single substitution, traced through sim/dynamics.py's actual _cross_y calls by the architect rather than assumed.",
+      "latex/sections/ no longer exists (renamed sections-ai/ this session) -- architecture.md SS23's older citations to latex/sections/*.tex still resolve by filename match but the path segment is stale; noted in SS24, not fixed retroactively in SS23."
+    ],
     "verification": "No LaTeX toolchain in this environment -- NOT compiled. Structural check only: brace/environment balance and every \\label/\\autoref pairing verified programmatically after each edit pass (0 dangling, 0 duplicate). User should compile locally before treating as final.",
     "next": "Developer implements Steps 41, 42, 43, 44 sequentially per architecture.md SS24 (one step, one commit each, full regression suite after each, do not parallelize -- all four touch sim/params.py). Step 42 needs the most care per risks_flagged above."
   },
   "phase2_6_doc_pass": {
     "date": "2026-09-27",
     "scope": "Documentation/derivation pass by architect, no code changes, preparing 3 new Phase 2.6 steps (38-40) at the user's request: implement gravity direction vs downrange (Backlog B4), thrust-axis misalignment, and humid-air density (Backlog B5). Also: reordered latex/sections/models.tex to Gravity->Thrust->Mass->Aerodynamics->Atmosphere->other (Wind/Relwind/Non-inertial) per user's explicit instruction (deliberately reintroduces some forward-references vs the finalization pass's dependency-first order, by user request); promoted 'Analytical analysis' out of rocket-2d.tex into its own latex/sections/analysis.tex (kept label sec:analysis so existing \\autoref targets survive), and filled the long-standing todo{actual section with thrust and no-thrust stability} with an organized derivation across no-thrust / aligned-with-thrust / misaligned-with-thrust configurations.",
-    "deliverables": ["latex/sections/analysis.tex (new)", "latex/sections/models.tex (reordered + Gravity>Direction + Density + Thrust>Direction rewritten)", "latex/sections/rocket-2d.tex (analysis subsection removed, thrust vector eq generalized)", "latex/main.tex (intro, input list, assumptions, backlog)", "architecture.md (new SS23.1/23.2/23.3 specs)", "roadmap.md (new Phase 2.6, Steps 38-40; Backlog B4/B5 marked PROMOTED)"],
-    "decisions": [
-      {"question": "gravity_direction Params field", "answer": "gravity_direction: str = \"parallel\" | \"radial\" (dispatch-dict pattern, orthogonal to gravity_model's magnitude selection). Architect's own call, consistent with project convention, not escalated."},
-      {"question": "thrust misalignment Params field", "answer": "thrust_misalign_deg: float = 0.0 (degrees-at-the-edges convention, matches A_e=0.0 inert-default pattern). Orchestrator's original proposal, confirmed unchanged."},
-      {"question": "rotation angle definition for gravity direction", "answer": "phi = x/R_e (arc-length reading, consistent with the radial gravity model's R_e+h and soundings' equirectangular ground-track projection). Architect's call, alternative (arctan) documented with its exact numeric cost (7e-6 rad at x=10km,h=30km) for auditability."},
-      {"question": "Sounding CSV format extension for humid air (Td_K column + humid_air bool gate)", "answer": "APPROVED by user 2026-09-27: optional Td_K (kelvin) column, gated by humid_air: bool = False, absent column = all-NaN = dry-air fallback, zero cost to existing files.", "status": "approved"},
-      {"question": "analysis.tex structural layout (contiguous moment cases vs literal requested order + summary table)", "answer": "APPROVED by user 2026-09-27: keep as architect wrote it (no-thrust -> static stability -> aligned -> misaligned, with a comparison table at the end of SSMoment tying the three configurations together)."}
+    "deliverables": [
+      "latex/sections/analysis.tex (new)",
+      "latex/sections/models.tex (reordered + Gravity>Direction + Density + Thrust>Direction rewritten)",
+      "latex/sections/rocket-2d.tex (analysis subsection removed, thrust vector eq generalized)",
+      "latex/main.tex (intro, input list, assumptions, backlog)",
+      "architecture.md (new SS23.1/23.2/23.3 specs)",
+      "roadmap.md (new Phase 2.6, Steps 38-40; Backlog B4/B5 marked PROMOTED)"
     ],
-    "risks_flagged": ["Forward references reintroduced by the reorder (deliberate, user-requested, autoref resolves regardless of order)", "Equation numbers all changed (numberwithin{equation}{subsection}); labels/autorefs unaffected", "Steps 38 and 39 both edit sim/forces.py -- must be sequential, not concurrent, despite being physically independent", "Step 40 touches 3 NamedTuples in sim/soundings.py; tier-3 RBF stacking goes 4->5 blocks, slicing arithmetic is the one place a silent off-by-one is possible -- flagged for QA attention", "eq:moment_full's lateral term (u_B-u_C)T cos(delta) is derived but has no code path (u_B/u_C have no Params fields) -- dead spec until parameterised, not a bug", "No LaTeX toolchain available -- not compiled, structural check only (51 labels, 191 refs, 0 dangling, 0 duplicates)"],
+    "decisions": [
+      {
+        "question": "gravity_direction Params field",
+        "answer": "gravity_direction: str = \"parallel\" | \"radial\" (dispatch-dict pattern, orthogonal to gravity_model's magnitude selection). Architect's own call, consistent with project convention, not escalated."
+      },
+      {
+        "question": "thrust misalignment Params field",
+        "answer": "thrust_misalign_deg: float = 0.0 (degrees-at-the-edges convention, matches A_e=0.0 inert-default pattern). Orchestrator's original proposal, confirmed unchanged."
+      },
+      {
+        "question": "rotation angle definition for gravity direction",
+        "answer": "phi = x/R_e (arc-length reading, consistent with the radial gravity model's R_e+h and soundings' equirectangular ground-track projection). Architect's call, alternative (arctan) documented with its exact numeric cost (7e-6 rad at x=10km,h=30km) for auditability."
+      },
+      {
+        "question": "Sounding CSV format extension for humid air (Td_K column + humid_air bool gate)",
+        "answer": "APPROVED by user 2026-09-27: optional Td_K (kelvin) column, gated by humid_air: bool = False, absent column = all-NaN = dry-air fallback, zero cost to existing files.",
+        "status": "approved"
+      },
+      {
+        "question": "analysis.tex structural layout (contiguous moment cases vs literal requested order + summary table)",
+        "answer": "APPROVED by user 2026-09-27: keep as architect wrote it (no-thrust -> static stability -> aligned -> misaligned, with a comparison table at the end of SSMoment tying the three configurations together)."
+      }
+    ],
+    "risks_flagged": [
+      "Forward references reintroduced by the reorder (deliberate, user-requested, autoref resolves regardless of order)",
+      "Equation numbers all changed (numberwithin{equation}{subsection}); labels/autorefs unaffected",
+      "Steps 38 and 39 both edit sim/forces.py -- must be sequential, not concurrent, despite being physically independent",
+      "Step 40 touches 3 NamedTuples in sim/soundings.py; tier-3 RBF stacking goes 4->5 blocks, slicing arithmetic is the one place a silent off-by-one is possible -- flagged for QA attention",
+      "eq:moment_full's lateral term (u_B-u_C)T cos(delta) is derived but has no code path (u_B/u_C have no Params fields) -- dead spec until parameterised, not a bug",
+      "No LaTeX toolchain available -- not compiled, structural check only (51 labels, 191 refs, 0 dangling, 0 duplicates)"
+    ],
     "verification": "No LaTeX toolchain in this environment -- NOT compiled. Structural check only (brace/environment balance, every autoref resolved, no dangling/duplicate labels). Compile locally before treating as final.",
     "next": "Developer implements Steps 38, 39, 40 sequentially (sim/forces.py touched by both 38 and 39, so not parallelizable), one commit each, full regression suite after each."
   },
@@ -66,8 +161,14 @@
     "date": "2026-09-27",
     "scope": "Documentation-only finalization of the physics report (latex/main.tex + sections/{rocket-2d,models}.tex) after Phase 2.5 closed. Not a numbered roadmap step -- no code changes, nothing under sim/ or tests/ touched. Done in two architect passes (rate-limit interruption between them, no partial edits lost).",
     "bugs_found_and_fixed": [
-      {"what": "theta sign convention bug in rocket-2d.tex SSAnalytical analysis > Forces", "detail": "Force equations (m r-xddot = -mg cos(theta) + T - A_x, m r-zddot = mg sin(theta) - A_z) assumed theta measured from vertical, contradicting SSFrames' stated (and code-matching, sim/frames.py) theta-from-horizontal convention. Corrected to -mg sin(theta) / +mg cos(theta). Independently re-derived and numerically verified against sim/frames.py's R_body_to_inertial by the architect before applying. Pre-existing user text, flagged during Step 37 prep, now fixed. No code changes needed -- sim/dynamics.py already implements the correct form via to_inertial()."},
-      {"what": "point-label swap in rocket-2d.tex SSAnalytical analysis > Moment", "detail": "Moment equation had C (thrust point) and D (aero reference point) interchanged: read (u_B-u_D)T ... + (l_B-l_C)A_z instead of the correct (u_B-u_C)T ... + (l_B-l_D)A_z. Verified against sim/dynamics.py's _cross_y(aA,...)+aero_moment_y (numeric check: 0.3111 vs 0.8491 for random inputs -- only the corrected form matches the code). Independent of the theta bug (moments taken about B, weight doesn't appear). Propagates mechanically into the static-stability partial derivative and SM formula (l_B-l_C -> l_B-l_D), same structure otherwise. The user's own pre-existing todo ('write that l_C is irrelevant') only holds under the corrected form -- corroborating evidence this was a transcription slip, not an intended convention."}
+      {
+        "what": "theta sign convention bug in rocket-2d.tex SSAnalytical analysis > Forces",
+        "detail": "Force equations (m r-xddot = -mg cos(theta) + T - A_x, m r-zddot = mg sin(theta) - A_z) assumed theta measured from vertical, contradicting SSFrames' stated (and code-matching, sim/frames.py) theta-from-horizontal convention. Corrected to -mg sin(theta) / +mg cos(theta). Independently re-derived and numerically verified against sim/frames.py's R_body_to_inertial by the architect before applying. Pre-existing user text, flagged during Step 37 prep, now fixed. No code changes needed -- sim/dynamics.py already implements the correct form via to_inertial()."
+      },
+      {
+        "what": "point-label swap in rocket-2d.tex SSAnalytical analysis > Moment",
+        "detail": "Moment equation had C (thrust point) and D (aero reference point) interchanged: read (u_B-u_D)T ... + (l_B-l_C)A_z instead of the correct (u_B-u_C)T ... + (l_B-l_D)A_z. Verified against sim/dynamics.py's _cross_y(aA,...)+aero_moment_y (numeric check: 0.3111 vs 0.8491 for random inputs -- only the corrected form matches the code). Independent of the theta bug (moments taken about B, weight doesn't appear). Propagates mechanically into the static-stability partial derivative and SM formula (l_B-l_C -> l_B-l_D), same structure otherwise. The user's own pre-existing todo ('write that l_C is irrelevant') only holds under the corrected form -- corroborating evidence this was a transcription slip, not an intended convention."
+      }
     ],
     "structural_changes": [
       "models.tex subsections reordered so every model's inputs precede its use: Atmosphere -> Wind -> Relative wind/AoA -> Gravity -> Non-inertial corrections -> Thrust -> Mass/MOI -> Aerodynamics (fixes 4 forward-references).",
@@ -88,8 +189,16 @@
     "commit": "2610cd8",
     "note": "m becomes the 7th integrated state component (dm/dt=-T_ref(t)/(I_sp*g0)). l_B(t) (mass-weighted CoG) and I(t) (parallel-axis, two-lumped-mass: dry structure at l_d, propellant at l_p) recomputed every RHS call from m(t) and new Params constants m_d,l_d,l_p,I_d,I_sp. Gated by p.m_d (None=off default): every existing scenario reproduces prior behavior exactly (verified: garbage state.m=999.0 on the off path gives bit-for-bit identical output to m=0.0). weight_inertial now reads current mass instead of constant p.m. I_p(t) taken proportional to m_p(t) via dry structure's specific MOI I_d/m_d (only closed form needing no new constant; flagged as placeholder per main.tex's own todo pending real grain geometry). 116/116 tests passing.",
     "open_questions_for_review": [
-      {"question": "Should p.l1/p.l2 (CoP-to-CoG and CoP-to-thrust moment arms) also become functions of l_B(t) now that the CoG travels?", "implemented_choice": "left fixed (conservative) -- main.tex's Mass/MOI section gives formulas for l_B(t)/I(t) only, nothing for how attachment points transform relative to a moving CoG; main.tex's own Current assumptions section still lists l1/l2 as fixed; architecture.md SS19 flags this as open. Roadmap's regression check still satisfied since I(t) already depends on l_B(t) via the parallel-axis terms.", "status": "open, needs user/architect review before Step 37 per developer's own flag"},
-      {"question": "I_p(t) proportionality constant (not specified by the 4 Step-36 constants)", "implemented_choice": "I_p(t) = (I_d/m_d)*m_p(t), i.e. propellant assumed same mass-normalized MOI (radius of gyration) as dry structure. Documented placeholder, matches main.tex's own uniform-density/fixed-shape todo wording.", "status": "acceptable as placeholder per developer/architect; revisit when real grain geometry is available"}
+      {
+        "question": "Should p.l1/p.l2 (CoP-to-CoG and CoP-to-thrust moment arms) also become functions of l_B(t) now that the CoG travels?",
+        "implemented_choice": "left fixed (conservative) -- main.tex's Mass/MOI section gives formulas for l_B(t)/I(t) only, nothing for how attachment points transform relative to a moving CoG; main.tex's own Current assumptions section still lists l1/l2 as fixed; architecture.md SS19 flags this as open. Roadmap's regression check still satisfied since I(t) already depends on l_B(t) via the parallel-axis terms.",
+        "status": "open, needs user/architect review before Step 37 per developer's own flag"
+      },
+      {
+        "question": "I_p(t) proportionality constant (not specified by the 4 Step-36 constants)",
+        "implemented_choice": "I_p(t) = (I_d/m_d)*m_p(t), i.e. propellant assumed same mass-normalized MOI (radius of gyration) as dry structure. Documented placeholder, matches main.tex's own uniform-density/fixed-shape todo wording.",
+        "status": "acceptable as placeholder per developer/architect; revisit when real grain geometry is available"
+      }
     ]
   },
   "phase2_5_step37_prep": {
@@ -109,28 +218,118 @@
     "flagged_by_developer": "found and resolved an internal contradiction in the orchestrator's own dispatch instructions (the detailed scope paragraph said the lateral diagnostic must be NONZERO at azimuth=0/180, but a later 'Checks' bullet literally said the opposite). Resolved correctly using models.tex's own derivation as the authoritative source, re-derived and verified numerically rather than taken on faith. Implemented/tested the correct behavior (in-plane zero, lateral nonzero at the blind spot)."
   },
   "phase2_5_completed_steps": [
-    {"step": 33, "name": "Documentation restructuring (Current assumptions, models.tex consolidation)", "commit": "3aaec51", "note": "main.tex split into latex/main.tex + latex/sections/{rocket-2d,models}.tex; added the previously-referenced-but-undefined Current assumptions section; filled empty stubs (frame axes, gravity direction, Reynolds/Mach, aero-coefficient discussion); added non-inertial and variable-mass model sketches (left as derivation todos, feeding Steps 36/37); dropped linear gravity from the text; documented vertical wind as unimplemented (no fitting theory found). No code changes."},
-    {"step": 34, "name": "Remove the linear gravity model", "commit": "6d48576", "note": "sim/gravity.py: deleted _g_linear + dispatch entry; strictly dominated by radial (exact inverse-square) with no cost advantage and goes negative above h=R_e/2. gravity_model='linear' now raises KeyError like any unknown model string. 111/111 tests passing (3 linear-specific cases removed, sweep tests updated in place)."},
-    {"step": 35, "name": "Aerodynamic force in body axis, not wind axis", "commit": "6fa46f2", "note": "sim/forces.py::aero_force_body now returns -A_x*x_hat_r - A_z*z_hat_r unconditionally (body-axis convention matching the CFD/wind-tunnel data C_A/C_N are extracted in) instead of rotating through flow.u_hat/n_hat, which was double-applying the relative-wind rotation. Bit-for-bit identical at alpha=0; diverges from the old (wrong) behavior at nonzero alpha. Found+fixed in the same commit: sim/aero.py's constant-fallback C_N/C_m was unbounded (C_N_alpha*alpha), which hung solve_ivp when an unperturbed vertical flight coasts tail-first through V=0 at apogee and alpha oscillates across atan2's +-pi branch cut; fixed with C_N_alpha*sin(alpha) (continuous everywhere, matches linear form to <0.4% at realistic angles, correctly zero at exact tail-first). 111/111 tests passing, no hangs."}
+    {
+      "step": 33,
+      "name": "Documentation restructuring (Current assumptions, models.tex consolidation)",
+      "commit": "3aaec51",
+      "note": "main.tex split into latex/main.tex + latex/sections/{rocket-2d,models}.tex; added the previously-referenced-but-undefined Current assumptions section; filled empty stubs (frame axes, gravity direction, Reynolds/Mach, aero-coefficient discussion); added non-inertial and variable-mass model sketches (left as derivation todos, feeding Steps 36/37); dropped linear gravity from the text; documented vertical wind as unimplemented (no fitting theory found). No code changes."
+    },
+    {
+      "step": 34,
+      "name": "Remove the linear gravity model",
+      "commit": "6d48576",
+      "note": "sim/gravity.py: deleted _g_linear + dispatch entry; strictly dominated by radial (exact inverse-square) with no cost advantage and goes negative above h=R_e/2. gravity_model='linear' now raises KeyError like any unknown model string. 111/111 tests passing (3 linear-specific cases removed, sweep tests updated in place)."
+    },
+    {
+      "step": 35,
+      "name": "Aerodynamic force in body axis, not wind axis",
+      "commit": "6fa46f2",
+      "note": "sim/forces.py::aero_force_body now returns -A_x*x_hat_r - A_z*z_hat_r unconditionally (body-axis convention matching the CFD/wind-tunnel data C_A/C_N are extracted in) instead of rotating through flow.u_hat/n_hat, which was double-applying the relative-wind rotation. Bit-for-bit identical at alpha=0; diverges from the old (wrong) behavior at nonzero alpha. Found+fixed in the same commit: sim/aero.py's constant-fallback C_N/C_m was unbounded (C_N_alpha*alpha), which hung solve_ivp when an unperturbed vertical flight coasts tail-first through V=0 at apogee and alpha oscillates across atan2's +-pi branch cut; fixed with C_N_alpha*sin(alpha) (continuous everywhere, matches linear form to <0.4% at realistic angles, correctly zero at exact tail-first). 111/111 tests passing, no hangs."
+    }
   ],
-  "step26_network_approved": {"date": "2026-09-21", "answer": "yes, implement tools/fetch_sounding.py now"},
+  "step26_network_approved": {
+    "date": "2026-09-21",
+    "answer": "yes, implement tools/fetch_sounding.py now"
+  },
   "phase2_completed_steps": [
-    {"step": 9, "name": "relative wind and angle of attack", "commit": "79af229", "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"},
-    {"step": 10, "name": "gravity models: constant, linear, radial", "commit": "1f8c641", "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"},
-    {"step": 11, "name": "gravity real-data (WGS84)", "commit": "f53a0f8", "note": "26/26 tests passing; Somigliana + free-air correction, standard NIMA TR8350.2 constants; equator/pole spot-checks match published values to 7 sig figs; all 4 gravity variants now complete"},
-    {"step": 12, "name": "ISA atmosphere model", "commit": "09950ce", "note": "36/36 tests passing; full 7-layer ISA, AirState(rho,p,T,a,mu); not yet wired into flow/forces (Step 13); sea-level values match standard reference exactly"},
-    {"step": 13, "name": "Dynamic-pressure aero forces, Reynolds and Mach", "commit": "9b558c1", "note": "Verified that aero_model=\"constant\" reproduces Step 12 exactly; with \"coefficients\" drag vanishes at V=0, reverses on descent and falls with altitude."},
-    {"step": 14, "name": "Thrust curve", "commit": "0d184bf", "note": "sim/thrust_curve.py: lru_cache loader + np.interp, zero after last point; removed T_BURN hack entirely from forces.py. Params gains motor_curve (default \"\", Phase-1-preserving). Added burnout event to both integrators (Result.events[\"burnout\"]), including a fix for a real scipy solve_ivp gotcha (an always-zero event function is spuriously classified as both rising and falling under <=/>= comparisons; fixed with a 1e-9 N epsilon shift on the RK45 path). data/motors/placeholder.csv: illustrative solid-motor-shaped curve (spike/settle/sustain/tail-off), stated impulse 162.75 N*s verified by np.trapezoid. 47/47 tests passing. Intentionally not a bit-for-bit regression vs Step 13 (real thrust curve replacing a fake constant-thrust rectangle is the point)."},
-    {"step": 16, "name": "Pressure correction to thrust", "commit": "0882da3", "note": "sim/thrust_curve.py: T(t,h) = T_ref(t) + A_e*(p_ref - p_amb), p_amb from atmosphere.air_state. Params gains A_e (default 0.0) and p_ref (default 101325.0). Guarded to apply only while T_ref(t) > 0 to avoid manufacturing thrust from ambient pressure alone post-burnout/pre-ignition. A_e=0.0 default reproduces Step 14 bit-for-bit, confirmed via run.py (identical printed summary). 50/50 tests passing (3 new)."},
-    {"step": 17, "name": "Sounding data format, loader, altitude interpolation", "commit": "cc77846", "note": "sim/soundings.py (new): Sounding NamedTuple (station/lat/lon/elev/time_utc/h/p/T/u/v, wind converted from wdir/wspd to ENU u/v at load time); load_case(case) lru_cache'd loader globbing data/soundings/<case>/*.csv; interp_altitude(sounding,h) -> SoundingState(p,T,rho,a,mu,u,v) tier-2 seam (T linear, p linear-in-ln, u/v linear, rho/a/mu derived reusing atmosphere.py's constants). Below-range: local lapse rate from the sounding's own first two points. Above-range: ISA-shaped profile re-anchored at the sounding's top point for continuity. No physics wired into atmosphere.py/wind.py yet (Steps 18/22). Worked example: data/soundings/example/LKPR_202605011200.csv. 62/62 tests passing (12 new), including the roadmap's stated 0.5%-vs-ISA check."},
-    {"step": 18, "name": "Atmosphere tier 2: single-station sounding data", "commit": "26f1f8f", "note": "sim/atmosphere.py gains _sounding_air_state (tier 2, loads p.sounding_case via soundings.load_case, first station only; repackages soundings.interp_altitude into AirState, drops u/v). Params gains sounding_case (default \"\"). Default atmosphere_model=\"isa\" unchanged. 66/66 tests passing (4 new): ISA-derived synthetic case matches isa tier to ~0.05%; full trajectory with synthetic case matches isa run to ~0.01-0.02%; real LKPR example (elevation 380m) is measurably less dense than ISA at that altitude (~0.71% lower), producing a higher apogee (~0.47%) and shorter impact time (~0.98%) as expected from less drag -- checked as a directional assertion, not just inequality."},
-    {"step": 19, "name": "Horizontal interpolation core: tangent-plane projection and IDW", "commit": "9d6e791", "note": "sim/soundings.py gains tier-3 horizontal combination (pure infra, not wired into atmosphere.py/wind.py yet): _resample_case (per-station grid resampling via interp_altitude, cached on (case,grid_top_m,grid_step_m)), project_latlon (equirectangular projection), interp_field_at/interp_field (IDW w_i~1/(d_i^2+eps^2) or rbf via scipy.interpolate.RBFInterpolator, combined then run back through interp_altitude). Params gains horizontal_interp/grid_top_m/grid_step_m/idw_epsilon_m. 72/72 tests passing (6 new): single-station exact match, station's-own-coordinates dominated-but-not-identical (exact analytic bound, not loose tolerance), two-identical-stations exact everywhere, rocket-ground-position wrapper matches explicit-point seam, rbf smoke test, projected-vs-haversine <0.1% with a documented caveat that pure-diagonal offsets pushed to the full 100km can exceed that bound (expected property of the equirectangular approximation itself, not a bug)."},
-    {"step": 20, "name": "Atmosphere tier 3: multi-station spatially interpolated data", "commit": "f818573", "note": "sim/atmosphere.py gains _field_air_state (tier 3, delegates to soundings.interp_field(p.sounding_case,y,h_msl,p) from Step 19, repackages into AirState). First atmosphere model depending on y[X], not just y[Z]. No new Params fields. New example data/soundings/field_example/: FLDA (T0=293.15K/p0=102000Pa) and FLDB (T0=288.15K/p0=99000Pa), ~37km due east of each other (purely cardinal, per Step 19's own projection-accuracy note). 74/74 tests passing (2 new): single-station case reproduces sounding tier exactly through full air_state seam; two-station ground-track sweep shows density decreasing monotonically from FLDA to FLDB, the correct direction given FLDA is actually denser at every shared altitude (verified from real station numbers, not asserted blindly)."},
-    {"step": 21, "name": "Wind tier 1: analytic shear profile", "commit": "7e15296", "note": "sim/wind.py (new): wind_inertial dispatches on wind_model (none=zeros default, analytic=power-law shear W(h)=wind_ref_ms*(max(h,h_ref)/h_ref)^shear_exp, AGL). Meteorological wdir-azimuth projection onto flight plane; cross-plane component discarded via wind_horizontal_enu (exposed for Phase 3). Deterministic gusts: frozen sum of 8 sinusoids seeded via gust_seed, cached; gust_sigma=0.0 skips RNG entirely. flow._wind_inertial now delegates here. Params gains wind_model/wind_ref_ms/wind_dir_deg/wind_ref_h_m/wind_shear_exp/gust_sigma/gust_seed. 81/81 tests passing (7 new): none reproduces pre-Step-21 stub bit-for-bit; pure headwind raises V by exactly wind speed; four cardinal directions give derived signs; headwind/tailwind bracket still-air apogee correctly (needed inclined launch); gust determinism and gust_sigma=0 exactness. Flagged (not a bug): shared test-module aero coefficients (C_N_alpha/C_m_alpha/l1) are pitch-unstable once alpha!=0 is engaged -- relevant for Step 25."},
-    {"step": 22, "name": "Wind tier 2: single-station sounding data", "commit": "1c10109", "note": "sim/wind.py gains _sounding_wind (tier 2, loads p.sounding_case via soundings.load_case, first station only, interp_altitude for ENU u/v at MSL altitude, not AGL). Projects ENU onto flight plane via w_along=u*sin(A)+v*cos(A), w_cross=u*cos(A)-v*sin(A) -- derived from scratch and verified algebraically consistent with tier 1's wdir-based formula. No new format/loader/Params field. 86/86 tests passing (6 new): constant-wind sounding matches analytic tier at shear_exp=0; synthetic veering profile matches -W*cos(wdir) exactly; real LKPR example case wind veers 210->265deg from 380m to 10000m, confirmed against hand-computed values; MSL convention confirmed."},
-    {"step": 23, "name": "Wind tier 3: multi-station spatially interpolated data", "commit": "b1fb9fb", "note": "sim/wind.py gains _field_wind (tier 3, delegates to soundings.interp_field from Step 19, reuses tier 2's ENU projection unchanged). 6 executable lines, matching roadmap's own 'handful of lines' prediction. No new Params fields. Closes out all three wind tiers. 88/88 tests passing (2 new): single-station case reproduces sounding tier exactly; new synthetic two-station opposing-wind case (0/180deg, N-S) shows along-plane wind increasing strictly monotonically across an 11-point sweep, crossing zero exactly once."}
+    {
+      "step": 9,
+      "name": "relative wind and angle of attack",
+      "commit": "79af229",
+      "note": "13/13 tests passing; ascent leg unchanged (exact match to Step 8); descent leg physics fixed (impact time 35.99s->37.87s, max speed 188.88->178.30 m/s), drag now correctly opposes actual relative wind instead of fixed body axes"
+    },
+    {
+      "step": 10,
+      "name": "gravity models: constant, linear, radial",
+      "commit": "1f8c641",
+      "note": "20/20 tests passing; dispatch-dict pattern via Params.gravity_model; default 'constant' exact regression match; linear/radial diverge as physically expected at higher altitudes"
+    },
+    {
+      "step": 11,
+      "name": "gravity real-data (WGS84)",
+      "commit": "f53a0f8",
+      "note": "26/26 tests passing; Somigliana + free-air correction, standard NIMA TR8350.2 constants; equator/pole spot-checks match published values to 7 sig figs; all 4 gravity variants now complete"
+    },
+    {
+      "step": 12,
+      "name": "ISA atmosphere model",
+      "commit": "09950ce",
+      "note": "36/36 tests passing; full 7-layer ISA, AirState(rho,p,T,a,mu); not yet wired into flow/forces (Step 13); sea-level values match standard reference exactly"
+    },
+    {
+      "step": 13,
+      "name": "Dynamic-pressure aero forces, Reynolds and Mach",
+      "commit": "9b558c1",
+      "note": "Verified that aero_model=\"constant\" reproduces Step 12 exactly; with \"coefficients\" drag vanishes at V=0, reverses on descent and falls with altitude."
+    },
+    {
+      "step": 14,
+      "name": "Thrust curve",
+      "commit": "0d184bf",
+      "note": "sim/thrust_curve.py: lru_cache loader + np.interp, zero after last point; removed T_BURN hack entirely from forces.py. Params gains motor_curve (default \"\", Phase-1-preserving). Added burnout event to both integrators (Result.events[\"burnout\"]), including a fix for a real scipy solve_ivp gotcha (an always-zero event function is spuriously classified as both rising and falling under <=/>= comparisons; fixed with a 1e-9 N epsilon shift on the RK45 path). data/motors/placeholder.csv: illustrative solid-motor-shaped curve (spike/settle/sustain/tail-off), stated impulse 162.75 N*s verified by np.trapezoid. 47/47 tests passing. Intentionally not a bit-for-bit regression vs Step 13 (real thrust curve replacing a fake constant-thrust rectangle is the point)."
+    },
+    {
+      "step": 16,
+      "name": "Pressure correction to thrust",
+      "commit": "0882da3",
+      "note": "sim/thrust_curve.py: T(t,h) = T_ref(t) + A_e*(p_ref - p_amb), p_amb from atmosphere.air_state. Params gains A_e (default 0.0) and p_ref (default 101325.0). Guarded to apply only while T_ref(t) > 0 to avoid manufacturing thrust from ambient pressure alone post-burnout/pre-ignition. A_e=0.0 default reproduces Step 14 bit-for-bit, confirmed via run.py (identical printed summary). 50/50 tests passing (3 new)."
+    },
+    {
+      "step": 17,
+      "name": "Sounding data format, loader, altitude interpolation",
+      "commit": "cc77846",
+      "note": "sim/soundings.py (new): Sounding NamedTuple (station/lat/lon/elev/time_utc/h/p/T/u/v, wind converted from wdir/wspd to ENU u/v at load time); load_case(case) lru_cache'd loader globbing data/soundings/<case>/*.csv; interp_altitude(sounding,h) -> SoundingState(p,T,rho,a,mu,u,v) tier-2 seam (T linear, p linear-in-ln, u/v linear, rho/a/mu derived reusing atmosphere.py's constants). Below-range: local lapse rate from the sounding's own first two points. Above-range: ISA-shaped profile re-anchored at the sounding's top point for continuity. No physics wired into atmosphere.py/wind.py yet (Steps 18/22). Worked example: data/soundings/example/LKPR_202605011200.csv. 62/62 tests passing (12 new), including the roadmap's stated 0.5%-vs-ISA check."
+    },
+    {
+      "step": 18,
+      "name": "Atmosphere tier 2: single-station sounding data",
+      "commit": "26f1f8f",
+      "note": "sim/atmosphere.py gains _sounding_air_state (tier 2, loads p.sounding_case via soundings.load_case, first station only; repackages soundings.interp_altitude into AirState, drops u/v). Params gains sounding_case (default \"\"). Default atmosphere_model=\"isa\" unchanged. 66/66 tests passing (4 new): ISA-derived synthetic case matches isa tier to ~0.05%; full trajectory with synthetic case matches isa run to ~0.01-0.02%; real LKPR example (elevation 380m) is measurably less dense than ISA at that altitude (~0.71% lower), producing a higher apogee (~0.47%) and shorter impact time (~0.98%) as expected from less drag -- checked as a directional assertion, not just inequality."
+    },
+    {
+      "step": 19,
+      "name": "Horizontal interpolation core: tangent-plane projection and IDW",
+      "commit": "9d6e791",
+      "note": "sim/soundings.py gains tier-3 horizontal combination (pure infra, not wired into atmosphere.py/wind.py yet): _resample_case (per-station grid resampling via interp_altitude, cached on (case,grid_top_m,grid_step_m)), project_latlon (equirectangular projection), interp_field_at/interp_field (IDW w_i~1/(d_i^2+eps^2) or rbf via scipy.interpolate.RBFInterpolator, combined then run back through interp_altitude). Params gains horizontal_interp/grid_top_m/grid_step_m/idw_epsilon_m. 72/72 tests passing (6 new): single-station exact match, station's-own-coordinates dominated-but-not-identical (exact analytic bound, not loose tolerance), two-identical-stations exact everywhere, rocket-ground-position wrapper matches explicit-point seam, rbf smoke test, projected-vs-haversine <0.1% with a documented caveat that pure-diagonal offsets pushed to the full 100km can exceed that bound (expected property of the equirectangular approximation itself, not a bug)."
+    },
+    {
+      "step": 20,
+      "name": "Atmosphere tier 3: multi-station spatially interpolated data",
+      "commit": "f818573",
+      "note": "sim/atmosphere.py gains _field_air_state (tier 3, delegates to soundings.interp_field(p.sounding_case,y,h_msl,p) from Step 19, repackages into AirState). First atmosphere model depending on y[X], not just y[Z]. No new Params fields. New example data/soundings/field_example/: FLDA (T0=293.15K/p0=102000Pa) and FLDB (T0=288.15K/p0=99000Pa), ~37km due east of each other (purely cardinal, per Step 19's own projection-accuracy note). 74/74 tests passing (2 new): single-station case reproduces sounding tier exactly through full air_state seam; two-station ground-track sweep shows density decreasing monotonically from FLDA to FLDB, the correct direction given FLDA is actually denser at every shared altitude (verified from real station numbers, not asserted blindly)."
+    },
+    {
+      "step": 21,
+      "name": "Wind tier 1: analytic shear profile",
+      "commit": "7e15296",
+      "note": "sim/wind.py (new): wind_inertial dispatches on wind_model (none=zeros default, analytic=power-law shear W(h)=wind_ref_ms*(max(h,h_ref)/h_ref)^shear_exp, AGL). Meteorological wdir-azimuth projection onto flight plane; cross-plane component discarded via wind_horizontal_enu (exposed for Phase 3). Deterministic gusts: frozen sum of 8 sinusoids seeded via gust_seed, cached; gust_sigma=0.0 skips RNG entirely. flow._wind_inertial now delegates here. Params gains wind_model/wind_ref_ms/wind_dir_deg/wind_ref_h_m/wind_shear_exp/gust_sigma/gust_seed. 81/81 tests passing (7 new): none reproduces pre-Step-21 stub bit-for-bit; pure headwind raises V by exactly wind speed; four cardinal directions give derived signs; headwind/tailwind bracket still-air apogee correctly (needed inclined launch); gust determinism and gust_sigma=0 exactness. Flagged (not a bug): shared test-module aero coefficients (C_N_alpha/C_m_alpha/l1) are pitch-unstable once alpha!=0 is engaged -- relevant for Step 25."
+    },
+    {
+      "step": 22,
+      "name": "Wind tier 2: single-station sounding data",
+      "commit": "1c10109",
+      "note": "sim/wind.py gains _sounding_wind (tier 2, loads p.sounding_case via soundings.load_case, first station only, interp_altitude for ENU u/v at MSL altitude, not AGL). Projects ENU onto flight plane via w_along=u*sin(A)+v*cos(A), w_cross=u*cos(A)-v*sin(A) -- derived from scratch and verified algebraically consistent with tier 1's wdir-based formula. No new format/loader/Params field. 86/86 tests passing (6 new): constant-wind sounding matches analytic tier at shear_exp=0; synthetic veering profile matches -W*cos(wdir) exactly; real LKPR example case wind veers 210->265deg from 380m to 10000m, confirmed against hand-computed values; MSL convention confirmed."
+    },
+    {
+      "step": 23,
+      "name": "Wind tier 3: multi-station spatially interpolated data",
+      "commit": "b1fb9fb",
+      "note": "sim/wind.py gains _field_wind (tier 3, delegates to soundings.interp_field from Step 19, reuses tier 2's ENU projection unchanged). 6 executable lines, matching roadmap's own 'handful of lines' prediction. No new Params fields. Closes out all three wind tiers. 88/88 tests passing (2 new): single-station case reproduces sounding tier exactly; new synthetic two-station opposing-wind case (0/180deg, N-S) shows along-plane wind increasing strictly monotonically across an 11-point sweep, crossing zero exactly once."
+    }
   ],
-  "step24_skipped": {"reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"},
+  "step24_skipped": {
+    "reason": "optional per roadmap; needs a 'group multiple time-snapshots per physical station' concept not yet in sim/soundings.py (every CSV in a case is currently treated as an independent spatial station, so two snapshots of the same station would be silently double-counted by tier-3 IDW as two stations at one location) -- real design work, deferred until there's an actual multi-snapshot dataset to design against"
+  },
   "phase2_step27_completed": {
     "commit": "9291b32",
     "note": "run.py gains sweep(base_params,field,values,s0) -- the dataclasses.replace idiom architecture.md SS12 itself specifies -- plus a printed summary table (apogee alt/time, max-Q via flow_state, impact time). sim/plotting.py gains plot_trajectory_overlay (flight-path + altitude-vs-time panels). Two sweeps by default: 4 gravity models, and isa vs real LKPR sounding (aero_model=coefficients so atmosphere is load-bearing). Single-run scenario/output completely unaffected (confirmed byte-identical). 114/114 tests passing (5 new): sane per-variant summaries; gravity apogee ordering physically predictable; atmosphere sweep confirms real sounding gives higher apogee/lower max-Q than isa (less dense, less drag); gravity divergence small (<1%) at ~4.6km but clearly visible (~8x larger) at 100km, exactly the roadmap's stated check; overlay plot valid. THIS STEP CLOSES OUT PHASE 2 -- every model in main.tex Models implemented and selectable."
@@ -160,51 +359,183 @@
     "commit": "c2e7537"
   },
   "flagged_issues_step19": [
-    {"issue": "equirectangular tangent-plane projection's error vs great-circle grows with diagonal (non-cardinal) displacement and can exceed 0.1% for diagonal offsets approaching 100km at mid-latitudes, even though it stays under cardinal-direction offsets at any distance and moderate diagonals (~35km). This is an expected property of the projection architecture.md SS17 itself specifies, not a bug. Worth remembering when picking station positions for Step 20/23 field-tier test fixtures -- avoid relying on exact <0.1% distance claims for far diagonal placements."}
+    {
+      "issue": "equirectangular tangent-plane projection's error vs great-circle grows with diagonal (non-cardinal) displacement and can exceed 0.1% for diagonal offsets approaching 100km at mid-latitudes, even though it stays under cardinal-direction offsets at any distance and moderate diagonals (~35km). This is an expected property of the projection architecture.md SS17 itself specifies, not a bug. Worth remembering when picking station positions for Step 20/23 field-tier test fixtures -- avoid relying on exact <0.1% distance claims for far diagonal placements."
+    }
   ],
-  "phase2_step15_skipped": {"reason": "optional per roadmap dependency graph; blocked on main.tex still stating CoG doesn't change, which contradicts variable I(t)/l1(t)/l2(t)", "rechecked": "2026-09-20", "will_revisit": "if/when user updates main.tex with CoG/inertia-shift derivation"},
+  "phase2_step15_skipped": {
+    "reason": "optional per roadmap dependency graph; blocked on main.tex still stating CoG doesn't change, which contradicts variable I(t)/l1(t)/l2(t)",
+    "rechecked": "2026-09-20",
+    "will_revisit": "if/when user updates main.tex with CoG/inertia-shift derivation"
+  },
   "phase1_status": "complete (8/8 steps)",
   "phase2_scope": {
-    "gravity": ["constant", "linear", "radial", "wgs84_real_data"],
-    "atmosphere": ["isa", "sounding_single_station", "field_multi_station_interpolated"],
-    "wind": ["analytic", "sounding_single_station", "field_multi_station_interpolated"],
-    "deferred_to_backlog": ["launch_rail", "recovery", "egm_gravity", "non_parallel_gravity", "humidity", "crosswind"]
+    "gravity": [
+      "constant",
+      "linear",
+      "radial",
+      "wgs84_real_data"
+    ],
+    "atmosphere": [
+      "isa",
+      "sounding_single_station",
+      "field_multi_station_interpolated"
+    ],
+    "wind": [
+      "analytic",
+      "sounding_single_station",
+      "field_multi_station_interpolated"
+    ],
+    "deferred_to_backlog": [
+      "launch_rail",
+      "recovery",
+      "egm_gravity",
+      "non_parallel_gravity",
+      "humidity",
+      "crosswind"
+    ]
   },
   "phase2_decisions": [
-    {"date": "2026-09-19", "question": "model selection pattern", "answer": "Params string + dispatch dict per family"},
-    {"date": "2026-09-19", "question": "real-data file format", "answer": "unified sounding CSV per station/time, folder=case under data/soundings/"},
-    {"date": "2026-09-19", "question": "pandas dependency", "answer": "no; numpy.genfromtxt + small header parser"},
-    {"date": "2026-09-19", "question": "live weather API", "answer": "no; manual CSV drop for now; optional offline fetch script later, never inside sim/"}
+    {
+      "date": "2026-09-19",
+      "question": "model selection pattern",
+      "answer": "Params string + dispatch dict per family"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "real-data file format",
+      "answer": "unified sounding CSV per station/time, folder=case under data/soundings/"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "pandas dependency",
+      "answer": "no; numpy.genfromtxt + small header parser"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "live weather API",
+      "answer": "no; manual CSV drop for now; optional offline fetch script later, never inside sim/"
+    }
   ],
   "flagged_issues": [
-    {"raised_by": "architect", "date": "2026-09-19", "issue": "static stability sign: per main.tex geometry (Aa=-l1*x_hat_r), l1>0 with normal aero force is divergent not restoring; old roadmap had this backwards; revisit before Step 25"}
+    {
+      "raised_by": "architect",
+      "date": "2026-09-19",
+      "issue": "static stability sign: per main.tex geometry (Aa=-l1*x_hat_r), l1>0 with normal aero force is divergent not restoring; old roadmap had this backwards; revisit before Step 25"
+    }
   ],
   "milestone_step6": "all of main.tex (as of Step 6) implemented: full translation + rotation, all forces/moments, constants only",
   "completed_steps": [
-    {"step": 1, "name": "scaffolding", "commit": "4c3f836"},
-    {"step": 2, "name": "vertical point mass, constant thrust+gravity", "commit": "2024207", "note": "sign convention validated to ~1e-7 vs analytic; temporary T_BURN=2.0s in dynamics.py, to be replaced by Step 11's thrust curve"},
-    {"step": 3, "name": "altitude/velocity plots", "commit": "3c5f261", "note": "output.png gitignored; plt.show() blocks on interactive backend, expected for personal use"},
-    {"step": 4, "name": "aero forces module, constant axial drag", "commit": "68eb716", "note": "forces.py created (model-swap seam); apogee 1650.70m with A_x=0.5, regression-checked A_x=0 reproduces Step 3 exactly"},
-    {"step": 5, "name": "frames module, tilted 2D translation", "commit": "f794ec8", "note": "frames.py + first tests (tests/test_frames.py, 4 passing); theta still fixed; tilted-trajectory capability demonstrated (not committed to run.py's default scenario)"},
-    {"step": 6, "name": "rotational dynamics, moments about CoG", "commit": "d5226ac", "note": "theta/omega integrated; M_y = l1*A_z - A_m closed form verified to 1e-12; 6/6 tests passing"},
-    {"step": 7, "name": "full Phase 1 output: trajectory + pitch plots, flight summary", "commit": "81615c6", "note": "trajectory.png, time_histories.png, trajectory.csv all gitignored; downrange=0 at impact matches vertical-launch placeholder"},
-    {"step": 8, "name": "RK4 cross-check integrator", "commit": "53a3894", "note": "7/7 tests passing; RK4 vs RK45 agree within grid-resolution tolerance; RK45 remains default, run.py output unchanged"}
+    {
+      "step": 1,
+      "name": "scaffolding",
+      "commit": "4c3f836"
+    },
+    {
+      "step": 2,
+      "name": "vertical point mass, constant thrust+gravity",
+      "commit": "2024207",
+      "note": "sign convention validated to ~1e-7 vs analytic; temporary T_BURN=2.0s in dynamics.py, to be replaced by Step 11's thrust curve"
+    },
+    {
+      "step": 3,
+      "name": "altitude/velocity plots",
+      "commit": "3c5f261",
+      "note": "output.png gitignored; plt.show() blocks on interactive backend, expected for personal use"
+    },
+    {
+      "step": 4,
+      "name": "aero forces module, constant axial drag",
+      "commit": "68eb716",
+      "note": "forces.py created (model-swap seam); apogee 1650.70m with A_x=0.5, regression-checked A_x=0 reproduces Step 3 exactly"
+    },
+    {
+      "step": 5,
+      "name": "frames module, tilted 2D translation",
+      "commit": "f794ec8",
+      "note": "frames.py + first tests (tests/test_frames.py, 4 passing); theta still fixed; tilted-trajectory capability demonstrated (not committed to run.py's default scenario)"
+    },
+    {
+      "step": 6,
+      "name": "rotational dynamics, moments about CoG",
+      "commit": "d5226ac",
+      "note": "theta/omega integrated; M_y = l1*A_z - A_m closed form verified to 1e-12; 6/6 tests passing"
+    },
+    {
+      "step": 7,
+      "name": "full Phase 1 output: trajectory + pitch plots, flight summary",
+      "commit": "81615c6",
+      "note": "trajectory.png, time_histories.png, trajectory.csv all gitignored; downrange=0 at impact matches vertical-launch placeholder"
+    },
+    {
+      "step": 8,
+      "name": "RK4 cross-check integrator",
+      "commit": "53a3894",
+      "note": "7/7 tests passing; RK4 vs RK45 agree within grid-resolution tolerance; RK45 remains default, run.py output unchanged"
+    }
   ],
   "stages": [
-    {"phase": 1, "name": "2D planar, everything constant", "steps": "1-8", "status": "complete"},
-    {"phase": 2, "name": "real models, still 2D", "steps": "9-27 (expanded 2026-09-19 from original 9-17)", "status": "complete", "note": "19 mandatory steps done (9-14,16-23,25-27); Step 15 (propellant depletion) and Step 24 (time interpolation) both optional and deferred, not blocking"},
-    {"phase": 3, "name": "3D, full 6-DOF", "steps": "28-32 (renumbered 2026-09-19 from original 18-22)", "status": "not_started"}
+    {
+      "phase": 1,
+      "name": "2D planar, everything constant",
+      "steps": "1-8",
+      "status": "complete"
+    },
+    {
+      "phase": 2,
+      "name": "real models, still 2D",
+      "steps": "9-27 (expanded 2026-09-19 from original 9-17)",
+      "status": "complete",
+      "note": "19 mandatory steps done (9-14,16-23,25-27); Step 15 (propellant depletion) and Step 24 (time interpolation) both optional and deferred, not blocking"
+    },
+    {
+      "phase": 3,
+      "name": "3D, full 6-DOF",
+      "steps": "28-32 (renumbered 2026-09-19 from original 18-22)",
+      "status": "not_started"
+    }
   ],
   "decisions": [
-    {"date": "2026-09-19", "question": "architecture/stack", "answer": "approved as recommended: z-down frame, solve_ivp, fixed-signature model seam, quaternions phase 3, minimal pytest"},
-    {"date": "2026-09-19", "question": "z_g direction", "answer": "down; W = m*g*z_g correct as-is"},
-    {"date": "2026-09-19", "question": "A_m sign", "answer": "positive A_m pitches nose down (restoring moment)"},
-    {"date": "2026-09-19", "question": "CoG assumption", "answer": "kept fixed for now; user will update main.tex before Step 12"}
+    {
+      "date": "2026-09-19",
+      "question": "architecture/stack",
+      "answer": "approved as recommended: z-down frame, solve_ivp, fixed-signature model seam, quaternions phase 3, minimal pytest"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "z_g direction",
+      "answer": "down; W = m*g*z_g correct as-is"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "A_m sign",
+      "answer": "positive A_m pitches nose down (restoring moment)"
+    },
+    {
+      "date": "2026-09-19",
+      "question": "CoG assumption",
+      "answer": "kept fixed for now; user will update main.tex before Step 12"
+    }
   ],
   "artifacts": {
     "spec": "main.tex",
     "architecture": "architecture.md",
     "roadmap": "roadmap.md"
   },
-  "notes": "Personal-use tool, single user, from-scratch Python implementation (no RocketPy). Build incrementally: 2D with constant models first, then real models, then 3D."
+  "notes": "Personal-use tool, single user, from-scratch Python implementation (no RocketPy). Build incrementally: 2D with constant models first, then real models, then 3D.",
+  "phase2_8_completed_steps": [
+    {
+      "step": 45,
+      "name": "Curved altitude everywhere: atmosphere, wind, gravity magnitude, and the reported/plotted altitude",
+      "commit_spec": "7390f73",
+      "commit_impl": "355a170",
+      "note": "Promotes Backlog B8 in full. altitude_agl/altitude_msl move from sim/flow.py to sim/gravity.py (altitude_agl(y,p) = -ground_depth(0.0,y,p), one unary minus, no re-typed trigonometry) and become curvature-aware, replacing every flat -y[Z]-style altitude computation: gravity.py's _g_radial/_g_wgs84, atmosphere.py's three independently inlined h_msl copies (_isa_air_state/_sounding_air_state/_field_air_state), wind.py's tier-1/2/3 (three copies), and -- per explicit user override of the architect's original recommendation to leave run.py/plotting.py at flat -z -- run.py's two independent apogee-altitude readouts (_flight_summary and main(), which does not call _flight_summary) and sim/plotting.py's three plotted altitude series, via a new Result.params field (chosen over a p argument because plot_trajectory_overlay takes one Params per sweep variant). No event trigger touched (_apogee_event/_ground_event/_burnout_event unchanged) -- only the value reported/plotted, never which instant an event fires. No new Params field. Bit-for-bit under gravity_direction='parallel' confirmed by running run.py against both the pre- and post-Step-45 code and diffing byte-for-byte identical output, not merely asserted. 220/220 tests passing."
+    }
+  ],
+  "phase2_8_milestone_complete": {
+    "date": "2026-09-28",
+    "summary": "Step 45 (Phase 2.8) done, promoting Backlog B8 in full: curved-ground altitude now feeds every altitude-dependent reader in the package, not just the Step-42 impact event -- the atmosphere tiers, the tier-1 wind shear profile, the radial/WGS84 gravity-magnitude models, and (by explicit user instruction, 'I want convention to be radial, I want stuff to be physically correct', overriding the architect's own recommendation to leave this out of scope) run.py's reported apogee altitude and every plotted altitude series. The apogee/ground/burnout event triggers themselves are untouched -- only the altitude value read at an event, never which instant is the event. Delivered via architect spec (architecture.md SS25, ten subsections, expanded once mid-spec to fold in the reported/plotted altitude per the user's override) then one developer session, which crashed on a session-limit error after getting the full suite to 220/220 but before the final run.py verification step -- recovered by the orchestrator directly: reviewed the full diff against the spec file-by-file (all matched exactly), re-ran the full suite independently, then found and resolved a stuck run.py process (plt.show() blocking on a GUI backend in this headless session -- re-run with MPLBACKEND=Agg).",
+    "verification": "Full suite independently re-run by the orchestrator: 220/220 passing. Bit-for-bit claim checked by execution, not just read off the diff: stashed Step 45's changes, ran run.py against the exact pre-Step-45 code, and confirmed its printed sweep tables are byte-for-byte identical to the post-Step-45 run. A separate, unrelated finding surfaced during this check and is recorded in roadmap.md's Step 45 entry rather than fixed here: run.py's printed sweep tables no longer match PROJECT-STATUS.md's Step-27 record for max_q/impact_t (apogee_alt/apogee_t still agree closely) -- confirmed unrelated to Step 45 by the same stash-and-diff method, so the drift was introduced somewhere across Steps 28-44 and never re-verified since; not investigated further, flagged for a future dedicated look.",
+    "next": "All items promoted from the backlog for this push (B4, B5, B8) are now done. Remaining backlog: B1 launch rail, B2 recovery/parachute, B3 gridded EGM gravity, B6 crosswind (parked for Phase 3), B7 vertical wind (parked, user researching), B9 a real c_mq value (researched 2026-09-28, OpenRocket's actual method verified against source and found to be a tuned engineering approximation rather than a rigorous derivation -- user chose to keep the Step 44 test fixture rather than adopt it). Phase 3 (3D, full 6-DOF) still not started."
+  }
 }

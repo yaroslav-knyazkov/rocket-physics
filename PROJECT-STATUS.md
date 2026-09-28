@@ -18,12 +18,14 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
-**Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE** — still 2D, not Phase 3.
-187/187 tests passing. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's
-go-ahead; or one of the 5 items the user explicitly deferred this session (commanded gimbal
-control, Barrowman wing-body aero build-up, real propellant grain-geometry dimensions, vertical
-wind pending the user's own research, and the CFD/wind-tunnel data-extraction pipeline for real
-aero coefficients including a real `c_mq`). See "Phase 2.7 milestone: COMPLETE" below. Steps 33-35:
+**Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
+COMPLETE** — still 2D, not Phase 3. 220/220 tests passing. Backlog items B4, B5 and B8 (the three
+promoted out of the backlog this push) are all now done; remaining backlog: B1 launch rail, B2
+recovery/parachute, B3 gridded EGM gravity, B6 crosswind (parked for Phase 3), B7 vertical wind
+(parked, user researching), B9 a real `c_mq` value (researched 2026-09-28 — see "B9 research" note
+below — user chose to keep the Step 44 test fixture rather than adopt OpenRocket's method). Next:
+Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead; or one of the remaining
+deferred items above. See "Phase 2.8 milestone: COMPLETE" below. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -140,6 +142,91 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
+
+## Phase 2.8 milestone: COMPLETE (2026-09-28) — Step 45 implemented and committed
+
+Promotes Backlog **B8** — the half of `models.tex` eq. `h_true` that Step 42 (Phase 2.7) deliberately
+left behind — in full, and one item beyond it by explicit user instruction.
+
+- **Step 45 — curved altitude everywhere** (spec `7390f73`, implementation `355a170`).
+  `altitude_agl`/`altitude_msl` move from `sim/flow.py` to `sim/gravity.py`
+  (`altitude_agl(y, p) = -ground_depth(0.0, y, p)`, one unary minus, no re-typed trigonometry — the
+  altitude models read and the surface the impact event finds can never disagree) and become
+  curvature-aware, replacing every flat `-y[Z]`-style altitude computation in the package:
+  `gravity.py`'s `_g_radial`/`_g_wgs84`; `atmosphere.py`'s **three** independently inlined `h_msl`
+  copies (`_isa_air_state`/`_sounding_air_state`/`_field_air_state`); `wind.py`'s tier-1/2/3 (three
+  copies — tiers 2/3 change because wind and atmosphere read the *same* sounding file at the *same*
+  level, and curving only one would sample two different rows of one profile for one state).
+  `sim/soundings.py` needed no change, confirmed by inspection rather than assumed.
+
+  **The reported/plotted altitude is in scope too, by explicit user override.** The architect's
+  original spec recommended leaving `run.py`'s printed apogee altitude and `sim/plotting.py`'s three
+  plotted altitude series at flat `-z`, as Step 42 had — the user overrode this: *"I want convention
+  to be radial. I want stuff to be physically correct."* The spec was expanded mid-flight to cover
+  it: `integrate.Result` gains a fifth field, `params` (the `Params` that produced the run — chosen
+  over a `p` argument on the plotting functions because `plot_trajectory_overlay` takes one `Params`
+  per variant in a sweep, so a single `p` parameter would be wrong in general); `run.py`'s **two**
+  independent apogee-altitude readouts (`_flight_summary`, used by `sweep()`, and `main()`, which
+  does not call `_flight_summary`) both convert; `plotting.py`'s three `altitude = -y[Z]` sites
+  become `altitude_agl(y, r.params)`. The event **triggers** are explicitly untouched —
+  `_apogee_event` still fires at `y[VZ] == 0` in the launch frame; only the altitude *value* reported
+  at that instant changes. A documented consequence, not a defect: on a curved run the reported
+  altitude at `t_apogee` is *not* the maximum of the curved altitude over the flight
+  (`dh_true/dt = +0.47 m/s` at the apogee of a representative tilted trajectory) — redefining apogee
+  as `max h_true` is explicitly a separate, un-taken decision.
+
+  **The orthogonality consequence is named, not smuggled in.** Curvature lives only in
+  `gravity.curvature_radius(p)`, keyed off `p.gravity_direction` — so `_g_radial`/`_g_wgs84`'s
+  altitude input now depends on the *direction* model, meaning `gravity_direction="elliptical"`
+  moves the gravity *magnitude* even with `gravity_model` unchanged. This does not collapse the
+  Step-38 dispatch (the two dicts stay separate, `g()` still dispatches purely on `gravity_model`) —
+  it is a shared *input*, not a shared *dispatch* — and it is asserted by a dedicated test so a
+  future reader cannot silently "restore orthogonality." `p.R_e` (the geocentric falloff radius) and
+  `curvature_radius(p)` (a radius of curvature) remain two different quantities, never substituted
+  for one another — for `"elliptical"` they differ by ~20 km.
+
+  Bit-for-bit under the default `gravity_direction="parallel"` was confirmed by **execution, not
+  just by reading the diff**: `git stash` on Step 45's changes, re-run `run.py` against the exact
+  pre-Step-45 code, and diff its printed output against the post-Step-45 run — byte-for-byte
+  identical. 220/220 tests passing (33 new), including a tilted (`x≠0` throughout)
+  every-altitude-consumer-exercising regression pinned against pre-Step-45 values on both integrator
+  paths, since the vertical default (`x≡0`) can't distinguish a converted from an unconverted call
+  site. Exactly one test-file reorganization occurred (the permitted one): `test_flow.py`'s two
+  altitude tests moved to `test_gravity.py`, gaining the `p` argument their new import requires.
+
+  **A separate, pre-existing finding surfaced during the bit-for-bit check, recorded rather than
+  fixed here:** `run.py`'s printed sweep tables no longer match `PROJECT-STATUS.md`'s Step-27
+  "Actual printed sweep tables" record — `apogee_alt`/`apogee_t` still agree closely, but `max_q`
+  and `impact_t` have drifted by several percent in both sweeps. Confirmed unrelated to Step 45 by
+  the same stash-and-diff method (the drift is present identically in the pre-Step-45 code), so it
+  was introduced somewhere across Steps 28-44 and never re-verified against the Step-27 record since
+  — that record was already known to be partly stale (it still lists the `linear` gravity model,
+  removed at Step 34). Not investigated further, per the architect's own instruction not to absorb
+  it into this step's commit; flagged in `roadmap.md`'s Step 45 entry for a future dedicated look.
+
+**Recovery note:** the developer session implementing Step 45 was terminated by a session-limit API
+error after getting the full suite to 220/220, but before its planned final `run.py` verification and
+before any commit. The orchestrator recovered directly: reviewed the entire diff against the spec
+file-by-file (every file matched the spec's call-site tables exactly, no improvisation found),
+re-ran the full suite independently (220/220, unchanged), then hit a second, unrelated snag while
+running the `run.py` verification itself — two background invocations both silently hung after
+writing their output files, traced to `run.py`'s trailing `plt.show()` blocking on a GUI backend in
+this headless session (the files were already correct; only the printed stdout was lost to the
+hang). Resolved by killing the stuck processes and re-running with `MPLBACKEND=Agg`, which also
+enabled the stash-and-diff bit-for-bit proof described above.
+
+**Verification:** every commit's full suite independently re-run by the orchestrator, not taken on
+the developer session's self-report alone. Final count: 220/220.
+
+**B9 research note (2026-09-28, no code change):** separately from Step 45, the pitch-damping
+coefficient `c_mq` (Step 44's scaffold, still `0.0` default) was researched against Nielsen's
+*Missile Aerodynamics*, Barrowman's 1966 thesis, the classical Munk/Bryson slender-body closed form,
+and OpenRocket/Niskanen's strip-theory method — the last verified directly against its GitHub source
+rather than trusted from memory, and found to need fin/body planform geometry this project doesn't
+track, plus an explicit `×3` calibration factor and a hard cap at the static moment ("higher damping
+yields much more realistic apogee turn" — its own source comment). Presented to the user with these
+findings; decision: keep the Step 44 test fixture, no `Params`/code change. Write-up:
+`latex/research/c_mq_pitch_damping.md`; tracker entry: `roadmap.md`'s B9.
 
 ## Phase 2.7 milestone: COMPLETE (2026-09-28) — Steps 41, 42, 43, 44 implemented and committed
 
