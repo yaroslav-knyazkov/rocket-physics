@@ -1,0 +1,222 @@
+\documentclass[10pt]{extarticle}
+
+% ---------- Packages ----------
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath, amsfonts, bm}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{nomencl}
+\usepackage{array}
+\usepackage{pdflscape}
+\usepackage[export]{adjustbox}
+\usepackage[utf8]{inputenc}
+\usepackage{parskip}
+
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{arrows.meta, arrows}
+
+% ---------- Page setup ----------
+\geometry{
+    a4paper,
+    total={170mm,257mm},
+    left=20mm,
+    top=20mm
+}
+
+% ---------- Headers and footers ----------
+\pagestyle{fancy}
+\pagenumbering{arabic}
+
+\fancyhead[L]{Rocket Physics by Yaroslav Knyazkov}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+
+% ---------- Hyperlinks ----------
+\hypersetup{
+    colorlinks=true,
+    linkcolor={blue!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+% ---------- Equation numbering ----------
+\numberwithin{equation}{subsection}
+
+% ---------- Custom commands ----------
+\newcommand{\todo}[1]{%
+    \textcolor{red}{(#1)}%
+}
+
+\begin{document}
+\section{3DOF - Definitions}
+
+\subsection{Assumptions}
+\begin{itemize}
+    \item rigid body
+\end{itemize}
+
+\subsection{Frames}
+\begin{itemize}
+    \item $\mathcal{F}_0$ - ground
+    \item $\mathcal{F}_g$ - gravitational field
+    \item $\mathcal{F}_r$ - rocket
+    \item $\mathcal{F}_t$ - thrust 
+\end{itemize}
+
+
+\subsection{Forces and moments}
+\begin{equation}
+    \vec{W} = mg\hat{z}_g, 
+\end{equation}
+\begin{equation}
+    \vec{T} = T\hat{x}_t,
+\end{equation}
+\begin{equation}
+    \vec{A}_f = -A_x\hat{x}_r - A_z\hat{z}_r,
+\end{equation}
+\begin{equation}
+    \vec{A}_m = -A_m\hat{y}_r,
+\end{equation}
+
+\subsection{Geometry}
+\begin{equation}
+    \vec{AB} = -l_B\hat{x}_r - u_B\hat{z}_r.
+\end{equation}
+\begin{equation}
+    \vec{AC} = -l_C\hat{x}_r - u_C\hat{z}_r.
+\end{equation}
+\begin{equation}
+    \vec{AD} = -l_D\hat{x}_r.
+\end{equation}
+
+\subsection{Equations of motion}
+\begin{gather}
+    m\vec{\ddot{x}} = \sum \vec{F} = \vec{W} + \vec{T} + \vec{A}_f \\
+    I\ddot{\theta} = \sum \vec{M}(B) \cdot \hat{y}_r = \left[\vec{BC}\times\vec{T} + \vec{BD}\times\vec{A}_f + \vec{A_m}\right]\cdot \hat{y}_r
+\end{gather}
+
+\newpage
+\section{3DOF - Models}
+\subsection{Gravity}
+\subsubsection{Magnitude}
+\begin{itemize}
+    \item constant
+    \begin{equation}
+        g = g_0
+    \end{equation}
+    \item radial
+    \begin{equation}
+        g(r) = g_0 {\left(\frac{R_e}{R_e+r}\right)}^2
+    \end{equation}
+    \item real data (analytical)
+\end{itemize}
+
+\subsubsection{Direction}
+\begin{itemize}
+    \item parallel
+    \begin{equation}
+        \hat{z}_g = \hat{z}_0
+    \end{equation}
+    \item radial (origin at center of earth)
+    \begin{equation}
+        \hat{z}_g = -\frac{1}{r}\begin{bmatrix}
+            x \\ 0 \\ z
+        \end{bmatrix}
+    \end{equation}
+    \item elliptical (origin at center of earth)
+\end{itemize}
+
+\subsubsection{Vector field (magnitude + direction)}
+data from some dataset
+
+\subsection{Thrust}
+\subsubsection{Magnitude}
+\begin{equation}
+    T = \dot{m}v_e + A_e(p_e - p_{atm}),
+\end{equation}
+\begin{equation}
+    T_{ref}(t) = \mathrm{lerp}\!\left(t; \{t_i\}, \{T_i\}\right)
+\end{equation}
+\begin{equation}
+    T(t, r) = T_{ref}(t) + A_e\left(p_{ref} - p_{amb}(r)\right), \qquad \text{only while } T_{ref}(t) > 0
+\end{equation}
+
+\subsubsection{Direction}
+done by missaligned or thrust control
+
+\subsection{Mass, center of gravity and moment of inertia}
+\subsubsection{Mass}
+\begin{equation}
+    \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0}
+\end{equation}
+
+\subsubsection{Center of gravity}
+\begin{equation}
+    l_B(t) = \frac{m_d\,l_d + m_p(t)\,l_p(t)}{m_d + m_p(t)}
+\end{equation}
+
+\subsubsection{Moment of inertia}
+\begin{equation}
+    I(t) = I_d + m_d\bigl(l_B(t)-l_d\bigr)^2 + I_p(t) + m_p(t)\bigl(l_B(t)-l_p\bigr)^2
+\end{equation}
+
+\todo{change of mass or moment of inertia due to mechanisms}
+
+\subsection{Aerodynamics}
+make them bic C not c
+\subsubsection{Magnitudes}
+\begin{align}
+    A_x &= qSc_x \\
+    A_z &= qSc_z \\
+    A_m &= qSlc_m
+\end{align}
+
+\subsubsection{Dynamic pressure}
+mention density, mainly to derive relative air velocity
+
+\subsubsection{Coefficients}
+\begin{equation}
+    c = c(\alpha, M, Re)
+\end{equation}
+intoduce mach and reynolds numbers
+
+\todo{Also depends on geometry; control surface extension airbrake, aileron, etc.}
+\todo{might want to include pitch rate and for 3d other stuff}
+\subsubsection{Linearization of coefficients}
+\begin{equation}
+    c_z = c_{z,0} + \alpha c_{z,\alpha}
+\end{equation}
+\begin{equation}
+    c_m = c_{m,0} + \alpha c_{m,\alpha}
+\end{equation}
+\todo{what about $c_d$?}
+\begin{equation}
+    c_x = c_{x,0} + \frac{c_z^2}{e\pi\lambda}
+\end{equation}
+(thats for airfoils, what is in general?)
+
+\subsection{Atmosphere}
+\subsubsection{Models}
+present what data is given
+
+\subsubsection{Pressure}
+\subsubsection{Density}
++ humid density derivation
+
+\subsection{Wind}
+
+\subsection{Non-inertial frame corrections (Earth’s rotation)}
+
+
+
+\newpage
+\section{3DOF - Analytical analysis}
+\subsection{Forces}
+\subsection{Moment}
+\subsection{Static stability}
+
+\end{document}

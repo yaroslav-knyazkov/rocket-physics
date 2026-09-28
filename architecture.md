@@ -19,6 +19,10 @@ start at §11 for anything Phase 2. Approval gates and open sign questions are c
 §23 holds the **Steps 38-40** additions designed after Phase 2.5 closed (non-parallel gravity,
 thrust-axis misalignment, humid-air density); it is self-contained — a developer implementing one
 of those three needs §23's own subsection plus the LaTeX section it names, not the whole document.
+§24 holds the **Steps 41-44** additions (elliptical gravity direction, curved-ground impact
+condition, lateral offsets `u_B`/`u_C`, pitch-damping `c_mq` scaffold) on the same self-contained
+terms. Note the LaTeX section files moved to `latex/sections-ai/` in the same session §24 was
+written; §23's `latex/sections/...` citations refer to the same content at the new path.
 
 ---
 
@@ -1390,3 +1394,737 @@ values to pin: `(T=287.3 K, T_d=283.15 K, p=96700 Pa)` → `e = 1226.0 Pa`, `T_v
 `rho: 1.17254 → 1.16692` (−0.479 %); `(303.15, 299.15, 101325)` → −1.252 %. A sounding file with no
 `Td_K` column must load and run unchanged with `humid_air` either way. Tier 3 with one station must
 still reproduce tier 2 exactly, dewpoint included.
+
+---
+
+## 24. Phase 2.7 — elliptical gravity, curved ground, lateral offsets, pitch-damping scaffold (Steps 41-44)
+
+Four additive steps designed after Phase 2.6 closed, from the LaTeX rewrite of the same session.
+Same discipline as §23: one step, one commit, a `Params` default that reproduces every prior step
+**bit-for-bit**, tests for every new behaviour. None of them changes the state vector, the solver
+or the module map. Step 42 is the only one that touches `sim/integrate.py` at all.
+
+**LaTeX path note.** The report's section files moved in the same session: `latex/sections/` no
+longer exists, the live files are `latex/sections-ai/{rocket-2d,analysis,models}.tex`, wired into
+`latex/main.tex` by `\input{sections-ai/...}`. §23's citations to `latex/sections/...` refer to the
+same content at the new path. Every citation below uses the new path.
+
+| Step | Physics | `Params` gate | Modules touched |
+|---|---|---|---|
+| 41 | ellipsoid-normal local vertical (osculating sphere in the flight azimuth) | `gravity_direction = "elliptical"` (new third value) | `gravity.py`, `params.py` |
+| 42 | ground/impact measured from the curved surface, not the tangent plane | implied by `gravity_direction ∈ {radial, elliptical}` | `gravity.py`, `integrate.py` |
+| 43 | lateral offsets of the CoG and the nozzle from the body axis | `u_B: float = 0.0`, `u_C: float = 0.0` | `dynamics.py`, `params.py` |
+| 44 | pitch-damping derivative `c_mq` — inert scaffold | `c_mq: float = 0.0` + optional CSV column | `aero.py`, `forces.py`, `params.py` |
+
+**Dependency:** 42 depends on 41 (it consumes 41's `curvature_radius` seam and must handle the
+`"elliptical"` value). 43 and 44 are independent of 41/42 and of each other. Recommended order
+41 → 42 → 43 → 44; strictly sequential regardless, per the project's one-step-one-commit rule.
+
+**One open sign question before Step 44 is implemented** — `analysis.tex` §Dynamic stability states
+the physical sign of `c_mq` in the *textbook* convention, which is inverted relative to this
+document's own `A_m` convention. See §24.4 "Sign of `c_mq` — a real inconsistency in the spec",
+which resolves it from first principles. That resolution must be agreed before the Step 44 tests are
+written, because a test encodes the sign permanently.
+
+### 24.1 Step 41 — elliptical gravity direction (`gravity_direction = "elliptical"`)
+
+Spec: `latex/sections-ai/models.tex` §Gravity > Direction, paragraph **"Construction
+(elliptical)"** (the `R_χ`, `M(φ)`, `N(φ)` equations, and the sentence "Every formula of the radial
+construction above then carries over unchanged with `R_e → R_χ(φ₀,χ)`"). Builds directly on §23.1
+(Step 38), which is the radial construction it reuses.
+
+**Model.** The WGS84 ellipsoid's local vertical is the *ellipsoid normal*, which does not pass
+through the centre `O` except on the equator and at the poles. Rather than build a second
+construction, the ellipsoid is replaced near the launch point by its **osculating sphere in the
+flight-plane azimuth `χ`** — the sphere tangent at `O*` whose normal curvature matches the
+ellipsoid's in that one direction. Euler/Meusnier:
+
+```
+M(φ)      = a_e*(1 - e2) / (1 - e2*sin²φ)^(3/2)      # meridional radius of curvature [m]
+N(φ)      = a_e / sqrt(1 - e2*sin²φ)                 # prime-vertical radius of curvature [m]
+R_chi     = 1 / (cos²χ / M(φ0) + sin²χ / N(φ0))      # normal curvature radius along heading χ [m]
+phi       = y[X] / R_chi                             # same arc-length reading as §23.1
+z_hat_g   = (-sin(phi), cos(phi))                    # eq:zhat_g_rotated, unchanged
+```
+
+`a_e` and `e2` are **the constants already in `sim/gravity.py`**: `_WGS84_A = 6378137.0` and
+`_WGS84_E2 = 0.00669437999013`, defined for `_g_wgs84`. Do not introduce a second copy — the same
+reason §23.3 computes `_EPSILON` from `_R_D/_R_V` instead of hard-coding `0.622`: two copies of one
+constant are a drift hazard.
+
+**`φ₀` and `χ` reuse `lat0_deg` and `azimuth_deg` — no new `Params` fields.** This is not a
+convenience, it is a correctness requirement:
+
+- `lat0_deg` is already documented and used as *the launch site's geodetic latitude on the WGS84
+  ellipsoid* — it is the `φ` of Somigliana's formula in `_g_wgs84`, on the same ellipsoid, with the
+  same `a_e`, `e2`. `M(φ₀)`/`N(φ₀)` need exactly that quantity. Supplying the magnitude and the
+  direction of one ellipsoid's gravity with two different latitudes would be incoherent.
+- `azimuth_deg` is already documented as "direction of +x, degrees clockwise from North" — exactly
+  the heading `χ` of `models.tex` (§Atmosphere > Field's ground track `(x sin χ, x cos χ)`, §Wind's
+  flight-plane projection, and `sim/rotation.py`'s `Ω` decomposition all read it as that). There is
+  one flight plane; it has one heading.
+- The hypothetical "a user might want a Coriolis latitude different from the ellipsoid latitude" is
+  not a real distinction: both are *the launch site's latitude*, and there is one launch site. A
+  separate field would create a second source of truth for one physical quantity.
+
+**Structure — a third value in the existing dispatch dict, plus a radius seam.** `sim/gravity.py`:
+
+```python
+def _R_chi(p) -> float:
+    """Osculating-sphere radius in the flight-plane azimuth (Euler/Meusnier),
+    models.tex SSGravity > Direction, "Construction (elliptical)"."""
+    phi0 = np.radians(p.lat0_deg)
+    chi = np.radians(p.azimuth_deg)
+    s2 = np.sin(phi0) ** 2
+    M = _WGS84_A * (1.0 - _WGS84_E2) / (1.0 - _WGS84_E2 * s2) ** 1.5
+    N = _WGS84_A / np.sqrt(1.0 - _WGS84_E2 * s2)
+    return float(1.0 / (np.cos(chi) ** 2 / M + np.sin(chi) ** 2 / N))
+
+
+# Curvature radius of the ground/vertical construction, per direction model.
+# `None` == flat: the launch-point tangent plane, no curvature at all.
+# Same dispatch-dict convention as _GRAVITY_MODELS/_GRAVITY_DIRECTIONS, so an
+# unknown gravity_direction raises KeyError here too (architecture.md SS7).
+_CURVATURE_RADII = {
+    "parallel":   lambda p: None,
+    "radial":     lambda p: p.R_e,
+    "elliptical": _R_chi,
+}
+
+
+def curvature_radius(p) -> "float | None":
+    """Radius of the sphere the local vertical (and, from Step 42, the ground)
+    is constructed on. `None` for the flat "parallel" model."""
+    return _CURVATURE_RADII[p.gravity_direction](p)
+
+
+def _dir_curved(t, y, p) -> np.ndarray:
+    """z_hat_g rotated with downrange distance, on a sphere of radius
+    curvature_radius(p) -- models.tex eq:zhat_g_rotated with phi = x/R."""
+    phi = y[X] / curvature_radius(p)
+    return np.array([-np.sin(phi), np.cos(phi)])
+
+
+_GRAVITY_DIRECTIONS = {
+    "parallel":   _dir_parallel,
+    "radial":     _dir_curved,     # was _dir_radial
+    "elliptical": _dir_curved,
+}
+```
+
+`_dir_radial` is replaced by `_dir_curved` rather than duplicated: for `"radial"`,
+`curvature_radius(p)` returns `p.R_e` unchanged, so `phi = y[X] / p.R_e` is the **same expression
+with the same operands**, hence bit-for-bit identical to Step 38's body. Keeping two near-identical
+functions would be the shallower structure and would let the two drift.
+
+**Bit-for-bit.** `"parallel"` never reaches any of the new code (`_dir_parallel` is untouched and
+still returns `np.array([0.0, 1.0])`). `"radial"` evaluates `y[X] / p.R_e` exactly as before — one
+extra dict lookup and one extra call, zero arithmetic difference. Both existing variants stay
+byte-identical; this is a check the step must assert, not assume.
+
+**Pinned numbers** (recompute independently before trusting them — the §23.3 precedent):
+
+| `φ₀` | `χ` | `R_χ` [m] | vs `R_e = 6371000` |
+|---|---|---|---|
+| 0° | 0° (due N) | 6335439.3273 = `M(0)` | −35560.7 |
+| 0° | 90° (due E) | 6378137.0000 = `N(0)` = `a_e` | +7137.0 |
+| 50° | 0° | 6372955.9257 | +1955.9 (+0.031 %) |
+| 50° | 45° | 6381816.6482 | +10816.6 (+0.170 %) |
+| 50° | 90° | 6390702.0442 | +19702.0 (+0.309 %) |
+| 90° | any | 6399593.6258 | +28593.6 |
+
+Also: `M(50°) = 6372955.9257`, `N(50°) = 6390702.0442` — i.e. at `χ = 0` the answer *is* `M(φ₀)` and
+at `χ = 90°` it *is* `N(φ₀)`, exactly, which is the cheapest correctness check available. At the
+pole `M = N`, so `R_χ` is azimuth-independent — also exact, also a test.
+
+Effect size, `φ₀ = 50°, χ = 90°`, elliptical vs radial at the same state: `Δφ = x·(1/R_e − 1/R_χ)`
+is `4.839e-6 rad` at `x = 10 km` (`|Δẑ_g| = 4.839e-6`), and the downrange gravity component
+`−g·sin φ` goes from `−1.539263e-2` to `−1.534518e-2 m/s²` — a 0.31 % refinement of a term that is
+itself small. This is a fidelity option, not a correction anyone's trajectory needs; say so in the
+docstring.
+
+**`p.R_e` is not read by the elliptical direction.** With `gravity_direction="elliptical"` the
+direction model ignores `R_e` entirely; `gravity_model="radial"`'s *magnitude* still uses it (the
+two dispatches stay orthogonal, §23.1). Pin this in a test: sweeping `R_e` must not move an
+`elliptical`-direction result, and sweeping `lat0_deg`/`azimuth_deg` must not move a `radial`-
+direction one.
+
+**Scope — what this step does NOT do.**
+
+- No curved ground and no curved-ground altitude. That is Step 42; §24.2's scope list applies here
+  too, unchanged.
+- No third-order ellipsoid fidelity. The osculating sphere is exact at `O*` and correct to second
+  order in `φ`; it departs at third order because the true geodetic latitude drifts downrange while
+  `R_χ(φ₀,χ)` is frozen at the launch site. `models.tex` states this explicitly as "a refinement not
+  carried here". Do not add a `φ(x)` update.
+- No coupling to Coriolis, exactly as §23.1: `sim/rotation.py` keeps its launch-site-fixed `Ω`.
+- No caching of `R_χ`. It is ~10 flops per RHS call, recomputed like `_g_wgs84`'s Somigliana
+  constants already are (§15 "Performance note ... do not optimise"). A cache keyed on `Params`
+  would need `Params` to be hashable across every field; it is not worth it.
+- Zero effect on the rotational equation, for the same exact reason as §23.1 (weight acts at the
+  CoG). `domega/dt` delta must be exactly `0.0`, not approximately.
+
+**Checks for the step.** `"parallel"` and `"radial"` both reproduce every prior `derivatives()`
+result bit-for-bit (`np.array_equal`, the `earth_rotation` test's pattern). `R_χ(φ₀, 0°) == M(φ₀)`
+and `R_χ(φ₀, 90°) == N(φ₀)` to floating-point equality, at several latitudes. `R_χ(90°, χ)` is
+independent of `χ`. `‖z_hat_g‖ = 1` and `z_hat_g(x=0) == (0.0, 1.0)` exactly, for `"elliptical"`.
+`elliptical` and `radial` differ by the pinned `Δφ` above at `φ₀=50, χ=90, x=10 km`. `domega/dt`
+delta vs `"parallel"` is exactly `0.0`. Sweeping `p.R_e` leaves an `"elliptical"` run unchanged.
+An unknown `gravity_direction` string raises `KeyError` (no silent flat fallback).
+
+### 24.2 Step 42 — curved-ground impact condition (`h_true`)
+
+Spec: `latex/sections-ai/models.tex` §Gravity > Direction, paragraph **"Ground and impact
+condition"**, eq. `h_true` (and eq. `surface_point`, which it is derived from). This is the
+"curved ground" remainder that roadmap Backlog **B4** explicitly left behind when Step 38 was
+promoted out of it.
+
+**Model.** The rocket is at `O*R = x·x̂₀ + z·ẑ₀`; the ground point at the *same* downrange arc angle
+is `O*P(φ) = R sin φ·x̂₀ + R(1−cos φ)·ẑ₀`. Projecting the offset onto the local up `−ẑ_g(φ)`:
+
+```
+phi    = x / R                                      # R = curvature_radius(p), 24.1
+h_true = x*sin(phi) - z*cos(phi) - R*(1 - cos(phi))     # models.tex eq:h_true, up-positive
+```
+
+Small-`φ` reading: `h_true = x²/2R − z + O(x⁴/R³)` — larger than the flat `−z` by exactly the
+curvature drop, because the ground has fallen away beneath a rocket that has not.
+
+**The event must not be `h_true` itself. Use its negation, "depth below ground".** This is the one
+place in this phase where a sign slip is silent and costly. Today:
+
+```python
+_ground_event.terminal  = True
+_ground_event.direction = 1   # z increasing through 0 == falling (z is down-positive)
+```
+
+`y[Z]` is *down*-positive and rises through zero at impact. `h_true` is *up*-positive and falls
+through zero at impact. Substituting `h_true` for `y[Z]` while leaving `direction = 1` in place
+would make `solve_ivp` look for the rocket *leaving* the ground upward and never terminate the run —
+and, worse, it would still "work" on any scenario that happens to start below ground. Both
+`terminal` and `direction` are attributes on the module-level function object, so they cannot be
+varied per-`Params` without global mutation. The fix is to keep the event's sign convention and
+change only what fills it:
+
+```python
+# sim/gravity.py
+def ground_depth(t: float, y: np.ndarray, p) -> float:
+    """Signed depth of the rocket below the ground surface, DOWN-positive --
+    the curved-ground generalisation of `y[Z]` (models.tex SSGravity >
+    Direction, eq:h_true, negated). Negative in flight, zero at impact,
+    increasing through zero as the rocket descends, for every direction
+    model -- so `integrate._ground_event` keeps `direction = 1`,
+    `terminal = True` unchanged.
+    """
+    R = curvature_radius(p)
+    if R is None:                 # "parallel": flat launch-point tangent plane
+        return y[Z]               # returned unchanged -- bit-for-bit, see below
+    phi = y[X] / R
+    return y[Z] * np.cos(phi) - y[X] * np.sin(phi) + R * (1.0 - np.cos(phi))
+```
+
+```python
+# sim/integrate.py
+def _ground_event(t, y, p):
+    if t < 0.1:                   # unchanged t=0 guard
+        return 1.0
+    return gravity.ground_depth(t, y, p)
+
+_ground_event.terminal = True     # unchanged
+_ground_event.direction = 1       # unchanged
+```
+
+and in `_run_rk4`, the manual crossing detection becomes the same substitution, nothing more:
+
+```python
+d_now  = gravity.ground_depth(t, y, p)            # hoist above the step if desired
+d_next = gravity.ground_depth(t_next, y_next, p)
+if t_next >= 0.1 and d_now < 0.0 <= d_next:
+    frac = -d_now / (d_next - d_now)
+    t_ground = t + frac * dt_step
+    y_ground = y + frac * (y_next - y)
+    ...
+```
+
+**Why `ground_depth` lives in `gravity.py` and not in `integrate.py` or a new `sim/ground.py`.** It
+is derived from, and shares `R` with, the direction construction — `models.tex` puts it inside
+§Gravity > Direction for exactly that reason. Putting the geometry in `integrate.py` would make the
+integrator know about ellipsoids; a new 15-line `sim/ground.py` would be a shallow module whose only
+content is one formula plus an import of `gravity.curvature_radius`. `integrate.py` asks one
+question ("how far below the ground am I?") and gets one number: that is the deep-module seam.
+
+**Bit-for-bit, worked out rather than asserted.** For `"parallel"`, `curvature_radius(p)` returns
+`None` and `ground_depth` returns the *same object* `y[Z]` — not a recomputation of it. The RK45
+event function therefore returns bitwise what it returned before, so `solve_ivp`'s Brent root-find
+sees the identical function and produces the identical `t_events[0]`; and `_run_rk4`'s comparison
+`d_now < 0.0 <= d_next` with `frac = -d_now/(d_next - d_now)` is the identical arithmetic on the
+identical operands. Nothing else in either path is touched.
+
+**The explicit `parallel` branch is mandatory, not stylistic — the limit does not save you.**
+`h_true → −z` only as `R → ∞`. At the code's finite `p.R_e = 6371000.0` the formula gives, at
+`z = 0`:
+
+| `x` | `h_true(x, 0)` with `R_e` | i.e. the flat `z = 0` plane sits this far above the curved ground |
+|---|---|---|
+| 1 km | +0.078481 m | |
+| 4.6 km | +1.660650 m | |
+| 10 km | +7.848057 m | |
+| 30 km | +70.632162 m | |
+
+So evaluating the curved formula under `"parallel"` would move the impact event by
+`x²/2R_e` of altitude at every nonzero `x`. It happens to be exactly harmless for `run.py`'s default
+scenario — that launch is vertical, `x ≡ 0`, and `h_true(0, z) = 0·0 − z·1 − R(1−1) = −z` bitwise —
+but it is *not* harmless for any tilted scenario (Step 5 onwards), where at a 4.6 km downrange
+impact the event value would be off by 1.661 m, shifting the impact time by ~0.02 s at a 80 m/s
+descent rate. Never rely on `R → ∞`; also note that passing `float("inf")` as the radius produces
+`inf * 0.0 = nan` in the `R*(1 − cos φ)` term, so the "just use a huge R" shortcut is actively
+broken. Branch on `R is None`.
+
+**`_apogee_event` is deliberately NOT touched.** Apogee stays `y[VZ] = 0`, `direction = 1`,
+`terminal = False`. With a curved ground the maximum of `h_true` is not the top of the launch-frame
+trajectory: differentiating along the path,
+
+```
+dh_true/dt = (x*cos(phi) + z*sin(phi))/R * vx  -  cos(phi) * vz
+```
+
+which at `vx = 300 m/s`, `x = 10 km`, `R = R_e` is `+0.47 m/s` where `vz = 0`, so the two definitions
+of apogee differ by ~0.05 s of flight time and a second-order (i.e. negligible) amount of altitude.
+"Apogee" in this simulator means the top of the trajectory in the launch frame — that is what is
+plotted, what `run.py` reports, and what every existing test asserts. Changing it would be a
+separate, arguable modelling decision, and mixing it into a step about the *ground* is exactly how
+the apogee/impact event pair gets silently broken. Leave it, and say so in the docstring.
+
+**Scope — what this step does NOT do, and the recommendation behind it.**
+
+`models.tex` eq. `h_true`'s own prose says `h_true` "is the altitude to use, in place of `−z`, for
+every altitude-dependent model once a non-parallel direction model is active — the atmosphere and
+wind tiers, and the radial/WGS84 magnitude models". **This step deliberately implements only the
+impact/ground event, and leaves the altitude-model swap to a separate later step.** The
+recommendation, with its reasons:
+
+1. **It is where nearly all the physics is.** The ground-drop term changes the *answer the simulator
+   reports* — impact range and time — at first order: at a flat-reading impact 4.6 km downrange
+   descending at 60°, the ground has dropped 1.661 m and the rocket flies ~0.96 m further; at 10 km
+   and 45°, 7.848 m of drop gives ~7.85 m of extra range. Feeding the same `+7.85 m` at 10 km into
+   the *altitude* lookups instead changes ISA density by ≈ `7.85/8500 ≈ 0.09 %` and radial `g` by
+   `2·7.85/6.371e6 ≈ 2.4e-6` relative — both far below the atmosphere model's own error, the same
+   threshold §23.3 used to leave `a` and `μ` dry and §13 used to reject EGM2008.
+2. **It would break an architectural invariant.** `flow.altitude_agl(y)` takes no `Params`; giving
+   it one is a signature change rippling through `gravity.py`, `atmosphere.py`, `wind.py`,
+   `soundings.py` and most of the test suite. Worse, `_g_radial`/`_g_wgs84` would then read
+   `p.gravity_direction` to compute a *magnitude* — collapsing the magnitude/direction orthogonality
+   that §23.1 was specifically designed to establish, and making `gravity_model="radial"` +
+   `gravity_direction="elliptical"` a combination whose `h` depends on the ellipsoid while its `g`
+   does not.
+3. **Blast radius vs. reviewability.** The event change is ~15 lines in two functions with an exact
+   bit-for-bit argument. The altitude swap is a cross-cutting refactor of the project's most-called
+   helper; it deserves its own step, its own regression sweep, and its own decision about whether
+   `altitude_msl` follows suit.
+
+Recorded as a new backlog item (roadmap **B8**, "`h_true` for the altitude-dependent models"). Also
+explicitly not in this step: any change to `_apogee_event` or `_burnout_event`; any change to
+plotting or to `run.py`'s reported "apogee altitude" (still `−z`); and any notion of terrain — the
+"ground" here is the smooth reference surface, nothing else.
+
+**Checks for the step.** `gravity_direction="parallel"`: a full `run_sim` on both integrator paths
+reproduces the pre-Step-42 `events["ground"]`, `events["apogee"]`, `t` and `y` arrays bit-for-bit,
+including a *tilted* scenario with `x ≠ 0` at impact (the vertical default would pass even with the
+bug — say so in the test's docstring). `ground_depth(t, y, p) is y[Z]`-equal for parallel at
+arbitrary `x`, `z`. For `"radial"`/`"elliptical"`: `ground_depth` is exactly `z` when `x = 0.0`
+(`cos 0 = 1`, `sin 0 = 0`, `R(1−1) = 0` — bitwise); `ground_depth(x, 0, p)` equals the pinned
+`−h_true` values above (`−0.078481`, `−1.660650`, `−7.848057`, `−70.632162` m at 1/4.6/10/30 km with
+`R_e`); `−h_true` matches `−(x²/2R − z)` to the pinned residuals (`−6.164e-3 m` at `x = 10 km,
+z = −5000`, `−0.664 m` at `x = 100 km` — the exact-vs-small-angle gap, which is itself the check
+that the *exact* form was implemented, not the approximation). `_ground_event.direction == 1` and
+`_ground_event.terminal is True` asserted directly as attributes (a regression guard on the one
+mistake this step invites). A tilted `"radial"` run impacts **later and further downrange** than the
+same tilted `"parallel"` run — sign check on the whole chain, not just the formula. `"radial"` and
+`"elliptical"` give different impact points at the same `lat0_deg`/`azimuth_deg`. RK4 and RK45 agree
+on the curved impact time to grid resolution (the Step 8 cross-check, extended to the new event).
+
+### 24.3 Step 43 — lateral offsets `u_B`, `u_C`
+
+Spec: `latex/sections-ai/analysis.tex` eq. `moment_full` and §Moment's term-by-term reading;
+`latex/sections-ai/rocket-2d.tex` §Geometry (eqs. for `AB`, `AC`, `AD`, and the `u_D ≡ 0` rule).
+Completes eq. `moment_full` — §23.2 recorded its `(u_B−u_C)T cos δ` term as "derived but with no
+code path", and status.json carries the same as a flagged item.
+
+**What is already implemented, verified against the actual code.** `sim/dynamics.py` builds two
+body-frame position vectors and crosses each with its force via
+
+```python
+def _cross_y(a, b):
+    a_x, a_z = a
+    b_x, b_z = b
+    return -(a_x * b_z - a_z * b_x)
+```
+
+```python
+aA = np.array([-l1_aero, 0.0])          # CoG -> aerodynamic reference point D  (= BD)
+aB = np.array([-(p.l1 + p.l2), 0.0])    # CoG -> thrust application point C     (= BC)
+M_y = _cross_y(aB, thrust) + _cross_y(aA, aero_force) + aero_moment_y(t, y, p)
+```
+
+Mapping to the LaTeX's point labels: the code's `l1 = l_D − l_B` and `l1 + l2 = l_C − l_B` (both
+positive, both nose-tip-referenced — the bridge documented in the Phase 2.5 finalization pass), so
+`aA` is `BD` and `aB` is `BC`. Both currently carry an **implicit zero lateral component** — that
+`0.0` in the second slot is precisely `u_B = u_C = 0`.
+
+**What the geometry actually says.** From `rocket-2d.tex` §Geometry, `AB = −l_B x̂_r − u_B ẑ_r`,
+`AC = −l_C x̂_r − u_C ẑ_r`, `AD = −l_D x̂_r` (with `u_D ≡ 0`):
+
+```
+BD = AD - AB = (l_B - l_D)*x_hat_r + u_B*z_hat_r          ->  aA = (-l1,          +u_B      )
+BC = AC - AB = (l_B - l_C)*x_hat_r + (u_B - u_C)*z_hat_r  ->  aB = (-(l1+l2),  u_B - u_C    )
+```
+
+**The diff is two array literals.** `sim/dynamics.py`, inside `derivatives()`, nothing else:
+
+```python
+aA = np.array([-l1_aero, p.u_B])                     # was  [-l1_aero, 0.0]
+aB = np.array([-(p.l1 + p.l2), p.u_B - p.u_C])       # was  [-(p.l1 + p.l2), 0.0]
+```
+
+**Verification that this produces eq. `moment_full` exactly** — do the algebra, do not trust the
+shape. With `thrust = (T cos δ, T sin δ)` (Step 39) and `aero_force = (−A_x, −A_z)`:
+
+```
+M_thrust = _cross_y(aB, thrust)
+         = -[ (-(l1+l2)) * (T sin d)  -  (u_B - u_C) * (T cos d) ]
+         =  (l1 + l2)*T*sin(d)  +  (u_B - u_C)*T*cos(d)
+         =  (l_C - l_B)*T*sin(d) + (u_B - u_C)*T*cos(d)          <- eq:moment_full terms 2 and 1
+
+M_aero   = _cross_y(aA, aero_force)
+         = -[ (-l1) * (-A_z)  -  u_B * (-A_x) ]
+         = -l1*A_z - u_B*A_x
+         =  (l_B - l_D)*A_z - u_B*A_x                            <- eq:moment_full terms 4 and 3
+
+M_moment = aero_moment_y(...) = -A_m                             <- eq:moment_full term 5
+```
+
+Summing gives `I θ̈ = (u_B−u_C)T cos δ + (l_C−l_B)T sin δ − u_B A_x + (l_B−l_D)A_z − A_m`, which is
+eq. `moment_full` term for term, with no rearrangement. Note that the two missing terms land in
+*different* cross products — `(u_B−u_C)T cos δ` in `aB`'s and `−u_B A_x` in `aA`'s — which is why
+both literals change and why `u_B` appears twice with different companions. Getting `aA`'s lateral
+component wrong (e.g. `u_B − u_D` with a spurious `u_D`, or the opposite sign) is the realistic
+failure mode; `u_D ≡ 0` by definition in `rocket-2d.tex` §Geometry, and the sign follows from
+`BD = AD − AB` with `AB` carrying `−u_B ẑ_r`.
+
+**Bit-for-bit.** With the defaults `u_B = u_C = 0.0`: `np.array([-l1_aero, p.u_B])` constructs the
+element `0.0`, and `p.u_B - p.u_C` evaluates `0.0 - 0.0 == +0.0` exactly under IEEE
+round-to-nearest. Both arrays are therefore **bitwise identical** to the literals they replace, so
+`_cross_y` is fed identical operands and `M_y` is identical, not merely equal. (Pathological case
+for completeness: `u_B = -0.0` gives `aA[1] = -0.0` and `-0.0 - 0.0 = -0.0`; `_cross_y` then
+computes `a_z * b_x = ∓0.0` and `a_x*b_z − (∓0.0)`, which is exact for any finite `a_x*b_z`, so the
+result is unchanged there too.) No new branch, no gate flag — same pattern as `A_e = 0.0` and
+`thrust_misalign_deg = 0.0`.
+
+**`Params`:**
+
+```python
+# Step 43: lateral (off-axis) offsets of the CoG (B) and the thrust point (C)
+# from the body axis, measured along +z_hat_r (towards the belly), metres.
+# rocket-2d.tex SSGeometry: AB = -l_B*x_hat_r - u_B*z_hat_r, likewise AC with
+# u_C; u_D == 0 by definition. As-built manufacturing quantities to be swept,
+# not functions of the flight state -- the same standing as
+# thrust_misalign_deg. 0.0 (the default) recovers the on-axis geometry
+# bit-for-bit.
+u_B: float = 0.0   # lateral offset of the centre of gravity [m]
+u_C: float = 0.0   # lateral offset of the thrust application point [m]
+```
+
+Names match the LaTeX symbols exactly. Unlike `l1`/`l2` — which are code spellings of `l_D − l_B`
+and `l_C − l_D` and therefore *cannot* be named after LaTeX symbols — `u_B`/`u_C` are the LaTeX
+quantities themselves, with no legacy code name to collide with. Sign convention: **positive is
+towards `+ẑ_r`**, i.e. towards the belly, matching `models.tex`/`rocket-2d.tex` and the same
+direction a positive `δ` pushes the nozzle exhaust.
+
+**Physical readings worth putting in the tests** (all at the project's standard fixture:
+`l1=0.3, l2=0.4, S=0.005, d_ref=0.08, I=0.05`, placeholder motor peak `T = 150 N`):
+
+- The two thrust terms combine into a single closed form,
+  `T[(u_B−u_C)cos δ + (l_C−l_B) sin δ] = T·√((u_B−u_C)² + (l_C−l_B)²)·sin(δ + atan2(u_B−u_C, l_C−l_B))`
+  — verified to `1.1e-16` at `u_B−u_C = 1 mm, δ = 0.2°`. So a lateral offset is **exactly** a cant
+  offset in its effect on the thrust moment: `1 mm` of offset over the `l_C−l_B = 0.7 m` arm is
+  equivalent to `δ_eq = atan(0.001/0.7) = 0.08185°`, producing `0.150 N·m` at `T = 150 N` against
+  the `0.3665 N·m` a `δ = 0.2°` cant produces. An excellent exactness test, and the reason no new
+  trim-angle derivation is needed: eq. `alpha_trim` holds with `M_δ` replaced by the combined term.
+- `−u_B A_x` is **the only aerodynamic pitching moment that survives `α = 0`**. At `α = 0` the
+  normal force `A_z` and (for a body of revolution) `A_m` both vanish, so with `u_B = 1 mm` and
+  `A_x = 0.5 N` the airframe carries a constant `−5.0e-4 N·m`. Unlike `M_δ` this one does *not*
+  vanish at burnout — it scales with `q`, so it is largest at max-Q and is the only term of
+  eq. `moment_full` that is aerodynamic *and* independent of `α`. Test it directly at `α = 0`.
+
+**Scope — what this step does NOT do.**
+
+- **No effect on the translational equation.** `u_B`/`u_C` are moment arms only; `weight_inertial`,
+  `thrust_body` and `aero_force_body` are untouched, so `dvx/dt`, `dvz/dt` and `dm/dt` change only
+  through the trajectory `ω` subsequently takes. Assert this at `t = 0` (identical
+  `dydt[VX], dydt[VZ], dydt[M]`, different `dydt[OMEGA]`).
+- **`u_B` does NOT feed the moment of inertia or the variable-mass model.** `_moment_of_inertia`'s
+  parallel-axis terms use axial distances only, and the two-lumped-mass model (`l_d`, `l_p`) has no
+  lateral coordinates to derive a `u_B(t)` from. `p.I`/`I(t)` are taken as given about the actual
+  CoG. This is the exact precedent Step 36 set for `l1`/`l2` ("main.tex gives a formula for `l_B(t)`
+  and `I(t)` only"), and inventing `u_d`/`u_p` would be unstated physics.
+- **`u_B` is constant, not `u_B(t)`.** Same reasoning; `rocket-2d.tex` §Geometry calls both "ordinary
+  constants ... in principle obtained from manufacturing metrology".
+- **No lateral offset for `D`.** `u_D ≡ 0` by definition (`rocket-2d.tex` §Geometry: "any asymmetry
+  in the external surfaces instead shows up in the aerodynamic coefficients themselves"). Do not add
+  a `u_D` field.
+- No interaction with Step 25's CoP travel beyond what already exists: `aA`'s *axial* component
+  stays `aero.cop_l1(...)` and `aB`'s stays the constant `p.l1 + p.l2` (§23.2's reasoning: the
+  nozzle does not move because the CoP does). The lateral components are constants on both.
+
+**Checks for the step.** `u_B = u_C = 0.0` reproduces every prior `derivatives()` result bit-for-bit
+(`np.array_equal`), including with a table-driven CoP and with `thrust_misalign_deg ≠ 0`. `M_y`
+shifts by exactly `(u_B − u_C)·T·cos δ − u_B·A_x` relative to the zero-offset case at the same state
+— evaluate both and difference them, do not re-derive `M_y` in the test. The closed form
+`T√((u_B−u_C)²+(l_C−l_B)²) sin(δ + atan2(u_B−u_C, l_C−l_B))` reproduces `M_thrust` exactly. With
+`u_B = u_C ≠ 0` the thrust term is exactly zero (only the *difference* matters for thrust — a
+rocket whose CoG and nozzle are offset by the same amount has no thrust-induced moment from it)
+while the `−u_B A_x` term is not: that asymmetry between the two fields is the sharpest available
+test that they were not conflated. At `α = 0`, `T = 0`: `M_y == −u_B·A_x` exactly, the only
+surviving term. `dydt[VX]`, `dydt[VZ]`, `dydt[M]` are unchanged by either field. A statically stable
+airframe with `u_B ≠ 0` trims at a small nonzero `α` rather than diverging (eq. `alpha_trim` with
+the combined term), and negating both offsets mirrors it.
+
+### 24.4 Step 44 — pitch-damping `c_mq` scaffold
+
+Spec: `latex/sections-ai/analysis.tex` §Dynamic stability (`sec:analysis_dynamic`) — the
+coefficient expansion `c_m = c_{m,0} + α c_{m,α} + q̂ c_{m,q}` with `q̂ = ω d_ref/(2V)`, and the
+resulting damping term. Narrows `main.tex` §Backlog's "dynamic stability analysis" item.
+
+**This is a scaffold and nothing more.** The user has no value or model for `c_mq`; the step exists
+so that the term has a place to be, inert by default, and so that the next person with a number can
+supply it without touching `dynamics.py`. Same shape as `A_e = 0.0` and `thrust_misalign_deg = 0.0`:
+a zero default, no separate on/off flag.
+
+#### Sign of `c_mq` — a real inconsistency in the spec, resolved
+
+`analysis.tex` §Dynamic stability states, in two linked places, that a conventional aft-finned
+statically stable airframe has `c_mq < 0` ("positive `C_m` is a nose-up moment"), and defines
+`M_q ≡ −qSd_ref²c_mq/(2VI)` as "positive precisely when `c_mq < 0`", feeding an oscillator
+`α̈ + M_q α̇ − M_α α = 0`. **Both statements are written in the standard aerospace convention, which
+is inverted relative to this document's own.** Three independent confirmations:
+
+1. **The document's own `A_m` sign.** `rocket-2d.tex` eq. for `A_m` is `−A_m ŷ_r`, eq. `eom_rot`
+   carries it as `− A_m`, and `A_m = q c_m S d_ref`. So a **positive `c_m` is a nose-DOWN moment**
+   here. This is a closed, recorded decision (status.json, 2026-09-19: "positive `A_m` pitches nose
+   down (restoring moment)"). The parenthetical in §Dynamic stability contradicts it.
+2. **`c_mα` already has the flipped sign here, for the same reason.** eq. `dtheta_dalpha` is
+   `(qS/I)[(l_B−l_D)c_zα − c_mα d_ref]` and must be negative for stability; with `c_zα > 0` and
+   `l_B−l_D < 0`, the second term requires **`c_mα > 0`**, the opposite of the textbook's
+   `C_mα < 0`. `c_mq` inherits exactly the same flip, and §Dynamic stability applied it to `c_mα`
+   (implicitly, via eq. `static_margin`) but not to `c_mq`.
+3. **Derived from scratch in this document's frame.** `x̂_r` forward, `ẑ_r` towards the belly,
+   `x̂_r × ẑ_r = −ŷ_r`, and from eq. `body_axes_in_ground`, `dx̂_r/dt = −ω ẑ_r`, so `Ω = ω ŷ_r`. A
+   point `r = −l x̂_r` (distance `l` aft of the CoG) has velocity `Ω × r = +ω l ẑ_r`, so its velocity
+   *through the air* is `(u, w + ωl)` and its local angle of attack is `α + ωl/V`. (`analysis.tex`'s
+   prose sketch writes `Δα_i ≈ −ω l_i/V`; that sign is slipped too, though its conclusion —
+   "damping" — is right.) Substituting the increased local `α` into the code's own verified
+   `M_aero = −l1·qS·C_Nα·sin α` gives `ΔM_y = −l1²qS C_Nα ω / V`, i.e. **negative `M_y` for positive
+   `ω`: a nose-down moment opposing a nose-up rate, which is damping**. Matching that against the
+   `c_mq` route, `ΔM_y = −qS d_ref q̂ c_mq = −(qSd_ref²/2V)c_mq ω`, gives
+
+   ```
+   c_mq = 2 * C_N_alpha * (l1 / d_ref)**2        > 0
+   ```
+
+   the single-lifting-surface "strip" estimate, **positive**. Sanity: a realistic 1.5-caliber static
+   margin with `C_Nα = 2.0` gives `c_mq = 2·2·1.5² = 9`, the right order of magnitude for a
+   published `|C_mq|` of 5-20. At this project's own test fixture (`l1 = 0.3, d_ref = 0.08`,
+   `C_Nα = 2.0`) it gives `c_mq = 56.25`, large only because that fixture's 3.75-caliber margin is.
+
+**Resolution for the code: in this simulator, `c_mq > 0` is damping, `c_mq < 0` is anti-damping.**
+State it in `aero.py`'s docstring and in `Params`, exactly as the `c_mα > 0`-is-stable flip is
+already lived with. **The implementation formula is unaffected** — `c_m += q̂ c_mq` inside the
+existing `A_m = qS d_ref c_m` and `M_y += −A_m` is a correct mechanical transcription either way.
+Only the *documented physical sign of a real value*, and hence the sign in the damping test, depend
+on this. That is why it must be settled before the tests are written.
+
+**Suggested LaTeX fix (documentation, not this step's code):** keep the printed
+`α̈ + M_q α̇ − M_α α = 0` and `ζ = M_q/(2ω_n)` by redefining `M_q ≡ +qSd_ref²c_mq/(2VI)`, so
+`M_q > 0 ⟺ c_mq > 0 ⟺ damped`; and replace "has `c_{m,q}<0`" / "(positive `C_m` is a nose-up
+moment)" with the convention actually in force. That is a three-symbol edit confined to
+§Dynamic stability. Not done here — it is the user's document and a separate decision.
+
+#### `sim/aero.py` — a fourth coefficient behind the same seam
+
+```python
+class _AeroTable(NamedTuple):
+    ...                       # M, alpha, C_A, C_N, C_m, l1 unchanged
+    C_mq: "np.ndarray | None"   # (n_M, n_alpha), or None when the column is absent
+
+def C_mq(alpha: float, M: float, p) -> float:
+    """Pitch-damping derivative (analysis.tex SSDynamic stability:
+    c_m = c_m0 + alpha*c_m_alpha + q_hat*c_mq, q_hat = omega*d_ref/(2V)).
+
+    Table-driven when `p.aero_table` is set AND the table has a `c_mq`
+    column; otherwise the constant `p.c_mq` (default 0.0 -- inert).
+    SIGN: positive c_mq is DAMPING in this document's convention (positive
+    C_m is a nose-down moment -- architecture.md SS24.4), the opposite of
+    the textbook C_mq < 0. Same flip c_m_alpha already carries.
+    """
+    if p.aero_table:
+        table = _load_table(p.aero_table)
+        if table.C_mq is not None:
+            return _table_lookup(table, alpha, M, table.C_mq)
+    return p.c_mq
+```
+
+`_load_table` gains, beside the five existing `data[...]` reads:
+
+```python
+C_mq_col = data["c_mq"].astype(float) if "c_mq" in data.dtype.names else None
+...
+C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
+```
+
+— the only place the column's optionality is handled, exactly as §23.3 required of `Td_K`.
+
+**The column is optional, and an absent column falls back to `p.c_mq`.** This is a deliberate,
+documented exception to `aero.py`'s existing "a table wins completely, constants are the no-table
+fallback" rule, and it needs stating because it is the one surprising line in the module:
+
+- Every committed table (`data/aero/example.csv`) predates the column, so "absent ⇒ inert" must
+  hold — that part is not optional, it is the bit-for-bit requirement.
+- The remaining choice is whether absent means *literal 0.0* or *`p.c_mq`*. `p.c_mq` is recommended:
+  `c_mq` is a scaffold whose entire purpose is to be experimented with before anyone has table data,
+  and forcing a user to regenerate a full `(M, α)` grid just to try a single constant damping value
+  defeats the point. With the `0.0` default the two behave identically for every existing file, so
+  the exception costs nothing today.
+- Column name `c_mq`, lowercase, matching the LaTeX symbol `c_{m,q}` and distinguishable from the
+  existing capitalised `C_A`/`C_N`/`C_m` — which is itself a small inconsistency; `C_mq` is the
+  alternative if matching the file's existing capitalisation matters more than matching the symbol.
+  Column *order* is irrelevant (`genfromtxt(..., names=True)` is keyed by header name).
+
+#### `sim/forces.py` — where the term enters
+
+`aero_moment_y` already computes `A_m = q·S·d_ref·C_m(α, M, p)` in the `"coefficients"` regime and
+returns `−A_m`; the damping term is an addition to `c_m`, so it is an addition to `A_m`:
+
+```python
+from sim.state import M, OMEGA          # OMEGA is new here
+
+    elif p.aero_model == "coefficients":
+        A_m = flow.q * p.S * p.d_ref * aero.C_m(flow.alpha, flow.M, p)
+        # Pitch damping (analysis.tex SSDynamic stability; architecture.md
+        # SS24.4). The spec's form is c_m += q_hat*c_mq with
+        # q_hat = omega*d_ref/(2V), giving A_m += q*S*d_ref*q_hat*c_mq.
+        # Written division-free below, algebraically identically:
+        #     q*d_ref*q_hat = (rho*V^2/2)*d_ref*(omega*d_ref/(2V))
+        #                   = rho*V*omega*d_ref^2/4
+        # -- see the note on V = 0 in SS24.4.
+        A_m += 0.25 * flow.air.rho * flow.V * p.S * p.d_ref**2 * s[OMEGA] \
+               * aero.C_mq(flow.alpha, flow.M, p)
+```
+
+`d_ref` is **reused, not duplicated** — `Params.d_ref` already exists as the aerodynamic reference
+diameter and is already the length in `A_m = qS·d_ref·C_m`, which is exactly the `d_ref` of
+`q̂ = ω d_ref/(2V)`. (`Params.l_ref` is a *different* reference length, used only for the Reynolds
+number in `flow.py`; do not use it here.) `ω` comes from the state, `s[OMEGA]`, not from a
+derivative. `V` and `ρ` come from the `flow_state` call `aero_moment_y` already makes.
+
+**Why division-free, and not `q_hat = omega*d_ref/(2*V)` with a `V > 0` guard.** The singularity at
+`V = 0` is *removable* — `q ∝ V²` kills the `1/V` — so the damping moment itself is perfectly smooth
+through `V = 0` and tends to zero there. But the naive two-step form is not numerically smooth: for
+a denormal `V` (say `1e-300`), `q = 0.5ρV²` underflows to exactly `0.0` while `q_hat` overflows to
+`inf`, and `0.0 * inf = nan` — which kills the solver. This is not hypothetical: an unperturbed
+vertical flight coasts through `V ≈ 0` at apogee on every run, and `aero.py`'s module docstring
+already records one solver failure from exactly that neighbourhood (the Step 35 `atan2` branch cut,
+which cost a multi-minute step-size collapse). The product `ρ·V·ω·d_ref²/4` has no division, is
+exactly `0.0` at `V = 0.0`, and is continuous either side. An epsilon guard would also work but
+introduces a (tiny) discontinuity for no benefit. Keep `q̂` in the comment as the conceptual form,
+since that is what a real aero table encodes.
+
+**`"constant"` regime untouched.** Damping is added in the `"coefficients"` branch only. The
+`"constant"` regime is Phase 1's fixed `A_m = p.A_m` with no `q`, `V` or `ρ` anywhere in it; making
+it velocity-dependent would contradict its own definition, and `C_m` is likewise not consulted
+there.
+
+**`Params`:**
+
+```python
+# Step 44: pitch-damping derivative (analysis.tex SSDynamic stability;
+# architecture.md SS24.4). Scaffold only -- 0.0 (the default) makes the
+# damping term exactly zero, bit-for-bit every prior step, with no separate
+# on/off flag (the A_e/thrust_misalign_deg pattern). SIGN: positive c_mq is
+# DAMPING here, because positive C_m is a nose-DOWN moment in this
+# document's convention -- the same flip that makes c_m_alpha > 0 the
+# statically stable sign. Supplying a real value (measurement, unsteady CFD,
+# or the strip estimate 2*C_N_alpha*(l1/d_ref)^2) is future work, not this
+# step. Overridden per (alpha, M) by an optional `c_mq` column in
+# `aero_table`, when one is present.
+c_mq: float = 0.0   # pitch-damping derivative dC_m/d(q_hat) [-]
+```
+
+**Bit-for-bit.** With `c_mq = 0.0` and no table column, the added product is `±0.0` and `A_m + 0.0`
+is bitwise `A_m` for every finite `A_m` except `A_m = −0.0`, where it becomes `+0.0`. `A_m = −0.0`
+is reachable (`C_m = p.C_m_alpha·sin(0.0) = −0.0` whenever `C_m_alpha < 0`, which the standard test
+fixtures use). Trace it through: `aero_moment_y` then returns `−0.0` instead of `+0.0`;
+`M_y = M_thrust + M_aero + M_moment` is unchanged unless `M_thrust + M_aero` is itself exactly
+`−0.0`, and even then `−0.0 + (−0.0) = −0.0` vs `−0.0 + (+0.0) = +0.0` only flips the sign of a zero
+`M_y`, giving `domega/dt = ∓0.0` and an integrated state identical in every bit. `np.array_equal`,
+which every existing bit-for-bit test uses, compares with `==` and treats `−0.0 == 0.0` as true.
+**Conclusion: bit-for-bit under every comparison the suite makes, and observationally identical
+under all of them, with the one signed-zero sub-case above spelled out rather than glossed.**
+
+**Pinned numbers** (project fixture `m=0.5, I=0.05, l1=0.3, l2=0.4, S=0.005, d_ref=0.08,
+C_N_alpha=2.0, C_m_alpha=0.0`; `ρ = 1.225, V = 100 m/s ⇒ q = 6125 Pa`):
+
+- `M_α = (qS/I)[(l_B−l_D)c_zα] = −367.5 s⁻²`, `ω_n = √(−M_α) = 19.1703 rad/s`, period `0.3278 s`.
+- strip estimate `c_mq = 2·C_Nα·(l1/d_ref)² = 56.25`.
+- damping rate `D ≡ qS d_ref² c_mq/(2VI) = 1.1025 s⁻¹`, `ζ = D/(2ω_n) = 0.02876`, envelope
+  `e^{−Dt/2}` with `τ = 2/D = 1.8141 s`; amplitude falls to `0.8347` of its value over one period.
+- damping moment at `ω = 1 rad/s`: `ΔM_y = −0.25·ρ·V·S·d_ref²·ω·c_mq = −5.5125e-2 N·m` (against
+  `I = 0.05`, so `Δθ̈ = −1.1025 rad/s²` — sign confirms nose-down for nose-up rate).
+- with a more conservative `c_mq = 10`: `D = 0.196 s⁻¹`, `ζ = 0.00511`, `ΔM_y = −9.8e-3 N·m`.
+
+A ~3 % damping ratio is physically right for a finned rocket and is comfortably measurable over the
+existing 1-second test runs.
+
+**Scope — what this step does NOT do.**
+
+- **No value for `c_mq`.** The default is `0.0` and the shipped `data/aero/example.csv` gets no
+  `c_mq` column. Deriving or measuring one (forced-oscillation tunnel test, unsteady CFD, or a
+  distributed strip integration over the real airframe) stays a backlog item (roadmap **B9**). The
+  strip formula above is a *test fixture* and an order-of-magnitude sanity check, not a model to
+  ship: it assumes the entire normal force acts at one point and ignores the body's own contribution
+  and every unsteady effect.
+- **No `α̇`/plunge damping (`c_mα̇`).** The standard short-period model has a second damping
+  derivative; `analysis.tex` does not derive it and folds the whole thing into `c_mq` via the
+  short-period approximation `α̇ ≈ θ̇`. Do not add a second coefficient.
+- **No `ω_n`/`ζ` reporting.** `run.py` and `plotting.py` are untouched; computing and printing the
+  short-period frequency and damping ratio is a separate (easy, optional) step.
+- **No change to `dynamics.py`.** The term reaches `M_y` entirely through `aero_moment_y`'s return
+  value, which `dynamics.py` already sums in. Verify this is still true before writing the step —
+  it was the Step 39 lesson.
+- **No change to `C_m`'s own signature or to the existing four coefficients.**
+
+**Checks for the step.** `c_mq = 0.0`, no column: every prior result bit-for-bit (`np.array_equal`
+on `derivatives()`, and a full `run_sim` summary), including with a table configured. An existing
+table file with no `c_mq` column loads and runs unchanged; `_AeroTable.C_mq is None` for it. With a
+column present, `C_mq(α, M, p)` interpolates it exactly like `C_m` does (bracket-and-clamp in `M`,
+`np.interp` in `α`) and ignores `p.c_mq`; with no column, it returns `p.c_mq` regardless of `α, M`.
+`A_m` shifts by exactly `0.25·ρ·V·S·d_ref²·ω·c_mq` relative to `c_mq = 0` at the same state
+(difference two `aero_moment_y` calls, do not re-derive). The shift is exactly `0.0` at `ω = 0.0`
+and at `V = 0.0`, and no `nan`/`inf` appears for a denormal `V` (`V = 1e-300`) — the specific failure
+the division-free form exists to prevent; assert `np.isfinite`. The shift is **linear and odd in
+`ω`** (negate `ω`, negate the moment) and **independent of `α`** at fixed `(V, ρ, ω)` when `c_mq` is
+constant — the `c_mq` analogue of the Step 39 "`δ` does not touch `∂θ̈/∂α`" check. **Sign/behaviour
+test, the one that encodes §24.4's resolution:** a statically stable airframe given `c_mq > 0` (use
+the strip value `2·C_Nα·(l1/d_ref)² = 56.25`) has its pitch oscillation **decay** — successive `|α|`
+peaks strictly decreasing, envelope consistent with `τ = 2/D = 1.81 s` — where `c_mq = 0` gives the
+bounded-but-non-decaying oscillation the project has documented since Step 25, and `c_mq < 0` makes
+it grow. That triple is the test; getting it backwards is the only real risk in this step.
+
+---
+
+**Summary of §24's open decisions** (each is a naming or scope call, none blocks the physics):
+the new `gravity_direction` value name (`"elliptical"` recommended, `"wgs84"` the runner-up but it
+collides visually with `gravity_model="wgs84"`); reuse of `lat0_deg`/`azimuth_deg` for `φ₀`/`χ`
+(recommended, argued above); Step 42's event-only scope (recommended, argued above); `ground_depth`
+living in `gravity.py` (recommended); leaving `_apogee_event` on `vz = 0` (recommended); the
+`u_B`/`u_C` field names; the `c_mq` column's absent-means-`p.c_mq` fallback; and — the only one that
+is not cosmetic — the `c_mq` sign resolution of §24.4 and the corresponding LaTeX correction.

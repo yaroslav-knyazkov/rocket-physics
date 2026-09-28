@@ -50,162 +50,128 @@
 \newcommand{\todo}[1]{%
     \textcolor{red}{(#1)}%
 }
-% \ai marks text/equations written or edited by the AI assistant, so changes
-% made outside a normal editing pass are visually distinguishable.
-\newcommand{\ai}[1]{{\color{blue}#1}}
 
 \begin{document}
 
 \tableofcontents
 
-\ai{This report is organised in three parts. \autoref{sec:rocket2d} fixes the frames, the three
-forces and their application points and writes the equations of motion;
-\autoref{sec:analysis} expands those equations by hand and works through the pitching-moment
-configuration space and the static-stability criterion that follows from it;
-\autoref{sec:models} gives the interchangeable models behind each symbol the equations use.
-\autoref{sec:assumptions}, immediately below, lists every simplification the three parts
-currently rely on, and \autoref{sec:backlog} lists what is deliberately deferred. Text and
-equations in blue were written or edited by an AI assistant; parenthesised text in red marks an
-item that is still open.}
-
 \newpage
-\ai{\section{Current assumptions}\label{sec:assumptions}
+\section{Current assumptions}\label{sec:assumptions}
 This section collects, in one place, every simplification the current derivation and the
-simulator rely on. Each is expected to be relaxed in a later phase; the relevant model or roadmap
-step is named where one exists, so a reader can tell ``current shortcut'' from ``permanent
+simulator rely on. Each is expected to be relaxed in a later phase; the relevant model or backlog
+item is named where one exists, so a reader can tell ``current shortcut'' from ``permanent
 choice'' at a glance.
 \begin{itemize}
-    \item \textbf{Parallel gravity by default, but no longer permanently.} $\hat{z}_g$ can now
-    rotate with downrange distance, by the arc angle $\varphi = x/R_e$
-    (\autoref{sec:gravity} > Direction) --- the frozen local vertical this list used to record
-    as a fixed simplification is a \emph{selectable} one. It is still the default, so every
-    result produced before that model existed is reproduced unchanged; what has gone is the
-    need to treat $g\,x/R_e$ as an unquantified error term. What is \emph{not} lifted with it:
-    the ground stays flat ($h = -z$ is measured from the launch-point tangent plane, not from a
-    curved surface, a difference of $x^2/2R_e \approx 8\,\mathrm{m}$ at
-    $x = 10\,\mathrm{km}$), and there is no curved-Earth impact condition.
-    \item \textbf{Earth rotation carried only in part, and in a launch-site-fixed frame.} The
+    \item \textbf{Planar (2D) flight, no crosswind.} Motion is confined to the vertical plane
+    fixed by the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded
+    (\autoref{sec:wind}). No vertical wind either: wind velocity is horizontal only,
+    updrafts/downdrafts are not modelled and are deliberately left for later, pending research
+    into which model is actually worth the added data dependency (\autoref{sec:backlog}).
+    \item \textbf{Gravity direction, parallel by default, with two non-parallel models
+    available.} $\hat{z}_g$ can rotate with downrange distance, either treating the Earth as a
+    sphere (radial) or as the WGS84 ellipsoid via its osculating sphere in the flight azimuth
+    (elliptical) --- both in \autoref{sec:gravity} > Direction. Parallel, $\hat{z}_g\equiv
+    \hat{z}_0$, is still the default, so every result produced with it is reproduced unchanged.
+    Once a non-parallel model is enabled, the ground itself is curved
+    (\autoref{eq:surface_point}) and the true altitude/impact condition follow
+    \autoref{eq:h_true} rather than $h=-z$, $z=0$.
+    \item \textbf{Earth rotation carried only in part, and in the fixed ground frame.} The
     \emph{static} effect is present --- the \emph{magnitude} of $g$ includes the centrifugal
     contribution through the WGS84 model (\autoref{sec:gravity}) --- and so is the in-plane
     Coriolis term in the translational equations of motion (\autoref{sec:noninertial}). What is
     dropped is the out-of-plane Coriolis component, which this 2D model has no degree of freedom
     to receive, and the residual centrifugal term, derived there but left unimplemented as some
     three orders of magnitude smaller. Separately, the decomposition of $\vec{\Omega}$ is frozen
-    at the launch site's latitude and heading and does \emph{not} follow the rotating
-    $\hat{z}_g$ above; the two corrections stay deliberately independent, which costs about
-    $3\times10^{-6}$ of the Coriolis term itself at $10\,\mathrm{km}$ downrange
+    at the launch site's latitude and heading in $\mathcal{F}_0$ and does \emph{not} follow a
+    rotating $\hat{z}_g$; the two corrections stay deliberately independent
     (\autoref{sec:noninertial}, closing caveat).
-    \item \textbf{Constant moment arms (not constant mass).} Mass, centre of gravity and moment
-    of inertia are \emph{not} held fixed: $m(t)$, $l_B(t)$ and $I(t)$ come from the propellant
-    model of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held
-    fixed is one step further out --- how
-    the other two application points travel relative to a moving centre of gravity. The
-    CoG-to-$D$ arm $l_1 = l_D - l_B$ responds to $(\alpha, M)$ through the coefficient table
-    (\autoref{sec:aero}) but not to CoG travel, and the CoG-to-$C$ thrust arm is a
-    constant. Lifting this needs a stated rule for how $C$ and $D$ move as $l_B(t)$ moves, which
-    no section currently gives.
-    \item \textbf{Thrust axis aligned with the body axis by default; no control authority at
-    all.} A fixed nozzle cant $\delta$ (\autoref{eq:thrust_vector}) is now modelled and gives
-    the first nonvanishing thrust moment in the document,
-    $M_\delta = (l_C-l_B)T\sin\delta$ (\autoref{sec:analysis_misaligned}); $\delta = 0$ is the
-    default and reproduces the identically-zero thrust moment every earlier result was computed
-    with. Two things are still absent: a \emph{commanded} deflection --- a gimbal and the
-    control law driving it, i.e.\ the only pitch authority a rocket has off the rail --- and a
-    \emph{lateral} offset of the nozzle or the centre of gravity ($u_B, u_C \neq 0$), which is
-    derived in \autoref{eq:moment_full} but has no parameter behind it. See
+    \item \textbf{Constant moment arms (not constant mass).} Mass, centre of gravity and moment of
+    inertia are \emph{not} held fixed: $m(t)$, $l_B(t)$ and $I(t)$ come from the propellant model
+    of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held fixed is one
+    step further out --- how the other two application points travel relative to a moving centre
+    of gravity. The CoG-to-$D$ arm $l_1=l_D-l_B$ responds to $(\alpha,M)$ through the coefficient
+    table (\autoref{sec:aero}) but not to CoG travel, and the CoG-to-$C$ thrust arm is a constant.
+    \item \textbf{Thrust axis: fixed cant, no commanded control.} The nozzle cant $\delta$
+    (\autoref{eq:thrust_frame}) and the lateral offsets $u_B,u_C$ (\autoref{sec:geometry}) are all
+    carried as constant inputs --- as-built manufacturing quantities to be swept, not functions of
+    the flight state. $\delta=u_B=u_C=0$ is the default and reproduces every earlier result
+    unchanged. A \emph{commanded} deflection --- a gimbal and the control law driving it, the
+    only pitch authority a rocket has off the rail --- is deliberately not modelled yet
+    (\autoref{sec:backlog}).
+    \item \textbf{No launch rail constraint, no recovery/parachute.} Free flight from $t=0$; see
     \autoref{sec:backlog}.
-    \item \textbf{Planar (2D) flight, no crosswind.} Motion is confined to the vertical plane
-    fixed by the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded
-    (\autoref{sec:wind}).
-    \item \textbf{No vertical wind.} Wind velocity is horizontal only; updrafts/downdrafts are not
-    modelled (\autoref{sec:wind}).
-    \item \textbf{No launch rail constraint, no recovery/parachute.} Free flight from $t = 0$;
-    see \autoref{sec:backlog}.
 \end{itemize}
-\autoref{sec:backlog} is the complement of this list: this one records what the present model
-simplifies, that one what is deliberately left undone and what each item is waiting on.}
 
 \newpage
-\input{sections/rocket-2d}
+\input{sections-ai/rocket-2d}
 
 \newpage
-\input{sections/analysis}   % \ai: new file, split out of rocket-2d.tex (the \ai markers are inside it)
+\input{sections-ai/analysis}
 
 \newpage
-\input{sections/models}
+\input{sections-ai/models}
 
 \newpage
-\ai{\section{Backlog and future work}\label{sec:backlog}
+\section{Backlog and future work}\label{sec:backlog}
 The complement of \autoref{sec:assumptions}: that section records what the present model
-simplifies, this one what is deliberately left undone. Nothing here is scheduled. Each entry
-says what the item is and --- more usefully --- what has to exist before it can be written down
-properly, so that a reader can tell a missing derivation from a missing input.
+simplifies, this one what is deliberately left undone. Each entry says what the item is and ---
+more usefully --- what has to exist before it can be written down properly, so that a reader can
+tell a missing derivation from a missing input.
 
-\subsection*{Modelling and analysis extensions}
 \begin{itemize}
-    \item \textbf{Thrust-axis control (the misalignment half is done).} The \emph{fixed} part of
-    this item is now modelled: a constant nozzle cant $\delta$ (\autoref{eq:thrust_vector})
-    gives $\vec{T}$ a $\hat{z}_r$ component, stops $\vec{BC}\times\vec{T}$ of
-    \autoref{eq:eom_rot} vanishing identically, and makes the thrust point's axial position
-    $l_C$ a live quantity for the first time (\autoref{sec:analysis_misaligned}). What remains
-    open is the \emph{commanded} half: a gimbal angle $\delta(t)$ driven by a control law, a
-    gimbal being the only pitch authority a rocket has once it is off the rail. That needs
-    things this document does not fix anywhere --- what the law is controlling (pitch
+    \item \textbf{Commanded gimbal control.} $\delta$ is, for now, deliberately kept as a constant
+    input (\autoref{sec:thrust}) --- the point of the current pass was to see how a fixed
+    manufacturing-type misalignment behaves (\autoref{sec:analysis_misaligned}) before adding any
+    control authority. A \emph{commanded}, time-varying $\delta(t)$ driven by a control law is the
+    next step once that is wanted. \emph{Waiting on:} a stated guidance objective (pitch
     programme? gravity turn? impact point?), actuator rate and deflection limits, and a sensor
-    model to close the loop on. \emph{Waiting on:} a stated guidance objective. A second, much
-    smaller leftover is the lateral offset $u_B, u_C \neq 0$: already derived in
-    \autoref{eq:moment_full}, simply not parameterised.
+    model to close the loop on.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
-    tabulated or constant coefficients of \autoref{sec:aero} with a wing-body
-    (Barrowman-style) build-up: nose, body and fins each contributing to $C_N$ and to the
-    centre-of-pressure location, so that $l_1(\alpha, M)$ is \emph{computed} from the airframe
-    rather than read from a table, and an air brake enters as a switchable change to $C_A$ and
-    to the CoP. \emph{Waiting on:} an actual airframe --- nose, body and fin dimensions --- which
-    this document does not yet fix anywhere.
-    \item \textbf{Dimensionless stability margin.} \autoref{eq:static_margin} is dimensional.
-    The rocketry convention is to quote static margin in calibers, i.e.\ divided by the body
-    diameter (or by $\sqrt{S}$ for a non-circular reference), which makes the number comparable
-    between airframes and removes its dependence on the choice of reference length $d_{ref}$.
-    The single reference-area/length convention this was waiting on is now settled --- $S$ and
-    $d_{ref}$ in both \autoref{sec:analysis} and \autoref{sec:aero} --- so what is left is the
-    rewrite itself, plus one small judgement: whether to report $\textrm{SM}$ or
-    $-\textrm{SM}$, so that a stable rocket comes out with a \emph{positive} margin as the
-    caliber convention expects.
-    \item \textbf{Dynamic stability analysis.} \autoref{sec:analysis} is
-    \emph{static}: it asks only whether a disturbance in $\alpha$ produces a restoring moment,
-    not what happens next. The dynamic question --- the natural frequency of the resulting pitch
-    oscillation, and whether it decays or grows over a flight whose $q$, $M$, $m$ and $I$ are
-    all changing --- needs a linearised short-period model built on \autoref{eq:moment_nothrust}.
-    \emph{Waiting on:} a pitch-damping derivative $c_{m,q}$, which neither the coefficient table
-    nor \autoref{sec:aero} currently provides; without it the analysis can only be
-    qualitative. \todo{needs $c_{m,q}$ before it can be quantitative.}
-\end{itemize}
-
-\subsection*{Deferrals already stated elsewhere}
-Listed here only so that one place in the document answers ``what is not modelled''. Each is
-stated in full, with its reasoning, at the point where it is deferred; none of it is repeated
-here.
-\begin{itemize}
-    \item Launch rail constraint, and recovery / parachute --- \autoref{sec:assumptions}.
-    \item Gravity \emph{direction} varying with downrange distance --- \textbf{no longer
-    deferred:} derived and implemented, \autoref{sec:gravity} > Direction. What is left of the
-    curved-Earth family is the \emph{ground}: a curved surface, so that altitude and the impact
-    condition are measured from it rather than from the launch-point tangent plane. That is a
-    different kind of change (it touches the termination event, not a force) and is not
-    scheduled.
+    tabulated or constant coefficients of \autoref{sec:aero} with a wing-body (Barrowman-style)
+    build-up. Conceptually: the nose, the body, and each fin each contribute their own normal-force
+    slope $C_{N\alpha,i}$ and their own centre-of-pressure location $X_i$ (a slender
+    nose/body contributes a small, often near-zero net slope away from the nose in the classical
+    linear treatment, aside from any boat-tail correction; each fin's contribution uses a
+    corrected 2D lift-curve slope, an interference factor between fin and body, and an
+    effective aspect ratio from its planform), and the assembly's centre of pressure is the
+    $C_{N\alpha}$-weighted average of the component locations,
+    $X_{cp}=\sum_iC_{N\alpha,i}X_i/\sum_iC_{N\alpha,i}$ --- so that $l_1(\alpha,M)$ is
+    \emph{computed} from the airframe rather than read from a table, and an air brake enters as a
+    switchable change to $C_A$ and to the CoP. The original Barrowman formulas are subsonic
+    linear-theory results and would need a Mach correction (Prandtl--Glauert or, in the linear
+    supersonic regime, Busemann theory) to extend past low subsonic speed.
+    \emph{Waiting on:} an actual airframe --- nose shape, body diameter/length and any boat-tail,
+    and fin planform (root/tip chord, span, sweep, thickness, count) --- which this document does
+    not yet fix anywhere.
+    \item \textbf{Dynamic stability, quantitatively.} The framework is now in the document
+    (\autoref{sec:analysis_dynamic}): a pitch-damping derivative $c_{m,q}$ linearises into a
+    damped short-period oscillator with natural frequency $\omega_n$ and damping ratio $\zeta$.
+    What is missing is a value or model for $c_{m,q}$ itself. \emph{Waiting on:} either a measured
+    value (forced-oscillation wind-tunnel testing, or unsteady CFD) or a full distributed-force
+    derivation from the airframe geometry of the previous item.
+    \item \textbf{Propellant grain geometry behind $I_p(t)$ and $l_p$.} The physical mechanism and
+    the standard grain families (cylindrical/BATES, tubular, end-burning, star/finocyl) are now
+    elaborated in \autoref{sec:mass}; what remains is choosing one and fixing its actual
+    dimensions (bore/outer diameter, length, and, for star grains, the point geometry), from which
+    $A_b(w)$, $l_p(t)$ and $I_p(t)$ follow by direct integration. Picking this up is the next
+    conversation, not something to guess at here.
+    \item \textbf{Vertical wind.} Two candidate families exist (terrain-slope/mass-continuity
+    orographic lift, or a convective/thermal parameterisation, \autoref{sec:wind} > Vertical
+    wind), each needing a data source (terrain elevation, or surface heat-flux/insolation data)
+    this project does not currently have. Deliberately on hold pending research into which family,
+    if either, is worth the added dependency --- not to be implemented before that research is
+    done.
+    \item \textbf{CFD/data-extraction pipeline for $C_A,C_N,C_m$.} \autoref{sec:aero} now states
+    plainly that these coefficients, and $l_1$, are sourced from a database (wind-tunnel testing,
+    CFD sweeps, or a semi-empirical panel-method tool) rather than derived in this document. What
+    remains open is the pipeline that actually populates that database for a specific airframe ---
+    the CFD run matrix or wind-tunnel campaign itself --- which is outside the scope of this
+    document.
+    \item Launch rail constraint, and recovery/parachute --- \autoref{sec:assumptions}.
     \item Out-of-plane motion: crosswind weathercocking (\autoref{sec:wind}) and the lateral
-    Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the
-    same 2D closure and both are lifted by the same future work, a full 6-DOF model --- not by
-    anything that can be done inside this document.
-    \item Propellant grain geometry behind $I_p(t)$ and $l_p$ ---
-    \autoref{sec:mass}.
-    \item Humid-air density, i.e.\ the virtual-temperature correction --- \textbf{no longer
-    deferred:} derived and implemented for the measured-data tiers,
-    \autoref{sec:density}. The ISA tier stays dry by definition, and the speed of sound stays
-    the dry-air one; both are stated there.
-    \item Vertical wind, updrafts and downdrafts --- \autoref{sec:wind} > Vertical wind.
-    \item Expansion of what drives $C_A$, $C_N$, $C_m$ beyond the qualitative list ---
-    \autoref{sec:aero} > Coefficients, pending the CFD / data-extraction pipeline.
-\end{itemize}}
+    Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the same 2D closure and
+    both are lifted by the same future work, a full 6DOF model --- not by anything that can be
+    done inside this document.
+\end{itemize}
 
 \end{document}
