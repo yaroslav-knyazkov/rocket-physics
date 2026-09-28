@@ -636,3 +636,159 @@ def test_lateral_offsets_do_not_affect_translation_only_rotation():
     assert dydt_zero[M] == dydt_offset[M]
     assert not math.isclose(dydt_zero[OMEGA], dydt_offset[OMEGA], rel_tol=1e-9)
 
+
+# ---------------------------------------------------------------------
+# Step 44: pitch-damping c_mq scaffold (architecture.md SS24.4;
+# analysis.tex sec:analysis_dynamic). Division-free q_hat*c_mq term,
+# added to A_m inside aero_moment_y's "coefficients" regime only.
+# ---------------------------------------------------------------------
+
+
+def test_pitch_damping_default_is_exactly_zero_shift():
+    """`c_mq = 0.0` (the default) must add exactly `0.0` to `aero_moment_y`
+    at a state with nonzero omega, V, rho -- the on/off gate for Step 44.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4,
+               aero_model="coefficients", S=0.005, d_ref=0.08,
+               C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=0.0)
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
+    y = np.array(s)
+
+    p_no_damping_field = Params(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                                 aero_model="coefficients", S=0.005, d_ref=0.08,
+                                 C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+
+    assert aero_moment_y(0.5, y, p) == aero_moment_y(0.5, y, p_no_damping_field)
+    assert np.array_equal(derivatives(0.5, y, p), derivatives(0.5, y, p_no_damping_field))
+
+
+def test_pitch_damping_shifts_A_m_by_closed_form():
+    """`A_m` shifts by exactly `0.25*rho*V*S*d_ref^2*omega*c_mq` relative to
+    `c_mq = 0` at the same state (architecture.md SS24.4) -- differencing
+    two `aero_moment_y` calls, not re-deriving `A_m` itself. `aero_moment_y`
+    returns `-A_m` (main.tex SSMoments), so its own shift is the *negative*
+    of the `A_m` shift above.
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                  aero_model="coefficients", S=0.005, d_ref=0.08,
+                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(c_mq=0.0, **common)
+    p_damped = Params(c_mq=56.25, **common)
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
+    y = np.array(s)
+    t = 0.5
+
+    flow = flow_state(t, y, p_zero)
+    expected_A_m_shift = 0.25 * flow.air.rho * flow.V * p_zero.S * p_zero.d_ref**2 * y[OMEGA] * p_damped.c_mq
+
+    shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
+    assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
+
+
+def test_pitch_damping_shift_is_exactly_zero_at_omega_zero_and_at_V_zero():
+    """The damping shift is exactly `0.0` at `omega = 0.0` (rest, nonzero
+    V) and at `V = 0.0` (on the pad, nonzero omega) -- both factors
+    multiply the product to a hard zero (architecture.md SS24.4).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                  aero_model="coefficients", S=0.005, d_ref=0.08,
+                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(c_mq=0.0, **common)
+    p_damped = Params(c_mq=56.25, **common)
+
+    s_omega_zero = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.0)
+    y_omega_zero = np.array(s_omega_zero)
+    assert aero_moment_y(0.5, y_omega_zero, p_damped) == aero_moment_y(0.5, y_omega_zero, p_zero)
+
+    s_V_zero = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.3)
+    y_V_zero = np.array(s_V_zero)
+    assert aero_moment_y(0.0, y_V_zero, p_damped) == aero_moment_y(0.0, y_V_zero, p_zero)
+
+
+def test_pitch_damping_no_nan_at_denormal_V():
+    """The specific failure the division-free form exists to prevent
+    (architecture.md SS24.4): a literal `omega*d_ref/(2*V)` intermediate
+    gives `0.0*inf = nan` at a denormal `V`; the actual, division-free
+    implementation must stay finite there.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4,
+               aero_model="coefficients", S=0.005, d_ref=0.08,
+               C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=56.25)
+    s = State(x=0.0, z=0.0, vx=1e-300, vz=0.0, theta=math.pi / 2, omega=0.3)
+    y = np.array(s)
+
+    assert flow_state(0.0, y, p).V > 0.0  # confirms V is denormal, not literally 0
+    A_m = aero_moment_y(0.0, y, p)
+    assert np.isfinite(A_m)
+
+    dydt = derivatives(0.0, y, p)
+    assert np.all(np.isfinite(dydt))
+
+
+def test_pitch_damping_shift_is_linear_and_odd_in_omega():
+    """The shift is linear and odd in `omega`: negating `omega` negates the
+    shift exactly, at fixed `(V, rho, alpha)` (architecture.md SS24.4).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                  aero_model="coefficients", S=0.005, d_ref=0.08,
+                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(c_mq=0.0, **common)
+    p_damped = Params(c_mq=56.25, **common)
+    t = 0.5
+
+    s_pos = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
+    s_neg = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=-0.3)
+    y_pos = np.array(s_pos)
+    y_neg = np.array(s_neg)
+
+    shift_pos = aero_moment_y(t, y_pos, p_damped) - aero_moment_y(t, y_pos, p_zero)
+    shift_neg = aero_moment_y(t, y_neg, p_damped) - aero_moment_y(t, y_neg, p_zero)
+
+    assert math.isclose(shift_pos, -shift_neg, rel_tol=1e-12)
+
+
+def test_pitch_damping_shift_is_independent_of_alpha():
+    """The damping shift depends only on `(V, rho, omega, c_mq)`, not on
+    `alpha` -- the `c_mq` analogue of Step 39's "`delta` does not touch
+    `∂θ̈/∂α`" check. Two states differing only in `theta` (hence `alpha`,
+    since velocity is fixed) at the same `(V, omega)` must give the same
+    shift (architecture.md SS24.4).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                  aero_model="coefficients", S=0.005, d_ref=0.08,
+                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(c_mq=0.0, **common)
+    p_damped = Params(c_mq=56.25, **common)
+    t = 0.5
+
+    V0 = 80.0
+    s_alpha0 = State(x=0.0, z=-500.0, vx=0.0, vz=-V0, theta=math.pi / 2, omega=0.3)
+    s_alpha_nonzero = State(x=0.0, z=-500.0, vx=0.0, vz=-V0, theta=math.pi / 2 + 0.25, omega=0.3)
+
+    alpha_a = flow_state(t, np.array(s_alpha0), p_zero).alpha
+    alpha_b = flow_state(t, np.array(s_alpha_nonzero), p_zero).alpha
+    assert not math.isclose(alpha_a, alpha_b, abs_tol=1e-6)  # sanity: alpha really differs
+
+    for s in (s_alpha0, s_alpha_nonzero):
+        y = np.array(s)
+        shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
+        expected_A_m_shift = 0.25 * flow_state(t, y, p_zero).air.rho * flow_state(t, y, p_zero).V \
+            * p_zero.S * p_zero.d_ref**2 * y[OMEGA] * p_damped.c_mq
+        assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
+
+
+def test_pitch_damping_constant_regime_untouched():
+    """`aero_model="constant"` has no `q`/`V`/`rho` in it by definition
+    (main.tex SSMoments Phase 1 form) -- `c_mq`/`C_mq` are not consulted
+    there, so a nonzero `c_mq` changes nothing (architecture.md SS24.4).
+    """
+    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                  aero_model="constant", A_x=0.5, A_z=0.3, A_m=0.1)
+    p_zero = Params(c_mq=0.0, **common)
+    p_damped = Params(c_mq=56.25, **common)
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
+    y = np.array(s)
+
+    assert aero_moment_y(0.5, y, p_zero) == aero_moment_y(0.5, y, p_damped)
+    assert np.array_equal(derivatives(0.5, y, p_zero), derivatives(0.5, y, p_damped))
+

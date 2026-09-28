@@ -63,13 +63,19 @@ Step 39: `thrust_body` gains a fixed nozzle cant `delta = p.thrust_misalign_deg`
 (the default) reproduces the on-axis vector bit-for-bit. dynamics.py needs
 no change -- `_cross_y(aB, thrust)` was already written generically enough
 to pick up the resulting moment (see that module's docstring).
+
+Step 44: `aero_moment_y`'s "coefficients" regime gains a pitch-damping term
+(analysis.tex SSDynamic stability; architecture.md SS24.4) -- see that
+function's own docstring for the closed form and the division-free `V = 0`
+note. `p.c_mq = 0.0` (the default) reproduces the pre-Step-44 `A_m`
+bit-for-bit. The `"constant"` regime is untouched.
 """
 
 import numpy as np
 
 from sim import aero, gravity, thrust_curve
 from sim.flow import flow_state
-from sim.state import M
+from sim.state import M, OMEGA
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
@@ -166,12 +172,28 @@ def aero_moment_y(t: float, s, p) -> float:
     Step 25: `C_m` comes from sim/aero.py, table-driven (`p.aero_table`)
     with `p.C_m_alpha*alpha` as the fallback -- identical numbers to the
     pre-Step-25 formula above when no table is configured.
+
+    Step 44 (analysis.tex SSDynamic stability; architecture.md SS24.4):
+    the "coefficients" regime adds a pitch-damping term, `c_m += q_hat*c_mq`
+    with `q_hat = omega*d_ref/(2V)`, i.e. `A_m += q*S*d_ref*q_hat*c_mq`.
+    Written division-free below (algebraically identical):
+    `q*d_ref*q_hat = (rho*V^2/2)*d_ref*(omega*d_ref/(2V)) = rho*V*omega*d_ref^2/4`
+    -- NOT a literal `omega*d_ref/(2*V)` intermediate, which would produce
+    `0.0*inf = nan` at `V = 0.0` (every unperturbed flight's apogee; see
+    aero.py's module docstring for the precedent, Step 35's `atan2` branch
+    cut). `c_mq = 0.0` (the default) makes this term exactly `0.0` for
+    every state, bit-for-bit pre-Step-44 -- same pattern as `A_e`/
+    `thrust_misalign_deg`. `"constant"` regime untouched: it has no `q`,
+    `V` or `rho` in it by definition, and `C_m`/`C_mq` are not consulted
+    there.
     """
     flow = flow_state(t, s, p)
     if p.aero_model == "constant":
         A_m = p.A_m
     elif p.aero_model == "coefficients":
         A_m = flow.q * p.S * p.d_ref * aero.C_m(flow.alpha, flow.M, p)
+        A_m += 0.25 * flow.air.rho * flow.V * p.S * p.d_ref**2 * s[OMEGA] \
+            * aero.C_mq(flow.alpha, flow.M, p)
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
     return -A_m

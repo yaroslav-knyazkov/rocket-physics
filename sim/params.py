@@ -161,3 +161,15 @@ class Params:
     # bit-for-bit.
     u_B: float = 0.0   # lateral offset of the centre of gravity [m]
     u_C: float = 0.0   # lateral offset of the thrust application point [m]
+
+    # Step 44: pitch-damping derivative (analysis.tex SSDynamic stability;
+    # architecture.md SS24.4). Scaffold only -- 0.0 (the default) makes the
+    # damping term exactly zero, bit-for-bit every prior step, with no separate
+    # on/off flag (the A_e/thrust_misalign_deg pattern). SIGN: positive c_mq is
+    # DAMPING here, because positive C_m is a nose-DOWN moment in this
+    # document's convention -- the same flip that makes c_m_alpha > 0 the
+    # statically stable sign. Supplying a real value (measurement, unsteady CFD,
+    # or the strip estimate 2*C_N_alpha*(l1/d_ref)^2) is future work, not this
+    # step. Overridden per (alpha, M) by an optional `c_mq` column in
+    # `aero_table`, when one is present.
+    c_mq: float = 0.0   # pitch-damping derivative dC_m/d(q_hat) [-]

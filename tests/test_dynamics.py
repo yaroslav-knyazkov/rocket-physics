@@ -496,3 +496,84 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
 
     for a_pos, a_neg in zip(alphas_pos, alphas_neg):
         assert math.isclose(a_pos, -a_neg, rel_tol=1e-6, abs_tol=1e-8)
+
+
+# ---------------------------------------------------------------------
+# Step 44: pitch-damping c_mq scaffold -- the sign/behaviour test that
+# encodes architecture.md SS24.4's sign-convention resolution (positive
+# c_mq is DAMPING here, opposite the textbook convention). Reuses the
+# project's pinned pitch-oscillation fixture (m=0.5, I=0.05, l1=0.3,
+# l2=0.4, S=0.005, d_ref=0.08, C_N_alpha=2.0, C_m_alpha=0.0, V~=100 m/s),
+# whose strip-estimate c_mq = 2*C_N_alpha*(l1/d_ref)^2 = 56.25 gives a
+# damping rate D = qS*d_ref^2*c_mq/(2VI) = 1.1025/s (architecture.md
+# SS24.4's pinned numbers) -- amplitude falls to e^{-D*t/2} of its start.
+# ---------------------------------------------------------------------
+
+
+def _envelope_peaks(result, p, t_max: float, n: int = 2000) -> list:
+    """`|alpha(t)|`'s local maxima (dense sampling, simple 3-point extremum
+    test) -- occur twice per pitch period (once per sign of `alpha`), so
+    consecutive entries are ~half a period apart. Used as the oscillation's
+    amplitude envelope without assuming an exact, constant period (`V`
+    itself slowly falls under gravity here, with no thrust)."""
+    times = np.linspace(0.0, t_max, n)
+    abs_alpha = np.array([abs(flow_state(t, result.raw.sol(t), p).alpha) for t in times])
+    peaks = []
+    for i in range(1, len(abs_alpha) - 1):
+        if abs_alpha[i] >= abs_alpha[i - 1] and abs_alpha[i] >= abs_alpha[i + 1]:
+            peaks.append(abs_alpha[i])
+    return peaks
+
+
+def test_pitch_damping_sign_convention_decays_undamped_grows():
+    """The one real risk this step's spec calls out: getting the sign
+    backwards. `c_mq > 0` (the strip value, 56.25) must make a statically
+    stable airframe's pitch oscillation decay *faster* than the `c_mq = 0`
+    baseline; `c_mq < 0` (the same magnitude, negated) must decay slower
+    than that baseline, or grow -- so the three cases' envelope-decay
+    ratios come out in the single order `damped < undamped < anti_damped`,
+    exactly encoding architecture.md SS24.4's sign resolution (positive
+    `c_mq` is DAMPING here, the opposite of the textbook convention).
+
+    Not compared against a literal "no decay at all" baseline: verified
+    numerically before writing this test (not assumed) that even `c_mq =
+    0` shows *some* gradual envelope decay in the full coupled 2D
+    dynamics at this fixture's V0=100 m/s (unlike the coarser, order-of-
+    magnitude-only sampling tests/test_forces.py's off-axis test uses at
+    V0=60 m/s) -- a real translational/rotational coupling effect (the
+    velocity vector partially follows the restoring pitch motion), not an
+    explicit damping *term*. That is exactly why the claim here is the
+    *relative* ordering of decay rates, not "undamped is flat" -- the
+    honest, checked claim, not the stronger one this model does not make.
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4,
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0,
+    )
+    alpha0 = -0.15
+    theta0 = math.pi / 2 + alpha0
+    V0 = 100.0
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=-V0, theta=theta0, omega=0.0)
+    t_max = 1.65  # comfortably pre-apogee (V0/g ~= 10.2 s)
+
+    ratios = {}
+    for label, c_mq in (("damped", 56.25), ("undamped", 0.0), ("anti_damped", -56.25)):
+        p = Params(c_mq=c_mq, **common)
+        r = run_sim(p, s0, t_max=t_max, method="RK45")
+        assert r.events["apogee"] is None  # confirms t_max stays pre-apogee
+
+        peaks = _envelope_peaks(r, p, t_max)
+        assert len(peaks) >= 6, (label, peaks)  # several oscillations captured
+        # Mean of the first two / last two peaks -- smooths over the
+        # half-period sampling noise a single first/last peak would carry.
+        early = (peaks[0] + peaks[1]) / 2.0
+        late = (peaks[-2] + peaks[-1]) / 2.0
+        ratios[label] = late / early
+
+    # The sharpest single check: getting the sign backwards would reverse
+    # this ordering outright, not just shift it slightly.
+    assert ratios["damped"] < ratios["undamped"] < ratios["anti_damped"], ratios
+
+    # Damped decays outright (not merely "less than the others").
+    assert ratios["damped"] < 0.7, ratios

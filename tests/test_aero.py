@@ -316,3 +316,105 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
         assert abs(a) <= 0.16, alphas  # bounded, comfortably >= the initial 0.15
     # Not monotonically diverging away from the trim condition.
     assert abs(alphas[-1]) <= 2.0 * abs(alpha0), alphas
+
+
+# ----------------------------------------------------------------------
+# Step 44: pitch-damping C_mq scaffold (architecture.md SS24.4) -- the
+# optional `c_mq` column, one seam past `C_m`'s own dispatch pattern.
+# ----------------------------------------------------------------------
+
+
+def test_C_mq_no_table_returns_constant_regardless_of_alpha_M():
+    """No table configured (`p.aero_table == ""`, the default): `C_mq`
+    returns the constant `p.c_mq` unconditionally, ignoring `alpha`/`M`
+    entirely -- same fallback shape as `C_A`/`C_N`/`C_m`/`cop_l1`.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, c_mq=12.5)
+    for alpha, M in [(0.0, 0.5), (0.3, 1.0), (-0.2, 2.5)]:
+        assert aero.C_mq(alpha, M, p) == 12.5
+
+
+def test_C_mq_table_without_column_falls_back_to_params_constant():
+    """`data/aero/example.csv` predates Step 44 and has no `c_mq` column:
+    `_load_table` must set `_AeroTable.C_mq` to `None` for it, and
+    `aero.C_mq` must then fall back to `p.c_mq` (not to a literal `0.0`) --
+    architecture.md SS24.4's deliberate exception to "table wins
+    completely". Set `p.c_mq` to an unmistakable nonzero value so a stray
+    `0.0` fallback could not be missed.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv", c_mq=7.0)
+
+    table = aero._load_table("example.csv")
+    assert table.C_mq is None
+
+    for alpha, M in [(0.0, 0.5), (math.radians(10.0), 1.0), (0.05, 2.0)]:
+        assert aero.C_mq(alpha, M, p) == 7.0
+
+
+def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constant():
+    """With a `c_mq` column present, `C_mq` interpolates it exactly like
+    `C_m` does (bracket-and-clamp in `M`, `np.interp` in `alpha`) and
+    ignores `p.c_mq` entirely -- checked both at an exact grid point (no
+    interpolation error) and at a bracketed, interpolated point, against
+    `p.c_mq` set to a deliberately wrong sentinel value.
+    """
+    test_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "aero", "test_c_mq_table.csv"
+    )
+    with open(test_path, "w") as f:
+        f.write("# test fixture: same grid as example.csv, plus a c_mq column\n")
+        f.write("alpha_deg,M,C_A,C_N,C_m,l1_m,c_mq\n")
+        f.write("-10,0.5,0.35,-0.5236,0.0873,0.28,10.0\n")
+        f.write("0,0.5,0.30,0.0,0.0,0.28,20.0\n")
+        f.write("10,0.5,0.35,0.5236,-0.0873,0.28,30.0\n")
+        f.write("-10,1.0,0.60,-0.6981,0.1396,0.35,40.0\n")
+        f.write("0,1.0,0.55,0.0,0.0,0.35,50.0\n")
+        f.write("10,1.0,0.60,0.6981,-0.1396,0.35,60.0\n")
+
+    try:
+        p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4,
+                   aero_table="test_c_mq_table.csv", c_mq=-999.0)
+
+        table = aero._load_table("test_c_mq_table.csv")
+        assert table.C_mq is not None
+
+        # Exact grid point: alpha=0deg, M=1.0 -> c_mq = 50.0, no interpolation.
+        assert aero.C_mq(0.0, 1.0, p) == 50.0
+
+        # Bracketed/interpolated point: alpha=5deg (halfway 0/10deg), M=0.75
+        # (halfway 0.5/1.0) -- same bilinear blend test_table_lookup_
+        # interpolates_alpha_within_bracketed_M uses for C_A/C_N/l1 above.
+        alpha = math.radians(5.0)
+        M = 0.75
+        c_mq_at_M05 = (20.0 + 30.0) / 2  # alpha=5deg, M=0.5 row
+        c_mq_at_M10 = (50.0 + 60.0) / 2  # alpha=5deg, M=1.0 row
+        expected = (c_mq_at_M05 + c_mq_at_M10) / 2
+        assert math.isclose(aero.C_mq(alpha, M, p), expected, rel_tol=1e-9)
+
+        # Decisively not the Params sentinel -- confirms the table, not
+        # p.c_mq, is what answered both queries above.
+        assert aero.C_mq(0.0, 1.0, p) != p.c_mq
+    finally:
+        aero._load_table.cache_clear()
+        if os.path.exists(test_path):
+            os.remove(test_path)
+
+
+def test_pitch_damping_default_reproduces_derivatives_bit_for_bit_with_and_without_table():
+    """`c_mq = 0.0` (the default), no column: every prior `derivatives()`
+    result bit-for-bit, including with a table configured (architecture.md
+    SS24.4's "Checks for the step").
+    """
+    common = dict(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        aero_model="coefficients", S=0.005, d_ref=0.08,
+        C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
+    )
+    s = State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
+    y = np.array(s)
+    t = 0.5
+
+    for extra in ({}, {"aero_table": "example.csv"}):
+        p_implicit = Params(**common, **extra)
+        p_explicit = Params(c_mq=0.0, **common, **extra)
+        assert np.array_equal(derivatives(t, y, p_implicit), derivatives(t, y, p_explicit))

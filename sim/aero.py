@@ -1,6 +1,7 @@
 """Aerodynamic coefficients C_A(alpha, M), C_N(alpha, M), C_m(alpha, M), and
 CoP travel l1(alpha, M) -- table-driven with `Params`-constant fallbacks
-(architecture.md SS19; roadmap.md Step 25).
+(architecture.md SS19; roadmap.md Step 25). Step 44 (architecture.md SS24.4)
+adds a fifth, optional coefficient, `C_mq(alpha, M)` (pitch damping).
 
 Table format (`data/aero/<config>.csv`, this module's own design -- SS19
 leaves the exact column layout unspecified, unlike the sounding/motor
@@ -10,8 +11,8 @@ same comment-header-metadata + CSV-body style as `sim/thrust_curve.py` /
 SS21, SS22 item 3):
 
     # free-form comment lines...
-    alpha_deg,M,C_A,C_N,C_m,l1_m
-    -10,0.5,0.35,-0.5236,0.0873,0.28
+    alpha_deg,M,C_A,C_N,C_m,l1_m,c_mq
+    -10,0.5,0.35,-0.5236,0.0873,0.28,5.0
     ...
 
 Every `M` value in the file must repeat the exact same set of `alpha_deg`
@@ -19,7 +20,12 @@ values (a full rectangular grid) -- `_load_table` raises `ValueError` if
 not. `l1_m` is the same physical quantity as `Params.l1` (the CoP-to-CoG
 distance, architecture.md SS19 "CoP travel makes l1 a function of
 (alpha, M)"), carried in the table so a single file supplies both the
-force/moment coefficients and the moment-arm they act through.
+force/moment coefficients and the moment-arm they act through. `c_mq` (Step
+44) is the only *optional* column -- see `C_mq`'s own docstring for why an
+absent column falls back to `Params.c_mq` rather than to `_AeroTable.C_mq
+is None` being treated as a literal zero everywhere; every table committed
+before Step 44 lacks it, so this must not change any existing table's
+behaviour.
 
 Interpolation, in both dimensions, matches this project's established
 "hold the edge value, never extrapolate" convention (`thrust_curve.py`
@@ -39,6 +45,7 @@ model's own small-angle error (see the Phase 2.5 note just below):
     C_N   -> p.C_N_alpha * sin(alpha)     (main.tex's C_N_alpha*alpha, smoothed)
     C_m   -> p.C_m_alpha * sin(alpha)     (main.tex's C_m_alpha*alpha, smoothed)
     l1    -> p.l1                         (constant CoP-to-CoG distance)
+    C_mq  -> p.c_mq                       (constant pitch-damping derivative, default 0.0 -- Step 44)
 
 Phase 2.5 (after Step 35): `C_N`/`C_m`'s fallback uses `sin(alpha)` instead
 of the raw `alpha` main.tex's linear formula literally specifies.
@@ -93,6 +100,7 @@ class _AeroTable(NamedTuple):
     C_N: np.ndarray     # (n_M, n_alpha)
     C_m: np.ndarray     # (n_M, n_alpha)
     l1: np.ndarray      # (n_M, n_alpha), CoP-to-CoG distance [m]
+    C_mq: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative, or None when the column is absent
 
 
 @functools.lru_cache(maxsize=None)
@@ -127,6 +135,12 @@ def _load_table(name: str) -> _AeroTable:
     C_N_col = data["C_N"].astype(float)
     C_m_col = data["C_m"].astype(float)
     l1_col = data["l1_m"].astype(float)
+    # Step 44 (architecture.md SS24.4): the c_mq column is optional -- every
+    # table committed before this step lacks it, so "absent -> None" (and
+    # C_mq()'s constant fallback below) must hold for bit-for-bit backward
+    # compatibility. This is the only column handled this way; every other
+    # column above is mandatory.
+    C_mq_col = data["c_mq"].astype(float) if "c_mq" in data.dtype.names else None
 
     M_grid = np.unique(M_col)
     alpha_grid = np.unique(alpha_col)
@@ -162,6 +176,7 @@ def _load_table(name: str) -> _AeroTable:
         C_N=_reshape(C_N_col),
         C_m=_reshape(C_m_col),
         l1=_reshape(l1_col),
+        C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
     )
 
 
@@ -229,6 +244,32 @@ def C_m(alpha: float, M: float, p) -> float:
         table = _load_table(p.aero_table)
         return _table_lookup(table, alpha, M, table.C_m)
     return p.C_m_alpha * np.sin(alpha)
+
+
+def C_mq(alpha: float, M: float, p) -> float:
+    """Pitch-damping derivative (analysis.tex SSDynamic stability:
+    c_m = c_m0 + alpha*c_m_alpha + q_hat*c_mq, q_hat = omega*d_ref/(2V)).
+
+    Table-driven when `p.aero_table` is set AND the table has a `c_mq`
+    column; otherwise the constant `p.c_mq` (default 0.0 -- inert). This
+    is a deliberate exception to this module's usual "table wins
+    completely" rule (see the module docstring's "no table configured"
+    section for the rule as it applies to every other coefficient): every
+    table committed before Step 44 lacks the column, so absent-column must
+    fall back to `p.c_mq`, not to a literal `0.0`, for a user to be able to
+    try a single constant damping value without regenerating a whole
+    `(M, alpha)` grid (architecture.md SS24.4).
+
+    SIGN: positive c_mq is DAMPING in this document's convention (positive
+    C_m is a nose-down moment here -- architecture.md SS24.4), the
+    opposite of the textbook C_mq < 0. Same flip C_m_alpha already
+    carries.
+    """
+    if p.aero_table:
+        table = _load_table(p.aero_table)
+        if table.C_mq is not None:
+            return _table_lookup(table, alpha, M, table.C_mq)
+    return p.c_mq
 
 
 def cop_l1(alpha: float, M: float, p) -> float:
