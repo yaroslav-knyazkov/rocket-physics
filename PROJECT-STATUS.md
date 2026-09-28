@@ -18,8 +18,12 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
-inserted after the Phase 2 milestone closeout — still 2D, not Phase 3. Next: Phase 3 (3D, full
-6-DOF) — not started, awaiting the user's go-ahead. Steps 33-35:
+**Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE** — still 2D, not Phase 3.
+187/187 tests passing. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's
+go-ahead; or one of the 5 items the user explicitly deferred this session (commanded gimbal
+control, Barrowman wing-body aero build-up, real propellant grain-geometry dimensions, vertical
+wind pending the user's own research, and the CFD/wind-tunnel data-extraction pipeline for real
+aero coefficients including a real `c_mq`). See "Phase 2.7 milestone: COMPLETE" below. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -136,6 +140,64 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
+
+## Phase 2.7 milestone: COMPLETE (2026-09-28) — Steps 41, 42, 43, 44 implemented and committed
+
+Physics rewrite of the same session (`latex/main.tex` + `latex/sections-ai/{rocket-2d,models,
+analysis}.tex`, renamed from `latex/sections/`) introduced four pieces of physics not yet in
+code; all four are now implemented, tested, and committed, one step at a time as usual.
+
+- **Step 41 — elliptical gravity direction** (commit `f5d0120`). `gravity_direction="elliptical"`:
+  the WGS84 ellipsoid normal, approximated near the launch point by its osculating sphere in the
+  flight-plane azimuth `χ` (Euler/Meusnier radius of curvature `R_χ(φ₀,χ)`). Reuses the existing
+  `lat0_deg`/`azimuth_deg` fields — no new `Params`. "radial" and "elliptical" now share one
+  `_dir_curved` body via a new `curvature_radius(p)` seam; "radial" evaluates the exact same
+  expression on the same operands as before (bit-for-bit). 162/162 tests (12 new).
+- **Step 42 — curved-ground impact condition** (commit `bdc7e07`). New `gravity.ground_depth(t,y,p)`
+  reuses Step 41's `curvature_radius` seam and replaces the literal `y[Z]` read in both the RK45
+  ground event and the RK4 integrator's manual crossing detection. Scoped to the impact/apogee
+  event only, per the user's explicit choice (atmosphere/wind/gravity-magnitude altitude lookups
+  deliberately still read `h=-z`; the full swap is Backlog B8). Two traps handled explicitly: the
+  curved formula does **not** algebraically degenerate to `-z` for `"parallel"` at finite `R_e`
+  (only as `R→∞`), so there's a real `R is None` branch, not a hopeful limit; and `ground_depth` is
+  built DOWN-positive to match `y[Z]`'s own sign convention, since a naive `h_true` substitution
+  (up-positive) would have made the solver hunt for the wrong crossing and never terminate.
+  168/168 tests (7 new).
+- **Step 43 — lateral offsets `u_B`, `u_C`** (commit `ad359eb`). New `Params.u_B`/`u_C` (both
+  `0.0` default). The CoG-to-aero-point and CoG-to-thrust-point displacement vectors in
+  `sim/dynamics.py` gain a lateral component each; the two new moment terms from `analysis.tex`
+  eq. `moment_full` land in two *different* cross products with different companion terms, matched
+  against the real code rather than assumed. Bit-for-bit at `u_B=u_C=0.0`, verified in combination
+  with the aero table and thrust misalignment already active, not just in isolation. 175/175 tests
+  (7 new).
+- **Step 44 — pitch-damping `c_mq` scaffold** (commit `ff10242`). New `Params.c_mq` (`0.0`
+  default), a new `sim/aero.py::C_mq(alpha,M,p)` (table-driven with a constant fallback — an
+  absent table column falls back to `p.c_mq` rather than a literal `0.0`, a deliberate, documented
+  exception to this module's usual "table wins completely" rule), wired into `forces.aero_moment_y`
+  (confirmed as the real moment-assembly site, not `dynamics.py`). The damping term is computed
+  division-free (`0.25·ρ·V·S·d_ref²·ω·c_mq`) specifically to avoid a `0.0·∞ = nan` trap at `V=0`,
+  which every unperturbed flight passes through at apogee — this project hit that exact class of
+  bug once already, at Step 35. `c_mq=0.0` bit-for-bit. **One real physics bug was caught before
+  any of this was written**: the LaTeX's Dynamic Stability section had `c_mq`'s stability sign in
+  the textbook convention, which is inverted relative to this project's own `A_m`/`c_m` sign
+  (positive = nose-down, decided 2026-09-19) — the architect derived the correct sign
+  (`c_mq > 0` is damping here) from three independent angles, the user confirmed the fix, and
+  `analysis.tex` was corrected before Step 44's tests could encode the wrong sign permanently.
+  187/187 tests (12 new), including a trajectory-level check that damped/undamped/anti-damped
+  envelope-decay ratios come out strictly ordered.
+
+**Recovery note:** the first developer session implementing these steps was terminated mid-Step-42
+by a session-limit API error, before its first commit. Rather than losing the work, the
+orchestrator recovered it directly: ran the suite on the leftover working-tree changes (166/168),
+found and fixed three test-authoring bugs (a missing import, a pinned constant with the wrong
+sign — confirmed independently before touching it, magnitudes matched to 6 significant figures —
+and an `is`-identity check on a numpy scalar that can never pass, `y[1] is y[1]` being `False` even
+trivially), reran to 168/168, then split the single uncommitted diff into the two proper commits
+(41 and 42) along the boundaries the crashed session had already left clearly marked in its own
+code comments. A fresh developer session then completed 43 and 44 without incident.
+
+**Verification:** every commit's full suite independently re-run by the orchestrator, not taken on
+either developer session's self-report alone. Final count: 187/187.
 
 ## Phase 2.6 doc/derivation pass (2026-09-27) — Steps 38-40 spec'd, code not yet implemented
 

@@ -13,9 +13,9 @@ committed**. Phase 2.5 (Steps 33-37) is a documentation-and-review follow-up: dr
 gravity model, fix the aero force to stay in body axis, add variable mass (CoG/I travel) and a
 Coriolis/centrifugal correction — **DONE and committed**. Phase 2.6 (Steps 38-40) promotes three
 deferred items to real physics: non-parallel gravity, a fixed thrust-axis misalignment, and
-humid-air density — **DONE and committed, still 2D**. Phase 2.7 (Steps 41-44) is the next batch,
-**specified, not yet implemented**: elliptical gravity direction, curved-ground impact condition,
-lateral offsets `u_B`/`u_C`, and a pitch-damping `c_mq` scaffold — still 2D. Phase 3 (Steps 28-32,
+humid-air density — **DONE and committed, still 2D**. Phase 2.7 (Steps 41-44) promotes four more:
+elliptical gravity direction, curved-ground impact condition, lateral offsets `u_B`/`u_C`, and a
+pitch-damping `c_mq` scaffold — **DONE and committed, still 2D**. Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
 **Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
@@ -626,14 +626,14 @@ section it names** — not the whole of either document.
 `latex/sections-ai/{rocket-2d,analysis,models}.tex`, wired in by `\input{sections-ai/...}`. Earlier
 phases' citations to `latex/sections/...` mean the same content at the new path.
 
-**One open sign question before Step 44:** `analysis.tex` §Dynamic stability gives the physical
-sign of `c_mq` in the textbook convention, which is inverted relative to this project's own `A_m`
-sign (positive `C_m` = nose-down here, the same flip that makes `c_mα > 0` the *stable* sign).
-`architecture.md` §24.4 resolves it from first principles — **`c_mq > 0` is damping here** — and
-proposes the LaTeX correction. Settle it before Step 44's tests are written; a test encodes the
-sign permanently.
+**Sign question resolved before Step 44 (user-approved 2026-09-27):** `analysis.tex` §Dynamic
+stability originally gave the physical sign of `c_mq` in the textbook convention, inverted
+relative to this project's own `A_m` sign (positive `C_m` = nose-down here, the same flip that
+makes `c_mα > 0` the *stable* sign). The LaTeX was corrected to state **`c_mq > 0` is damping
+here**, matching `architecture.md` §24.4's first-principles derivation, before Step 44's tests
+were written.
 
-### Step 41 — Elliptical gravity direction (ellipsoid normal via the osculating sphere)
+### Step 41 — Elliptical gravity direction (ellipsoid normal via the osculating sphere) — done, commit `f5d0120`
 - **Files:** `sim/gravity.py`, `sim/params.py`, `tests/test_gravity.py`, `tests/test_forces.py`
 - **Spec:** `latex/sections-ai/models.tex` §Gravity > Direction, paragraph "Construction
   (elliptical)" (`R_χ`, `M(φ)`, `N(φ)`, and "every formula of the radial construction carries over
@@ -665,7 +665,7 @@ sign permanently.
   `p.R_e` leaves an `"elliptical"` run unchanged. An unknown direction string raises `KeyError`.
 - **Commit:** "Elliptical gravity direction: ellipsoid normal via the osculating sphere"
 
-### Step 42 — Curved-ground impact condition (`h_true`)
+### Step 42 — Curved-ground impact condition (`h_true`) — done, commit `bdc7e07`
 - **Files:** `sim/gravity.py`, `sim/integrate.py`, `tests/test_gravity.py`, `tests/test_integrate.py`
 - **Spec:** `latex/sections-ai/models.tex` §Gravity > Direction, paragraph "Ground and impact
   condition", eq. `h_true`; `architecture.md` §24.2 for the code and the sign analysis. Promotes the
@@ -717,7 +717,7 @@ sign permanently.
   agree on the curved impact time to grid resolution (Step 8's cross-check, extended).
 - **Commit:** "Curved-ground impact condition: h_true replaces z=0 for the non-parallel variants"
 
-### Step 43 — Lateral offsets `u_B`, `u_C` (off-axis CoG and nozzle)
+### Step 43 — Lateral offsets `u_B`, `u_C` (off-axis CoG and nozzle) — done, commit `ad359eb`
 - **Files:** `sim/dynamics.py`, `sim/params.py`, `tests/test_dynamics.py`
 - **Spec:** `latex/sections-ai/analysis.tex` eq. `moment_full` and §Moment's term-by-term reading;
   `latex/sections-ai/rocket-2d.tex` §Geometry (`AB = −l_B x̂_r − u_B ẑ_r`, likewise `AC`,
@@ -756,7 +756,7 @@ sign permanently.
   `u_B ≠ 0` trims at a small nonzero `α` rather than diverging; negating both offsets mirrors it.
 - **Commit:** "Lateral offsets of the CoG and thrust point, and their pitching moments"
 
-### Step 44 — Pitch-damping `c_mq` scaffold
+### Step 44 — Pitch-damping `c_mq` scaffold — done, commit `ff10242`
 - **Files:** `sim/aero.py`, `sim/forces.py`, `sim/params.py`, `tests/test_aero.py`,
   `tests/test_forces.py`, `tests/test_dynamics.py`
 - **Spec:** `latex/sections-ai/analysis.tex` §Dynamic stability (`sec:analysis_dynamic`):
