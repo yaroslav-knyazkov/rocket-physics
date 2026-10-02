@@ -21,13 +21,19 @@ Backlog B8: the curved altitude `h_true` that Step 42 gave the impact event is t
 radial/WGS84 gravity magnitudes and, by the user's own scope call, the reported and plotted
 altitude in `run.py`/`plotting.py` — with no new `Params` field, every event trigger untouched, and
 the existing `gravity_direction = "parallel"` as the bit-for-bit gate — **DONE and committed, still
-2D**.
+2D**. Phase 2.9 (Step 46) replaces Step 21's **placeholder** gust mechanism with the real
+MIL-F-8785C/MIL-HDBK-1797 **Dryden** turbulence spectrum — altitude-dependent scale length and
+intensity (AGL), amplitudes from the published PSD, and two horizontal components composed as a
+*vector* perturbation of the mean wind instead of one scalar on its speed — gated by a new
+`turbulence_model = "none"` default; **SPECIFIED, not implemented**, and the only step so far that
+is deliberately *not* bit-for-bit for one configuration (any run that had gusts on), which
+`architecture.md` §26.1 argues as a documented behaviour change rather than a regression.
 Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
 **Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
 (Phase 2, **with Phase 2.5 resolutions inline**), §23 (Phase 2.6), §24 (Phase 2.7), §25
-(Phase 2.8). Physics
+(Phase 2.8), §26 (Phase 2.9). Physics
 reference: `latex/main.tex` plus `latex/sections-ai/{rocket-2d,analysis,models}.tex` (the section
 files moved from `latex/sections/` — earlier citations mean the same content at the new path).
 Rule for every step: re-read the relevant LaTeX section first, because the user keeps extending
@@ -1042,6 +1048,277 @@ reported at that instant becomes curved.
 
 ---
 
+## Phase 2.9 — Dryden turbulence model (still 2D)
+
+One additive step. It replaces the **placeholder** gust mechanism Step 21 shipped in `sim/wind.py`
+(`_gust_realization`/`_gust`) with the real MIL-F-8785C / MIL-HDBK-1797 **Dryden** turbulence
+spectrum: altitude-dependent scale length and intensity, amplitudes drawn from the published power
+spectral density, and **two** horizontal components (`u` along-wind, `v` cross-wind) composed as a
+*vector* perturbation of the mean wind instead of one scalar added to its speed. Same discipline as
+Phase 2.6/2.7/2.8: one step, one commit, the full regression suite after it, and a default
+(`turbulence_model = "none"`) that reproduces every prior step **bit-for-bit**.
+
+**One difference from every step since 38, stated up front:** this step is *deliberately* **not**
+bit-for-bit for runs that had gusts switched on (`gust_sigma > 0.0`). That is a documented behaviour
+change, not a regression — the Step-21 scheme drew half-normal random weights with no spectral shape
+and no altitude dependence, `architecture.md` §16 had promised "amplitudes from a von Kármán/
+Dryden-like spectrum" and the implementation never delivered one, nothing in the repository pins a
+gusty number, and the committed `run.py` scenario is `wind_model = "none"`. `architecture.md` §26.1
+lists the five specific defects so the change is auditable.
+
+Spec location: `architecture.md` §26 (implementation, in full, including every pinned number) plus
+`latex/research/dryden_turbulence_model.md` §3 (the verified formulas) and §5 (the user's four
+resolved design decisions). **A developer needs §26, those two research sections and `sim/wind.py`
+in full — not the whole of `architecture.md` and not a re-run of the research.**
+
+**Design decisions already taken by the user** (research note §5 — do **not** re-litigate these):
+a fixed reference airspeed supplies the constant `V` of the Taylor frozen-turbulence conversion for
+the whole flight, documented as a known simplification; the isotropic intensity above 2000 ft AGL is
+a user-set `Params` field, not a chart lookup and not a light/moderate/severe preset; and the
+vertical (`w`) component is **out of scope**, per the standing Backlog **B7** deferral — `w_z` stays
+exactly `0.0`.
+
+**LaTeX staleness — resolved 2026-10-02.** `latex/sections-ai/models.tex` §Wind > Analytic
+(lines ~514-526) still documents the Step-21 placeholder verbatim (the scalar `ΔW(t)`, the
+non-negativity clamp, `σ = 0` as the off switch), all three contradicted by this step. Working rule 1
+makes the LaTeX the source of truth and it is the user's document, so this needed the user's call
+before implementation: **the user nominated the research note + `architecture.md` §26 as the interim
+physics reference**, with `models.tex` §Wind > Analytic to be brought in line later (the user's own
+edit, not a developer's). Implementation is **unblocked**. A developer must still **not** resolve the
+mismatch by editing `models.tex` (`architecture.md` §26.14).
+
+### Step 46 — Dryden turbulence spectrum for tier-1 gusts (replacing the Step-21 placeholder)
+- **Files:** `sim/params.py`, `sim/wind.py`, `tests/test_wind.py`
+- **Spec:** `architecture.md` §26 in full — §26.2 the verified formulas and the foot/metre table,
+  §26.3 the `Params` fields, §26.4 the reference implementation (the pinned numbers were computed
+  from it, so it is the specification and not a suggestion), §26.5 the altitude bands, §26.6 the
+  amplitude formula and the frequency grid, §26.7 the vector composition, §26.11 every pinned
+  number, §26.12 the checks. Physics: `latex/research/dryden_turbulence_model.md` §3 (formulas
+  verified against Madden/NTRS 20190000875 and Cole & Wickenheiser/arXiv:1905.09954, both read as
+  rendered pages) and §5 (the user's decisions).
+- **Depends on Steps 21 and 45** — it rewrites Step 21's gust internals and reuses Step 45's
+  `gravity.altitude_agl(y, p)` as the altitude source, unchanged. No new geometry, no new module.
+- **Do — `Params`** (`architecture.md` §26.3): **remove** `gust_sigma` and `gust_seed`; **add**
+  `turbulence_model: str = "none"` (`none | dryden` — the gate, same "unset reproduces every prior
+  step bit-for-bit" convention as `wind_model`/`aero_model`), `turbulence_sigma_high_ms: float = 0.0`
+  (the isotropic intensity above 2000 ft AGL, user-set), `turbulence_ref_speed_ms: float = 100.0`
+  (the fixed `V`; must be `> 0` when the model is on, no validation — §7), and
+  `turbulence_seed: int = 0` (Step 21's `gust_seed`, renamed so the family reads as one group). This
+  is the first step since Step 34 to **remove** anything from the public surface; it is safe because
+  `gust_sigma`/`gust_seed` appear in exactly three files — `params.py`, `wind.py` and
+  `tests/test_wind.py` lines ~223-277 — all three of which this step edits. **`run.py` and `tools/`
+  never mention either field; re-audit that by grep before starting, do not take the spec's word.**
+  No `W20` field: it is the existing power-law profile evaluated at 6.096 m (§26.3).
+- **Do — `sim/wind.py`** (`architecture.md` §26.4 has the full reference implementation):
+  (a) extract the mean power-law profile into `_mean_speed(h, p)` — character-for-character Step
+  21's expression, so `_analytic_wind` is bitwise unchanged by the extraction — because the Dryden
+  intensity needs the *same* profile at 20 ft for `W20`, and a second copy would let one scenario
+  have two mean winds. (b) delete `_GUST_N`, `_gust_realization`, `_gust`. (c) add the module
+  constants `_M_PER_FT = 0.3048`, `_W20_H_M`, `_H_LOW_FT`/`_H_HIGH_FT`/`_L_HIGH_FT` (1000/2000/1750,
+  **in feet**), `_TURB_N = 64`, `_TURB_PERIOD_MAX_S = 600.0`, `_TURB_PERIOD_MIN_S = 0.2`.
+  (d) `_turbulence_realization(seed)`, `lru_cache`d: the deterministic log-spaced `omegas`, their
+  geometric-mean-edge bin widths `domegas`, and **two** independent phase sets — `phases_u` drawn
+  first, then `phases_v`, from one `default_rng(seed)`. **The draw order is part of the spec**; it
+  changes every pinned number while breaking no invariant. (e) `_dryden_scales(h, p) -> (L_u, σ_u)`
+  in metres/m-per-second, with the band logic in feet. (f) `_dryden_turbulence(t, h, p) -> (u, v)`.
+  (g) the `_TURBULENCE_MODELS` dispatch dict (`architecture.md` §12), nested inside tier 1 the same
+  way `_GRAVITY_DIRECTIONS` sits beside `_GRAVITY_MODELS` — unknown strings raise `KeyError`, no
+  validation. (h) `_analytic_wind` calls `altitude_agl(y, p)` **once** (as it already does) and
+  passes `h` down, so this step adds no altitude calls at all.
+- **Units — the single most likely way to get this wrong** (`architecture.md` §26.2's table): the MIL
+  formulas are in **feet**, this codebase is **metres**. Exactly **two** conversions exist —
+  `h_ft = h_m / 0.3048` on the way in, `L_m = L_ft * 0.3048` on the way out — both with the one exact
+  constant (the international foot *is* 0.3048 m). The `0.177 + 0.000823·h` bracket is dimensionless
+  **only with `h` in feet**; its `0.000823` carries units of 1/ft. `σ` needs **no** conversion (the
+  formula is linear in `W20`, so m/s in gives m/s out), and the PSD needs **none** either (`V`
+  enters only through `L·ω/V`, a time, identical in both unit systems). Keep the 1000/2000/1750/20 ft
+  thresholds **in feet** and compare `h_ft` against the literal: `1000 ft` is `304.8 m` exactly but
+  `1500 ft` is `457.20000000000005 m` in float, so a metre-valued threshold would make the band
+  boundary depend on which way the constant rounded. The guard test: metres-into-the-bracket gives
+  `L_u(100 m) = 532.4 m` where the right answer is `262.79 m`.
+- **Altitude bands** (`architecture.md` §26.5, all AGL via `gravity.altitude_agl`): `h_ft ≤ 1000` →
+  `L_u = L_v = h_ft/(0.177+0.000823·h_ft)^1.2` ft and `σ_u = σ_v = 0.1·W20/(0.177+0.000823·h_ft)^0.4`;
+  `h_ft ≥ 2000` → isotropic `L = 1750 ft = 533.4 m`, `σ = p.turbulence_sigma_high_ms`;
+  `1000 < h_ft < 2000` → **linear interpolation of the two parameters** `(L, σ)` between those
+  boundary values, which is the standard implementor's fill for a gap MIL-F-8785C leaves undefined
+  (research note §3.5) — interpolate the parameters, **not** the PSD and not the 64 amplitudes
+  (`aᵢ ∝ √Φ`, so it would not even be the same answer). The low anchor is **exact**:
+  `0.177 + 0.000823·1000 == 1.0` in float, so at 1000 ft `L_u = 1000 ft` and `σ_u = 0.1·W20` with no
+  residue. `L`/`σ` are C⁰ with a slope kink at each boundary — fine, and precedented: the ISA's
+  piecewise lapse rates already put the same kind of kink in the aerodynamic force (§14). **Do not
+  smooth it.** Clamp `h` at `0.0`: at `h = 0` the formula gives `L_u = 0` exactly with `σ_u` finite,
+  a genuine `0/0` in the renormalisation that must be guarded (and below `−215 ft` the bracket goes
+  negative and a fractional power of it is `nan`).
+- **Do — the amplitudes** (`architecture.md` §26.6): the weights stop being a random draw and become
+  a function of frequency. `kᵢ = Φ(ωᵢ)·Δωᵢ`, `wᵢ = sqrt(2·kᵢ/Σⱼkⱼ)`, `u(t) = σ·Σ wᵢ sin(ωᵢ t + φᵢ)`
+  — i.e. textbook random-phase spectral synthesis `aᵢ = sqrt(2Φ(ωᵢ)Δωᵢ)`, **renormalised** so
+  `Σwᵢ² == 2` and hence `Var[u] == σ²` **exactly** for any band, `N`, altitude and `V`. Three
+  reasons: `σ_u` is the quantity MIL-F-8785C actually specifies and must be delivered faithfully;
+  it makes the frequency band a *numerics* knob rather than a physics one; and it buys an exact
+  invariant to test. The price is quantified, not waved away — the finite band captures **81-98 %**
+  of the true variance across `V ∈ {30,100,300} m/s` and the full altitude range, so the
+  renormalisation multiplies amplitudes by `1.01-1.11` (every capture fraction is pinned, §26.11).
+  Note in passing that Step 21's own normalisation was off by `√2`: it set `Σwᵢ² = 1`, which makes
+  the realised standard deviation `σ/√2`, not `σ`, despite the docstring's claim — one more reason
+  that scheme was a placeholder.
+- **Do — the frequency grid:** `_TURB_N = 64` log-spaced periods from `600 s` to `0.2 s`
+  (`ω = 0.0104720 … 31.4159 rad/s`, ratio `1.1355137588494644`, ~18.1 points/decade), replacing Step
+  21's 8 points over `3 s … 600 s`. `Δωᵢ` are the geometric-mean bin widths
+  `ωᵢ(√r − 1/√r)`, which tile the band with no gap or overlap so `Σ Φᵢ Δωᵢ` is a genuine Riemann sum
+  of `∫Φ dω`. The band **had** to move: the break frequency is `V/L_u` and `L_u` is as small as 22 m
+  off the pad, so at `V = 300 m/s` a band stopping at `3 s` captures only **20 %** of the variance.
+  `N` had to grow with it: 8 points over the wider band is ~2/decade, where the Riemann sum
+  *overshoots* (capture `1.0416` — claiming more energy than the spectrum has). All of it is module
+  constants, not `Params` — numerics are not scenario configuration (§18).
+- **Do — the vector composition** (`architecture.md` §26.7): with `δ = wind_dir_deg − azimuth_deg`,
+  `ê_u = (−cos δ, −sin δ)` (along the mean flow) and `ê_v = (sin δ, −cos δ)` (`ê_u` rotated +90° in
+  the `(x, y)` plane; handedness is a free choice since `v` is symmetric — taken and documented), so
+  `w_x = −(W+u)·cos δ + v·sin δ` and `w_y = −(W+u)·sin δ − v·cos δ`. Three consequences to carry into
+  the docstrings: (1) the `u` term reduces to Step 21's `−(W+Δ)cos δ` **exactly** — adding the
+  along-wind component to the speed before decomposition was never the bug, because `u` is *defined*
+  along the mean wind; (2) `v` is the first thing in this project that can **turn** the wind vector;
+  (3) the `max(W + Δ, 0.0)` clamp **goes** — it existed only because perturbing a scalar speed with a
+  fixed direction made a negative sum a silent 180° flip, and with a vector perturbation that flip is
+  the *correct* physics for a gust stronger than the mean wind. Side note recorded, not guarded: a
+  negative `wind_ref_ms` is unsupported (§7) and today's clamp happens to zero it.
+- **`v` changes no trajectory this simulator can integrate today** — `wind_inertial` discards the
+  cross-plane component (§16's 2D limitation, Backlog B6), so `v` is Phase-3 scaffolding exposed only
+  through `wind_horizontal_enu`, exactly like `w_y` already is. Step 46's effect on *simulated
+  flights* is entirely in `u`. Implement `v` anyway: three lines, and it is the half of the model
+  that makes "Dryden" an honest label.
+- **Determinism — Step 21's hard constraint, carried over unchanged and non-negotiable**
+  (`architecture.md` §26.8): `solve_ivp` evaluates the RHS at arbitrary, repeated and *rejected*
+  times, so no RNG outside the `lru_cache`d `_turbulence_realization`, and no dependence on call
+  history (no accumulator, no "last `t`", no filter state — which is what rules out the textbook
+  state-coupled Dryden filter). **What is allowed, and must not be mistaken for a violation:**
+  dependence on the state `y` through `h = altitude_agl(y, p)`. An ODE right-hand side is a function
+  of `(t, y)` by definition and tier 1's `W(h)` has been one since Step 21, so recomputing `(L, σ)`
+  and the 64 weights per call from `h` is correct — and necessary, since they are altitude-dependent
+  and therefore **cannot** be cached (`Params` is not hashable, `h` is continuous; §15 "do not
+  optimise"). Only the grid and the two phase sets are frozen per seed. `_dryden_turbulence` must
+  also never write into the cached arrays.
+- **The reference-airspeed limitation, documented not hidden** (`architecture.md` §26.9, the user's
+  decision): one fixed `turbulence_ref_speed_ms` supplies `V` for the whole flight, which is a known
+  fiction for a vehicle whose airspeed spans 0 to supersonic — recorded to the same standard as
+  §16's 2D-crosswind projection and B7's vertical wind. **The damage is precisely bounded, and that
+  is the point of saying it:** after the renormalisation the `2L/(πV)` and `L/(πV)` prefactors cancel
+  out of the weights, so `V` and `L` enter the model *only* through the ratio `L/V` — a time. `V`
+  therefore has **no effect whatever on turbulence intensity** (the realised variance is exactly
+  `σ_u²` for any `V > 0`); it moves **only** the spectrum's knee in frequency, i.e. whether the
+  rocket meets 30-second swells or 1-second buffets. Practical rule for the field: set it to the
+  airspeed over the part of the flight where turbulence matters most to the question being asked.
+  Backlogged as **B11**.
+- **Scope, explicitly not in this step** (`architecture.md` §26.10): **no vertical `w` component** —
+  `wind_inertial` is not even edited and `w_z` stays exactly `0.0` (Backlog B7, the user's standing
+  deferral); **no turbulence on tiers 2/3** — the MIL intensity profile is keyed on `W20` and on AGL
+  altitude, and a measured MSL-referenced sounding carries neither, plus there is a real question
+  whether the sounding's own shear already contains part of what Dryden would add (Backlog **B10** —
+  do not add a `turbulence_model` branch to `_sounding_wind`/`_field_wind`); no change to any public
+  signature (`wind_horizontal_enu`, `wind_inertial`, the `_MODELS` tier dispatch); no von Kármán
+  variant (cheap later — the scale lengths/intensities are shared and only the PSD shape differs —
+  but its `^(5/6)` form needs its own verification pass); no MIL-F-8785**B** continuous closed form
+  (a different standard, PSD pairing unverified, would change every pinned number); no
+  light/moderate/severe presets (the user's decision); no band/`N` in `Params`; no weight caching;
+  no new `run.py` scenario or sweep and no plotting change; `PROJECT-STATUS.md`'s recorded tables not
+  rewritten; **no LaTeX edit by the developer**; and no `float | np.ndarray` vectorisation promise —
+  the turbulence functions are scalar-only by design.
+- **Check — the headline one first:** the **entire existing suite passes unmodified**, with exactly
+  two permitted exceptions — `tests/test_wind.py`'s `test_gust_is_deterministic_bit_for_bit_across_
+  repeated_calls` and `test_gust_sigma_zero_reproduces_no_gust_analytic_profile_exactly`, which pass
+  the removed fields to `Params` and so **must** be rewritten. *Any other test needing an edit is a
+  bug in the step.* They are **rewritten against the new fields, not deleted and not turned into
+  pinned-value tests of the old scheme**: both assert *properties* — bit-for-bit determinism across
+  repeated calls, per-seed reproducibility, seed sensitivity, and the exact off-switch — and every
+  one of those survives this step. There is no prior "real" gusty value to preserve. Plus: a full
+  `run_sim` on **both** integrator paths with `turbulence_model = "none"` reproducing
+  `events`/`t`/`y` via `np.array_equal`, for `wind_model` in `none`/`analytic`/`sounding`/`field` (so
+  tiers 2/3 are *provably* untouched), and `python run.py`'s stdout diffed byte-for-byte against the
+  pre-step run.
+- **Check — the "none" path's exactness, stated precisely** (`architecture.md` §26.12): the new body
+  evaluates `−(W + 0.0)·cos δ + 0.0·sin δ` where Step 21's evaluated `−W·cos δ`. `x + 0.0 == x`
+  exactly for every finite `x`, so the two agree **bitwise except possibly for the sign bit of an
+  exact zero** (when `W == 0` or `cos δ == 0`). `np.array_equal` equates those, every downstream
+  operation is insensitive, and nothing calls `copysign` or divides by `w_x` — assert with
+  `np.array_equal` and put the caveat in the test docstring rather than discovering it. Extracting
+  `_mean_speed` is separately exact (same expression, same operands).
+- **Check — determinism:** `wind_inertial` twice with identical arguments and turbulence on is
+  bit-for-bit identical; the same for a second seed, each self-consistent; **and a full `run_sim`
+  with turbulence on, run twice, is bit-for-bit identical** — the only check that actually exercises
+  the solver's rejected steps. `_turbulence_realization` returns the *same objects* (`is`) for one
+  seed, and `_dryden_turbulence` never mutates them.
+- **Check — the off switch:** `turbulence_model = "none"` reproduces the mean profile exactly for
+  *any* `turbulence_seed`/`turbulence_sigma_high_ms`/`turbulence_ref_speed_ms`, **including
+  `turbulence_ref_speed_ms = 0.0`** (none of the three may be consulted); an unknown
+  `turbulence_model` raises `KeyError` with no silent fallback; and `"dryden"` with `wind_model` in
+  `none`/`sounding`/`field` changes **nothing**.
+- **Check — units and bands** (the pinned table is `architecture.md` §26.11): `_dryden_scales`
+  matches `(L_u, σ_u) =` `(0.0, 1.599192265)` at `h = 0`, `(43.765867198, 1.543311220)` at `6.096 m`,
+  `(152.464823369, 1.375433044)` at `30 m`, `(262.794137166, 1.103981708)` at `100 m`,
+  `(304.8, 0.8)` **exactly** at `304.8 m`, `(419.1, 1.4)` **exactly** at `457.2 m`, `(533.4, 2.0)`
+  **exactly** at `609.6 m` and unchanged at `1000 m`/`5000 m`/`30 km` — for `W20 = 8.0`,
+  `σ_high = 2.0`, `rel_tol = 1e-12`. The `h = 304.8 m` row is the sharpest single check in the step:
+  it pins the metre→foot conversion, the bracket and the band comparison at once, against round
+  numbers that only appear if all three are right. Also: continuity across both boundaries from both
+  sides (`ε = 1e-6`); monotone `L`/`σ` through the transition band (and with a *small* `σ_high` too,
+  to catch a swapped interpolation weight); `σ_high` read **only** above 1000 ft and `W20` scaling
+  `σ_u` **linearly** below it (double `W20`, double `σ_u`, exactly); `σ_u(1000 ft) == 0.1·wind_ref_ms`
+  exactly under the default `wind_ref_h_m = 10.0`, but `0.1·wind_ref_ms·(6.096/2)^shear_exp` with
+  `wind_ref_h_m = 2.0` — the check that `_mean_speed(_W20_H_M, p)` was used and not a hardcoded
+  field; and `_dryden_turbulence(t, 0.0, p) == (0.0, 0.0)` exactly via the `Σk ≤ 0` guard, with
+  `np.isfinite` everywhere (also at `h = −5.0`).
+- **Check — the spectrum:** the **exact** invariants `Σw_u² == Σw_v² == 2.0` (to `1e-15` relative,
+  at a dozen `(h, V, σ_high, W20)` combinations spanning all three bands); `∫₀^∞ Φ_u dω == σ_u²` and
+  `∫₀^∞ Φ_v dω == σ_v²` numerically to ~`1e-6` (the only check that would catch a mistranscribed
+  PSD); prefactor cancellation — scaling `2L/(πV)` by any positive constant leaves `w_u` unchanged
+  to `~1e-16` (measured `5.55e−17`), which turns §26.9's bound on the reference-speed fiction into a
+  test; the weights are **not monotone** (they rise as `√ω` below the knee, fall as `ω^(−1/2)` above
+  it, peak near `ω_b = V/L`) — a test that only checks `Σw² == 2` would pass with Step 21's random
+  weights; the knee moves with `V` and `h` as predicted, and **doubling `V` halves the break
+  period** (this is also the test that locks the `L_v` factor-of-two convention flagged in §26.14);
+  halving `_TURB_PERIOD_MIN_S` changes `u(t)` but leaves `Σw_u²/2 == 1` exactly; and the capture
+  fractions match §26.11's grid.
+- **Check — the vector composition:** `ê_u·ê_v == 0` and both unit, over a sweep of `δ`; with `v`
+  forced to zero the result equals Step 21's `−(W+u)cos δ, −(W+u)sin δ` **exactly**; with `u` forced
+  to zero the wind *magnitude* grows as `√(W²+v²)` and is identical for `±v` (the check that `v` is
+  genuinely perpendicular rather than a second scalar on the speed — the specific defect of the
+  Step-21 model); with `u < −W` at some `t`, `w_x` **changes sign** instead of saturating at zero
+  (the explicit no-clamp test, so nobody "restores" it later); `wind_inertial(...)[1] == 0.0` exactly
+  with turbulence fully on (the B7 guard); and `wind_inertial`'s `w_x` equals
+  `wind_horizontal_enu`'s first element exactly while the second is nonzero (`v` still discarded).
+- **Check — the pinned headline state** (`t = 3.7 s`, `wind_ref_ms = 8.0`, `wind_ref_h_m = 10.0`,
+  `wind_shear_exp = 0.143`, `wind_dir_deg = 45.0`, `azimuth_deg = 90.0`, `σ_high = 2.0`,
+  `V = 100.0`, `turbulence_seed = 42`, default `gravity_direction`): at `h = 50 m` →
+  `u = −1.5022093894541353`, `v = −3.3434568705794283`, `w_x = −3.694378684994467`,
+  `w_y = 8.422740736577401` (against the no-turbulence `w_x = −7.120782156831056`,
+  `w_y = +7.120782156831056`); at `h = 457.2 m` → `u = −1.6001656723976778`,
+  `v = −2.9278856678836176`; at `h = 1000 m` → `u = −2.3168833092956147`, `v = −3.75706117623484`.
+  Seeds `0`/`7`/`42` at `h = 50 m` give `u = −1.1724777592914615`/`−1.1730878365895998`/
+  `−1.5022093894541353`. `rel_tol = 1e-12` (64-term sums with cancellation — not bit-for-bit across
+  expression orderings). All of these were computed from §26.4's reference implementation and lock
+  the grid, the phase draw order, the amplitude formula and the unit conversions **together**; any
+  one of the four can be wrong while every invariant still passes.
+- **Check — physical sanity:** over a long fine-grained `t` sample, `u` has mean `≈ 0`
+  (`|mean| < 0.01σ`; measured `−5.8e−4` against `σ = 1.27`), sample std within 1 % of `σ_u`
+  (measured `1.2773` vs `1.2747` — loose on purpose, the exact identity is on `Σw²` and a finite
+  sample of a quasi-periodic signal is not the ensemble), and `max|u| ≈ 4σ`, not tens. Intensity
+  ordering with altitude asserted as an ordering (falls from the ground to 1000 ft, then rises to
+  `σ_high`). And a full `run_sim` with turbulence on reaches a **different** apogee than
+  `"none"`, and a different one again for a different seed — the check that the model is actually
+  coupled into the flight at all.
+- **Check — cost, and do not skip it:** record the measured wall-clock of one full `run_sim` with
+  `turbulence_model = "dryden"` against the same scenario with `"none"`. The 15× higher top frequency
+  means a stiffer-looking RHS; `architecture.md` §26.6 predicts roughly an order of magnitude more
+  solver steps (`wᵢ ∝ ω^(−1/2)` in the tail ⇒ RK45 step `∝ ω^(−0.9)`). If it is worse than ~30× or
+  fails to converge, **stop and report** — `_TURB_PERIOD_MIN_S` is the dial and it is a module
+  constant precisely so that is a one-line decision, but changing it invalidates §26.11's pins, so
+  it is a reported decision, not a quiet edit.
+- **Commit:** "Dryden turbulence model for tier-1 wind gusts, replacing the Step-21 placeholder"
+  — **not done, spec only.** The `models.tex` staleness is resolved (above): the user nominated the
+  research note + `architecture.md` §26 as the interim physics reference, so implementation may
+  proceed.
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -1140,12 +1417,20 @@ Derived in `latex/sections/models.tex` §Atmosphere > Density, specified in `arc
 
 ### B6 — Crosswind (out-of-plane) effects
 Phase 2 discards the cross-plane wind component by construction (`architecture.md` §16); real
-crosswind weathercocking needs the Phase 3 degrees of freedom.
+crosswind weathercocking needs the Phase 3 degrees of freedom. **Step 46 adds a second thing waiting
+on this**: the Dryden cross-wind component `v` is computed and returned by `wind_horizontal_enu` but
+discarded by `wind_inertial`, exactly like the mean `w_y` — so `v` changes no 2D trajectory and is
+Phase-3 scaffolding (`architecture.md` §26.7).
 
 ### B7 — Vertical wind
 `main.tex` §Models > Wind > Vertical wind: no theory found (terrain-slope orographic lift, thermal
 parameterizations) that fits the current data pipeline (station soundings, no terrain/NWP source)
-without adding a new data dependency. Revisit if/when such a source is added.
+without adding a new data dependency. Revisit if/when such a source is added. **Step 46 narrows the
+gap without closing it:** the Dryden vertical PSD `Φ_w` *is* verified and recorded (research note
+§3.3, structurally identical to `Φ_v` with `L_w = h`, `σ_w = 0.1·W20`), so turbulent vertical gusts
+are now a handful of lines — but that is only the *turbulent* part, not the mean updraft/downdraft
+this entry is about, and the user's deferral was explicitly reaffirmed when Step 46 was scoped
+(research note §4.3/§5). `wind_inertial`'s `w_z` stays exactly `0.0`.
 
 ### B8 — `h_true` for the altitude-dependent models — **PROMOTED to Step 45**
 `latex/sections-ai/models.tex` eq. `h_true` says the curved-ground altitude should replace `−z`
@@ -1186,6 +1471,29 @@ slender-body method both need a body radius/volume profile `d_ref` alone can't s
 the user with these findings; **decision: leave the Step 44 test fixture in place**, no code change.
 Revisit if fin geometry is ever modeled for other reasons.
 
+### B10 — Turbulence on the measured wind tiers (2 and 3)  *(opened by Step 46)*
+Step 46 puts Dryden turbulence on tier 1 only, exactly as Step 21's gusts were tier-1 only
+(`architecture.md` §26.10). Two real questions stand in the way, neither of which is a coding
+problem: (1) the MIL intensity profile is keyed on `W20` — the mean wind at 20 ft **AGL** — and a
+measured sounding is an MSL-referenced profile from a station whose own 20 ft wind is not in the
+file; (2) a measured profile's own vertical shear already contains some of what Dryden would add, so
+superposing the two risks double-counting. Deciding either needs a look at what a radiosonde profile
+actually resolves. **Do not** fold this into Step 46.
+
+### B11 — State-coupled turbulence (true airspeed instead of a fixed reference)  *(opened by Step 46)*
+Step 46 freezes the Taylor frozen-turbulence conversion speed at one `turbulence_ref_speed_ms` for
+the whole flight — the user's decision, documented as a known simplification
+(`architecture.md` §26.9, research note §4.1/§5). The "gold standard" alternative drives a linear
+filter with white noise at the *instantaneous* true airspeed, and that is **incompatible with Step
+21's determinism constraint**: the airspeed at `t` is part of what the solver is still solving for,
+and the RHS is re-evaluated at repeated and rejected times. Picking this up means either a
+fundamentally different integration strategy (fixed-step, with the filter state carried in the state
+vector) or an outer iteration that freezes a speed profile from a first pass and re-runs — both
+large, both changing far more than `wind.py`. The consolation, which is why this is low priority:
+after Step 46's renormalisation `V` affects **only** the spectrum's break frequency, never the
+turbulence intensity (§26.9), so the error this entry would remove is bounded and legible rather
+than pervasive.
+
 ---
 
 ## Dependency summary
@@ -1207,10 +1515,13 @@ Revisit if fin geometry is ever modeled for other reasons.
                                      ↓
                                     45                       Phase 2.8: needs 41 and 42 — DONE
                                      ↓
+                                    46                       Phase 2.9: needs 21 and 45 — SPEC ONLY
+                                     ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
 Backlog (unscheduled): B1 launch rail · B2 recovery · B3 EGM gravity · B6 crosswind
                        B7 vertical wind (no fitting theory found) · B9 a real c_mq value
+                       B10 turbulence on wind tiers 2/3 · B11 state-coupled turbulence  (both new at 46)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40
                              B8 → Step 45
 ```
@@ -1235,6 +1546,14 @@ package in a state where two modules disagree about what altitude means, which i
 the step exists to remove. It adds no `Params` field, so it is also the first step whose
 bit-for-bit gate is an *existing* field's default.
 
+Phase 2.9 is a single step, **46 needs 21 and 45** — it rewrites Step 21's gust internals in place
+and reuses Step 45's `gravity.altitude_agl(y, p)` as the altitude source, unchanged. It touches only
+`sim/params.py`, `sim/wind.py` and `tests/test_wind.py`, which makes it the narrowest step since
+Step 40 — but it is also the **only** step since 38 that is deliberately not bit-for-bit for every
+configuration (a run with `gust_sigma > 0.0` changes, by design — `architecture.md` §26.1), and the
+first since Step 34 to **remove** anything from the public surface (`gust_sigma` deleted, `gust_seed`
+renamed to `turbulence_seed`). It is **blocked** — see the table below.
+
 Steps in `[brackets]` are optional or gated. Step 21 (analytic wind) depends only on Step 13 and
 may be pulled forward. **Blocked or gated steps:**
 
@@ -1249,6 +1568,7 @@ may be pulled forward. **Blocked or gated steps:**
 | 42 | Step 41 (needs `gravity.curvature_radius` and the `"elliptical"` value) |
 | 44 | the `c_mq` **sign** question — `architecture.md` §24.4 resolves it (`c_mq > 0` is damping here) and proposes the `analysis.tex` correction; agree it before the tests are written |
 | 45 | Steps 41 and 42 (consumes `curvature_radius` and `ground_depth` unchanged). The reported-altitude scope call is **settled**: the user chose the curved reading everywhere, so `run.py`/`plotting.py` are in scope (`architecture.md` §25.5) while every event *trigger* stays exactly as it is |
+| 46 | ~~`latex/sections-ai/models.tex` §Wind > Analytic (lines ~514-526) still documents the Step-21 placeholder~~ — **resolved 2026-10-02**: the user nominated `latex/research/dryden_turbulence_model.md` + `architecture.md` §26 as the interim physics reference, `models.tex` to be brought in line later by the user. Not blocked. The four design forks are **settled** (research note §5): fixed reference airspeed, user-set high-altitude `σ`, horizontal `u`/`v` only. Carried as a *named* uncertainty, not a blocker: the `L_v` factor-of-two convention (§26.14 risk 1), locked by a break-frequency test so a correction would be a one-line change and a loud test failure |
 
 Steps 38 and 39 are **not blocked**: both derivations now exist
 (`latex/sections/models.tex` §Gravity > Direction, `latex/sections/analysis.tex` §With thrust,
