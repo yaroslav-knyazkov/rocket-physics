@@ -25,8 +25,8 @@ the existing `gravity_direction = "parallel"` as the bit-for-bit gate — **DONE
 MIL-F-8785C/MIL-HDBK-1797 **Dryden** turbulence spectrum — altitude-dependent scale length and
 intensity (AGL), amplitudes from the published PSD, and two horizontal components composed as a
 *vector* perturbation of the mean wind instead of one scalar on its speed — gated by a new
-`turbulence_model = "none"` default; **SPECIFIED, not implemented**, and the only step so far that
-is deliberately *not* bit-for-bit for one configuration (any run that had gusts on), which
+`turbulence_model = "none"` default — **DONE and committed, still 2D**, and the only step so far
+that is deliberately *not* bit-for-bit for one configuration (any run that had gusts on), which
 `architecture.md` §26.1 argues as a documented behaviour change rather than a regression.
 Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
@@ -1084,8 +1084,9 @@ non-negativity clamp, `σ = 0` as the off switch), all three contradicted by thi
 makes the LaTeX the source of truth and it is the user's document, so this needed the user's call
 before implementation: **the user nominated the research note + `architecture.md` §26 as the interim
 physics reference**, with `models.tex` §Wind > Analytic to be brought in line later (the user's own
-edit, not a developer's). Implementation is **unblocked**. A developer must still **not** resolve the
-mismatch by editing `models.tex` (`architecture.md` §26.14).
+edit, not a developer's). **Implemented and committed on that basis** (Step 46 below) — the mismatch
+with `models.tex` was not resolved by editing it (`architecture.md` §26.14), and still stands as the
+user's own follow-up.
 
 ### Step 46 — Dryden turbulence spectrum for tier-1 gusts (replacing the Step-21 placeholder)
 - **Files:** `sim/params.py`, `sim/wind.py`, `tests/test_wind.py`
@@ -1312,10 +1313,18 @@ mismatch by editing `models.tex` (`architecture.md` §26.14).
   fails to converge, **stop and report** — `_TURB_PERIOD_MIN_S` is the dial and it is a module
   constant precisely so that is a one-line decision, but changing it invalidates §26.11's pins, so
   it is a reported decision, not a quiet edit.
-- **Commit:** "Dryden turbulence model for tier-1 wind gusts, replacing the Step-21 placeholder"
-  — **not done, spec only.** The `models.tex` staleness is resolved (above): the user nominated the
-  research note + `architecture.md` §26 as the interim physics reference, so implementation may
-  proceed.
+- **Commit:** "Dryden turbulence model for tier-1 wind gusts, replacing the Step-21 placeholder" —
+  **done, spec `3193802`, implementation `34e1127`.** Full suite 220/220, independently re-run by the
+  orchestrator (not just the implementing agent's report); every §26.11 pinned number reproduced by
+  running the live code directly (the altitude scale-length/intensity table, the frequency-grid
+  constants, the headline `(u, v, w_x, w_y)` state, the seed-sensitivity table, the exact
+  `Σw²/2 == 1` invariants) and matched to the last digit; `run.py` output unchanged (committed
+  scenario is `wind_model = "none"`, structurally unaffected — only the printed `Params` repr differs,
+  showing the renamed fields). Measured turbulence-on cost: ~2.2× solver steps, well inside the ~30×
+  gate — `_TURB_PERIOD_MIN_S` untouched. The `models.tex` staleness noted above is resolved (the user
+  nominated the research note + `architecture.md` §26 as the interim physics reference);
+  `latex/sections-ai/models.tex` §Wind > Analytic itself is still unedited and remains the user's own
+  follow-up, not part of this step.
 
 ---
 
@@ -1515,7 +1524,7 @@ than pervasive.
                                      ↓
                                     45                       Phase 2.8: needs 41 and 42 — DONE
                                      ↓
-                                    46                       Phase 2.9: needs 21 and 45 — SPEC ONLY
+                                    46                       Phase 2.9: needs 21 and 45 — DONE
                                      ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 

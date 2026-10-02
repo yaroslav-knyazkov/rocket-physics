@@ -19,13 +19,17 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
 **Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
-COMPLETE** — still 2D, not Phase 3. 220/220 tests passing. Backlog items B4, B5 and B8 (the three
-promoted out of the backlog this push) are all now done; remaining backlog: B1 launch rail, B2
-recovery/parachute, B3 gridded EGM gravity, B6 crosswind (parked for Phase 3), B7 vertical wind
-(parked, user researching), B9 a real `c_mq` value (researched 2026-09-28 — see "B9 research" note
-below — user chose to keep the Step 44 test fixture rather than adopt OpenRocket's method). Next:
-Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead; or one of the remaining
-deferred items above. See "Phase 2.8 milestone: COMPLETE" below. Steps 33-35:
+COMPLETE**, **Phase 2.9 (Step 46) COMPLETE** — still 2D, not Phase 3. 220/220 tests passing. Backlog
+items B4, B5 and B8 are done (promoted at earlier phases); remaining backlog: B1 launch rail, B2
+recovery/parachute, B3 gridded EGM gravity, B6 crosswind (parked for Phase 3, now with a second item
+waiting on it — Step 46's Dryden cross-wind `v`), B7 vertical wind (parked; Step 46 narrowed but did
+not close the gap — the verified `Φ_w` turbulence formula exists, the mean updraft/downdraft question
+does not), B9 a real `c_mq` value (researched 2026-09-28 — user chose to keep the Step 44 test fixture
+rather than adopt OpenRocket's method), B10 turbulence on wind tiers 2/3 and B11 state-coupled
+turbulence (both opened by Step 46). Also outstanding, as the user's own follow-up, not blocking
+anything: `latex/sections-ai/models.tex` §Wind > Analytic still documents the pre-Step-46 placeholder
+gust formula. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead; or one of
+the remaining deferred items above. See "Phase 2.9 milestone: COMPLETE" below. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -142,6 +146,82 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
+
+## Phase 2.9 milestone: COMPLETE (2026-10-02) — Step 46 implemented and committed
+
+User request: "add wind gusts and turbulence power models." Turned out to be closing a real
+spec-vs-implementation gap rather than greenfield work — `architecture.md` §16 had promised "amplitudes
+from a von Kármán/Dryden-like spectrum" since Step 21, but the implementation shipped was a half-normal
+random weighting with no spectral shape and no altitude dependence, never actually that.
+
+- **Step 46 — Dryden turbulence spectrum for tier-1 wind gusts** (spec `3193802`, implementation
+  `34e1127`). Replaces `sim/wind.py`'s `_gust_realization`/`_gust` with the real MIL-F-8785C /
+  MIL-HDBK-1797 Dryden model: altitude-dependent scale length `L_u` and intensity `σ_u` (AGL, via the
+  existing `gravity.altitude_agl`), amplitudes drawn from the published PSD and renormalized to an
+  exact `Σw² == 2` variance identity (correcting a real Step-21 bug along the way — its own
+  normalization was off by `√2`), and **two** horizontal components (`u` along-wind, `v` cross-wind)
+  composed as a *vector* perturbation of the mean wind instead of one scalar added to its speed (which
+  also removes the old non-negativity clamp — with a vector perturbation, a negative along-component
+  is the correct physics of a gust reversing the local flow, not a bug to guard against).
+  `Params.gust_sigma`/`gust_seed` removed; `turbulence_model` ("none"|"dryden"),
+  `turbulence_sigma_high_ms`, `turbulence_ref_speed_ms`, `turbulence_seed` added. Default
+  (`turbulence_model="none"`) reproduces every prior result bit-for-bit — the only step since 38 that
+  is deliberately **not** bit-for-bit for every configuration (a run with the old gusts on changes,
+  by design, since nothing in the repo pinned a value from that placeholder scheme).
+
+- **Formulas verified against two primary sources, read directly rather than reconstructed.** A
+  research pass (`latex/research/dryden_turbulence_model.md`) fetched and visually read a NASA Langley
+  conference paper (Madden, NTRS 20190000875, the Dryden PSD equations) and a UAV-wind-modeling
+  dissertation chapter (Cole & Wickenheiser, arXiv:1905.09954, the MIL-F-8785C low-altitude
+  scale-length/intensity table) as rendered pages. This caught a real transcription hazard before it
+  reached the spec: an initial tool-summarized reading of a different source had misread the
+  scale-length formula as a product (`h·(0.177+0.000823h)^1.2`) instead of a quotient; both primary
+  sources, read directly, confirmed it is a quotient. Same verify-before-trust standard as the B9
+  `c_mq` research pass.
+
+- **Four design forks, resolved by the user before speccing:** (1) spectrum choice — Dryden, not von
+  Kármán (its `^(5/6)` PSD would need its own verification pass); (2) altitude dependence — real
+  MIL-spec formulas, not a flat constant; (3) the Taylor frozen-turbulence reference airspeed `V` (the
+  rocket's true airspeed spans 0 to supersonic, incompatible with the solver-determinism constraint
+  that forbids any RHS dependence on it) — a **fixed** `turbulence_ref_speed_ms`, documented as a known
+  simplification whose damage is precisely bounded: after renormalization `V` and `L` enter the model
+  only through the ratio `L/V`, so `V` affects *only* the spectrum's break frequency, never the
+  delivered intensity; (4) the isotropic intensity above 2000 ft AGL (MIL-spec gives only a chart, no
+  formula) — a user-set `Params` field, not a hardcoded light/moderate/severe preset.
+
+- **A genuine blocker, surfaced rather than silently resolved.** The architect found
+  `latex/sections-ai/models.tex` §Wind > Analytic still documents the Step-21 placeholder verbatim,
+  contradicting the new spec in three places (the scalar perturbation, the non-negativity clamp, the
+  off-switch). Working rule 1 makes the LaTeX the source of truth and it is the user's own document, so
+  implementation was blocked until the user chose: nominate the research note + `architecture.md` §26
+  as the interim physics reference, with `models.tex` to be brought in line later by the user's own
+  edit — not a developer's. `models.tex` itself remains unedited; that is still outstanding as the
+  user's follow-up, not part of this step.
+
+- **Verification, independent of the implementing agent's self-report** (this project's standing
+  practice, repeated here): full suite re-run by the orchestrator directly — 220/220 passed. Every
+  pinned number in `architecture.md` §26.11 (the 9-row altitude scale-length/intensity table including
+  three exact boundary values, the frequency-grid constants, the headline `(u,v,w_x,w_y)` state at
+  `t=3.7s`, the 3-seed sensitivity table, the exact `Σw²/2 == 1` invariants) reproduced by running the
+  live code directly against the spec's table — matched to the last digit, nothing needed reconciling.
+  `run.py` re-run and confirmed numerically unchanged (the committed scenario uses `wind_model="none"`,
+  structurally unaffected — only the printed `Params` repr differs, showing the renamed fields).
+  Turbulence-on cost measured at ~2.2× solver steps (the spec's own worst-case estimate was ~10×, gated
+  at "stop and report if worse than ~30×") — no constant tuning needed.
+
+- **Named, bounded uncertainty, not swept under the rug:** the `L_v` factor-of-two convention. Some
+  editions/renderings of MIL-F-8785C write the lateral/vertical PSDs in terms of `2L_v`/`2L_w`; the
+  research note's `L_u = L_v` pairing is self-consistent with the PSD form it transcribed (both
+  integrate to `σ²` exactly either way — normalization alone cannot discriminate between the two
+  conventions), but only the spectrum's break frequency can tell them apart. A pinned break-frequency
+  test exists specifically so a future correction (one line: `L_v = L_u/2`, `σ_v` unaffected) would be
+  a loud test failure, not a silent drift.
+
+- **Two backlog items opened:** **B10** (turbulence on the measured wind tiers 2/3 — needs `W20` and
+  an AGL altitude a measured sounding doesn't carry, plus a double-counting question against the
+  sounding's own resolved shear) and **B11** (state-coupled turbulence using true instantaneous
+  airspeed instead of a fixed reference — the "gold standard," incompatible with the solver-determinism
+  constraint without a fundamentally different integration strategy).
 
 ## Phase 2.8 milestone: COMPLETE (2026-09-28) — Step 45 implemented and committed
 
