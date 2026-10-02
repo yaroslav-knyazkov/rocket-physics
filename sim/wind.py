@@ -2,7 +2,7 @@
 (architecture.md SS16; main.tex SSModels > Wind; roadmap.md Step 21).
 
 Tier 1, "analytic" (constant direction + power-law shear + optional
-deterministic gusts), was implemented at Step 21. Tier 2, "sounding" (one
+deterministic turbulence), was implemented at Step 21. Tier 2, "sounding" (one
 station's measured `(u, v)` profile, interpolated in altitude via
 sim/soundings.py), was added at Step 22. Tier 3, "field" (N stations,
 spatially interpolated, SS17), is added at this step (Step 23).
@@ -24,18 +24,24 @@ discards `w_y`. This is a deliberate, documented modelling limitation --
 representing crosswind weathercocking needs the out-of-plane degree of
 freedom that only Phase 3 has (architecture.md SS16) -- not an oversight.
 
-### Deterministic gusts
+### Deterministic turbulence (Step 46, Dryden; architecture.md SS26)
 
 `solve_ivp` evaluates its RHS at arbitrary, repeated, and sometimes-
-rejected times, so the gust perturbation must be a **deterministic
-function of `t` alone** -- a fresh random draw per call would make the RHS
-a non-function of `t`, destroying the adaptive solver's step-size control
+rejected times, so the turbulence perturbation must be a **deterministic
+function of its arguments alone** -- a fresh random draw per call would make
+the RHS a non-function, destroying the adaptive solver's step-size control
 and any reproducibility. It is therefore a frozen sum of sinusoids whose
-frequencies/phases are drawn once from `np.random.default_rng(p.gust_seed)`
-and cached per seed (`_gust_realization`, `@lru_cache`, same convention as
-`thrust_curve._load_motor_curve`/`soundings.load_case`). `gust_sigma = 0.0`
-(the default) skips the realization/RNG entirely and returns exactly
-`0.0`, so gusts are off, not merely small.
+frequencies/phases are drawn once from `np.random.default_rng(p.turbulence_seed)`
+and cached per seed (`_turbulence_realization`, `@lru_cache`, same convention
+as `thrust_curve._load_motor_curve`/`soundings.load_case`). This replaces
+Step 21's placeholder (`_gust_realization`/`_gust`: half-normal random
+weights, no altitude dependence, no spectrum -- see architecture.md SS26.1
+for the full accounting) with the real MIL-F-8785C/MIL-HDBK-1797 Dryden
+turbulence spectrum: altitude-dependent scale lengths and intensities, two
+horizontal components (`u` along-wind, `v` cross-wind), amplitudes drawn
+from the published PSD instead of an arbitrary draw.
+`turbulence_model = "none"` (the default) skips the realization/RNG entirely
+and returns exactly `(0.0, 0.0)`, so turbulence is off, not merely small.
 
 Step 45 (Phase 2.8; models.tex SSGravity > Direction, eq. `h_true`;
 architecture.md SS25): tier 1's `h` and tiers 2/3's `h_msl` now go through
@@ -63,51 +69,182 @@ def _no_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     return (0.0, 0.0)
 
 
-_GUST_N = 8  # number of superposed sinusoids in the frozen gust realization
+_M_PER_FT = 0.3048          # the international foot, exactly (not an approximation)
+_W20_H_M = 20.0 * _M_PER_FT  # 6.096 m -- the MIL-spec reference height for W20
+_H_LOW_FT = 1000.0           # top of the low-altitude regime        (MIL-F-8785C)
+_H_HIGH_FT = 2000.0          # bottom of the isotropic free-atmosphere regime
+_L_HIGH_FT = 1750.0          # isotropic scale length above _H_HIGH_FT (= 533.4 m)
+
+_TURB_N = 64                 # superposed sinusoids per component (was _GUST_N = 8)
+_TURB_PERIOD_MAX_S = 600.0   # longest period in the synthesis band  (omega ~ 0.01047 rad/s)
+_TURB_PERIOD_MIN_S = 0.2     # shortest period in the synthesis band (omega ~ 31.42 rad/s)
+
+
+def _mean_speed(h: float, p) -> float:
+    """Tier 1's mean wind speed at altitude `h` AGL [m] -- the power-law
+    shear profile, clamped below `p.wind_ref_h_m` rather than extrapolated
+    to zero at the ground (architecture.md SS16).
+
+    Extracted from `_analytic_wind` at Step 46 because the Dryden model
+    needs the *same* profile evaluated at 20 ft (`_W20_H_M`) for `W20`
+    (architecture.md SS26.3): one expression, one implementation, so a
+    scenario cannot have two different mean winds. The expression is
+    character-for-character Step 21's, so `_analytic_wind` is bitwise
+    unchanged by the extraction.
+    """
+    h_ref = p.wind_ref_h_m
+    return p.wind_ref_ms * (max(h, h_ref) / h_ref) ** p.wind_shear_exp
 
 
 @functools.lru_cache(maxsize=None)
-def _gust_realization(seed: int):
-    """Build the frozen `(omega_i, phi_i, weight_i)` triple once per
-    `gust_seed`, cached so repeated calls at different `t` reuse the same
-    realization instead of redrawing the RNG (architecture.md SS16:
-    "realisation built lazily and cached per seed").
+def _turbulence_realization(seed: int):
+    """The frozen part of the realization: the frequency grid and the two
+    independent phase sets (architecture.md SS26.6). Cached per seed, same
+    convention as the Step-21 `_gust_realization` it replaces.
 
-    Frequencies are log-spaced over a plausible atmospheric-gust band
-    (periods from ~3 s to ~10 minutes) so no two components are near-
-    degenerate; phases are uniform in `[0, 2*pi)`; weights are drawn from
-    a half-normal shape (`abs` of a standard normal) and then normalised
-    so `sum(weight_i**2) == 1` -- this makes `p.gust_sigma` approximately
-    the resulting perturbation's standard deviation, a physically legible
-    knob, regardless of `_GUST_N`.
+    Only the PHASES are random. The frequencies are a deterministic
+    log-spaced grid, exactly as in Step 21 -- a seed needs to decorrelate
+    realizations, and independent phases do that; randomising the grid as
+    well would only make the pinned numbers depend on 64 more draws.
+
+    `domegas` are the bin widths of the geometric grid, taken between
+    geometric-mean bin edges: with ratio `r = (w[-1]/w[0])**(1/(N-1))`, bin
+    `i` spans `w_i/sqrt(r) .. w_i*sqrt(r)`, so `dw_i = w_i*(sqrt(r) -
+    1/sqrt(r))` and the bins tile `[w_0/sqrt(r), w_-1*sqrt(r)]` with no gap
+    and no overlap. `sum(domegas)` therefore equals that span exactly (to
+    roundoff), which makes `sum(Phi_i*dw_i)` a genuine Riemann sum of
+    `integral Phi dw` -- the property SS26.6's amplitude formula rests on.
+
+    DRAW ORDER IS PART OF THE SPEC: `phases_u` first, then `phases_v`, from
+    one `default_rng(seed)`. Swapping them changes every pinned number in
+    SS26.11 while breaking no invariant -- which is exactly why it is pinned.
     """
-    rng = np.random.default_rng(seed)
-    periods_s = np.geomspace(3.0, 600.0, _GUST_N)
+    periods_s = np.geomspace(_TURB_PERIOD_MAX_S, _TURB_PERIOD_MIN_S, _TURB_N)
     omegas = 2.0 * np.pi / periods_s
-    phases = rng.uniform(0.0, 2.0 * np.pi, _GUST_N)
-    weights = np.abs(rng.normal(0.0, 1.0, _GUST_N))
-    weights = weights / np.sqrt(np.sum(weights ** 2))
-    return omegas, phases, weights
+    r = (omegas[-1] / omegas[0]) ** (1.0 / (_TURB_N - 1))
+    domegas = omegas * (np.sqrt(r) - 1.0 / np.sqrt(r))
+    rng = np.random.default_rng(seed)
+    phases_u = rng.uniform(0.0, 2.0 * np.pi, _TURB_N)
+    phases_v = rng.uniform(0.0, 2.0 * np.pi, _TURB_N)
+    return omegas, domegas, phases_u, phases_v
 
 
-def _gust(t: float, p) -> float:
-    """Deterministic gust perturbation [m/s] added to `W(h)` below.
+def _dryden_scales(h: float, p) -> tuple[float, float]:
+    """`(L_u, sigma_u)` in **metres** and **m/s** at altitude `h` AGL
+    [metres] -- the MIL-F-8785C/MIL-HDBK-1797 horizontal scale length and
+    intensity (architecture.md SS26.2/SS26.5; research note SS3).
 
-    `gust_sigma == 0.0` (the default) returns exactly `0.0` without
-    touching the RNG or the realization at all -- gusts off entirely, not
-    just small. Otherwise this is a repeatable, pure function of `t` and
-    `p.gust_seed`/`p.gust_sigma` only: calling it twice with the same
-    arguments is bit-for-bit identical (no per-call randomness).
+    `L_v == L_u` and `sigma_v == sigma_u` in this model, so one pair serves
+    both horizontal components. The vertical (`w`) component is out of
+    scope (backlog B7, architecture.md SS26.10).
+
+    Units: the MIL formulas are in feet. `h` is converted to feet ONCE here;
+    the `0.177 + 0.000823*h_ft` bracket is dimensionless but only with `h`
+    in feet, `L` comes out in feet and is converted back, and `sigma` needs
+    no conversion because the formula is linear in `W20` (SS26.2's table).
     """
-    if p.gust_sigma == 0.0:
-        return 0.0
-    omegas, phases, weights = _gust_realization(p.gust_seed)
-    return float(p.gust_sigma * np.sum(weights * np.sin(omegas * t + phases)))
+    h_ft = max(h, 0.0) / _M_PER_FT   # clamp: a negative h would give a negative L
+    sigma_w = 0.1 * _mean_speed(_W20_H_M, p)      # = 0.1*W20, already m/s
+
+    def _low(hf: float) -> tuple[float, float]:
+        bracket = 0.177 + 0.000823 * hf
+        return hf / bracket ** 1.2, sigma_w / bracket ** 0.4   # (L [ft], sigma [m/s])
+
+    if h_ft <= _H_LOW_FT:
+        L_ft, sigma = _low(h_ft)
+    elif h_ft >= _H_HIGH_FT:
+        L_ft, sigma = _L_HIGH_FT, p.turbulence_sigma_high_ms
+    else:
+        # MIL-F-8785C leaves 1000-2000 ft undefined; implementors fill it
+        # with a linear interpolation of the PARAMETERS between the two
+        # regimes' boundary values (research note SS3.5). At exactly
+        # 1000 ft the bracket is 0.177 + 0.823 == 1.0 exactly, so the low
+        # anchor is L = 1000 ft and sigma = 0.1*W20 with no arithmetic.
+        L_lo, sigma_lo = _low(_H_LOW_FT)
+        f = (h_ft - _H_LOW_FT) / (_H_HIGH_FT - _H_LOW_FT)
+        L_ft = (1.0 - f) * L_lo + f * _L_HIGH_FT
+        sigma = (1.0 - f) * sigma_lo + f * p.turbulence_sigma_high_ms
+
+    return L_ft * _M_PER_FT, sigma
+
+
+def _no_turbulence(t: float, h: float, p) -> tuple[float, float]:
+    """Tier-1 turbulence model "none" (the default): no perturbation at
+    all. Returns exact zeros without building a realization or touching the
+    RNG -- turbulence off, not merely small, the same off-switch standard
+    Step 21's `gust_sigma == 0.0` set (architecture.md SS26.3).
+    """
+    return (0.0, 0.0)
+
+
+def _dryden_turbulence(t: float, h: float, p) -> tuple[float, float]:
+    """`(u, v)` [m/s]: the along-wind and cross-wind Dryden turbulence
+    components at time `t` and altitude `h` AGL [m] (architecture.md SS26).
+
+    A frozen sum of sinusoids, `sigma * sum_i w_i*sin(omega_i*t + phi_i)`,
+    with the SHAPE of the weights taken from the Dryden PSD instead of the
+    Step-21 half-normal draw:
+
+        k_i = Phi(omega_i) * domega_i        (energy in bin i)
+        w_i = sqrt(2*k_i / sum_j k_j)        => sum_i w_i**2 == 2 exactly
+                                             => Var[u] == sigma**2 exactly
+
+    The `sqrt(2*Phi*domega)` of textbook random-phase spectral synthesis,
+    renormalised by `sum k` so the realised variance is EXACTLY `sigma**2`
+    rather than the 81-98 % of it that the finite band captures
+    (architecture.md SS26.6 pins the capture fraction and argues the
+    choice). Note that the constant prefactors `2L/(pi*V)` and `L/(pi*V)`
+    cancel in `k_i/sum k`; they are written out anyway so the code visibly
+    matches the cited formula, and SS26.12 asserts the cancellation.
+
+    `sigma**2` IS LEFT OUT of `k_u`/`k_v` below -- it is a common factor and
+    cancels in `k_i/sum k` just as the prefactors do, and leaving it out
+    keeps `sigma` appearing exactly once, in the final line. The consequence
+    for testing, stated because it is the easy mistake: `k_u.sum()` IS the
+    capture fraction `integral_band Phi_u dw / sigma_u**2` directly -- do NOT
+    divide it by `sigma**2` again when comparing against SS26.11's pinned
+    capture table.
+
+    The weights depend on altitude (through `L`, and on `V`), so they are
+    recomputed per call and CANNOT live in the `lru_cache` -- only the grid
+    and the phases are frozen. That is not a determinism problem: `h` is a
+    function of the state, exactly like the mean profile's own `W(h)`
+    (architecture.md SS26.8).
+    """
+    omegas, domegas, phases_u, phases_v = _turbulence_realization(p.turbulence_seed)
+    L, sigma = _dryden_scales(h, p)
+    V = p.turbulence_ref_speed_ms
+
+    x2 = (L * omegas / V) ** 2
+    k_u = (2.0 * L / (np.pi * V)) / (1.0 + x2) * domegas
+    k_v = (L / (np.pi * V)) * (1.0 + 3.0 * x2) / (1.0 + x2) ** 2 * domegas
+    sum_u, sum_v = k_u.sum(), k_v.sum()
+    if sum_u <= 0.0 or sum_v <= 0.0:
+        # Only reachable at h <= 0, where the MIL formula gives L == 0 and
+        # the whole spectrum collapses to zero energy (sigma stays finite,
+        # so this is a genuine 0/0 and must be guarded, not relied on).
+        return (0.0, 0.0)
+
+    w_u = np.sqrt(2.0 * k_u / sum_u)
+    w_v = np.sqrt(2.0 * k_v / sum_v)
+    u = sigma * float(np.sum(w_u * np.sin(omegas * t + phases_u)))
+    v = sigma * float(np.sum(w_v * np.sin(omegas * t + phases_v)))
+    return (u, v)
+
+
+# Module-private dispatch dict (architecture.md SS12), nested inside tier 1
+# the same way `_GRAVITY_DIRECTIONS` sits beside `_GRAVITY_MODELS` (SS23.1):
+# orthogonal to `_MODELS` below, not a product of names. Unknown strings
+# raise KeyError at the first call -- no input validation (SS7).
+_TURBULENCE_MODELS = {
+    "none": _no_turbulence,
+    "dryden": _dryden_turbulence,
+}
 
 
 def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
-    """Tier 1: power-law shear + constant direction + optional deterministic
-    gusts (architecture.md SS16):
+    """Tier 1: power-law shear + constant direction + optional Dryden
+    turbulence (architecture.md SS16, SS26):
 
         W(h) = W_ref*(max(h, h_ref)/h_ref)^shear_exp
         wdir = wind_dir_deg    (constant with altitude for tier 1)
@@ -121,22 +258,28 @@ def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     Clamped *below* `h_ref` rather than extrapolated toward zero at the
     ground (architecture.md SS16): for `h < h_ref`, `W(h) == W_ref`.
 
-    The gust perturbation is added directly to `W(h)` and then clamped to
-    be non-negative: `W(h)` is a wind *speed*, and a large negative gust
-    on top of a small `W_ref` could otherwise drive the sum below zero,
-    which has no physical meaning for a speed (it would silently flip the
-    wind direction by 180 degrees instead of just weakening it). The clamp
-    only ever engages when `gust_sigma` is comparable to or larger than
-    `W_ref` itself; for `gust_sigma == 0.0` it is a no-op.
+    The turbulence perturbation is now a VECTOR, `(u, v)` along/across the
+    mean wind direction (architecture.md SS26.7), composed with `ê_u =
+    (-cos d, -sin d)` and `ê_v = (sin d, -cos d)` (`ê_u` rotated +90 deg in
+    the `(x, y)` plane):
+
+        (w_x, w_y) = (W + u)*ê_u + v*ê_v
+
+    which reduces to Step 21's `-(W + delta)*cos/sin d` exactly when `v ==
+    0`. The non-negativity clamp Step 21 applied to `W + delta` is GONE:
+    perturbing a vector along `ê_u` makes a negative `W + u` the correct
+    physical statement that the gust has reversed the local flow, not a
+    silent 180-degree flip to be protected against (architecture.md
+    SS26.7 item 3).
     """
     h = altitude_agl(y, p)
-    h_ref = p.wind_ref_h_m
-    W = p.wind_ref_ms * (max(h, h_ref) / h_ref) ** p.wind_shear_exp
-    W = max(W + _gust(t, p), 0.0)
+    W = _mean_speed(h, p)
+    u, v = _TURBULENCE_MODELS[p.turbulence_model](t, h, p)
 
     delta = np.radians(p.wind_dir_deg - p.azimuth_deg)
-    w_x = -W * np.cos(delta)
-    w_y = -W * np.sin(delta)
+    cos_d, sin_d = np.cos(delta), np.sin(delta)
+    w_x = -(W + u) * cos_d + v * sin_d
+    w_y = -(W + u) * sin_d - v * cos_d
     return (w_x, w_y)
 
 

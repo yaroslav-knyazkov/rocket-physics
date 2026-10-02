@@ -216,20 +216,29 @@ def test_headwind_and_tailwind_bracket_the_still_air_apogee():
 
 
 # ----------------------------------------------------------------------
-# Gust determinism (the hard solve_ivp constraint, architecture.md SS16)
+# Turbulence determinism (the hard solve_ivp constraint, architecture.md
+# SS26.8, inherited unchanged from Step 21's SS16 gust constraint; the two
+# tests below replace Step 21's gust tests -- rewritten against the new
+# `turbulence_model`/`turbulence_seed` fields, same properties asserted:
+# bit-for-bit determinism, per-seed reproducibility, seed sensitivity, and
+# the exact off-switch. There is no prior "real" gusty value to preserve
+# (the half-normal weighting Step 21 shipped was itself a placeholder,
+# architecture.md SS26.1), so neither test pins a value from the old scheme.
 # ----------------------------------------------------------------------
 
 
-def test_gust_is_deterministic_bit_for_bit_across_repeated_calls():
+def test_turbulence_is_deterministic_bit_for_bit_across_repeated_calls():
     """`solve_ivp` evaluates the RHS at arbitrary, repeated, and rejected
-    times, so the gust perturbation must be a pure, repeatable function of
-    `(t, p)` -- never a fresh random draw per call. Calling `wind_inertial`
-    twice with identical `(t, y, p)` (including a nonzero `gust_sigma`)
-    must give bit-for-bit identical results.
+    times, so the turbulence perturbation must be a pure, repeatable
+    function of `(t, y, p)` -- never a fresh random draw per call. Calling
+    `wind_inertial` twice with identical `(t, y, p)` (`turbulence_model =
+    "dryden"`) must give bit-for-bit identical results.
     """
     p = Params(
         m=0.5, I=0.05, l1=0.3, l2=0.4, wind_model="analytic",
-        wind_ref_ms=8.0, wind_ref_h_m=10.0, gust_sigma=1.5, gust_seed=42,
+        wind_ref_ms=8.0, wind_ref_h_m=10.0,
+        turbulence_model="dryden", turbulence_sigma_high_ms=2.0,
+        turbulence_ref_speed_ms=100.0, turbulence_seed=42,
     )
     y = np.zeros(6)
     y[Z] = -50.0
@@ -240,26 +249,31 @@ def test_gust_is_deterministic_bit_for_bit_across_repeated_calls():
 
     # A different seed still gives a deterministic (if different)
     # realization -- each seed's own results are reproducible too, not
-    # just the first one tried.
-    p2 = dataclasses.replace(p, gust_seed=7)
+    # just the first one tried -- AND the two seeds give genuinely
+    # different results (seed sensitivity, not a no-op field).
+    p2 = dataclasses.replace(p, turbulence_seed=7)
     w3 = wind_inertial(3.7, y, p2)
     w4 = wind_inertial(3.7, y, p2)
     assert np.array_equal(w3, w4)
+    assert not np.array_equal(w1, w3)
 
 
-def test_gust_sigma_zero_reproduces_no_gust_analytic_profile_exactly():
-    """`gust_sigma = 0.0` (the default) must turn gusts off entirely, not
-    merely make them small: the wind must exactly match the plain
-    power-law-shear profile with no perturbation, regardless of
-    `gust_seed` (which must never even be consulted).
+def test_turbulence_none_reproduces_no_turbulence_analytic_profile_exactly():
+    """`turbulence_model = "none"` (the default) must turn turbulence off
+    entirely, not merely make it small: the wind must exactly match the
+    plain power-law-shear profile with no perturbation, regardless of
+    `turbulence_seed`/`turbulence_sigma_high_ms`/`turbulence_ref_speed_ms`
+    (none of which may even be consulted -- including a
+    `turbulence_ref_speed_ms = 0.0` that would be nonsense on the "dryden"
+    path, architecture.md SS26.12).
     """
     common = dict(
         m=0.5, I=0.05, l1=0.3, l2=0.4, wind_model="analytic",
         wind_ref_ms=8.0, wind_ref_h_m=10.0, wind_dir_deg=45.0,
-        azimuth_deg=90.0, gust_sigma=0.0,
+        azimuth_deg=90.0, turbulence_model="none",
     )
-    p_seed_a = Params(**common, gust_seed=123)
-    p_seed_b = Params(**common, gust_seed=999999)
+    p_seed_a = Params(**common, turbulence_seed=123, turbulence_sigma_high_ms=5.0)
+    p_seed_b = Params(**common, turbulence_seed=999999, turbulence_ref_speed_ms=0.0)
 
     y = np.zeros(6)
     y[Z] = -30.0
@@ -268,7 +282,8 @@ def test_gust_sigma_zero_reproduces_no_gust_analytic_profile_exactly():
     w_b = wind_inertial(5.0, y, p_seed_b)
     assert np.array_equal(w_a, w_b)
 
-    # Matches the hand-computed no-gust power-law-shear formula exactly.
+    # Matches the hand-computed no-turbulence power-law-shear formula
+    # exactly.
     h = 30.0
     h_ref = common["wind_ref_h_m"]
     W = common["wind_ref_ms"] * (max(h, h_ref) / h_ref) ** Params(**common).wind_shear_exp

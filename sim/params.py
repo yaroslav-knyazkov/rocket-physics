@@ -95,8 +95,43 @@ class Params:
     wind_dir_deg: float = 0.0   # meteorological wind direction (from North, clockwise) [deg]
     wind_ref_h_m: float = 10.0  # reference height for wind_ref_ms / the shear power law [m]
     wind_shear_exp: float = 0.143  # power-law shear exponent, ~= 1/7
-    gust_sigma: float = 0.0     # gust perturbation scale [m/s]; 0.0 = gusts off entirely
-    gust_seed: int = 0          # RNG seed for the frozen gust realization
+    # Step 46: Dryden turbulence (MIL-F-8785C / MIL-HDBK-1797) for tier-1
+    # gusts (architecture.md SS26; latex/research/dryden_turbulence_model.md).
+    # Same "unset = bit-for-bit reproduces every prior step" gate convention
+    # as `wind_model`/`aero_model`: "none" (the default) means wind.py never
+    # builds a realization, never touches the RNG, and `_analytic_wind`
+    # returns exactly the mean-profile decomposition. Orthogonal to
+    # `wind_model` in the same sense `gravity_direction` is orthogonal to
+    # `gravity_model` (architecture.md SS23.1): a second dispatch inside one
+    # module, not a product of names -- and the seam a von Karman variant
+    # would slot into later with no other change (SS26.13).
+    # TIER 1 ONLY. Tiers 2/3 ("sounding"/"field") ignore it entirely, exactly
+    # as they ignore today's gusts (SS26.10).
+    turbulence_model: str = "none"           # none | dryden
+
+    # Isotropic turbulence intensity above 2000 ft AGL [m/s]. MIL-F-8785C
+    # gives no closed form here -- only a probability-of-exceedance chart --
+    # so this is set by the user per scenario (the user's own decision, see
+    # the research note SS5), not looked up and not a light/moderate/severe
+    # preset. 0.0 means "no turbulence above 2000 ft AGL", which also tapers
+    # the 1000-2000 ft transition band to zero; it is a legitimate setting,
+    # not an error, and the low-altitude band is still driven by W20 (SS26.5).
+    turbulence_sigma_high_ms: float = 0.0
+
+    # The single constant airspeed `V` used for the Taylor frozen-turbulence
+    # conversion `omega = V*Omega`, for the whole flight [m/s]. A DELIBERATE
+    # SIMPLIFICATION with a documented limitation (architecture.md SS26.9):
+    # this rocket's true airspeed spans 0 to supersonic, and a realization
+    # that tracked it would make the solver's RHS a non-function of its own
+    # arguments (SS26.8). Must be > 0 when turbulence_model != "none"; the
+    # default is a representative mid-flight airspeed for a small sounding
+    # rocket, to be set per scenario, NOT a value with any authority.
+    turbulence_ref_speed_ms: float = 100.0
+
+    # RNG seed for the frozen phase draw (architecture.md SS26.8). Renamed
+    # from Step 21's `gust_seed` so the family reads as one group; the
+    # quantity and its role are unchanged.
+    turbulence_seed: int = 0
 
     # Step 36: variable mass -- CoG and moment-of-inertia travel (main.tex
     # SSModels > Mass and moment of inertia). `m_d` is the single on/off
