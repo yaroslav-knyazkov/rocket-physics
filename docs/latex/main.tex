@@ -98,8 +98,17 @@ choice'' at a glance.
     unchanged. A \emph{commanded} deflection --- a gimbal and the control law driving it, the
     only pitch authority a rocket has off the rail --- is deliberately not modelled yet
     (\autoref{sec:backlog}).
-    \item \textbf{No launch rail constraint, no recovery/parachute.} Free flight from $t=0$; see
-    \autoref{sec:backlog}.
+    \item \textbf{Launch rail and recovery, now modelled, still simplified.} A launch rail of
+    length $L_{rail}$ constrains translation to one fixed direction and holds $\theta$ fixed until
+    the rocket clears it (no rail friction); a recovery canopy, once deployed (at apogee or a
+    timer), replaces the aerodynamic force with a drag term opposing the inertial relative-wind
+    vector directly and likewise holds $\theta$ fixed, rather than modelling the canopy's own
+    opening transient or the body's pendulum swing underneath it. A feedback-controlled air brake
+    (a special case of the wing-body air brake described in \autoref{sec:backlog}, but
+    standing alone as a switchable extra drag area rather than derived from an airframe) can
+    additionally modulate drag during the unpowered coast to target a commanded apogee; the control
+    law is a continuous, memoryless proportional law, not a sampled-data controller with memory
+    (\autoref{sec:backlog}).
 \end{itemize}
 
 \newpage
@@ -119,13 +128,19 @@ more usefully --- what has to exist before it can be written down properly, so t
 tell a missing derivation from a missing input.
 
 \begin{itemize}
-    \item \textbf{Commanded gimbal control.} $\delta$ is, for now, deliberately kept as a constant
-    input (\autoref{sec:thrust}) --- the point of the current pass was to see how a fixed
-    manufacturing-type misalignment behaves (\autoref{sec:analysis_misaligned}) before adding any
-    control authority. A \emph{commanded}, time-varying $\delta(t)$ driven by a control law is the
-    next step once that is wanted. \emph{Waiting on:} a stated guidance objective (pitch
-    programme? gravity turn? impact point?), actuator rate and deflection limits, and a sensor
-    model to close the loop on.
+    \item \textbf{Commanded gimbal control (direction/guidance).} $\delta$ is, for now, deliberately
+    kept as a constant input (\autoref{sec:thrust}) --- the point of the current pass was to see how
+    a fixed manufacturing-type misalignment behaves (\autoref{sec:analysis_misaligned}) before
+    adding any control authority. A \emph{commanded}, time-varying $\delta(t)$ driven by a control
+    law is the next step once that is wanted, and is explicitly a 3D-model item: steering needs an
+    out-of-plane degree of freedom this 2D closure does not have. \emph{Waiting on:} a stated
+    guidance objective (pitch programme? gravity turn? impact point?), actuator rate and deflection
+    limits, a sensor model to close the loop on, and the 3D model itself. A \emph{different} control
+    loop --- drag modulation via a feedback-controlled air brake, targeting a commanded apogee
+    during unpowered coast --- is already implemented and stays 2D-only (\autoref{sec:assumptions}):
+    it needs no out-of-plane freedom, only an additional switchable drag term. Its control law is a
+    continuous, memoryless proportional one, not a sampled-data controller with integral/derivative
+    memory --- the latter needs a different integration strategy and is itself future work.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated or constant coefficients of \autoref{sec:aero} with a wing-body (Barrowman-style)
     build-up. Conceptually: the nose, the body, and each fin each contribute their own normal-force
@@ -167,11 +182,18 @@ tell a missing derivation from a missing input.
     remains open is the pipeline that actually populates that database for a specific airframe ---
     the CFD run matrix or wind-tunnel campaign itself --- which is outside the scope of this
     document.
-    \item Launch rail constraint, and recovery/parachute --- \autoref{sec:assumptions}.
     \item Out-of-plane motion: crosswind weathercocking (\autoref{sec:wind}) and the lateral
     Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the same 2D closure and
     both are lifted by the same future work, a full 6DOF model --- not by anything that can be
     done inside this document.
+    \item A sampled-data (fixed-rate, zero-order-hold) control loop, with integral/derivative
+    memory, for the air brake described in \autoref{sec:assumptions} --- or for any future control
+    law. \emph{Waiting on:} a different integration strategy than this document's solver assumes;
+    the present proportional law is re-evaluated fresh at every call specifically to avoid that
+    dependency.
+    \item A refined launch-rail model with friction, and a recovery model with the canopy's own
+    opening transient and pendulum swing under the risers, rather than the current instantaneous-
+    deployment, frozen-attitude treatment (\autoref{sec:assumptions}).
 \end{itemize}
 
 \end{document}
