@@ -1328,6 +1328,62 @@ user's own follow-up.
 
 ---
 
+## Phase 2.10 — Launch rail, recovery/parachute, control scaffold
+
+Designed by the orchestrator directly (user's instruction: "design the rail and parachute dynamics
+on your own", plus a late addition, "add a somehow way to do control engineering... feedback rn is
+going to be airbrake but also create base for direction control (guided)... control engineering can
+go in 3D"). Full design in `architecture.md` §27. Promotes backlog **B1** (rail) and **B2**
+(parachute); opens **B12** (sampled-data/PID control).
+
+### Step 47 — Launch rail constraint
+- **Files:** `sim/params.py`, `sim/dynamics.py`, `sim/integrate.py`.
+- **Spec:** `architecture.md` §27.1.
+- **Do:** `L_rail`/`rail_angle_deg` on `Params`; `dynamics.rail_distance`/`on_rail` helpers; while on
+  the rail, project the unconstrained acceleration onto the rail direction and freeze
+  `theta`/`omega` (`dtheta/dt = domega/dt = 0`); a non-terminal `rail_exit` event on both the RK45
+  and RK4 paths, reporting rail-exit time/speed in `Result.events`.
+- **Check:** `L_rail = 0.0` (default) bit-for-bit unchanged; a crosswind during the rail phase
+  produces zero drift/tip (vs. visible drift/tip with `L_rail = 0.0` under the same wind); rail-exit
+  attitude matches a tilted `rail_angle_deg` exactly.
+- **Commit:** "Launch rail constraint (Phase 2.10, Step 47)"
+
+### Step 48 — Recovery / parachute
+- **Files:** `sim/params.py`, `sim/forces.py`, `sim/dynamics.py`, `sim/integrate.py`.
+- **Spec:** `architecture.md` §27.2.
+- **Do:** `parachute_model`/`parachute_deploy_trigger`/`parachute_deploy_time`/`parachute_Cd`/
+  `parachute_S` on `Params`; `forces.parachute_deployed`/`parachute_drag_inertial` (full-vector
+  drag computed directly in the inertial frame, not routed through body axial/normal — a round
+  canopy's drag doesn't depend on body attitude); reuses Step 47's "freeze `theta`/`omega`"
+  mechanism for the under-canopy phase; non-terminal `parachute_deploy` event, both integration
+  paths.
+- **Check:** `parachute_model = "none"` (default) bit-for-bit unchanged; descent settles near the
+  analytic `V_terminal = sqrt(2mg/(rho*Cd*S))`; `theta`/`omega` frozen post-deployment; a crosswind
+  produces horizontal drift under canopy (the vector-drag check).
+- **Commit:** "Recovery/parachute model (Phase 2.10, Step 48)"
+
+### Step 49 — Control-engineering scaffold: feedback airbrake
+- **Files:** `sim/control.py` (new), `sim/params.py`, `sim/forces.py`.
+- **Spec:** `architecture.md` §27.3.
+- **Do:** new `sim/control.py` — a dict-dispatch pattern (`_AIRBRAKE_CONTROLLERS`, same shape as
+  `wind.py`'s `_TURBULENCE_MODELS`) for pure, memoryless feedback controllers, keyed by a `Params`
+  string field, per the determinism constraint (Step 21/Step 46/B11: no per-call memory, no
+  fixed-rate sample-and-hold, without a different integration strategy — see B12 below). One
+  controller implemented: `_proportional_airbrake`, a P-law on predicted apogee
+  (`h_agl + vz^2/(2g)`) vs. `airbrake_target_apogee_m`, active only post-burnout/pre-apogee,
+  saturating to `[0, 1]`. `forces.aero_force_body` adds the resulting axial drag term
+  (`airbrake_Cd * airbrake_S_max * deploy_fraction`). This module's dispatch shape *is* the "base
+  for direction control" the user asked for — a Phase-3 guidance controller adds a second dict here
+  when it exists; no uncalled stub is written now.
+- **Check:** three independent off-switches (`airbrake_model`, `airbrake_kp`, `airbrake_S_max`) each
+  reproduce every prior step bit-for-bit; a saturating-gain run reaches a lower apogee than the
+  `"none"` baseline with `deploy_fraction` hitting exactly `1.0`; the activation window
+  (post-burnout, pre-apogee) actually gates to `0.0` outside it; a modest-gain run shows a
+  continuously varying (non-bang-bang) `deploy_fraction`.
+- **Commit:** "Feedback-control scaffold and apogee-targeting airbrake (Phase 2.10, Step 49)"
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -1390,20 +1446,17 @@ singularity either, but more drift to correct and no advantage over quaternions.
 Not scheduled, not designed further, not deleted. Each of these was deliberately pushed out of
 Phase 2 — pick them up when the models above are in place and the user asks.
 
-### B1 — Launch rail constraint  *(Step 16 in the old, pre-rewrite Phase 2 numbering)*
-- **Files:** `sim/integrate.py`, `sim/dynamics.py`
-- **Sketch:** while `‖r − r₀‖ < L_rail`, constrain motion to the rail direction and hold `θ`
-  fixed (`ω = θ̈ = 0`); a rail-exit event switches to free flight. Matters more than it looks —
-  rail-exit speed is what decides whether the wind model tips the rocket over.
-- **Check:** rail-exit speed reported; `L_rail = 0` reproduces the unconstrained run.
-- **Note:** this is the first Phase-2-adjacent feature that changes `dynamics.py` structurally
-  (a constrained phase, not just a different force). Design it properly when it comes up.
+### B1 — Launch rail constraint — **PROMOTED to Step 47**
+Designed in `architecture.md` §27.1, scheduled as Phase 2.10 Step 47 above. Original sketch (Step 16
+in the old, pre-rewrite Phase 2 numbering) is implemented as specced there: rail direction + length
+on `Params`, final-assembly branch in `dynamics.py` freezing `theta`/`omega` and projecting
+acceleration onto the rail axis, a non-terminal `rail_exit` event.
 
-### B2 — Recovery / parachute  *(Step 17 in the old, pre-rewrite Phase 2 numbering)*
-- **Files:** `sim/forces.py`, `sim/integrate.py`
-- **Sketch:** deployment triggered by the apogee event or a timer; drag swaps to
-  `½ρV²·C_d·S_chute`, with attitude dynamics disabled or heavily damped under canopy.
-- **Check:** descent settles at the analytic terminal velocity `√(2mg/ρC_dS)`.
+### B2 — Recovery / parachute — **PROMOTED to Step 48**
+Designed in `architecture.md` §27.2, scheduled as Phase 2.10 Step 48 above. Original sketch (Step 17
+in the old, pre-rewrite Phase 2 numbering) is implemented as specced there: deployment on apogee or
+a timer, full-vector inertial-frame canopy drag (not routed through body axes — a round canopy is
+axisymmetric), attitude frozen under canopy (reusing Step 47's mechanism), terminal-velocity check.
 
 ### B3 — Gridded gravity data (EGM2008 / geoid)
 A multi-MB coefficient set or a new geodesy dependency, to capture anomalies of order 10⁻⁴ g —
@@ -1503,6 +1556,18 @@ after Step 46's renormalisation `V` affects **only** the spectrum's break freque
 turbulence intensity (§26.9), so the error this entry would remove is bounded and legible rather
 than pervasive.
 
+### B13 — ISA extrapolation robustness (unguarded negative-temperature powers)  *(opened by Step 48's verification)*
+Found during Step 48's independent verification, not introduced by it: with `parachute_model = "deploy"`, the sudden drag onset at deployment makes `solve_ivp`'s adaptive-step error estimator occasionally probe a wildly extrapolated trial state (observed: altitude of order 700 km MSL, `vz` of order `1e10` m/s — never part of any accepted solution, a rejected-step artifact of RK45's own error control). `sim/atmosphere.py`'s ISA formula (`_isa_air_state`) has no bound on how far `h_msl` can extrapolate, so a trial state far outside any physical flight envelope produces a negative absolute temperature, and `(T/T_b)**(-g/(L*R_d))`/Sutherland's `(T/T_0)**1.5` both raise `RuntimeWarning: invalid value encountered in scalar power` (a `nan`, not an exception). Confirmed benign for every test in this repo today: re-running the full suite with `RuntimeWarning` promoted to a hard error produces exactly one failure, and the same scenario passes normally — `solve_ivp` discards the offending trial step via its own error-rejection logic before the `nan` can reach an accepted sample or an event time. Low priority (nothing currently depends on it), but a real robustness gap: a future scenario with a sharper discontinuity (a harder-saturating airbrake, a stiffer control law) could probe an even more extreme trial state, and a clean fix (clamp `h_msl` to a documented extrapolation ceiling before the lapse-rate formula, or detect `T <= 0` and return a sentinel `AirState`) is cheap. Revisit if warnings become failures under a future scipy/numpy version, or before relying on warning-free output for anything load-bearing.
+
+### B12 — Sampled-data control (fixed-rate loop, zero-order hold, PID)  *(opened by Step 49)*
+Step 49's airbrake controller is a continuous, memoryless proportional law — `architecture.md`
+§27.3 makes the same call Step 46/B11 already made for turbulence, and for the same reason:
+`solve_ivp`'s RHS has no notion of "the last sample," so a real flight computer's fixed-rate loop
+(and any integral/derivative term) isn't a pure function of `(t, y, p)` without a different
+integration strategy — a fixed-step integrator for the whole flight, or an outer loop that halts and
+restarts `solve_ivp` at each sample tick. Revisit alongside B11; same root cause, same size of
+change.
+
 ---
 
 ## Dependency summary
@@ -1526,13 +1591,16 @@ than pervasive.
                                      ↓
                                     46                       Phase 2.9: needs 21 and 45 — DONE
                                      ↓
+                      47 → 48  ·  49                         Phase 2.10: 48 needs 47; 49 independent
+                                     ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
-Backlog (unscheduled): B1 launch rail · B2 recovery · B3 EGM gravity · B6 crosswind
+Backlog (unscheduled): B3 EGM gravity · B6 crosswind
                        B7 vertical wind (no fitting theory found) · B9 a real c_mq value
                        B10 turbulence on wind tiers 2/3 · B11 state-coupled turbulence  (both new at 46)
+                       B12 sampled-data/PID control (new at 49) · B13 ISA extrapolation robustness (found at 48)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40
-                             B8 → Step 45
+                             B8 → Step 45 · B1 → Step 47 · B2 → Step 48
 ```
 
 Steps 38, 39 and 40 touch disjoint files (`gravity.py`+`forces.py` · `forces.py`+`params.py` ·

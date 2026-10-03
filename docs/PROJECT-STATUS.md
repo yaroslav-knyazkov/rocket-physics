@@ -19,17 +19,22 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
 **Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
-COMPLETE**, **Phase 2.9 (Step 46) COMPLETE** — still 2D, not Phase 3. 220/220 tests passing. Backlog
-items B4, B5 and B8 are done (promoted at earlier phases); remaining backlog: B1 launch rail, B2
-recovery/parachute, B3 gridded EGM gravity, B6 crosswind (parked for Phase 3, now with a second item
-waiting on it — Step 46's Dryden cross-wind `v`), B7 vertical wind (parked; Step 46 narrowed but did
-not close the gap — the verified `Φ_w` turbulence formula exists, the mean updraft/downdraft question
-does not), B9 a real `c_mq` value (researched 2026-09-28 — user chose to keep the Step 44 test fixture
-rather than adopt OpenRocket's method), B10 turbulence on wind tiers 2/3 and B11 state-coupled
-turbulence (both opened by Step 46). Also outstanding, as the user's own follow-up, not blocking
-anything: `latex/sections-ai/models.tex` §Wind > Analytic still documents the pre-Step-46 placeholder
-gust formula. Next: Phase 3 (3D, full 6-DOF) — not started, awaiting the user's go-ahead; or one of
-the remaining deferred items above. See "Phase 2.9 milestone: COMPLETE" below. Steps 33-35:
+COMPLETE**, **Phase 2.9 (Step 46) COMPLETE**, **Phase 2.10 (Steps 47-49) COMPLETE** — still 2D, not
+Phase 3. 235/235 tests passing. Backlog items B1, B2, B4, B5 and B8 are done (promoted at earlier
+phases); remaining backlog: B3 gridded EGM gravity, B6 crosswind (parked for Phase 3, now with a
+second item waiting on it — Step 46's Dryden cross-wind `v`), B7 vertical wind (parked; Step 46
+narrowed but did not close the gap — the verified `Φ_w` turbulence formula exists, the mean
+updraft/downdraft question does not), B9 a real `c_mq` value (researched 2026-09-28 — user chose to
+keep the Step 44 test fixture rather than adopt OpenRocket's method), B10 turbulence on wind tiers 2/3
+and B11 state-coupled turbulence (both opened by Step 46), B12 sampled-data/PID control (opened by
+Step 49 — the airbrake controller is a pure, memoryless proportional law for the same
+solver-determinism reason B11 exists), B13 ISA-extrapolation robustness (a benign but real gap found,
+not introduced, during Step 48's verification — see roadmap.md). Also outstanding, as the user's own
+follow-up, not blocking anything: `latex/sections-ai/models.tex` §Wind > Analytic still documents the
+pre-Step-46 placeholder gust formula. Next: Phase 3 (3D, full 6-DOF) — the user's own instruction is
+to scope it to simulation/optimization/guidance only (CFD stays 2D-only; the Step 49 airbrake
+controller is this project's one 2D control loop, direction/guidance control is Phase 3's to build).
+See "Phase 2.10 milestone: COMPLETE" below. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -146,6 +151,48 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
+
+## Phase 2.10 milestone: COMPLETE (2026-10-04) — Steps 47-49 implemented and committed
+
+User request, designed directly by the orchestrator rather than the architect agent (explicit
+instruction: "design the rail and parachute dynamics on your own"), with a control-engineering
+addition folded in before implementation began ("add a somehow way to do control engineering...
+feedback rn is going to be airbrake but also create base for direction control (guided)... control
+engineering can go in 3D"). Full design: `architecture.md` §27.
+
+- **Step 47 — Launch rail constraint** (commit `372115a`, promotes backlog B1). A kinematic
+  constraint, not a new force: while `on_rail(y,p)`, the already-computed acceleration is projected
+  onto a fixed rail-direction unit vector and `theta`/`omega` are frozen, instead of the unconstrained
+  equations. `L_rail = 0.0` (default) is the off switch, bit-for-bit every prior step. Non-terminal
+  `rail_exit` event, both integration paths.
+- **Step 48 — Recovery / parachute** (commit `8529c72`, promotes backlog B2). Reuses Step 47's
+  "freeze theta/omega" mechanism, but the chute drag is a full vector computed directly in the
+  inertial frame (not routed through body axes — a round canopy's drag doesn't depend on attitude).
+  `parachute_model = "none"` (default) and `parachute_S = 0.0` are two independent off switches.
+  Descent speed verified live to converge within 0.4% of the analytic terminal velocity.
+- **Step 49 — Control-engineering scaffold: feedback airbrake** (commit `05821ad`). New
+  `sim/control.py`: a dict-dispatch pattern for pure, memoryless feedback controllers (the
+  determinism constraint — no per-call memory, no sampled-data loop, without a different integration
+  strategy — opens backlog **B12**). One controller: a proportional law on predicted apogee driving
+  an airbrake's deploy fraction. This dispatch shape *is* the "base for direction control" asked for
+  — no unused guidance stub was written, since direction/guidance control is explicitly Phase 3's job
+  per the user's own scope split.
+
+**Verification:** each step's full diff independently reviewed against its `architecture.md` §27
+subsection before being accepted; the full pytest suite independently re-run by the orchestrator after
+every step (224/224, then 229/229, then 235/235); a live, independent script (not just the subagents'
+own tests) reproduced every headline physical claim directly from the running code (rail exit
+speed/attitude, parachute terminal velocity, airbrake apogee reduction and saturation).
+
+**Finding, recorded not hidden:** Step 48's verification surfaced a latent (pre-existing, not
+introduced) robustness gap in `sim/atmosphere.py` — an unbounded ISA extrapolation that `solve_ivp`'s
+adaptive-step error estimator can occasionally probe at a discontinuous force onset, producing a
+`RuntimeWarning` on a rejected trial step that never reaches the accepted solution. Confirmed benign
+(full suite passes normally; fails only when the warning is artificially promoted to a hard error).
+Opened as backlog **B13** rather than silently fixed out of scope or ignored.
+
+**Next:** Phase 3 (3D, full 6-DOF), scoped per the user's own instruction to simulation/optimization/
+guidance only — CFD and the Step 49 airbrake controller stay 2D-only.
 
 ## Phase 2.9 milestone: COMPLETE (2026-10-02) — Step 46 implemented and committed
 

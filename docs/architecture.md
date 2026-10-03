@@ -32,7 +32,11 @@ paragraph, and it is the first step that is *deliberately not* bit-for-bit for o
 (any run with gusts on) — §26.1 argues why that is a documented behaviour change rather than a
 regression. Note the LaTeX section files moved to `latex/sections-ai/` in the
 same session §24 was written; §23's `latex/sections/...` citations refer to the same content at the
-new path.
+new path. §27 holds **Steps 47-49** (Phase 2.10 — launch rail, recovery/parachute, and a
+control-engineering scaffold with one concrete feedback controller, the apogee-targeting airbrake),
+designed directly by the user's own request rather than drafted by the architect agent; it promotes
+backlog items B1/B2 and opens B12 (sampled-data/PID control, the same determinism-constraint family
+as B11).
 
 ---
 
@@ -3945,3 +3949,390 @@ document; `main.tex` and its section files are the **user's** document. So this 
 
 No longer listed as blocking in the roadmap's blocked-steps table against Step 46 (the entry is kept,
 struck through, for the record).
+
+---
+
+## 27. Phase 2.10 — Launch rail, recovery/parachute, control-engineering scaffold (Steps 47-49)
+
+Designed in one pass, at the user's explicit request ("design the rail and parachute dynamics on
+your own... then you can start with 3D"), with a late addition folded in before implementation began
+("before doing 2D, add a somehow way to do control engineering... feedback rn is going to be
+airbrake but also create base for direction control (guided)... control engineering can go in 3D").
+Self-contained like §23/§24/§26: a developer implementing one of Steps 47-49 needs that step's own
+subsection plus the relevant main.tex section, not the whole document. The three are bundled because
+they are the last 2D-only physics gaps (rail: B1; recovery: B2) plus the one genuinely new *kind* of
+subsystem this project has not built yet (a feedback controller) — and because, perhaps usefully,
+**rail and parachute turn out to be the same mechanical pattern**: both are a constrained phase of
+flight in which `dtheta/dt = domega/dt = 0` (attitude frozen by a mechanical constraint — the rail
+buttons, then the canopy) and only the translational force model changes. Direction/guidance control
+is explicitly **not** designed here — see §27.3's scope note — only its architectural seam is.
+
+### 27.1 Step 47 — Launch rail constraint (promotes backlog B1)
+
+**Files:** `sim/params.py`, `sim/dynamics.py`, `sim/integrate.py`.
+
+**Physics.** While the rocket's travel along the rail is less than `L_rail`, the rail buttons
+mechanically react every force component transverse to the rail and prevent rotation — the rocket
+can only slide, not pitch or drift sideways. This is **not** a new force; it is a kinematic
+constraint on the same force sum `F_i` every other step already computes. Let `e_rail` be the fixed
+unit vector along the rail, in the inertial frame:
+
+```
+e_rail = to_inertial([1.0, 0.0], radians(p.rail_angle_deg))
+```
+
+i.e. the rail points the way the nose initially points — `rail_angle_deg` is a `Params` field
+describing the physical rail mount angle, independent of (but meant to be set consistent with) the
+launch `State.theta` the scenario supplies; nothing in the code enforces that consistency, the same
+standing as every other scenario-setup fact this project trusts the caller to get right (e.g.
+`azimuth_deg` vs. the launch heading). Default `90.0` (vertical), matching every existing scenario's
+`theta = pi/2`, so the rail is vertical by default — consistent with, not derived from, those
+scenarios.
+
+`rail_distance(y, p) = dot((y[X], y[Z]), e_rail)` — the signed distance travelled along the rail
+from the launch point (assumed to be the origin, as every scenario in this repo already launches
+from `x=0, z=0`). On the rail (`0 < rail_distance < L_rail`... in practice just `rail_distance <
+L_rail`, since the rocket starts at `rail_distance = 0`):
+
+```
+a_i_unconstrained = F_i / m          # exactly today's computation, unchanged
+a_parallel = dot(a_i_unconstrained, e_rail) * e_rail   # project out the transverse component
+dvx/dt, dvz/dt = a_parallel
+dtheta/dt = 0.0
+domega/dt = 0.0
+```
+
+Off the rail (`rail_distance >= L_rail`, or `L_rail <= 0.0`): exactly today's unconstrained
+equations, bit-for-bit. **`L_rail = 0.0` is the off switch** — at `t=0`, `rail_distance = 0`, so
+`0 < 0.0` is false and the rocket is never on the rail; this reproduces every existing test and
+scenario without a separate boolean gate, the same "a zero/empty sentinel disables the model"
+convention as `aero_table`, `wind_model`, `m_d`.
+
+No friction term. A real rail has some, but it is small (low-friction buttons, short travel) and
+the roadmap's own B1 sketch does not ask for it; if it matters later it is one `mu_rail` field and
+one more term in `a_parallel`'s magnitude — not designed now (no speculative scaffolding for an
+unrequested refinement).
+
+**`Params` additions** (append near the geometry fields, §1 pattern — new fields, defaults
+reproduce every prior step bit-for-bit):
+```python
+L_rail: float = 0.0          # launch rail length [m]; 0.0 = off, unconstrained from t=0
+rail_angle_deg: float = 90.0  # rail elevation from horizontal [deg]; direction of e_rail
+```
+
+**`dynamics.py`.** Add two small helpers near `_propellant_mass`/`_cog_position` (same "private
+helper supporting `derivatives`" placement):
+```python
+def _e_rail(p) -> np.ndarray:
+    return to_inertial(np.array([1.0, 0.0]), np.radians(p.rail_angle_deg))
+
+def rail_distance(y: np.ndarray, p) -> float:
+    return float(np.dot(np.array([y[X], y[Z]]), _e_rail(p)))
+
+def on_rail(y: np.ndarray, p) -> bool:
+    return p.L_rail > 0.0 and rail_distance(y, p) < p.L_rail
+```
+`rail_distance`/`on_rail` are exported (no leading underscore) — `integrate.py`'s rail-exit event
+needs `rail_distance` directly, matching the existing precedent of event functions reaching into the
+module that owns their predicate (`_burnout_event` reads `thrust_curve.thrust` directly).
+
+In `derivatives`, after `a_i` is fully computed (including the Step 37 Coriolis term, so the rail
+constraint reacts the *same* total acceleration gravity/Earth-rotation produces, not a partial one)
+and `M_y`/`I` are computed as today (cheap, and keeps the function's structure — every force/moment
+is still evaluated every call, only the final assembly branches), replace the final assembly block:
+```python
+if on_rail(y, p):
+    e = _e_rail(p)
+    a_parallel = np.dot(a_i, e) * e
+    dydt[VX], dydt[VZ] = a_parallel
+    dydt[THETA] = 0.0
+    dydt[OMEGA] = 0.0
+else:
+    dydt[VX], dydt[VZ] = a_i
+    dydt[THETA] = y[OMEGA]
+    dydt[OMEGA] = M_y / I
+```
+(`dydt[X] = y[VX]`, `dydt[Z] = y[VZ]`, `dydt[M] = dm_dt` are unaffected either way.)
+
+**`integrate.py`.** A new non-terminal event, reported but not stopping the run (the dynamics branch
+above already handles the transition smoothly — this event exists purely so `Result.events` can
+report the rail-exit time/speed, the same informational role as `_burnout_event`):
+```python
+def _rail_exit_event(t, y, p):
+    if t < 0.1 or p.L_rail <= 0.0:
+        return -1.0  # same t=0/off-switch guard as _ground_event/_burnout_event
+    return dynamics.rail_distance(y, p) - p.L_rail
+
+_rail_exit_event.terminal = False
+_rail_exit_event.direction = 1
+```
+Add to `events=[...]` in `run_sim`, and `"rail_exit": ...` to both `Result(...)` constructions
+(`run_sim`'s RK45 path and `_run_rk4`). `_run_rk4` needs the equivalent manual crossing detection
+(sign change of `dynamics.rail_distance(y,p) - p.L_rail`, negative to positive, guarded the same way)
+— mirror the existing burnout/apogee/ground block structure there, don't restructure it.
+
+**Check.**
+- `L_rail = 0.0` (default) reproduces every existing test and scenario bit-for-bit — this is the
+  load-bearing regression check, same as every prior step's off-switch test.
+- A scenario with `L_rail > 0`, `rail_angle_deg = 90.0`, some nonzero crosswind (`wind_model =
+  "analytic"`, `wind_ref_ms > 0`): `theta` and `omega` stay exactly at their initial values and `x`
+  stays exactly `0.0` (no transverse drift) for the entire rail phase, despite the crosswind — this
+  is the check that the constraint is actually doing something (a run with `L_rail = 0.0` under the
+  same crosswind drifts in `x` and tips `theta` immediately).
+- `rail_exit` event fires once, at `rail_distance == L_rail` to solver tolerance; the reported
+  rail-exit speed `|v_i|` at that instant is the quantity that actually matters physically (roadmap
+  B1: "rail-exit speed is what decides whether the wind model tips the rocket over").
+- A tilted rail (`rail_angle_deg = 85.0`, no wind): the rocket leaves the rail already moving at
+  `85°` from horizontal, not `90°` — `atan2(-vz, vx)` at rail-exit equals `rail_angle_deg` to solver
+  tolerance.
+
+### 27.2 Step 48 — Recovery / parachute (promotes backlog B2)
+
+**Files:** `sim/params.py`, `sim/forces.py`, `sim/dynamics.py`, `sim/integrate.py`.
+
+**Physics, and the design choice behind it.** The roadmap's own B2 sketch says attitude dynamics
+should be "disabled or heavily damped" under canopy. This section chooses **disabled** — `dtheta/dt
+= domega/dt = 0` once deployed, exactly the rail phase's mechanism, re-used rather than invented:
+both are "a mechanical constraint freezes the attitude state" phases, one at the start of flight, one
+at the end. The alternative (an artificial damping constant) would need a made-up time constant with
+no source; freezing needs nothing but the deployment condition itself, and is no less physical a
+description of "the canopy holds the body in a fixed hang attitude" than a damping term would be.
+
+The more consequential choice is **where the chute drag acts**: not through the body axial/normal
+decomposition (`aero_force_body`'s `-A_x*x_hat_r - A_z*z_hat_r`, Step 35's convention), because a
+round canopy is axisymmetric and its drag opposes the *relative wind vector*, not the *body's nose
+direction* — under canopy the body may hang at any frozen `theta`, and routing chute drag through
+`x_hat_r` would make the descent rate depend on whatever `theta` happened to be at deployment, which
+is not how a parachute works. Instead the chute force is computed **directly in the inertial frame**,
+the same standing as `weight_inertial` (the one existing force already natively inertial, needing no
+`to_inertial` rotation):
+```
+v_rel_i = (y[VX], y[VZ]) - wind_inertial(t, y, p)      # inertial relative-wind vector
+V = |v_rel_i|                                           # == flow_state(t,y,p).V, frame-invariant
+F_chute_i = -0.5 * air.rho * p.parachute_Cd * p.parachute_S * V * v_rel_i
+```
+— standard quadratic drag, `F = -(1/2)*rho*Cd*S*|v|*v`, opposing `v_rel_i` exactly (this is the
+vector form of `A = 0.5*rho*V^2*Cd*S`; splitting the `|v|*v` product, rather than writing
+`(1/2 rho V^2 Cd S) * v_hat`, avoids a `0/0` direction at `V=0` the same way Step 44's `aero_moment_y`
+avoids a `0.0*inf` at `V=0`, architecture.md precedent in `forces.py`'s own docstring).
+
+**Deployment condition**, a pure function of `(t, y, p)` — no event-time lookup from inside the RHS
+(the RHS runs *before* any event is finalised; it cannot read `Result.events`, so "has apogee
+happened" has to be reconstructed from the state actually being integrated, not referenced):
+```python
+def parachute_deployed(t, y, p) -> bool:
+    if p.parachute_model == "none":
+        return False
+    if p.parachute_deploy_trigger == "timer":
+        return t >= p.parachute_deploy_time
+    # "apogee" (the default): y[VZ] > 0 means currently descending. On any
+    # simple ballistic/drag trajectory this is true from apogee onward and
+    # false before it -- a continuous, RHS-computable stand-in for "has
+    # apogee happened yet", not a reference to the apogee *event* itself.
+    # Known simplification: a pre-apogee transient dip (vz briefly positive
+    # mid-boost on an unstable trajectory) would arm deployment early. Not a
+    # concern for the nominal trajectories this project models; documented
+    # here rather than guarded against, the same standing as B11.
+    return y[VZ] > 0.0
+```
+
+**`Params` additions:**
+```python
+parachute_model: str = "none"              # none | deploy
+parachute_deploy_trigger: str = "apogee"   # apogee | timer
+parachute_deploy_time: float = 0.0         # [s], used only when trigger == "timer"
+parachute_Cd: float = 0.8                  # [-], typical flat-circular canopy; override per design
+parachute_S: float = 0.0                   # [m^2] canopy reference area; 0.0 = inert even if deployed
+```
+`parachute_model = "none"` (default) is the primary off switch; `parachute_S = 0.0` is a second,
+independent one (same belt-and-suspenders style as `turbulence_sigma_high_ms`/`A_e`) — either alone
+reproduces every prior step bit-for-bit.
+
+**`forces.py`.** Add `parachute_deployed` (above) and:
+```python
+def parachute_drag_inertial(t, s, p) -> np.ndarray:
+    """F_chute_i, inertial frame, (0,0) whenever not deployed -- natively
+    inertial like weight_inertial, since a round canopy's drag does not
+    depend on body attitude (architecture.md SS27.2)."""
+    if not parachute_deployed(t, s, p):
+        return np.zeros(2)
+    flow = flow_state(t, s, p)
+    v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p)
+    return -0.5 * flow.air.rho * p.parachute_Cd * p.parachute_S * flow.V * v_rel_i
+```
+(local `from sim import wind` import, same circular-import-avoidance precedent as `flow.py`'s own
+`_wind_inertial`; `VX`/`VZ` imported from `sim.state`.)
+
+**`dynamics.py`.** A third branch in the same final-assembly block Step 47 introduced — rail,
+parachute and free-flight are mutually exclusive (a rocket cannot be both on the rail and under
+canopy; `on_rail` is false long before `parachute_deployed` can be true on any realistic flight, but
+the branch order below makes rail take priority defensively, no behaviour depends on it):
+```python
+if on_rail(y, p):
+    ...                      # Step 47, unchanged
+elif forces.parachute_deployed(t, y, p):
+    F_chute = forces.parachute_drag_inertial(t, y, p)
+    a_chute = (F_i + F_chute) / m          # F_i already excludes nothing -- add the chute force in
+    dydt[VX], dydt[VZ] = a_chute
+    dydt[THETA] = 0.0
+    dydt[OMEGA] = 0.0
+else:
+    dydt[VX], dydt[VZ] = a_i
+    dydt[THETA] = y[OMEGA]
+    dydt[OMEGA] = M_y / I
+```
+Note `a_chute` recomputes `/m` from `F_i + F_chute`, not `a_i + F_chute/m` — identical arithmetic,
+written this way so the Coriolis term (already folded into `a_i` earlier) is included exactly once,
+not silently dropped by reusing a stale `F_i`.
+
+**`integrate.py`.** A non-terminal `_parachute_deploy_event`, same shape as `_rail_exit_event`:
+```python
+def _parachute_deploy_event(t, y, p):
+    return 1.0 if forces.parachute_deployed(t, y, p) else -1.0
+
+_parachute_deploy_event.terminal = False
+_parachute_deploy_event.direction = 1
+```
+Add to `events=[...]`, `Result.events["parachute_deploy"]`, and `_run_rk4`'s manual detection
+(sign change of the same boolean-as-±1, negative to positive).
+
+**Check.**
+- `parachute_model = "none"` (default) reproduces every existing test/scenario bit-for-bit.
+- The roadmap's own closed-form check: with `parachute_model = "deploy"`, no wind, deployed well
+  before ground impact, the descent speed converges to `V_terminal = sqrt(2*m*g/(rho*Cd*S))` to
+  within the ISA density's own altitude variation over the convergence distance (not exact, since
+  `rho` is not constant with altitude — state the tolerance, don't claim exactness `rho` doesn't
+  support).
+- `theta`/`omega` are frozen at their deployment-instant values for the rest of the flight — assert
+  `y[THETA]`/`y[OMEGA]` constant post-deployment to the array's last sample.
+- A deployed chute with a strong crosswind descends at an angle (drifts horizontally) — the vector
+  (not scalar) nature of `F_chute_i` actually coupling to crosswind, the same kind of "is it really a
+  vector, not a second scalar" check Step 46 ran for the Dryden cross-wind component (§26's own
+  check list).
+- `parachute_deploy_trigger = "timer"` deploys at exactly `parachute_deploy_time`, independent of
+  the trajectory's own apogee.
+
+### 27.3 Step 49 — Control-engineering scaffold: feedback airbrake, and the seam for guidance
+
+**Scope, stated up front** (the user's own split): *"the 3d section for now is just simulation,
+optimization, cfd is only for 2D, while control engineering can go in 3D."* Read together with
+*"create base for direction control (guided)"*, this step builds (a) a generic, reusable
+feedback-controller pattern, and (b) one concrete instance of it — an apogee-targeting airbrake,
+the classic active-drag control problem in amateur high-power rocketry, and the only control problem
+2D's one rotational DOF (`theta`, already fully occupied by the rocket's own passive pitch dynamics)
+can meaningfully host. It does **not** build a 2D guidance/direction-control law — that is explicitly
+Phase 3's job (steering needs an out-of-plane DOF this project doesn't have until then). The "base"
+for it is the module structure and the determinism discipline below, not a stub function with no
+caller — an uncalled `guidance_command()` today would be exactly the kind of speculative scaffolding
+this project avoids elsewhere; Phase 3 adds a second dispatch dict to this same module when it needs
+one, following the shape `_AIRBRAKE_CONTROLLERS` sets below.
+
+**The determinism constraint, again, and why it shapes the control law.** Step 21 established it,
+Step 46/B11 ran into it for turbulence: `solve_ivp`'s RHS is called at arbitrary, repeated, and
+rejected times, so any stateful element (memory, an integral accumulator, a derivative needing the
+previous call, a fixed-rate sample-and-hold) is not a pure function of `(t, y, p)` and breaks the
+solver's contract. A real flight computer's airbrake loop would be a **sampled-data system** — a
+fixed-rate (e.g. 20 Hz) loop with a zero-order-hold actuator command and very possibly PID's integral
+and derivative terms. None of that is buildable without either a fixed-step integrator or an outer
+loop that halts and restarts `solve_ivp` at every sample tick (a materially bigger change, and the
+same shape of problem B11 already deferred for turbulence). This step makes the same call B11 made,
+for the same reason: **a pure proportional (P) control law, re-evaluated fresh at every RHS call,
+with no memory** — fully compliant with the existing determinism contract, no new integration
+strategy needed, at the cost of not modelling sample-rate lag or integral trim. Flagged as a new
+backlog item below (B12), not silently accepted as the final word.
+
+**Files:** `sim/control.py` (new), `sim/params.py`, `sim/forces.py`.
+
+**`sim/control.py`.** New module — a first-class concern, same standing as `wind.py`/`atmosphere.py`,
+not a function buried in `forces.py`, because the user asked for a *reusable* pattern:
+```python
+"""Feedback control (architecture.md SS27.3). Every controller here is a
+pure, memoryless function of (t, y, p) -- see SS27.3's determinism-contract
+note for why: solve_ivp's RHS is evaluated at arbitrary/repeated/rejected
+times, so no controller may carry state across calls (no integral term, no
+fixed-rate sample-and-hold) without a different integration strategy
+(backlog B12). A dispatch dict per controllable actuator, selected by a
+Params string field -- same pattern as wind.py's _TURBULENCE_MODELS.
+
+Only one actuator is implemented: the airbrake (apogee-targeting P control).
+Direction/guidance control is Phase-3 scope (SS27.3) -- this module's shape
+(a dict dispatch keyed on a Params string, one pure function per variant) is
+the base the user asked for; a guidance controller adds a second dict here
+when Phase 3 needs one, not before.
+"""
+
+def _no_airbrake(t, y, p) -> float:
+    return 0.0
+
+def _proportional_airbrake(t, y, p) -> float:
+    if thrust_curve.thrust(t, y, p) > 0.0 or y[VZ] >= 0.0:
+        return 0.0   # only active during unpowered ascent (post-burnout, pre-apogee)
+    predicted_apogee = gravity.altitude_agl(y, p) + y[VZ]**2 / (2.0 * gravity.g(t, y, p))
+    error = predicted_apogee - p.airbrake_target_apogee_m
+    return float(np.clip(p.airbrake_kp * error, 0.0, 1.0))
+
+_AIRBRAKE_CONTROLLERS = {"none": _no_airbrake, "proportional": _proportional_airbrake}
+
+def airbrake_deploy_fraction(t, y, p) -> float:
+    return _AIRBRAKE_CONTROLLERS[p.airbrake_model](t, y, p)
+```
+`predicted_apogee` is the standard real-world estimator: the altitude the rocket would reach if drag
+vanished right now (`h + v_up^2/(2g)`, using `y[VZ]**2` since the sign is squared away) — an
+*upper-bound* prediction, deliberately ignoring further drag (including the brake's own, which is
+exactly the quantity the controller is deciding whether to add). It is a pure function of the state
+being integrated, no different in kind from the thrust curve or the aero table — no new determinism
+risk.
+
+**`Params` additions:**
+```python
+airbrake_model: str = "none"           # none | proportional
+airbrake_target_apogee_m: float = 0.0  # target AGL altitude [m]
+airbrake_kp: float = 0.0               # proportional gain [1/m]
+airbrake_Cd: float = 1.0               # [-], flat-plate-ish brake surface
+airbrake_S_max: float = 0.0            # [m^2] exposed area at full (fraction=1.0) deployment
+```
+Three independent off-switches (`airbrake_model = "none"`, `airbrake_kp = 0.0`, `airbrake_S_max =
+0.0`) — any one alone reproduces every prior step bit-for-bit, the established belt-and-suspenders
+style for a feature with real consequences if it accidentally activates.
+
+**`forces.py`.** `aero_force_body` gains one additive term, after the existing `aero_model` branch,
+unconditionally (linear deployment-fraction-to-area model, `S_brake(f) = f * S_max` — the simplest
+model that needs no new geometry beyond what the step already introduces; refine later if a real
+brake's area-vs-angle curve is nonlinear enough to matter):
+```python
+A_brake = flow.q * p.airbrake_Cd * p.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
+return np.array([-(A_x + A_brake), -A_z])
+```
+Routed through the body axial direction (`x_hat_r`), unlike the parachute: an airbrake is rigidly
+mounted to the body and shaped to add axial drag regardless of pitch, the opposite physical situation
+from the free-swinging canopy (§27.2) — this is a deliberate difference in treatment, not an
+inconsistency between the two steps.
+
+**Check.**
+- `airbrake_model = "none"` (default) reproduces every prior step bit-for-bit.
+- `airbrake_S_max = 0.0` with `airbrake_model = "proportional"` also reproduces it bit-for-bit (the
+  independent-off-switch check).
+- No closed-form pinned number exists once drag depends on a feedback law (the same standing as
+  Step 25's aero-table checks) — the regression is **directional**: for one scenario, run with
+  `airbrake_model = "none"` and record its (unconstrained) apogee; run again with `"proportional"`,
+  a large `airbrake_kp` (saturating), and `airbrake_target_apogee_m` set below that unconstrained
+  apogee — the second run's apogee must be lower than the first's, and `airbrake_deploy_fraction`
+  must reach exactly `1.0` (saturated, not merely "high") during the coast phase.
+- `airbrake_deploy_fraction` is exactly `0.0` at every sample while `thrust > 0` (powered ascent) and
+  at every sample once `y[VZ] >= 0` (past apogee) — the activation-window gate actually gates.
+- A small-gain case (`airbrake_kp` modest, target close to the unconstrained apogee):
+  `deploy_fraction` varies continuously between `0` and `1` across the coast (not a bang-bang jump),
+  confirming the proportional law is genuinely proportional, not accidentally saturating everywhere.
+
+### 27.4 New backlog item opened by Step 49
+
+**B12 — Sampled-data control (fixed-rate loop, zero-order hold, PID).** Step 49's airbrake is a
+continuous, memoryless proportional law, by the same necessity Step 46/B11 already documented for
+turbulence: `solve_ivp`'s RHS has no concept of "the last sample," so a real flight computer's
+fixed-rate loop (and any integral/derivative control term) cannot be expressed as a pure function of
+`(t, y, p)` without a different integration strategy — either a fixed-step integrator for the whole
+flight, or an outer loop that halts and restarts `solve_ivp` at each sample tick, carrying a
+hold-value forward as an extra `Params`-like input to each segment. Both are materially bigger than
+this step; picking this up is a prerequisite for a *realistic* (not merely stable) airbrake or
+direction-control loop, and for comparing against a real flight computer's logged behaviour. Revisit
+alongside B11, which has the same root cause.
