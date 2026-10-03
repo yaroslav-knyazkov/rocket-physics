@@ -41,6 +41,26 @@ _T_0 = 273.15         # Sutherland reference temperature [K]
 _S_MU = 110.4         # Sutherland's constant for air [K]
 _R_ISA = 6356766.0    # effective Earth radius used for geopotential altitude [m]
 
+# B13 (roadmap.md; found during Phase 2.10 Step 48's verification): a hard
+# clamp on the MSL altitude the ISA lapse-rate formula ever extrapolates
+# over. Real ISA tables are only defined to ~86 km; `_LAYERS`' last entry is
+# deliberately "used unbounded above its base" for any altitude a flight in
+# this project's scope could reach (a few km), but `solve_ivp`'s adaptive-
+# step error estimator can probe a trial state far outside any physical
+# flight envelope (observed: ~700 km MSL, from a discontinuous force onset
+# such as Step 48's parachute deployment) -- extrapolating the last layer's
+# lapse rate that far gives a deeply negative temperature, and a negative
+# base for a fractional power (`(T/T_b)**(-g/(L*R_d))`, Sutherland's
+# `(T/T_0)**1.5`) raises `RuntimeWarning: invalid value encountered in
+# scalar power` (a `nan`, not an exception -- `solve_ivp` discards the
+# rejected trial step before the `nan` reaches an accepted sample, so this
+# was never a correctness bug, only an avoidable warning). The clamp bounds
+# are far outside any flight this project models (no scenario here reaches
+# within two orders of magnitude of either bound), so this is bit-for-bit
+# unchanged for every existing scenario and pinned test.
+_H_MSL_MIN = -5000.0   # [m MSL] -- comfortably below any realistic ground elevation
+_H_MSL_MAX = 86000.0   # [m MSL] -- the ISA standard's own upper validity limit
+
 # Step 40: humid-air (virtual-temperature) density correction constants
 # (main.tex SSModels > Atmosphere > Density; architecture.md SS23.3). Module-
 # level, same rationale as _R_D above -- physical constants, not Params
@@ -80,6 +100,9 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     # h_msl via gravity.altitude_msl (Step 45): curvature-aware, bit-for-bit
     # -y[Z] + h0_m under the default "parallel" gravity_direction.
     h_msl = altitude_msl(y, p)
+    # B13: clamp before the lapse-rate extrapolation -- see the constants'
+    # own comment above. A no-op for every realistic flight.
+    h_msl = min(max(h_msl, _H_MSL_MIN), _H_MSL_MAX)
     H = _R_ISA * h_msl / (_R_ISA + h_msl)
 
     H_b, L, T_b, p_b = _LAYERS[0]
