@@ -34,6 +34,12 @@ curved altitude without a `p` argument on every plotting function (one
 `Params` per `Result`, right even for a sweep's `dict[str, Result]`). No
 event function is touched by this: `_ground_event`/`_apogee_event`/
 `_burnout_event` are exactly as Step 42/14 left them.
+
+Step 47 (Phase 2.10; architecture.md SS27.1): a non-terminal `rail_exit`
+event, both integration paths -- purely informational (`dynamics.py`'s
+`on_rail` branch already handles the on-rail/off-rail transition smoothly
+inside the RHS; this event exists only so `Result.events` can report the
+rail-exit time, mirroring `_burnout_event`'s role for the thrust cutoff).
 """
 
 from typing import Any, NamedTuple, Optional
@@ -41,6 +47,7 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from sim import dynamics
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
 from sim import gravity, thrust_curve
@@ -49,7 +56,7 @@ from sim import gravity, thrust_curve
 class Result(NamedTuple):
     t: np.ndarray                     # time samples [s]
     y: np.ndarray                     # state history, shape (6, N)
-    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None}
+    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None, "rail_exit": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
     params: Any                       # the Params that produced this run -- Step 45, architecture.md SS25.5
 
@@ -137,6 +144,27 @@ _burnout_event.terminal = False  # Simulation continues past burnout (coast/desc
 _burnout_event.direction = -1    # Trigger on falling edge (positive to negative)
 
 
+def _rail_exit_event(t, y, p):
+    """Rail-exit event: triggers when `dynamics.rail_distance` crosses
+    `p.L_rail` (architecture.md SS27.1). Non-terminal -- `dynamics.py`'s
+    `on_rail` branch already handles the on-rail/off-rail transition
+    smoothly inside the RHS; this event exists purely so `Result.events`
+    can report the rail-exit time/speed, the same informational role as
+    `_burnout_event`.
+
+    Same t=0/off-switch guard as `_ground_event`/`_burnout_event`:
+    `p.L_rail <= 0.0` (the default) means the rocket is never on the rail
+    (see `dynamics.on_rail`), so this event must never fire.
+    """
+    if t < 0.1 or p.L_rail <= 0.0:
+        return -1.0
+    return dynamics.rail_distance(y, p) - p.L_rail
+
+
+_rail_exit_event.terminal = False
+_rail_exit_event.direction = 1  # rail_distance - L_rail: negative -> positive == leaving the rail
+
+
 class _LinearInterpolant:
     """Minimal stand-in for scipy's dense-output `OdeSolution`, so that RK4's
     `raw.sol(t)` can be called the same way RK45's is (e.g. by run.py). It
@@ -192,6 +220,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     t_apogee = None
     t_ground = None
     t_burnout = None
+    t_rail_exit = None
 
     t = 0.0
     y = y0
@@ -241,6 +270,16 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
                 frac = -thrust_now / (thrust_next - thrust_now)
                 t_burnout = t + frac * dt_step
 
+        # Rail exit: `rail_distance - L_rail` crosses from negative to
+        # positive (Step 47, architecture.md SS27.1), same t=0/off-switch
+        # guard as `_rail_exit_event`.
+        if t_rail_exit is None and p.L_rail > 0.0 and t_next >= 0.1:
+            r_now = dynamics.rail_distance(y, p) - p.L_rail
+            r_next = dynamics.rail_distance(y_next, p) - p.L_rail
+            if r_now < 0.0 <= r_next:
+                frac = -r_now / (r_next - r_now)
+                t_rail_exit = t + frac * dt_step
+
         ts.append(t_next)
         ys.append(y_next)
         t, y = t_next, y_next
@@ -251,7 +290,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     return Result(
         t=t_arr,
         y=y_arr,
-        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit},
         raw=_RK4Raw(sol=_LinearInterpolant(t_arr, y_arr)),
         params=p,
     )
@@ -286,7 +325,7 @@ def run_sim(
         y0,
         method=method,
         args=(p,),
-        events=[_ground_event, _apogee_event, _burnout_event],
+        events=[_ground_event, _apogee_event, _burnout_event, _rail_exit_event],
         dense_output=True,
         rtol=rtol,
         atol=atol,
@@ -295,11 +334,12 @@ def run_sim(
     t_ground = sol.t_events[0][0] if len(sol.t_events[0]) else None
     t_apogee = sol.t_events[1][0] if len(sol.t_events[1]) else None
     t_burnout = sol.t_events[2][0] if len(sol.t_events[2]) else None
+    t_rail_exit = sol.t_events[3][0] if len(sol.t_events[3]) else None
 
     return Result(
         t=sol.t,
         y=sol.y,
-        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit},
         raw=sol,
         params=p,
     )

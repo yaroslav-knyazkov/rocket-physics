@@ -208,3 +208,19 @@ class Params:
     # step. Overridden per (alpha, M) by an optional `c_mq` column in
     # `aero_table`, when one is present.
     c_mq: float = 0.0   # pitch-damping derivative dC_m/d(q_hat) [-]
+
+    # Step 47: launch rail constraint (architecture.md SS27.1). While the
+    # rocket's travel along the rail is less than `L_rail`, the rail buttons
+    # mechanically react every transverse force component and prevent
+    # rotation -- the rocket can only slide, not pitch or drift sideways
+    # (dynamics.py's `on_rail`/`rail_distance`). Same "unset sentinel
+    # disables the model" convention as `aero_table`/`wind_model`/`m_d`:
+    # `L_rail = 0.0` (the default) is the off switch -- `rail_distance` is
+    # 0 at t=0, so `0 < 0.0` is false and the rocket is never on the rail,
+    # reproducing every prior step bit-for-bit. `rail_angle_deg` is the
+    # rail's fixed mount angle (independent of, but meant to be set
+    # consistent with, the launch `State.theta` the scenario supplies);
+    # default 90.0 (vertical) matches every existing scenario's
+    # `theta = pi/2`.
+    L_rail: float = 0.0          # launch rail length [m]; 0.0 = off, unconstrained from t=0
+    rail_angle_deg: float = 90.0  # rail elevation from horizontal [deg]; direction of e_rail

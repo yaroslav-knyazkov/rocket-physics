@@ -24,12 +24,12 @@ import math
 
 import numpy as np
 
-from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives
+from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives, on_rail, rail_distance
 from sim.flow import flow_state
 from sim.integrate import run_sim
 from sim.params import Params
 from sim.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
-from sim.state import M, THETA, VX, VZ, State, X, Z
+from sim.state import M, OMEGA, THETA, VX, VZ, State, X, Z
 
 
 def test_rk4_agrees_with_rk45_on_apogee_and_impact():
@@ -577,3 +577,142 @@ def test_pitch_damping_sign_convention_decays_undamped_grows():
 
     # Damped decays outright (not merely "less than the others").
     assert ratios["damped"] < 0.7, ratios
+
+
+# ---------------------------------------------------------------------
+# Step 47: launch rail constraint (architecture.md SS27.1). While
+# `on_rail(y, p)` is true, the rail buttons mechanically freeze
+# `theta`/`omega` and project the already-computed `a_i` onto the fixed
+# rail direction -- a kinematic constraint on the same force sum every
+# other step already computes, not a new force.
+# ---------------------------------------------------------------------
+
+# Shared fixture: a statically-stable-ish airframe (aero_model=
+# "coefficients", same C_N_alpha/C_m_alpha family as the Step 39/43 trim
+# tests above) under a strong analytic crosswind. `wind_dir_deg ==
+# azimuth_deg` (both 90.0, the latter's default) puts `delta = 0` in
+# wind.py's `_analytic_wind` (architecture.md SS16), so the full mean wind
+# speed `wind_ref_ms` lands on `w_x` -- a horizontal wind the vertical
+# (`theta = pi/2`) rocket sees entirely as a crosswind/angle-of-attack
+# driver, exactly the "visible drift/tip" mechanism this check needs: with
+# no rail, that alpha produces a real `A_z`/`A_m` through `C_N_alpha`/
+# `C_m_alpha`, which both pushes the rocket off `x=0` and rotates `theta`
+# away from vertical.
+_RAIL_WIND_COMMON = dict(
+    m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+    aero_model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5,
+    wind_model="analytic", wind_ref_ms=15.0, wind_dir_deg=90.0, azimuth_deg=90.0,
+)
+
+
+def test_rail_off_switch_reproduces_existing_scenario_bit_for_bit():
+    """`L_rail = 0.0` (the default, params.py) is the off switch
+    (architecture.md SS27.1): reusing the module's own Step-8 cross-check
+    scenario, `on_rail(y, p)` must be `False` at every sampled point of
+    the flight, so `derivatives`'s rail branch never activates and the
+    existing bit-for-bit behaviour (e.g. `test_rk4_agrees_with_rk45_on_...`
+    above) is structurally unaffected -- the explicit assertion this
+    step's "Check" list asks for, beyond "every existing test still
+    passes" on its own.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    assert p.L_rail == 0.0  # the dataclass default
+
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    r = run_sim(p, s0, method="RK45")
+
+    for t in np.linspace(0.0, r.t[-1], 50):
+        assert not on_rail(r.raw.sol(t), p)
+    assert r.events["rail_exit"] is None
+
+
+def test_rail_freezes_attitude_and_x_against_crosswind_vs_visible_drift_off_rail():
+    """The actual "is it doing something" check (architecture.md SS27.1's
+    "Check", second bullet): `L_rail > 0`, default `rail_angle_deg = 90.0`,
+    a nonzero crosswind. On the rail, `theta`/`omega` stay bit-for-bit at
+    their initial values (`dtheta/dt = domega/dt = 0.0` exactly, every RHS
+    call) and `x` stays at `0.0` to solver tolerance (`dydt[VX]` is the
+    crosswind-independent rail projection's x-component, which is only
+    nonzero through `cos(pi/2)`'s own floating-point noise -- the same
+    "theta = pi/2 is not an exact rotation in float64" artifact
+    `test_earth_rotation_deflects_vertical_flight_by_order_ten_metres`
+    above already works around with the same `abs_tol=1e-9`). A matching
+    `L_rail = 0.0` run under the identical crosswind visibly drifts in `x`
+    and tips in `theta` over the same time window -- the rail is doing
+    real work, not just reproducing a trivially-zero baseline.
+    """
+    theta0 = math.pi / 2
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0)
+
+    p_rail = Params(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
+    p_norail = Params(L_rail=0.0, **_RAIL_WIND_COMMON)
+
+    r_rail = run_sim(p_rail, s0, method="RK45", t_max=2.0)
+    r_norail = run_sim(p_norail, s0, method="RK45", t_max=2.0)
+
+    t_exit = r_rail.events["rail_exit"]
+    assert t_exit is not None
+
+    sample_times = [t for t in (0.1, 0.15, 0.2) if t < t_exit]
+    assert len(sample_times) >= 2  # the window actually straddles several samples
+
+    for t in sample_times:
+        y_rail = r_rail.raw.sol(t)
+        assert y_rail[THETA] == theta0
+        assert y_rail[OMEGA] == 0.0
+        assert math.isclose(y_rail[X], 0.0, abs_tol=1e-9)
+
+        y_norail = r_norail.raw.sol(t)
+        assert abs(y_norail[THETA] - theta0) > 0.01  # visibly tips
+        assert abs(y_norail[X]) > 1e-4               # visibly drifts
+
+
+def test_rail_exit_event_fires_once_near_l_rail_both_integrators():
+    """architecture.md SS27.1's third "Check" bullet: `rail_exit` fires
+    exactly once, at `rail_distance ~= L_rail` (solver tolerance), on both
+    integration paths."""
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    p = Params(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
+
+    r_rk45 = run_sim(p, s0, method="RK45", t_max=2.0)
+    assert len(r_rk45.raw.t_events[3]) == 1  # events=[ground, apogee, burnout, rail_exit]
+    t_exit_rk45 = r_rk45.events["rail_exit"]
+    assert t_exit_rk45 is not None
+    assert math.isclose(rail_distance(r_rk45.raw.sol(t_exit_rk45), p), p.L_rail, rel_tol=1e-6)
+
+    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-4, t_max=2.0)
+    t_exit_rk4 = r_rk4.events["rail_exit"]
+    assert t_exit_rk4 is not None
+    assert math.isclose(rail_distance(r_rk4.raw.sol(t_exit_rk4), p), p.L_rail, abs_tol=1e-2)
+    assert math.isclose(t_exit_rk4, t_exit_rk45, abs_tol=5e-3)
+
+
+def test_tilted_rail_exit_attitude_matches_rail_angle_both_integrators():
+    """architecture.md SS27.1's fourth "Check" bullet: a tilted rail
+    (`rail_angle_deg = 85.0`, no wind) leaves the rocket moving at `85 deg`
+    from horizontal at rail-exit, not `90 deg` -- `atan2(-vz, vx)` (degrees)
+    equals `rail_angle_deg` to solver tolerance. `theta0` is set to match
+    the rail angle (the "meant to be set consistent with" convention the
+    architecture note describes, not something the code enforces).
+    """
+    rail_angle_deg = 85.0
+    p = Params(
+        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
+        A_x=0.5, A_z=0.0, A_m=0.0,
+        L_rail=5.0, rail_angle_deg=rail_angle_deg,
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.radians(rail_angle_deg), omega=0.0)
+
+    r_rk45 = run_sim(p, s0, method="RK45", t_max=2.0)
+    t_exit_rk45 = r_rk45.events["rail_exit"]
+    assert t_exit_rk45 is not None
+    y45 = r_rk45.raw.sol(t_exit_rk45)
+    angle_rk45 = math.degrees(math.atan2(-y45[VZ], y45[VX]))
+    assert math.isclose(angle_rk45, rail_angle_deg, abs_tol=1e-2)
+
+    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-4, t_max=2.0)
+    t_exit_rk4 = r_rk4.events["rail_exit"]
+    assert t_exit_rk4 is not None
+    y4 = r_rk4.raw.sol(t_exit_rk4)
+    angle_rk4 = math.degrees(math.atan2(-y4[VZ], y4[VX]))
+    assert math.isclose(angle_rk4, rail_angle_deg, abs_tol=1e-2)

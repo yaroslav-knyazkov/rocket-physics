@@ -76,6 +76,18 @@ written out as a general 2D cross product for exactly this reason (see
 Step 6's note above) -- it evaluates to `(l1 + l2)*T*sin(delta)` with no
 edit. Only the stale inline comment next to that line ("intentionally
 zero today") needed rewording.
+
+Step 47 (roadmap.md; architecture.md SS27.1): a launch rail constraint.
+While `on_rail(y, p)` is true (params.py's `L_rail`, `rail_angle_deg`),
+the already-computed `a_i` -- unchanged above this point, Coriolis
+included -- is projected onto the fixed rail direction `_e_rail(p)`
+instead of being used directly, and `dtheta/dt`/`domega/dt` are frozen at
+0 instead of the usual `y[OMEGA]`/`M_y / I`. This is a kinematic
+constraint on the same force sum every other step already computes, not
+a new force -- `M_y`/`I` are still evaluated every call (cheap, and keeps
+the function's structure), only the final assignment branches. `L_rail =
+0.0` (the default) is the off switch: `rail_distance` is 0 at t=0, so
+`on_rail` is false from the first call, bit-for-bit pre-Step-47.
 """
 
 import numpy as np
@@ -137,6 +149,29 @@ def _moment_of_inertia(m_p: float, l_B: float, p) -> float:
     """
     I_p = (p.I_d / p.m_d) * m_p
     return p.I_d + p.m_d * (l_B - p.l_d) ** 2 + I_p + m_p * (l_B - p.l_p) ** 2
+
+
+def _e_rail(p) -> np.ndarray:
+    """Fixed unit vector along the launch rail, inertial frame (architecture.md
+    SS27.1): the rail points the way the nose initially points.
+    """
+    return to_inertial(np.array([1.0, 0.0]), np.radians(p.rail_angle_deg))
+
+
+def rail_distance(y: np.ndarray, p) -> float:
+    """Signed distance travelled along the rail from the launch point
+    (assumed to be the origin -- every scenario in this repo already
+    launches from x=0, z=0). No leading underscore: `integrate.py`'s
+    rail-exit event reads this directly (architecture.md SS27.1).
+    """
+    return float(np.dot(np.array([y[X], y[Z]]), _e_rail(p)))
+
+
+def on_rail(y: np.ndarray, p) -> bool:
+    """`p.L_rail <= 0.0` is the off switch (params.py): `rail_distance` is
+    0 at t=0, so `0 < 0.0` is false and the rocket is never on the rail,
+    reproducing every prior step bit-for-bit."""
+    return p.L_rail > 0.0 and rail_distance(y, p) < p.L_rail
 
 
 def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -267,9 +302,25 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     dydt = np.zeros(7)
     dydt[X] = y[VX]
     dydt[Z] = y[VZ]
-    dydt[VX] = a_i[0]
-    dydt[VZ] = a_i[1]
-    dydt[THETA] = y[OMEGA]
-    dydt[OMEGA] = M_y / I
+
+    # Step 47 (architecture.md SS27.1): while on the launch rail, the rail
+    # buttons mechanically react every transverse force component and
+    # prevent rotation -- the already-computed `a_i` (gravity/thrust/aero,
+    # Coriolis included) is projected onto the fixed rail direction, and
+    # `theta`/`omega` are frozen. `on_rail` is false whenever `p.L_rail <=
+    # 0.0` (the default), so the `else` branch is bit-for-bit every prior
+    # step.
+    if on_rail(y, p):
+        e = _e_rail(p)
+        a_parallel = np.dot(a_i, e) * e
+        dydt[VX], dydt[VZ] = a_parallel
+        dydt[THETA] = 0.0
+        dydt[OMEGA] = 0.0
+    else:
+        dydt[VX] = a_i[0]
+        dydt[VZ] = a_i[1]
+        dydt[THETA] = y[OMEGA]
+        dydt[OMEGA] = M_y / I
+
     dydt[M] = dm_dt
     return dydt
