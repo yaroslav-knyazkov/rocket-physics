@@ -40,6 +40,12 @@ event, both integration paths -- purely informational (`dynamics.py`'s
 `on_rail` branch already handles the on-rail/off-rail transition smoothly
 inside the RHS; this event exists only so `Result.events` can report the
 rail-exit time, mirroring `_burnout_event`'s role for the thrust cutoff).
+
+Step 48 (Phase 2.10; architecture.md SS27.2): a non-terminal
+`parachute_deploy` event, same shape/role as `rail_exit` above --
+`dynamics.py`'s new parachute branch already handles the deployed/not-
+deployed transition smoothly inside the RHS; this event exists only so
+`Result.events` can report the deployment time.
 """
 
 from typing import Any, NamedTuple, Optional
@@ -47,7 +53,7 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import dynamics
+from sim import dynamics, forces
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
 from sim import gravity, thrust_curve
@@ -56,7 +62,7 @@ from sim import gravity, thrust_curve
 class Result(NamedTuple):
     t: np.ndarray                     # time samples [s]
     y: np.ndarray                     # state history, shape (6, N)
-    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None, "rail_exit": t | None}
+    events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None, "rail_exit": t | None, "parachute_deploy": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
     params: Any                       # the Params that produced this run -- Step 45, architecture.md SS25.5
 
@@ -165,6 +171,25 @@ _rail_exit_event.terminal = False
 _rail_exit_event.direction = 1  # rail_distance - L_rail: negative -> positive == leaving the rail
 
 
+def _parachute_deploy_event(t, y, p):
+    """Parachute-deploy event: triggers when `forces.parachute_deployed`
+    flips from false to true (architecture.md SS27.2). Non-terminal, same
+    purely-informational role as `_rail_exit_event` above -- `dynamics.py`'s
+    parachute branch already handles the transition smoothly inside the
+    RHS; this event exists only so `Result.events` can report the
+    deployment time.
+
+    `p.parachute_model == "none"` (the default) makes `parachute_deployed`
+    always `False`, so this never fires -- the same off-switch guarantee
+    every other model-selection event in this module gives.
+    """
+    return 1.0 if forces.parachute_deployed(t, y, p) else -1.0
+
+
+_parachute_deploy_event.terminal = False
+_parachute_deploy_event.direction = 1  # false (-1) -> true (+1) == deployment
+
+
 class _LinearInterpolant:
     """Minimal stand-in for scipy's dense-output `OdeSolution`, so that RK4's
     `raw.sol(t)` can be called the same way RK45's is (e.g. by run.py). It
@@ -221,6 +246,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     t_ground = None
     t_burnout = None
     t_rail_exit = None
+    t_parachute_deploy = None
 
     t = 0.0
     y = y0
@@ -280,6 +306,16 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
                 frac = -r_now / (r_next - r_now)
                 t_rail_exit = t + frac * dt_step
 
+        # Parachute deploy: `forces.parachute_deployed` flips from false to
+        # true (Step 48, architecture.md SS27.2), mirroring `_rail_exit`'s
+        # manual-detection shape above.
+        if t_parachute_deploy is None:
+            dep_now = 1.0 if forces.parachute_deployed(t, y, p) else -1.0
+            dep_next = 1.0 if forces.parachute_deployed(t_next, y_next, p) else -1.0
+            if dep_now < 0.0 <= dep_next:
+                frac = -dep_now / (dep_next - dep_now)
+                t_parachute_deploy = t + frac * dt_step
+
         ts.append(t_next)
         ys.append(y_next)
         t, y = t_next, y_next
@@ -290,7 +326,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     return Result(
         t=t_arr,
         y=y_arr,
-        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit, "parachute_deploy": t_parachute_deploy},
         raw=_RK4Raw(sol=_LinearInterpolant(t_arr, y_arr)),
         params=p,
     )
@@ -325,7 +361,7 @@ def run_sim(
         y0,
         method=method,
         args=(p,),
-        events=[_ground_event, _apogee_event, _burnout_event, _rail_exit_event],
+        events=[_ground_event, _apogee_event, _burnout_event, _rail_exit_event, _parachute_deploy_event],
         dense_output=True,
         rtol=rtol,
         atol=atol,
@@ -335,11 +371,12 @@ def run_sim(
     t_apogee = sol.t_events[1][0] if len(sol.t_events[1]) else None
     t_burnout = sol.t_events[2][0] if len(sol.t_events[2]) else None
     t_rail_exit = sol.t_events[3][0] if len(sol.t_events[3]) else None
+    t_parachute_deploy = sol.t_events[4][0] if len(sol.t_events[4]) else None
 
     return Result(
         t=sol.t,
         y=sol.y,
-        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit},
+        events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit, "parachute_deploy": t_parachute_deploy},
         raw=sol,
         params=p,
     )

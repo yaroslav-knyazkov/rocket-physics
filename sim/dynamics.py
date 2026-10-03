@@ -88,11 +88,30 @@ a new force -- `M_y`/`I` are still evaluated every call (cheap, and keeps
 the function's structure), only the final assignment branches. `L_rail =
 0.0` (the default) is the off switch: `rail_distance` is 0 at t=0, so
 `on_rail` is false from the first call, bit-for-bit pre-Step-47.
+
+Step 48 (roadmap.md; architecture.md SS27.2): a second branch in the same
+final-assembly block, between `on_rail` and the free-flight `else` -- while
+`forces.parachute_deployed(t, y, p)` is true, `theta`/`omega` are frozen at
+0 exactly like the rail branch (the same "a mechanical constraint freezes
+the attitude state" mechanism, re-used rather than invented), and the
+translational acceleration is recomputed as `(F_i + F_chute) / m` rather
+than reusing the already-computed `a_i` -- `a_i` may already include the
+Step 37 Coriolis term, so adding `F_chute/m` to it a second time via
+`a_i + F_chute/m` would be arithmetically identical but written in a way
+that invites a future edit to silently drop the Coriolis contribution by
+reusing a stale `a_i`; recomputing from `F_i + F_chute` keeps it included
+exactly once, explicitly. Rail takes priority over parachute in the branch
+order (defensive only -- `on_rail` is false long before `parachute_deployed`
+can be true on any realistic flight). `p.parachute_model == "none"` (the
+default) or `p.parachute_S == 0.0` (also the default) are independent off
+switches: `forces.parachute_deployed` returns `False`/the chute force is
+zero, so this branch is bit-for-bit unreachable or inert, reproducing every
+prior step.
 """
 
 import numpy as np
 
-from sim import aero, thrust_curve
+from sim import aero, forces, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
@@ -314,6 +333,18 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
         e = _e_rail(p)
         a_parallel = np.dot(a_i, e) * e
         dydt[VX], dydt[VZ] = a_parallel
+        dydt[THETA] = 0.0
+        dydt[OMEGA] = 0.0
+    elif forces.parachute_deployed(t, y, p):
+        # Step 48 (architecture.md SS27.2): the canopy holds the body in a
+        # fixed hang attitude (frozen theta/omega, same mechanism as the
+        # rail above), and the chute drag is a natively-inertial force
+        # (forces.parachute_drag_inertial) added directly to F_i -- NOT
+        # routed through the already-computed a_i, so the Coriolis term
+        # folded into a_i (Step 37) is included exactly once, not dropped.
+        F_chute = forces.parachute_drag_inertial(t, y, p)
+        a_chute = (F_i + F_chute) / m
+        dydt[VX], dydt[VZ] = a_chute
         dydt[THETA] = 0.0
         dydt[OMEGA] = 0.0
     else:

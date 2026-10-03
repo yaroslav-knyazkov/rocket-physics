@@ -224,3 +224,24 @@ class Params:
     # `theta = pi/2`.
     L_rail: float = 0.0          # launch rail length [m]; 0.0 = off, unconstrained from t=0
     rail_angle_deg: float = 90.0  # rail elevation from horizontal [deg]; direction of e_rail
+
+    # Step 48: recovery / parachute (architecture.md SS27.2). Once deployed,
+    # `dtheta/dt = domega/dt = 0` (the same "a mechanical constraint freezes
+    # the attitude state" mechanism as the rail above, re-used rather than
+    # invented) and the canopy drag is computed directly in the inertial
+    # frame (sim/forces.py's `parachute_drag_inertial`), not routed through
+    # the body axial/normal decomposition -- a round canopy's drag opposes
+    # the relative wind vector, not the body's nose direction. Two
+    # independent off switches, same belt-and-suspenders style as
+    # `turbulence_sigma_high_ms`/`A_e`: `parachute_model = "none"` (the
+    # default) is the primary one -- `forces.parachute_deployed` returns
+    # `False` unconditionally, so `dynamics.py`'s new branch never
+    # activates. `parachute_S = 0.0` (also the default) is a second,
+    # independent one -- even if `parachute_model == "deploy"`, zero
+    # reference area makes the chute force exactly zero. Either alone
+    # reproduces every prior step bit-for-bit.
+    parachute_model: str = "none"              # none | deploy
+    parachute_deploy_trigger: str = "apogee"   # apogee | timer
+    parachute_deploy_time: float = 0.0         # [s], used only when trigger == "timer"
+    parachute_Cd: float = 0.8                  # [-], typical flat-circular canopy; override per design
+    parachute_S: float = 0.0                   # [m^2] canopy reference area; 0.0 = inert even if deployed

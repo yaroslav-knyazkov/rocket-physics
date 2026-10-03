@@ -24,6 +24,8 @@ import math
 
 import numpy as np
 
+from sim import forces, wind
+from sim.atmosphere import air_state
 from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives, on_rail, rail_distance
 from sim.flow import flow_state
 from sim.integrate import run_sim
@@ -716,3 +718,177 @@ def test_tilted_rail_exit_attitude_matches_rail_angle_both_integrators():
     y4 = r_rk4.raw.sol(t_exit_rk4)
     angle_rk4 = math.degrees(math.atan2(-y4[VZ], y4[VX]))
     assert math.isclose(angle_rk4, rail_angle_deg, abs_tol=1e-2)
+
+
+# ---------------------------------------------------------------------
+# Step 48: recovery / parachute (architecture.md SS27.2). The canopy's
+# drag is computed directly in the inertial frame (not routed through the
+# body axial/normal decomposition), and `theta`/`omega` are frozen at
+# their deployment-instant values -- the same "a mechanical constraint
+# freezes the attitude state" mechanism as the rail above, re-used rather
+# than invented.
+# ---------------------------------------------------------------------
+
+
+def test_parachute_off_switch_reproduces_existing_scenario_bit_for_bit():
+    """`parachute_model = "none"` (the default, params.py) is the primary
+    off switch (architecture.md SS27.2): reusing the module's own Step-8
+    cross-check scenario, which reaches a real apogee and descends well
+    past it, `forces.parachute_deployed` must stay `False` at every sampled
+    point of the flight -- including well after apogee, where the default
+    "apogee" trigger condition (`y[VZ] > 0`) would otherwise be satisfied
+    -- so `dynamics.py`'s parachute branch never activates and
+    `Result.events["parachute_deploy"]` stays `None`.
+    """
+    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    assert p.parachute_model == "none"  # the dataclass default
+    assert p.parachute_S == 0.0         # the second, independent off switch
+
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    r = run_sim(p, s0, method="RK45")
+
+    for t in np.linspace(0.0, r.t[-1], 50):
+        assert not forces.parachute_deployed(t, r.raw.sol(t), p)
+    assert r.events["parachute_deploy"] is None
+
+
+def test_parachute_descent_converges_to_terminal_velocity():
+    """The roadmap's own closed-form check (architecture.md SS27.2): with
+    `parachute_model = "deploy"`, no wind, no body aero drag (`aero_model =
+    "constant"`, `A_x = A_z = A_m = 0.0`, the defaults), deployed from the
+    very first instant (`parachute_deploy_trigger = "timer"`,
+    `parachute_deploy_time = 0.0`) so the whole descent is under canopy, the
+    fall speed `y[VZ]` converges to
+    `V_terminal = sqrt(2*m*g/(rho*Cd*S))` -- not exactly, since the ISA
+    `rho` used in the closed form is not constant with altitude (it is
+    evaluated here at the *sample instant's own altitude*, not sea level,
+    which already removes most of that error; the remaining few percent is
+    the quasi-steady-state lag between the still-slightly-changing `rho(h)`
+    and the instantaneous equilibrium speed it implies). `S` is sized so
+    `V_terminal` at sea-level density is a modest 15 m/s, reached (to
+    `tanh`'s own >99.9% asymptote) a couple of time-constants in -- well
+    before the ~800 m of altitude available is used up.
+    """
+    m = 2.0
+    Cd = 0.8
+    v_terminal_sea_level = 15.0
+    rho_sea_level = 1.225  # ISA sea-level density (sim/atmosphere.py's own table)
+    S = 2.0 * m * 9.80665 / (rho_sea_level * Cd * v_terminal_sea_level**2)
+
+    p = Params(
+        m=m, I=0.05, l1=0.3, l2=0.4,
+        parachute_model="deploy", parachute_deploy_trigger="timer", parachute_deploy_time=0.0,
+        parachute_Cd=Cd, parachute_S=S,
+    )
+    s0 = State(x=0.0, z=-500.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    r = run_sim(p, s0, method="RK45", t_max=20.0)
+
+    t_sample = 6.0  # ~= 4 time constants (v_t/g ~= 1.53 s) -- tanh(3.92) > 0.999
+    y = r.raw.sol(t_sample)
+    assert -y[Z] > 50.0  # well above ground -- "well before ground impact"
+
+    rho_local = air_state(t_sample, y, p).rho
+    v_terminal_local = math.sqrt(2.0 * m * p.g / (rho_local * Cd * S))
+    assert math.isclose(y[VZ], v_terminal_local, rel_tol=0.03)
+
+
+# Shared fixture for the freeze/drift checks below: a statically-stable-ish
+# airframe (same aero coefficient family as the Step 47 rail tests) falling
+# from rest under a strong analytic crosswind, so there is real pre-
+# deployment theta/omega activity (the wind-induced angle of attack drives
+# the restoring moment) to actually freeze, and a chute that then couples
+# the crosswind into the translational state as a genuine vector force.
+_PARACHUTE_FREEZE_DRIFT_PARAMS = dict(
+    m=0.5, I=0.05, l1=0.3, l2=0.4,
+    aero_model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5,
+    wind_model="analytic", wind_ref_ms=15.0, wind_dir_deg=90.0, azimuth_deg=90.0,
+    parachute_model="deploy", parachute_deploy_trigger="timer", parachute_deploy_time=1.0,
+    parachute_Cd=0.8, parachute_S=0.1,
+)
+
+
+def _run_parachute_freeze_drift_scenario(t_max=15.0):
+    s0 = State(x=0.0, z=-800.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    p = Params(**_PARACHUTE_FREEZE_DRIFT_PARAMS)
+    r = run_sim(p, s0, method="RK45", t_max=t_max)
+    t_dep = r.events["parachute_deploy"]
+    assert t_dep is not None
+    assert math.isclose(t_dep, p.parachute_deploy_time, abs_tol=1e-6)
+    return p, r, t_dep
+
+
+def test_parachute_freezes_theta_omega_at_deployment_instant_value():
+    """architecture.md SS27.2's third "Check" bullet: `theta`/`omega` are
+    frozen at their deployment-instant values for the remainder of the
+    flight -- not necessarily zero, whatever they happened to be when the
+    canopy deployed (the wind-induced pre-deployment rotation above makes
+    sure that value is actually nonzero here, so the test is not trivially
+    "it was already zero"). Sampled from the integrator's own accepted grid
+    points (`r.t`/`r.y`), not dense interpolation, to avoid the one RK45
+    step that straddles the discontinuous deploy instant itself -- a small
+    margin past `t_dep` sidesteps that single blended step.
+    """
+    p, r, t_dep = _run_parachute_freeze_drift_scenario()
+
+    idx = np.where(r.t > t_dep + 0.05)[0]
+    assert idx.size >= 3  # several post-deployment samples to actually check
+
+    theta_vals = r.y[THETA, idx]
+    omega_vals = r.y[OMEGA, idx]
+
+    assert abs(omega_vals[0]) > 1e-6  # the pre-deployment crosswind rotation was real, not trivially zero
+    assert np.allclose(theta_vals, theta_vals[0])
+    assert np.allclose(omega_vals, omega_vals[0])
+
+
+def test_parachute_crosswind_drifts_horizontally_vector_drag_check():
+    """architecture.md SS27.2's fourth "Check" bullet, the vector-(not-
+    scalar-)drag check: a deployed chute under a strong crosswind drifts
+    horizontally. With no restoring force in the horizontal direction other
+    than the chute's own drag, `vx` is an attracting equilibrium at the
+    local wind speed `w_x` -- it should move monotonically closer to `w_x`
+    as time passes under canopy, and `x` should show a real (not
+    numerical-noise) horizontal displacement over that same window.
+    """
+    p, r, t_dep = _run_parachute_freeze_drift_scenario()
+
+    idx = np.where(r.t > t_dep + 0.05)[0]
+    assert idx.size >= 3
+
+    t_first, t_last = r.t[idx[0]], r.t[idx[-1]]
+    y_first, y_last = r.y[:, idx[0]], r.y[:, idx[-1]]
+
+    w_x_first = wind.wind_inertial(t_first, y_first, p)[0]
+    w_x_last = wind.wind_inertial(t_last, y_last, p)[0]
+
+    assert abs(y_last[VX] - w_x_last) < abs(y_first[VX] - w_x_first)  # converging towards the wind speed
+    assert abs(y_last[X] - y_first[X]) > 1.0  # a real horizontal displacement, not numerical noise
+
+
+def test_parachute_timer_trigger_deploys_independent_of_trajectory_apogee():
+    """architecture.md SS27.2's fifth "Check" bullet: `parachute_deploy_trigger
+    = "timer"` deploys at exactly `parachute_deploy_time`, independent of
+    the trajectory's own apogee. A ballistic-ish coast (`vz0 = -50 m/s`,
+    still rising at the chosen deploy time) gives a real, later apogee to
+    contrast against: the timer fires at `parachute_deploy_time` itself,
+    not at the `y[VZ]`-crossing-zero apogee time, on both integration
+    paths.
+    """
+    p = Params(
+        m=1.0, I=0.05, l1=0.3, l2=0.4,
+        parachute_model="deploy", parachute_deploy_trigger="timer", parachute_deploy_time=2.0,
+        parachute_Cd=0.8, parachute_S=0.05,
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=-50.0, theta=math.pi / 2, omega=0.0)
+
+    r_rk45 = run_sim(p, s0, method="RK45", t_max=15.0)
+    assert r_rk45.events["parachute_deploy"] is not None
+    assert math.isclose(r_rk45.events["parachute_deploy"], 2.0, abs_tol=1e-6)
+    assert r_rk45.events["apogee"] is not None
+    assert r_rk45.events["apogee"] > 2.0 + 1e-3  # distinctly after the timer deploy, not the same instant
+
+    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-3, t_max=15.0)
+    assert r_rk4.events["parachute_deploy"] is not None
+    assert math.isclose(r_rk4.events["parachute_deploy"], 2.0, abs_tol=2e-3)
+    assert r_rk4.events["apogee"] is not None
+    assert r_rk4.events["apogee"] > 2.0 + 1e-3

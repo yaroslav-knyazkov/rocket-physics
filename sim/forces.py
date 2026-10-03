@@ -69,13 +69,24 @@ Step 44: `aero_moment_y`'s "coefficients" regime gains a pitch-damping term
 function's own docstring for the closed form and the division-free `V = 0`
 note. `p.c_mq = 0.0` (the default) reproduces the pre-Step-44 `A_m`
 bit-for-bit. The `"constant"` regime is untouched.
+
+Step 48 (architecture.md SS27.2): `parachute_deployed` and
+`parachute_drag_inertial`, a new natively-inertial force (same standing as
+`weight_inertial`) for the recovery canopy. Unlike every aero force above,
+it is deliberately NOT routed through the body axial/normal decomposition
+-- a round canopy's drag opposes the relative wind vector, not the body's
+nose direction, which under canopy may be frozen at any attitude
+(dynamics.py's new branch). `parachute_deployed` is a pure function of
+`(t, y, p)`, not a reference to the apogee *event* -- the RHS runs before
+any event is finalised, so "has apogee happened" has to be reconstructed
+from the state being integrated, not looked up from `Result.events`.
 """
 
 import numpy as np
 
 from sim import aero, gravity, thrust_curve
 from sim.flow import flow_state
-from sim.state import M, OMEGA
+from sim.state import M, OMEGA, VX, VZ
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
@@ -197,3 +208,50 @@ def aero_moment_y(t: float, s, p) -> float:
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
     return -A_m
+
+
+def parachute_deployed(t: float, y: np.ndarray, p) -> bool:
+    """Has the recovery canopy deployed by now -- a pure function of
+    `(t, y, p)`, never a lookup of the apogee *event* itself (architecture.md
+    SS27.2): the RHS runs before any event is finalised, so it cannot read
+    `Result.events`, and "has apogee happened" has to be reconstructed from
+    the state actually being integrated.
+
+    `p.parachute_model == "none"` (the default) is the primary off switch --
+    always `False`, reproducing every prior step bit-for-bit.
+    """
+    if p.parachute_model == "none":
+        return False
+    if p.parachute_deploy_trigger == "timer":
+        return t >= p.parachute_deploy_time
+    # "apogee" (the default): y[VZ] > 0 means currently descending. On any
+    # simple ballistic/drag trajectory this is true from apogee onward and
+    # false before it -- a continuous, RHS-computable stand-in for "has
+    # apogee happened yet", not a reference to the apogee *event* itself.
+    # Known simplification: a pre-apogee transient dip (vz briefly positive
+    # mid-boost on an unstable trajectory) would arm deployment early. Not a
+    # concern for the nominal trajectories this project models; documented
+    # here rather than guarded against, the same standing as B11.
+    return y[VZ] > 0.0
+
+
+def parachute_drag_inertial(t: float, s: np.ndarray, p) -> np.ndarray:
+    """F_chute_i, inertial frame, (0,0) whenever not deployed -- natively
+    inertial like weight_inertial, since a round canopy's drag does not
+    depend on body attitude (architecture.md SS27.2).
+
+    Standard quadratic drag, `F = -0.5*rho*Cd*S*|v_rel|*v_rel`, opposing
+    `v_rel_i` exactly -- the vector form of `A = 0.5*rho*V^2*Cd*S`,
+    splitting the `|v|*v` product (rather than `(0.5*rho*V^2*Cd*S)*v_hat`)
+    to avoid a `0/0` direction at `V = 0`, the same precedent as
+    `aero_moment_y`'s division-free pitch-damping term above.
+    """
+    if not parachute_deployed(t, s, p):
+        return np.zeros(2)
+    # Local import: circular-import avoidance, same precedent as flow.py's
+    # own `_wind_inertial` (that module's docstring).
+    from sim import wind
+
+    flow = flow_state(t, s, p)
+    v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p)
+    return -0.5 * flow.air.rho * p.parachute_Cd * p.parachute_S * flow.V * v_rel_i
