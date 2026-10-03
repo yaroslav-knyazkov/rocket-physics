@@ -80,11 +80,19 @@ nose direction, which under canopy may be frozen at any attitude
 `(t, y, p)`, not a reference to the apogee *event* -- the RHS runs before
 any event is finalised, so "has apogee happened" has to be reconstructed
 from the state being integrated, not looked up from `Result.events`.
+
+Step 49 (architecture.md SS27.3): `aero_force_body` gains one additive
+term, `A_brake`, for a feedback-controlled airbrake -- see that function's
+own docstring for the formula and the off-switch accounting. The
+controller itself (a pure, memoryless P-control law on predicted apogee)
+lives in the new `sim/control.py`, not here -- `forces.py` only consumes
+`control.airbrake_deploy_fraction(t, s, p)`, the same arm's-length
+relationship it already has with `gravity.py`/`thrust_curve.py`/`aero.py`.
 """
 
 import numpy as np
 
-from sim import aero, gravity, thrust_curve
+from sim import aero, control, gravity, thrust_curve
 from sim.flow import flow_state
 from sim.state import M, OMEGA, VX, VZ
 
@@ -156,6 +164,23 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     (the `sin`, not raw `alpha`, is Phase 2.5 Step 35 -- see aero.py's
     module docstring) -- matching the pre-Step-25 formulas above to within
     that fallback's own small-angle error when no table is configured.
+
+    Step 49 (architecture.md SS27.3): an additive airbrake term,
+    `A_brake = q*Cd_brake*S_max*deploy_fraction`, after the `aero_model`
+    branch above, unconditionally -- a linear deployment-fraction-to-area
+    model, `S_brake(f) = f*S_max`, the simplest model that needs no new
+    geometry beyond this step's own `Params` fields. Routed through the
+    body axial direction (`x_hat_r`, i.e. added into `A_x` before the
+    final negation), unlike the parachute (Step 48): an airbrake is
+    rigidly mounted to the body and shaped to add axial drag regardless of
+    pitch, the opposite physical situation from the free-swinging canopy,
+    which opposes the relative wind vector instead -- a deliberate
+    difference in treatment, not an inconsistency between the two steps.
+    `control.airbrake_deploy_fraction` dispatches on `p.airbrake_model`
+    ("none", the default, returns `0.0` unconditionally); `p.airbrake_kp
+    == 0.0` and `p.airbrake_S_max == 0.0` (also both defaults) are two
+    further independent off switches -- any one alone makes `A_brake`
+    exactly `0.0`, reproducing every prior step bit-for-bit.
     """
     flow = flow_state(t, s, p)
     if p.aero_model == "constant":
@@ -166,7 +191,8 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
         A_z = flow.q * p.S * aero.C_N(flow.alpha, flow.M, p)
     else:
         raise ValueError(f"Unknown aero_model: {p.aero_model}")
-    return np.array([-A_x, -A_z])
+    A_brake = flow.q * p.airbrake_Cd * p.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
+    return np.array([-(A_x + A_brake), -A_z])
 
 
 def aero_moment_y(t: float, s, p) -> float:

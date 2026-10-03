@@ -245,3 +245,24 @@ class Params:
     parachute_deploy_time: float = 0.0         # [s], used only when trigger == "timer"
     parachute_Cd: float = 0.8                  # [-], typical flat-circular canopy; override per design
     parachute_S: float = 0.0                   # [m^2] canopy reference area; 0.0 = inert even if deployed
+
+    # Step 49: control-engineering scaffold -- feedback airbrake
+    # (architecture.md SS27.3; sim/control.py). A pure, memoryless
+    # proportional (P) control law on predicted apogee, re-evaluated fresh
+    # at every RHS call -- no integral/derivative term, no fixed-rate
+    # sample-and-hold, the same determinism-contract reasoning Step 46/B11
+    # already applied to turbulence (see sim/control.py's module docstring).
+    # Three independent off switches, same belt-and-suspenders style as
+    # `parachute_model`/`parachute_S`: `airbrake_model = "none"` (the
+    # default) is the primary one -- `control.airbrake_deploy_fraction`
+    # returns `0.0` unconditionally. `airbrake_kp = 0.0` and
+    # `airbrake_S_max = 0.0` (also both defaults) are two further,
+    # independent ones -- even with `airbrake_model = "proportional"`, a
+    # zero gain commands zero deployment and a zero max area makes the
+    # brake's drag term exactly zero regardless of the commanded fraction.
+    # Any one alone reproduces every prior step bit-for-bit.
+    airbrake_model: str = "none"           # none | proportional
+    airbrake_target_apogee_m: float = 0.0  # target AGL altitude [m]
+    airbrake_kp: float = 0.0               # proportional gain [1/m]
+    airbrake_Cd: float = 1.0               # [-], flat-plate-ish brake surface
+    airbrake_S_max: float = 0.0            # [m^2] exposed area at full (fraction=1.0) deployment
