@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.10-complete",
+  "current_stage": "phase3-in-progress-steps28-29-done-step30-blocked-on-user-review",
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
     "what_happened": "The developer subagent implementing Steps 41-44 was terminated mid-task by a session-limit API error, right after finishing Step 42's implementation+tests and while running the full suite to verify before its first commit -- so Steps 41 and 42 existed only as uncommitted working-tree changes (nothing committed yet, despite the one-step-one-commit instruction) when the session resumed. Steps 43/44 (sim/dynamics.py, sim/forces.py, sim/aero.py) were confirmed untouched.",
@@ -578,6 +578,31 @@
     "summary": "Steps 47-49 (Phase 2.10) done. User request, designed directly by the orchestrator (not the architect agent) at the user's explicit instruction (\"design the rail and parachute dynamics on your own\"), with a late addition folded in before implementation (\"add a somehow way to do control engineering... feedback rn is going to be airbrake but also create base for direction control (guided)... control engineering can go in 3D\"). Promotes backlog B1 (launch rail) and B2 (recovery/parachute) in full; opens B12 (sampled-data/PID control, same determinism-constraint family as B11). Rail and parachute turned out to share one mechanical pattern (freeze theta/omega, only the translational force model differs) -- designed once, reused, not two separate mechanisms. Direction/guidance control itself was deliberately NOT built now -- only its architectural seam (control.py's dispatch-dict shape) -- per the user's own scope split (3D handles guidance; CFD and this control scaffold's one concrete controller, the airbrake, stay 2D).",
     "verification": "Each step's full diff independently reviewed against its architecture.md SS27 subsection (27.1/27.2/27.3) before being accepted, file by file -- all three matched the spec exactly, no deviations. Full pytest suite independently re-run by the orchestrator after every step (not just the implementing agent's report): 224/224 after Step 47, 229/229 after Step 48, 235/235 after Step 49. A live, independent verification script (not just the subagents' own tests) reproduced every headline physical claim directly: rail off-switch leaves on_rail false at t=0 with no rail_exit event; a tilted 85 deg rail delivers an 85.000 deg exit attitude; a 90 deg rail's exit speed/attitude check out at 42.075 m/s / 90.000 deg; a parachute descent converges to 7.1005 m/s against an analytic sea-level-density terminal velocity of 7.0735 m/s (0.4%, consistent with the stated rho-varies-with-altitude tolerance); and a saturating-gain airbrake run lowers apogee from a 593m baseline to 378m while its deploy fraction reaches exactly 1.0 during coast.",
     "findings": "A latent, pre-existing robustness gap in sim/atmosphere.py surfaced (not introduced) by Step 48: solve_ivp's adaptive-step error estimator occasionally probes a wildly extrapolated trial state at the parachute's discontinuous drag onset (observed: an altitude of order 700 km MSL, vz of order 1e10 m/s -- obviously unphysical, never part of any accepted solution), and the ISA formula's unbounded extrapolation then raises a RuntimeWarning (fractional power / Sutherland viscosity of a negative temperature). Confirmed benign by re-running the full suite with RuntimeWarning promoted to a hard error: exactly one test fails only under that artificial promotion, and the same scenario passes normally (solve_ivp's own step-rejection logic discards the offending trial step before it can affect the accepted trajectory or any event time). Recorded as new backlog item B13 (roadmap.md) rather than silently ignored or fixed out of scope.",
-    "next": "Remaining backlog: B3 gridded EGM gravity, B6 crosswind (parked for Phase 3), B7 vertical wind (parked), B9 a real c_mq value (user chose to keep the Step 44 test fixture), B10/B11 turbulence items (Step 46), B12 sampled-data/PID control (this push), B13 ISA extrapolation robustness (this push). Phase 3 (3D, full 6-DOF) not yet started -- next up per the user's own instruction, scoped to simulation/optimization/guidance only (CFD and the Step 49 airbrake controller stay 2D-only, by the user's explicit split)."
+    "next": "Remaining backlog: B3 gridded EGM gravity, B6 crosswind (parked for Phase 3), B7 vertical wind (parked), B9 a real c_mq value (user chose to keep the Step 44 test fixture), B10/B11 turbulence items (Step 46), B12 sampled-data/PID control (this push), B13 ISA extrapolation robustness (fixed same day, commit 657ff36). Phase 3 (3D, full 6-DOF) started same day -- see phase3_progress below."
+  },
+  "phase3_progress": {
+    "started": "2026-10-04",
+    "scope_per_user": "3D is simulation/optimization/guidance only -- CFD and the Step 49 airbrake controller stay 2D-only (user's explicit instruction).",
+    "completed_steps": [
+      {
+        "step": 28,
+        "title": "Quaternion algebra",
+        "commit": "26cbf1b",
+        "note": "sim/quaternion.py: scalar-first Hamilton-product quaternions, multiply/conjugate/normalise/rotate_vector/to_dcm/from_euler/to_euler (3-2-1 yaw-pitch-roll)/q_dot. Pure algebra, no Params/State dependency. Orchestrator independently hand-derived that to_dcm's pitch-only reduction matches sim/frames.py's R_body_to_inertial(theta) exactly (the load-bearing check), confirming the subagent's claim rather than trusting it."
+      },
+      {
+        "step": 29,
+        "title": "3D state vector and translational dynamics",
+        "commit": "2d9acb5",
+        "note": "sim/state3d.py (13-component [r,v,q,omega] state), sim/forces3d.py, sim/dynamics3d.py -- additive only, no 2D file touched. Attitude held fully constant (dq/dt=0, domega/dt=0 identically -- no q_dot call, no moments) per the orchestrator's clarification mirroring Phase 1's own Step-4 precedent (translation-only staging before real rotation). The one real design decision: forces3d.py builds a disposable 2D-compatible state view per call and calls the existing 2D force functions verbatim rather than duplicating their formulas -- documented in full in that module's docstring. Interrupted once by a session-limit API error mid-task; resumed from its own saved progress via SendMessage, no work lost. Orchestrator independently re-verified: with matched tight solver tolerances on both sides (not the agent's own slightly mismatched comparison), the 3D translation matches the 2D trajectory to ~4e-7 and out-of-plane drift is exactly 0.0."
+      }
+    ],
+    "blocked": {
+      "step": 30,
+      "title": "3D rotational dynamics",
+      "reason": "Needs an inertia-tensor + Euler's-equations extension to main.tex that does not exist yet (main.tex is 2D-only end to end). Per the user's choice (AskUserQuestion), the orchestrator drafted a proposal rather than inventing the physics unilaterally: docs/latex/research/3d_equations_of_motion.md -- quaternion kinematics (already implemented at Step 28), the axisymmetric-inertia-tensor simplification (already implicit in the existing 2D mass model, so not a new assumption), Euler's equations for that case reducing exactly to today's 2D scalar equation at zero roll rate, and the one genuinely new required input (axial moment of inertia I_a, no default possible) left as an open fork for the user rather than decided here.",
+      "next": "Waiting on the user's review of docs/latex/research/3d_equations_of_motion.md before Step 30 implementation proceeds."
+    },
+    "verification": "Every step's full diff independently reviewed by the orchestrator against its spec before being accepted. Full pytest suite independently re-run by the orchestrator after every step: 243/243 (Step 28), 245/245 (Step 29)."
   }
 }

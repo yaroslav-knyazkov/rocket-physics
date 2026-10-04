@@ -19,8 +19,15 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
 **Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
-COMPLETE**, **Phase 2.9 (Step 46) COMPLETE**, **Phase 2.10 (Steps 47-49) COMPLETE** — still 2D, not
-Phase 3. 235/235 tests passing. Backlog items B1, B2, B4, B5 and B8 are done (promoted at earlier
+COMPLETE**, **Phase 2.9 (Step 46) COMPLETE**, **Phase 2.10 (Steps 47-49) COMPLETE** — 2D is now
+feature-complete against the backlog (everything left needs new data, new theory, or a 3D degree of
+freedom). **Phase 3 (3D, full 6-DOF) STARTED 2026-10-04**: Step 28 (quaternion algebra, commit
+`26cbf1b`) and Step 29 (3D state + translational dynamics, commit `2d9acb5`) are done and
+independently verified. **Step 30 (3D rotational dynamics) is blocked**, waiting on the user's review
+of `docs/latex/research/3d_equations_of_motion.md` — a proposed inertia-tensor/Euler's-equations
+extension to `main.tex`, drafted by the orchestrator rather than invented unilaterally, since
+`main.tex` has no 3D content at all yet. 245/245 tests passing. Backlog items B1, B2, B4, B5 and B8
+are done (promoted at earlier
 phases); remaining backlog: B3 gridded EGM gravity, B6 crosswind (parked for Phase 3, now with a
 second item waiting on it — Step 46's Dryden cross-wind `v`), B7 vertical wind (parked; Step 46
 narrowed but did not close the gap — the verified `Φ_w` turbulence formula exists, the mean
@@ -31,10 +38,13 @@ Step 49 — the airbrake controller is a pure, memoryless proportional law for t
 solver-determinism reason B11 exists), B13 ISA-extrapolation robustness (a benign but real gap found,
 not introduced, during Step 48's verification — see roadmap.md). Also outstanding, as the user's own
 follow-up, not blocking anything: `latex/sections-ai/models.tex` §Wind > Analytic still documents the
-pre-Step-46 placeholder gust formula. Next: Phase 3 (3D, full 6-DOF) — the user's own instruction is
-to scope it to simulation/optimization/guidance only (CFD stays 2D-only; the Step 49 airbrake
-controller is this project's one 2D control loop, direction/guidance control is Phase 3's to build).
-See "Phase 2.10 milestone: COMPLETE" below. Steps 33-35:
+pre-Step-46 placeholder gust formula. B13 (ISA extrapolation robustness, found during Step 48's
+verification) and B12 (sampled-data/PID control, opened by Step 49) are also open, B13 already fixed
+same day (commit `657ff36`). Phase 3 is scoped per the user's own instruction to
+simulation/optimization/guidance only — CFD stays 2D-only; the Step 49 airbrake controller is this
+project's one 2D control loop, direction/guidance control is Phase 3's to build, once it has an
+out-of-plane DOF. Next: the user's review of the Step 30 EOM proposal. See "Phase 3 progress" and
+"Phase 2.10 milestone: COMPLETE" below. Steps 33-35:
 - Step 33 — doc restructuring: `main.tex` split into `latex/main.tex` +
   `latex/sections/{rocket-2d,models}.tex`; added the `§Current assumptions` section; filled
   previously-empty stubs; AI-authored text marked with `\ai{}`. No code changes. Commit `3aaec51`.
@@ -151,6 +161,41 @@ in the user's own older text. Flagged for a small dedicated fix step later, not 
 
 **Phase 2.5 milestone: COMPLETE.** All 5 steps (33-37) done and committed individually. Phase 3
 (3D, full 6-DOF) has not been started.
+
+## Phase 3 progress (started 2026-10-04)
+
+Scope per the user: simulation/optimization/guidance only — CFD and the Step 49 airbrake controller
+stay 2D-only.
+
+- **Step 28 — Quaternion algebra** (commit `26cbf1b`). New `sim/quaternion.py`, pure algebra, no
+  `Params`/`State` dependency: scalar-first Hamilton-product quaternions, `multiply`/`conjugate`/
+  `normalise`/`rotate_vector`/`to_dcm`/`from_euler`/`to_euler` (3-2-1 yaw-pitch-roll)/`q_dot`. The
+  orchestrator independently hand-derived that `to_dcm`'s pitch-only reduction matches
+  `sim/frames.py`'s `R_body_to_inertial(theta)` exactly — the load-bearing check — rather than
+  trusting the subagent's own claim.
+- **Step 29 — 3D state and translational dynamics** (commit `2d9acb5`). New `sim/state3d.py`
+  (13-component `[r,v,q,omega]` state), `sim/forces3d.py`, `sim/dynamics3d.py` — additive only, no
+  2D file touched. Attitude held fully constant (`dq/dt=0`, `domega/dt=0` identically) for this step,
+  mirroring Phase 1's own Step-4 precedent (translation-only staging before real rotation is added at
+  Step 30). The one real design decision: `forces3d.py` builds a disposable 2D-compatible state view
+  per call and calls the existing 2D force functions verbatim rather than duplicating their formulas.
+  This agent session was interrupted once by an API session-limit error mid-task; resumed from its
+  own saved progress with no work lost. The orchestrator independently re-verified with matched tight
+  solver tolerances on both sides (not the agent's own slightly mismatched comparison): the 3D
+  translation matches the 2D trajectory to ~4e-7 and out-of-plane drift is exactly `0.0`.
+- **Step 30 — 3D rotational dynamics — BLOCKED.** Needs an inertia-tensor/Euler's-equations
+  extension to `main.tex`, which has no 3D content at all. Per the user's choice, the orchestrator
+  drafted a proposal rather than inventing the physics unilaterally:
+  `docs/latex/research/3d_equations_of_motion.md` — quaternion kinematics (done at Step 28), the
+  axisymmetric-inertia-tensor simplification (already implicit in the existing 2D mass model, not a
+  new assumption), Euler's equations for that case reducing exactly to today's 2D scalar equation at
+  zero roll rate, and the one genuinely new required input (axial moment of inertia $I_a$, no default
+  possible) left as an open fork for the user. **Waiting on the user's review before Step 30
+  proceeds.**
+
+**Verification:** every step's full diff independently reviewed against its spec before being
+accepted; full pytest suite independently re-run by the orchestrator after each step (243/243, then
+245/245).
 
 ## Phase 2.10 milestone: COMPLETE (2026-10-04) — Steps 47-49 implemented and committed
 
