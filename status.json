@@ -5,7 +5,30 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase3-in-progress-steps28-29-done-step30-blocked-on-user-review",
+  "current_stage": "phase2.11-rewrite-in-progress-dispatching-S50-phase3-step30-paused",
+  "phase2_11_rewrite": {
+    "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
+    "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
+    "approved": true,
+    "approved_date": "2026-10-10",
+    "decisions_log": [
+      {"id": "params-shape", "choice": "nested sub-dataclasses (Weight/Thrust/Lengths/Aero/Solver + 7 architect-proposed groups), not flat-grouped", "by": "user"},
+      {"id": "misalignment-placement", "choice": "Lengths group (lengths.misalign_deg), not Thrust", "by": "user"},
+      {"id": "aero-model-scope", "choice": "three-way dispatch: constant | linearized | table (reuses existing data/aero/*.csv format), not a from-scratch unification", "by": "user"},
+      {"id": "bug-scope", "choice": "backlog B3/B6/B7/B9/B10 stay deferred (need data/theory/3D); B11+B12 (sampled-data integration) IS in scope this pass", "by": "user"},
+      {"id": "D-2-migration-strategy", "choice": "3 commits + transitional shim (S50 sim/ -> S51 tests/run.py/apps -> S52 delete shim), not one big commit", "by": "user"},
+      {"id": "D-4-area-symbol", "choice": "shared Aero.S for all 3 models, NOT a new field named 'A' as literally requested -- avoids reintroducing a symbol collision (A = nose-tip point, A_x/A_z/A_m, vec(A_f)) a prior doc pass removed", "by": "user, on architect's recommendation against the literal request"},
+      {"id": "D-10-run_sim-signature", "choice": "strict run_sim(p, s0), no override kwargs -- Result.params becomes the single source of truth for how a run was integrated", "by": "user"},
+      {"id": "D-1,3,5,6,7,8,9,11,12,13,14,15,16,17", "choice": "architect's stated recommendation accepted for all 13, per user's blanket approval", "by": "user"}
+    ],
+    "plan": "Steps 50-60 (Phase 2.11), one commit each: S50-52 Params migration (sim/, then tests/run.py/apps/, then delete shim), S53 Solver group, S54 LaTeX notation pass (architect, before S55), S55 aero three-way dispatch (the one deliberately non-bit-for-bit step), S56 single flow_state/RHS call, S57 control-coefficient seam (structure only), S58 run.py->sim/report.py, S59 sampled-data/ZOH integrator (unblocks B11/B12, largest/riskiest step), S60 tracker/latex close-out (architect).",
+    "housekeeping_done": [
+      "committed apps/cfd_conditions/select_conditions.py (D-15), commit c22d8b7",
+      "committed docs/architecture-28-rewrite.md + architecture.md pointer, commit 03918e2",
+      ".gitignore: docs/latex build artifacts, commit e460b61"
+    ],
+    "next": "dispatch S50 to developer"
+  },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
     "what_happened": "The developer subagent implementing Steps 41-44 was terminated mid-task by a session-limit API error, right after finishing Step 42's implementation+tests and while running the full suite to verify before its first commit -- so Steps 41 and 42 existed only as uncommitted working-tree changes (nothing committed yet, despite the one-step-one-commit instruction) when the session resumed. Steps 43/44 (sim/dynamics.py, sim/forces.py, sim/aero.py) were confirmed untouched.",

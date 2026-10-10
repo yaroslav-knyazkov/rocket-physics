@@ -16,6 +16,55 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
+## Phase 2.11 rewrite pass — IN PROGRESS (started 2026-10-10), Step 30 paused for it
+
+User request (2026-10-10): fix bugs and rewrite `Params`/`sim/aero.py`/`run.py`/the LaTeX **before**
+resuming Step 30 (3D rotational EOM review), which stays paused and untouched throughout. Architect
+design: `docs/architecture-28-rewrite.md` (architecture.md §28 pointer). Approved by the user the
+same day; full decision log in `status.json`'s `phase2_11_rewrite` block.
+
+**Confirmed bug, user-identified:** `aero_model="constant"` uses raw-Newton placeholders
+(`A_x`/`A_z`/`A_m`), never scaled by dynamic pressure — the only aero model that ignores the
+atmosphere. Measured blast radius of fixing it: exactly 3 call sites in the whole repo use nonzero
+values there (one test, `run.py`'s scenario, `apps/cfd_conditions`'s scenario); everything else is
+bit-for-bit since zero coefficients produce zero force either way. A second, independent defect
+found during design: `aero_model` and `aero_table` are two uncoordinated selectors for the same
+thing, and `dynamics.py`'s `cop_l1` call already ignores the `aero_model` switch entirely — fixed by
+making all three (`constant`/`linearized`/`table`) one coherent dispatch.
+
+**Plan — Steps 50-60, one commit each:**
+- S50-52 — `Params` → 12 composed groups (`Weight/Thrust/Lengths/Aero/Gravity/Site/Atmosphere/
+  Soundings/Wind/Recovery/Control/Solver`); 3-commit migration with a transitional shim (sim/ first,
+  then tests/run.py/apps/, then delete the shim). Phase 3's `dynamics3d.py`/`forces3d.py` are in
+  scope for the rename (small: `p.m`/`p.m_d` → `p.weight.m`/`p.weight.m_d`) — Step 30's own content
+  is not touched.
+- S53 — `Solver` group; `run_sim(p, s0)` becomes the only signature, no override kwargs.
+- S54 — *(architect)* LaTeX notation pass, lands before S55 so the doc doesn't contradict the code
+  (same ordering lesson as Step 46's blocker).
+- S55 — the aero three-way dispatch itself (`constant`/`linearized`/`table`), replacing
+  `A_x`/`A_z`/`A_m` with coefficients (`C_x`/`C_z`/`C_m`) × a shared reference area `Aero.S` (not a
+  new field `A` — avoids reintroducing a symbol collision with the nose-tip point/`A_x,A_z,A_m`/
+  `vec(A_f)` that a prior doc pass deliberately removed). **The one deliberately non-bit-for-bit
+  step** — re-pins one test's closed form, `run.py`'s printed numbers, and `apps/`'s scenario.
+- S56 — collapse 3×`flow_state` per RHS call down to 1× (perf/cleanliness, bit-for-bit).
+- S57 — control-coefficient seam (structure only, identity by default) — so a future
+  airbrake/guidance law can perturb `C_x`/`C_z`/`C_m`/CoP directly, not just add a separate drag
+  area. No controller written yet.
+- S58 — `run.py` reduced to scenario definition only; summary/plot/CSV/sweep machinery moves to new
+  `sim/report.py`.
+- S59 — **opt-in sampled-data/zero-order-hold integration mode** — unblocks backlog **B11**
+  (state-coupled turbulence) and **B12** (sampled-data PID airbrake), both previously blocked on
+  `solve_ivp`'s pure-function-of-`(t,y,p)` contract. Flagged as the largest, riskiest step in the
+  pass, its own commit, strictly opt-in (bit-for-bit by default).
+- S60 — *(architect)* tracker/roadmap/LaTeX close-out.
+
+**Already done (housekeeping, ahead of S50):** `apps/cfd_conditions/select_conditions.py` (never
+committed — "App 2," the CFD condition selector) committed as-is (commit `c22d8b7`); the design doc
+committed (commit `03918e2`); `docs/latex/*.{aux,pdf,log,...}` build artifacts added to `.gitignore`
+(commit `e460b61`).
+
+**Next:** dispatch S50 to developer.
+
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
 **Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
