@@ -17,7 +17,7 @@ from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
 from sim.integrate import run_sim
-from sim.params import Params
+from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
 from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State
 
 
@@ -27,7 +27,11 @@ def test_thrust_moment_is_zero_on_axis():
     A_m = 0, the only possible moment contribution is from thrust, so
     dydt[OMEGA] must be exactly 0.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, T=50.0, A_x=0.0, A_z=0.0, A_m=0.0)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(C_x=0.0, C_z=0.0, C_m=0.0),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
 
@@ -54,14 +58,18 @@ def test_moment_matches_closed_form_minus_l1_Az_minus_Am():
     `aero_moment_y = -A_m` (main.tex SSMoments) gives the expected total
     `M_y = -l1*A_z - A_m`.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, T=0.0, A_x=1.23, A_z=2.0, A_m=0.5)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(C_x=1.23, C_z=2.0, C_m=0.5),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.7, omega=1.5)
     y = np.array(s)
 
     dydt = derivatives(10.0, y, p)  # t > T_BURN, thrust is zero
 
-    expected_M_y = -p.l1 * p.A_z - p.A_m
-    assert math.isclose(dydt[OMEGA] * p.I, expected_M_y, rel_tol=1e-12, abs_tol=1e-12)
+    expected_M_y = -p.lengths.l1 * p.aero.C_z - p.aero.C_m
+    assert math.isclose(dydt[OMEGA] * p.weight.I, expected_M_y, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
@@ -87,10 +95,10 @@ def _buggy_derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     aero_force = aero_force_body(t, y, p)
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
-    a_i = F_i / p.m
+    a_i = F_i / p.weight.m
 
-    aA = np.array([p.l1, 0.0])
-    aB = np.array([p.l1 - p.l2, 0.0])
+    aA = np.array([p.lengths.l1, 0.0])
+    aB = np.array([p.lengths.l1 - p.lengths.l2, 0.0])
 
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
@@ -108,7 +116,7 @@ def _buggy_derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     dydt[VX] = a_i[0]
     dydt[VZ] = a_i[1]
     dydt[THETA] = y[OMEGA]
-    dydt[OMEGA] = M_y / p.I
+    dydt[OMEGA] = M_y / p.weight.I
     return dydt
 
 
@@ -158,10 +166,10 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     at t=2.0 s (comfortably past the first excursion above `pi/2`, still
     within this scenario's pre-apogee window), not at t=1.0 s.
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0),
     )
     alpha0 = -0.15
     theta0 = math.pi / 2 + alpha0  # vz-only launch: alpha = theta - pi/2 exactly
@@ -210,9 +218,11 @@ def test_gravity_direction_parallel_reproduces_derivatives_bit_for_bit():
     reads (`phi = x/R_e`) and "parallel" must not -- so varying both here
     and still getting an identical result is the real check.
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, gravity_direction="parallel")
-    p_a = Params.flat(R_e=6371000.0, **common)
-    p_b = Params.flat(R_e=1000.0, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero = Aero(C_x=0.5)
+    p_a = Params(weight=weight, lengths=lengths, aero=aero, gravity=Gravity(direction="parallel", R_e=6371000.0))
+    p_b = Params(weight=weight, lengths=lengths, aero=aero, gravity=Gravity(direction="parallel", R_e=1000.0))
     s = State(x=0.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
     s2 = State(x=50_000.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
 
@@ -236,17 +246,20 @@ def test_gravity_direction_radial_matches_closed_form_and_leaves_moment_exactly_
     load-bearing physical claim of this step, main.tex
     SSAnalysis_moment referenced from eq:weight_rotated).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, R_e=6371000.0)
-    p_par = Params.flat(gravity_direction="parallel", **common)
-    p_rad = Params.flat(gravity_direction="radial", **common)
+    R_e = 6371000.0
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero = Aero(C_x=0.5)
+    p_par = Params(weight=weight, lengths=lengths, aero=aero, gravity=Gravity(direction="parallel", R_e=R_e))
+    p_rad = Params(weight=weight, lengths=lengths, aero=aero, gravity=Gravity(direction="radial", R_e=R_e))
     s = State(x=50_000.0, z=-1000.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
     y = np.array(s)
 
     dydt_par = derivatives(5.0, y, p_par)
     dydt_rad = derivatives(5.0, y, p_rad)
 
-    phi = s.x / common["R_e"]
-    g0 = p_par.g  # gravity_model="constant" (the default) -- g is exactly p.g
+    phi = s.x / R_e
+    g0 = p_par.g0  # gravity_model="constant" (the default) -- g is exactly p.g0
 
     assert math.isclose(dydt_rad[VX] - dydt_par[VX], -g0 * math.sin(phi),
                          rel_tol=1e-9, abs_tol=1e-12)
@@ -262,9 +275,10 @@ def test_gravity_direction_radial_adds_retarding_downrange_acceleration():
     *negative* (retarding) downrange component -- it must not accelerate
     further downrange travel.
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, R_e=6371000.0)
-    p_par = Params.flat(gravity_direction="parallel", **common)
-    p_rad = Params.flat(gravity_direction="radial", **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    p_par = Params(weight=weight, lengths=lengths, gravity=Gravity(direction="parallel", R_e=6371000.0))
+    p_rad = Params(weight=weight, lengths=lengths, gravity=Gravity(direction="radial", R_e=6371000.0))
     s = State(x=50_000.0, z=-1000.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
     y = np.array(s)
 
@@ -291,9 +305,12 @@ def test_gravity_direction_elliptical_reproduces_parallel_and_radial_domega_unch
     load-bearing claim `test_gravity_direction_radial_matches_closed_form_
     and_leaves_moment_exactly_zero` makes for "radial").
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5, lat0_deg=50.0, azimuth_deg=90.0)
-    p_par = Params.flat(gravity_direction="parallel", **common)
-    p_ell = Params.flat(gravity_direction="elliptical", **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero = Aero(C_x=0.5)
+    site = Site(lat0_deg=50.0, azimuth_deg=90.0)
+    p_par = Params(weight=weight, lengths=lengths, aero=aero, site=site, gravity=Gravity(direction="parallel"))
+    p_ell = Params(weight=weight, lengths=lengths, aero=aero, site=site, gravity=Gravity(direction="elliptical"))
     s = State(x=10_000.0, z=-1000.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
     y = np.array(s)
 
@@ -310,9 +327,11 @@ def test_gravity_direction_elliptical_differs_from_radial_at_the_same_state():
     at phi0=50, chi=90, x=10km) -- otherwise "elliptical" would be a dead
     code path.
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, R_e=6371000.0, lat0_deg=50.0, azimuth_deg=90.0)
-    p_rad = Params.flat(gravity_direction="radial", **common)
-    p_ell = Params.flat(gravity_direction="elliptical", **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    site = Site(lat0_deg=50.0, azimuth_deg=90.0)
+    p_rad = Params(weight=weight, lengths=lengths, site=site, gravity=Gravity(direction="radial", R_e=6371000.0))
+    p_ell = Params(weight=weight, lengths=lengths, site=site, gravity=Gravity(direction="elliptical", R_e=6371000.0))
     s = State(x=10_000.0, z=-1000.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
     y = np.array(s)
 
@@ -337,7 +356,11 @@ def test_thrust_body_default_misalign_is_onaxis_vector_bitforbit():
     several times, including one after burnout (T == 0), since the claim
     is "bit-for-bit for every T", not just a nonzero one.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
 
@@ -352,8 +375,11 @@ def test_thrust_body_misaligned_matches_closed_form_vector():
     checked algebraically against an independently computed `T`, not just
     "the vector changed".
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-               thrust_misalign_deg=5.0)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=5.0),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
     t = 1.0
@@ -374,10 +400,11 @@ def test_moment_shift_matches_closed_form_l1_plus_l2_T_sin_delta():
     code's `l1 + l2` standing in for `l_C - l_B`) -- checked against the
     closed form, not merely "M_y changed".
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-                  A_x=0.5, A_z=0.3, A_m=0.1)
-    p_aligned = Params.flat(thrust_misalign_deg=0.0, **common)
-    p_misaligned = Params.flat(thrust_misalign_deg=7.0, **common)
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero = Aero(C_x=0.5, C_z=0.3, C_m=0.1)
+    p_aligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.0), thrust=thrust, aero=aero)
+    p_misaligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=7.0), thrust=thrust, aero=aero)
     s = State(x=0.0, z=-50.0, vx=20.0, vz=-15.0, theta=1.1, omega=0.05)
     y = np.array(s)
     t = 0.5  # mid-burn -- T > 0
@@ -388,10 +415,10 @@ def test_moment_shift_matches_closed_form_l1_plus_l2_T_sin_delta():
     T = thrust_curve.thrust(t, y, p_aligned)
     assert T > 0.0  # otherwise this test would not exercise the new term at all
     delta = math.radians(7.0)
-    expected_shift = (p_aligned.l1 + p_aligned.l2) * T * math.sin(delta)
+    expected_shift = (p_aligned.lengths.l1 + p_aligned.lengths.l2) * T * math.sin(delta)
 
-    My_aligned = dydt_aligned[OMEGA] * p_aligned.I
-    My_misaligned = dydt_misaligned[OMEGA] * p_misaligned.I
+    My_aligned = dydt_aligned[OMEGA] * p_aligned.weight.I
+    My_misaligned = dydt_misaligned[OMEGA] * p_misaligned.weight.I
 
     assert math.isclose(My_misaligned - My_aligned, expected_shift, rel_tol=1e-12)
 
@@ -403,10 +430,11 @@ def test_moment_shift_is_exactly_zero_when_thrust_is_zero():
     misalignment is physically inert without thrust. Checked past burnout
     (`t` beyond the placeholder curve's last point, so `T == 0` exactly).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-                  A_x=0.5, A_z=0.3, A_m=0.1)
-    p_aligned = Params.flat(thrust_misalign_deg=0.0, **common)
-    p_misaligned = Params.flat(thrust_misalign_deg=7.0, **common)
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero = Aero(C_x=0.5, C_z=0.3, C_m=0.1)
+    p_aligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.0), thrust=thrust, aero=aero)
+    p_misaligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=7.0), thrust=thrust, aero=aero)
     s = State(x=0.0, z=-50.0, vx=20.0, vz=-15.0, theta=1.1, omega=0.05)
     y = np.array(s)
     t = 10.0  # well past the placeholder curve's burnout
@@ -429,13 +457,11 @@ def test_moment_shift_is_independent_of_angle_of_attack():
     does drive a nonzero, alpha-dependent aero moment/force on top of it),
     not merely "nonzero at both".
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
-    )
-    p_aligned = Params.flat(thrust_misalign_deg=0.0, **common)
-    p_misaligned = Params.flat(thrust_misalign_deg=3.0, **common)
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_aligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.0), thrust=thrust, aero=aero)
+    p_misaligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=3.0), thrust=thrust, aero=aero)
     t = 1.0
 
     V0 = 60.0
@@ -446,7 +472,7 @@ def test_moment_shift_is_independent_of_angle_of_attack():
 
     T = thrust_curve.thrust(t, np.array(s_alpha0), p_aligned)
     delta = math.radians(3.0)
-    expected_shift = (p_aligned.l1 + p_aligned.l2) * T * math.sin(delta)
+    expected_shift = (p_aligned.lengths.l1 + p_aligned.lengths.l2) * T * math.sin(delta)
 
     # Sanity: the two states really do differ in alpha, otherwise the loop
     # below would not actually exercise "different angles of attack".
@@ -458,7 +484,7 @@ def test_moment_shift_is_independent_of_angle_of_attack():
         y = np.array(s)
         dydt_aligned = derivatives(t, y, p_aligned)
         dydt_misaligned = derivatives(t, y, p_misaligned)
-        shift = (dydt_misaligned[OMEGA] - dydt_aligned[OMEGA]) * p_aligned.I
+        shift = (dydt_misaligned[OMEGA] - dydt_aligned[OMEGA]) * p_aligned.weight.I
 
         assert math.isclose(shift, expected_shift, rel_tol=1e-12)
 
@@ -477,25 +503,31 @@ def test_lateral_offsets_default_reproduce_derivatives_bit_for_bit():
     (the two other lateral-geometry-adjacent seams), per architecture.md
     SS24.3's "Checks for the step".
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
-    )
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     states = [
         State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0),
         State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05),
     ]
     t = 0.5
 
-    for extra in (
-        {},
-        {"aero_table": "example.csv"},
-        {"thrust_misalign_deg": 3.0},
-        {"aero_table": "example.csv", "thrust_misalign_deg": 3.0},
+    for table, misalign_deg in (
+        ("", 0.0),
+        ("example.csv", 0.0),
+        ("", 3.0),
+        ("example.csv", 3.0),
     ):
-        p_implicit = Params.flat(**common, **extra)
-        p_explicit = Params.flat(u_B=0.0, u_C=0.0, **common, **extra)
+        aero = Aero(table=table, **aero_common)
+        p_implicit = Params(
+            weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=misalign_deg),
+            thrust=thrust, aero=aero,
+        )
+        p_explicit = Params(
+            weight=weight,
+            lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=misalign_deg, u_B=0.0, u_C=0.0),
+            thrust=thrust, aero=aero,
+        )
         for s in states:
             y = np.array(s)
             dydt_implicit = derivatives(t, y, p_implicit)
@@ -508,28 +540,31 @@ def test_lateral_offsets_shift_moment_by_closed_form():
     to the zero-offset case at the same state (architecture.md SS24.3):
     evaluate both and difference them, do not re-derive `M_y`.
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        C_A0=0.5, C_N_alpha=2.0, C_m_alpha=0.3,
-        thrust_misalign_deg=0.2,
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero_group = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(
+        weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.2, u_B=0.0, u_C=0.0),
+        thrust=thrust, aero=aero_group,
     )
-    p_zero = Params.flat(u_B=0.0, u_C=0.0, **common)
-    p_offset = Params.flat(u_B=0.001, u_C=-0.002, **common)
+    p_offset = Params(
+        weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.2, u_B=0.001, u_C=-0.002),
+        thrust=thrust, aero=aero_group,
+    )
     s = State(x=0.0, z=-100.0, vx=50.0, vz=-10.0, theta=1.3, omega=0.02)
     y = np.array(s)
     t = 0.5
 
     T = thrust_curve.thrust(t, y, p_zero)
     assert T > 0.0  # otherwise the thrust term would not be exercised
-    delta = math.radians(p_zero.thrust_misalign_deg)
+    delta = math.radians(p_zero.lengths.misalign_deg)
     flow = flow_state(t, y, p_zero)
-    A_x = flow.q * p_zero.S * aero.C_A(flow.alpha, flow.M, p_zero)
+    A_x = flow.q * p_zero.aero.S * aero.C_A(flow.alpha, flow.M, p_zero)
 
-    expected_shift = (p_offset.u_B - p_offset.u_C) * T * math.cos(delta) - p_offset.u_B * A_x
+    expected_shift = (p_offset.lengths.u_B - p_offset.lengths.u_C) * T * math.cos(delta) - p_offset.lengths.u_B * A_x
 
-    My_zero = derivatives(t, y, p_zero)[OMEGA] * p_zero.I
-    My_offset = derivatives(t, y, p_offset)[OMEGA] * p_offset.I
+    My_zero = derivatives(t, y, p_zero)[OMEGA] * p_zero.weight.I
+    My_offset = derivatives(t, y, p_offset)[OMEGA] * p_offset.weight.I
 
     assert math.isclose(My_offset - My_zero, expected_shift, rel_tol=1e-9)
 
@@ -540,11 +575,11 @@ def test_lateral_offset_closed_form_matches_thrust_moment_exactly():
     (architecture.md SS24.3): reproduces `M_thrust` exactly (isolated here
     via `T=0` aero to leave only the thrust term in `M_y`).
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        A_x=0.0, A_z=0.0, A_m=0.0,  # "constant" aero regime, all zero -> isolates thrust term
-        thrust_misalign_deg=0.2,
-        u_B=0.001, u_C=-0.0005,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.2, u_B=0.001, u_C=-0.0005),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+        aero=Aero(C_x=0.0, C_z=0.0, C_m=0.0),
     )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
@@ -552,15 +587,15 @@ def test_lateral_offset_closed_form_matches_thrust_moment_exactly():
 
     T = thrust_curve.thrust(t, y, p)
     assert T > 0.0
-    delta = math.radians(p.thrust_misalign_deg)
-    l_C_minus_l_B = p.l1 + p.l2
-    u_diff = p.u_B - p.u_C
+    delta = math.radians(p.lengths.misalign_deg)
+    l_C_minus_l_B = p.lengths.l1 + p.lengths.l2
+    u_diff = p.lengths.u_B - p.lengths.u_C
 
     expected_M_thrust = T * math.sqrt(u_diff**2 + l_C_minus_l_B**2) * math.sin(
         delta + math.atan2(u_diff, l_C_minus_l_B)
     )
 
-    M_y = derivatives(t, y, p)[OMEGA] * p.I
+    M_y = derivatives(t, y, p)[OMEGA] * p.weight.I
     assert math.isclose(M_y, expected_M_thrust, rel_tol=1e-12)
 
 
@@ -570,12 +605,12 @@ def test_lateral_offset_equal_ub_uc_zeroes_thrust_term_but_not_aero_term():
     the sharpest available test that the two fields are not conflated
     (architecture.md SS24.3).
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        A_x=0.5, A_z=0.0, A_m=0.0,
-    )
-    p_zero_offset = Params.flat(u_B=0.0, u_C=0.0, **common)
-    p_equal_offset = Params.flat(u_B=0.002, u_C=0.002, **common)
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    A_x = 0.5
+    aero = Aero(C_x=A_x, C_z=0.0, C_m=0.0)
+    p_zero_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0, u_C=0.0), thrust=thrust, aero=aero)
+    p_equal_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.002, u_C=0.002), thrust=thrust, aero=aero)
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
     t = 0.5  # mid-burn -- T > 0
@@ -583,11 +618,11 @@ def test_lateral_offset_equal_ub_uc_zeroes_thrust_term_but_not_aero_term():
     T = thrust_curve.thrust(t, y, p_zero_offset)
     assert T > 0.0
 
-    My_zero = derivatives(t, y, p_zero_offset)[OMEGA] * p_zero_offset.I
-    My_equal = derivatives(t, y, p_equal_offset)[OMEGA] * p_equal_offset.I
+    My_zero = derivatives(t, y, p_zero_offset)[OMEGA] * p_zero_offset.weight.I
+    My_equal = derivatives(t, y, p_equal_offset)[OMEGA] * p_equal_offset.weight.I
 
     # Thrust term unaffected (u_B - u_C == 0): only the -u_B*A_x term shifts.
-    expected_shift = -p_equal_offset.u_B * common["A_x"]
+    expected_shift = -p_equal_offset.lengths.u_B * A_x
     assert math.isclose(My_equal - My_zero, expected_shift, rel_tol=1e-12)
     assert not math.isclose(expected_shift, 0.0, abs_tol=1e-15)
 
@@ -596,10 +631,11 @@ def test_lateral_offset_at_alpha_zero_no_thrust_moment_is_exactly_minus_uB_Ax():
     """At `alpha = 0`, `T = 0`: `M_y == -u_B*A_x` exactly, the only
     surviving term of eq:moment_full (architecture.md SS24.3).
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        A_x=0.75, A_z=0.0, A_m=0.0,
-        u_B=0.0015, u_C=0.003,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0015, u_C=0.003),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+        aero=Aero(C_x=0.75, C_z=0.0, C_m=0.0),
     )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
@@ -608,8 +644,8 @@ def test_lateral_offset_at_alpha_zero_no_thrust_moment_is_exactly_minus_uB_Ax():
     T = thrust_curve.thrust(t, y, p)
     assert T == 0.0
 
-    M_y = derivatives(t, y, p)[OMEGA] * p.I
-    assert math.isclose(M_y, -p.u_B * p.A_x, rel_tol=1e-12, abs_tol=1e-15)
+    M_y = derivatives(t, y, p)[OMEGA] * p.weight.I
+    assert math.isclose(M_y, -p.lengths.u_B * p.aero.C_x, rel_tol=1e-12, abs_tol=1e-15)
 
 
 def test_lateral_offsets_do_not_affect_translation_only_rotation():
@@ -618,12 +654,11 @@ def test_lateral_offsets_do_not_affect_translation_only_rotation():
     identical with and without the offsets at the same state, only
     `dydt[OMEGA]` differs.
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        A_x=0.5, A_z=0.3, A_m=0.1,
-    )
-    p_zero = Params.flat(u_B=0.0, u_C=0.0, **common)
-    p_offset = Params.flat(u_B=0.002, u_C=-0.001, **common)
+    weight = Weight(m=0.5, I=0.05)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero = Aero(C_x=0.5, C_z=0.3, C_m=0.1)
+    p_zero = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0, u_C=0.0), thrust=thrust, aero=aero)
+    p_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.002, u_C=-0.001), thrust=thrust, aero=aero)
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
     t = 0.0
@@ -648,15 +683,19 @@ def test_pitch_damping_default_is_exactly_zero_shift():
     """`c_mq = 0.0` (the default) must add exactly `0.0` to `aero_moment_y`
     at a state with nonzero omega, V, rho -- the on/off gate for Step 44.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
-               aero_model="coefficients", S=0.005, d_ref=0.08,
-               C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=0.0)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=0.0),
+    )
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
     y = np.array(s)
 
-    p_no_damping_field = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                                 aero_model="coefficients", S=0.005, d_ref=0.08,
-                                 C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_no_damping_field = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3),
+    )
 
     assert aero_moment_y(0.5, y, p) == aero_moment_y(0.5, y, p_no_damping_field)
     assert np.array_equal(derivatives(0.5, y, p), derivatives(0.5, y, p_no_damping_field))
@@ -669,17 +708,17 @@ def test_pitch_damping_shifts_A_m_by_closed_form():
     returns `-A_m` (main.tex SSMoments), so its own shift is the *negative*
     of the `A_m` shift above.
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                  aero_model="coefficients", S=0.005, d_ref=0.08,
-                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
-    p_zero = Params.flat(c_mq=0.0, **common)
-    p_damped = Params.flat(c_mq=56.25, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
     y = np.array(s)
     t = 0.5
 
     flow = flow_state(t, y, p_zero)
-    expected_A_m_shift = 0.25 * flow.air.rho * flow.V * p_zero.S * p_zero.d_ref**2 * y[OMEGA] * p_damped.c_mq
+    expected_A_m_shift = 0.25 * flow.air.rho * flow.V * p_zero.aero.S * p_zero.aero.d_ref**2 * y[OMEGA] * p_damped.aero.c_mq
 
     shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
     assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
@@ -690,11 +729,11 @@ def test_pitch_damping_shift_is_exactly_zero_at_omega_zero_and_at_V_zero():
     V) and at `V = 0.0` (on the pad, nonzero omega) -- both factors
     multiply the product to a hard zero (architecture.md SS24.4).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                  aero_model="coefficients", S=0.005, d_ref=0.08,
-                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
-    p_zero = Params.flat(c_mq=0.0, **common)
-    p_damped = Params.flat(c_mq=56.25, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
 
     s_omega_zero = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.0)
     y_omega_zero = np.array(s_omega_zero)
@@ -711,9 +750,11 @@ def test_pitch_damping_no_nan_at_denormal_V():
     gives `0.0*inf = nan` at a denormal `V`; the actual, division-free
     implementation must stay finite there.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
-               aero_model="coefficients", S=0.005, d_ref=0.08,
-               C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=56.25)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=56.25),
+    )
     s = State(x=0.0, z=0.0, vx=1e-300, vz=0.0, theta=math.pi / 2, omega=0.3)
     y = np.array(s)
 
@@ -729,11 +770,11 @@ def test_pitch_damping_shift_is_linear_and_odd_in_omega():
     """The shift is linear and odd in `omega`: negating `omega` negates the
     shift exactly, at fixed `(V, rho, alpha)` (architecture.md SS24.4).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                  aero_model="coefficients", S=0.005, d_ref=0.08,
-                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
-    p_zero = Params.flat(c_mq=0.0, **common)
-    p_damped = Params.flat(c_mq=56.25, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     t = 0.5
 
     s_pos = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
@@ -754,11 +795,11 @@ def test_pitch_damping_shift_is_independent_of_alpha():
     since velocity is fixed) at the same `(V, omega)` must give the same
     shift (architecture.md SS24.4).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                  aero_model="coefficients", S=0.005, d_ref=0.08,
-                  C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
-    p_zero = Params.flat(c_mq=0.0, **common)
-    p_damped = Params.flat(c_mq=56.25, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     t = 0.5
 
     V0 = 80.0
@@ -773,7 +814,7 @@ def test_pitch_damping_shift_is_independent_of_alpha():
         y = np.array(s)
         shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
         expected_A_m_shift = 0.25 * flow_state(t, y, p_zero).air.rho * flow_state(t, y, p_zero).V \
-            * p_zero.S * p_zero.d_ref**2 * y[OMEGA] * p_damped.c_mq
+            * p_zero.aero.S * p_zero.aero.d_ref**2 * y[OMEGA] * p_damped.aero.c_mq
         assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
 
 
@@ -782,10 +823,10 @@ def test_pitch_damping_constant_regime_untouched():
     (main.tex SSMoments Phase 1 form) -- `c_mq`/`C_mq` are not consulted
     there, so a nonzero `c_mq` changes nothing (architecture.md SS24.4).
     """
-    common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                  aero_model="constant", A_x=0.5, A_z=0.3, A_m=0.1)
-    p_zero = Params.flat(c_mq=0.0, **common)
-    p_damped = Params.flat(c_mq=56.25, **common)
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(model="constant", C_x=0.5, C_z=0.3, C_m=0.1, c_mq=0.0))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(model="constant", C_x=0.5, C_z=0.3, C_m=0.1, c_mq=56.25))
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
     y = np.array(s)
 

@@ -88,7 +88,7 @@ import numpy as np
 
 from sim.flow import flow_state
 from sim.integrate import Result, run_sim
-from sim.params import Params
+from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
 
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
@@ -199,10 +199,11 @@ def main() -> None:
     # this first version's output is directly comparable to what run.py
     # already prints -- not "the" rocket, a placeholder until real Params
     # are supplied for an actual design.
-    params = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        motor_curve="placeholder.csv",
-        A_x=0.5, A_z=0.0, A_m=0.0,
+    params = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+        aero=Aero(C_x=0.5, C_z=0.0, C_m=0.0),
     )
     state0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     result = run_sim(params, state0)

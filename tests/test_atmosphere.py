@@ -7,7 +7,6 @@ project's testing philosophy -- no fixtures, no conftest.py, plain
 `assert` + `math.isclose`.
 """
 
-import dataclasses
 import math
 import os
 
@@ -25,12 +24,13 @@ from sim.atmosphere import (
 )
 from sim.gravity import altitude_msl
 from sim.integrate import run_sim
-from sim.params import Params
+from sim.params import Aero, Atmosphere, Lengths, Params, Site, Soundings, Thrust, Weight
+from sim.params import replace as params_replace
 from sim.soundings import interp_altitude as soundings_interp_altitude
 from sim.soundings import load_case
 from sim.state import State, X, Z
 
-_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
 
 _SOUNDINGS_DIR = os.path.join(
     os.path.dirname(__file__), "..", "data", "soundings"
@@ -143,12 +143,12 @@ def test_isa_ignores_gravity_model():
     "Careful"): changing gravity_model must not change the air state."""
     h = 5000.0
     air_const = air_state(
-        0.0, _y_at_altitude(h), dataclasses.replace(_P, gravity_model="constant")
+        0.0, _y_at_altitude(h), params_replace(_P, {"gravity.model": "constant"})
     )
     air_wgs84 = air_state(
         0.0,
         _y_at_altitude(h),
-        dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.5),
+        params_replace(_P, {"gravity.model": "wgs84", "site.lat0_deg": 45.5}),
     )
     assert air_const == air_wgs84
 
@@ -171,10 +171,10 @@ def test_isa_ignores_gravity_model_at_nonzero_downrange_under_curved_direction()
     every `air_state` field exactly unchanged.
     """
     y = _y_at(10_000.0, -1000.0)
-    common = dict(gravity_direction="radial", lat0_deg=50.0, R_e=6371000.0)
-    air_const = air_state(0.0, y, dataclasses.replace(_P, gravity_model="constant", **common))
-    air_radial = air_state(0.0, y, dataclasses.replace(_P, gravity_model="radial", **common))
-    air_wgs84 = air_state(0.0, y, dataclasses.replace(_P, gravity_model="wgs84", **common))
+    common = {"gravity.direction": "radial", "site.lat0_deg": 50.0, "gravity.R_e": 6371000.0}
+    air_const = air_state(0.0, y, params_replace(_P, {**common, "gravity.model": "constant"}))
+    air_radial = air_state(0.0, y, params_replace(_P, {**common, "gravity.model": "radial"}))
+    air_wgs84 = air_state(0.0, y, params_replace(_P, {**common, "gravity.model": "wgs84"}))
     assert air_const == air_radial == air_wgs84
 
 
@@ -192,8 +192,8 @@ def test_isa_rho_pinned_parallel_vs_radial():
     ("radial") -- a -7.7023e-4 relative change, the air reading thinner at
     the true (curved) altitude than the flat reading said."""
     y = _y_at(10_000.0, -1000.0)
-    p_par = dataclasses.replace(_P, gravity_direction="parallel")
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p_par = params_replace(_P, {"gravity.direction": "parallel"})
+    p_rad = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
 
     rho_par = air_state(0.0, y, p_par).rho
     rho_rad = air_state(0.0, y, p_rad).rho
@@ -208,7 +208,7 @@ def test_isa_rho_thermodynamically_consistent_under_curved_altitude():
     `gravity_direction`, not just under the flat default (architecture.md
     SS25.9)."""
     y = _y_at(10_000.0, -1000.0)
-    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     air = air_state(0.0, y, p)
     assert math.isclose(air.rho, air.p / (_R_D * air.T), rel_tol=1e-12)
 
@@ -217,7 +217,7 @@ def test_h0_m_shifts_altitude_to_msl():
     """air_state uses h_msl = p.h0_m - z (architecture.md SS15), so a
     launch site elevated above sea level sees the atmosphere's conditions
     at the corresponding higher MSL altitude even at z = 0."""
-    p_high = dataclasses.replace(_P, h0_m=5000.0)
+    p_high = params_replace(_P, {"site.h0_m": 5000.0})
     air_at_pad = air_state(0.0, _y_at_altitude(0.0), p_high)
     air_5000_sea = air_state(0.0, _y_at_altitude(5000.0), _P)
     assert math.isclose(air_at_pad.T, air_5000_sea.T, rel_tol=1e-9)
@@ -228,7 +228,7 @@ def test_unknown_atmosphere_model_raises_keyerror():
     """No input validation (architecture.md SS7/SS12): an unrecognised
     `atmosphere_model` string raises KeyError at the first call, from the
     module-private dispatch dict."""
-    p = dataclasses.replace(_P, atmosphere_model="not-a-real-model")
+    p = params_replace(_P, {"atmosphere.model": "not-a-real-model"})
     with pytest.raises(KeyError):
         air_state(0.0, _y_at_altitude(0.0), p)
 
@@ -253,7 +253,7 @@ _MOTOR_CURVE = "placeholder.csv"
 # never actually engage -- only C_A0 (axial drag, driven by q = 0.5*rho*V^2)
 # matters for these comparisons.
 _AERO_KW = dict(
-    aero_model="coefficients",
+    model="coefficients",
     S=0.005,
     d_ref=0.08,
     C_A0=0.5,
@@ -271,7 +271,7 @@ def _write_isa_synthetic_case(case_dir: str, station: str = "ISA0") -> None:
     conftest.py" testing philosophy: each test file is self-contained).
     """
     os.makedirs(case_dir, exist_ok=True)
-    p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p_params = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
     nodes = [0.0, 2000.0, 5000.0, 8000.0, 11000.0, 15000.0, 20000.0]
 
     lines = [
@@ -306,10 +306,8 @@ def test_sounding_tier_matches_isa_between_synthetic_nodes():
 
     try:
         load_case.cache_clear()
-        p_isa = dataclasses.replace(_P, atmosphere_model="isa")
-        p_snd = dataclasses.replace(
-            _P, atmosphere_model="sounding", sounding_case=case
-        )
+        p_isa = params_replace(_P, {"atmosphere.model": "isa"})
+        p_snd = params_replace(_P, {"atmosphere.model": "sounding", "soundings.case": case})
 
         for h in [1000.0, 3500.0, 6500.0, 9500.0, 13000.0, 17500.0]:
             y = _y_at_altitude(h)
@@ -349,12 +347,17 @@ def test_sounding_tier_trajectory_matches_isa_within_interpolation_error():
 
     try:
         load_case.cache_clear()
-        common = dict(
-            m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, **_AERO_KW
+        weight = Weight(m=0.5, I=0.05)
+        lengths = Lengths(l1=0.3, l2=0.4)
+        thrust = Thrust(motor_curve=_MOTOR_CURVE)
+        aero = Aero(**_AERO_KW)
+        p_isa = Params(
+            weight=weight, lengths=lengths, thrust=thrust, aero=aero,
+            atmosphere=Atmosphere(model="isa"),
         )
-        p_isa = Params.flat(**common, atmosphere_model="isa")
-        p_snd = Params.flat(
-            **common, atmosphere_model="sounding", sounding_case=case
+        p_snd = Params(
+            weight=weight, lengths=lengths, thrust=thrust, aero=aero,
+            atmosphere=Atmosphere(model="sounding"), soundings=Soundings(case=case),
         )
         s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
@@ -391,9 +394,14 @@ def test_sounding_real_example_density_lower_than_isa_at_station_elevation():
     sensible direction" the roadmap's check asks for, derived from this
     station's actual first-row values rather than asserted blindly.
     """
-    p_isa = dataclasses.replace(_P, atmosphere_model="isa", h0_m=380.0)
-    p_snd = dataclasses.replace(
-        _P, atmosphere_model="sounding", sounding_case="example", h0_m=380.0
+    p_isa = params_replace(_P, {"atmosphere.model": "isa", "site.h0_m": 380.0})
+    p_snd = params_replace(
+        _P,
+        {
+            "atmosphere.model": "sounding",
+            "soundings.case": "example",
+            "site.h0_m": 380.0,
+        },
     )
     y = _y_at_altitude(0.0)  # z = 0 -> h_msl = h0_m = 380 m, the station's own row
 
@@ -412,14 +420,20 @@ def test_sounding_tier2_reads_the_same_h_msl_as_soundings_interp_altitude():
     the check that the atmosphere tier-2 call site was actually converted,
     not merely reproducing ISA-like values by coincidence.
     """
-    p = dataclasses.replace(
-        _P, atmosphere_model="sounding", sounding_case="example",
-        h0_m=380.0, gravity_direction="radial", R_e=6371000.0,
+    p = params_replace(
+        _P,
+        {
+            "atmosphere.model": "sounding",
+            "soundings.case": "example",
+            "site.h0_m": 380.0,
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+        },
     )
     y = _y_at(10_000.0, -500.0)
 
     h_msl = altitude_msl(y, p)
-    snd = load_case(p.sounding_case)[0]
+    snd = load_case(p.soundings.case)[0]
     want = soundings_interp_altitude(snd, h_msl)
 
     got = air_state(0.0, y, p)
@@ -439,12 +453,19 @@ def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():
     "physically sensible direction" check as the density comparison
     above, carried through a full trajectory.
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, h0_m=380.0,
-        **_AERO_KW,
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    thrust = Thrust(motor_curve=_MOTOR_CURVE)
+    aero = Aero(**_AERO_KW)
+    site = Site(h0_m=380.0)
+    p_isa = Params(
+        weight=weight, lengths=lengths, thrust=thrust, aero=aero, site=site,
+        atmosphere=Atmosphere(model="isa"),
     )
-    p_isa = Params.flat(**common, atmosphere_model="isa")
-    p_snd = Params.flat(**common, atmosphere_model="sounding", sounding_case="example")
+    p_snd = Params(
+        weight=weight, lengths=lengths, thrust=thrust, aero=aero, site=site,
+        atmosphere=Atmosphere(model="sounding"), soundings=Soundings(case="example"),
+    )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     load_case.cache_clear()
@@ -490,11 +511,21 @@ def test_field_single_station_matches_sounding_tier_exactly():
     soundings.py level, where Step 19 already covers this guarantee for
     interp_field itself). Reuses the existing single-station "example"
     case (LKPR) so no new data is needed for this check."""
-    p_field = dataclasses.replace(
-        _P, atmosphere_model="field", sounding_case="example", h0_m=380.0
+    p_field = params_replace(
+        _P,
+        {
+            "atmosphere.model": "field",
+            "soundings.case": "example",
+            "site.h0_m": 380.0,
+        },
     )
-    p_snd = dataclasses.replace(
-        _P, atmosphere_model="sounding", sounding_case="example", h0_m=380.0
+    p_snd = params_replace(
+        _P,
+        {
+            "atmosphere.model": "sounding",
+            "soundings.case": "example",
+            "site.h0_m": 380.0,
+        },
     )
 
     load_case.cache_clear()
@@ -530,14 +561,14 @@ def test_field_two_stations_density_monotonic_along_ground_track():
     decrease monotonically along this sweep -- not asserted blindly, but
     the direction implied by the two stations' actual numbers.
     """
-    p = dataclasses.replace(
+    p = params_replace(
         _P,
-        atmosphere_model="field",
-        sounding_case="field_example",
-        lat0_deg=48.0,
-        lon0_deg=16.0,
-        # azimuth_deg left at its default (90 deg, East) -- matches FLDB
-        # sitting due east of FLDA.
+        {
+            "atmosphere.model": "field",
+            "soundings.case": "field_example",
+            "site.lat0_deg": 48.0,
+            "site.lon0_deg": 16.0,
+        },
     )
     load_case.cache_clear()
 
@@ -651,8 +682,8 @@ def test_isa_density_unaffected_by_humid_air_flag():
     `humid_air` -- `_isa_air_state` was not even modified in Step 40, so
     this is a regression guard on that invariant."""
     h = 5000.0
-    air_dry = air_state(0.0, _y_at_altitude(h), dataclasses.replace(_P, humid_air=False))
-    air_humid_flag = air_state(0.0, _y_at_altitude(h), dataclasses.replace(_P, humid_air=True))
+    air_dry = air_state(0.0, _y_at_altitude(h), params_replace(_P, {"atmosphere.humid_air": False}))
+    air_humid_flag = air_state(0.0, _y_at_altitude(h), params_replace(_P, {"atmosphere.humid_air": True}))
     assert air_dry == air_humid_flag
 
 
@@ -672,8 +703,13 @@ def test_humid_air_false_is_bit_for_bit_dry_even_with_dewpoint_data_present():
 
     try:
         load_case.cache_clear()
-        p_off = dataclasses.replace(
-            _P, atmosphere_model="sounding", sounding_case=case, humid_air=False
+        p_off = params_replace(
+            _P,
+            {
+                "atmosphere.model": "sounding",
+                "soundings.case": case,
+                "atmosphere.humid_air": False,
+            },
         )
         for h in (200.0, 900.0, 1800.0):
             air = air_state(0.0, _y_at_altitude(h), p_off)
@@ -699,8 +735,13 @@ def test_humid_air_true_applies_moist_density_when_dewpoint_present():
 
     try:
         load_case.cache_clear()
-        p_on = dataclasses.replace(
-            _P, atmosphere_model="sounding", sounding_case=case, humid_air=True
+        p_on = params_replace(
+            _P,
+            {
+                "atmosphere.model": "sounding",
+                "soundings.case": case,
+                "atmosphere.humid_air": True,
+            },
         )
         snd = load_case(case)[0]
         for h in (200.0, 900.0, 1800.0):
@@ -726,12 +767,14 @@ def test_sounding_without_td_column_dry_fallback_regardless_of_humid_air_flag():
     "example" case (no Td_K column)."""
     load_case.cache_clear()
     for flag in (False, True):
-        p_snd = dataclasses.replace(
+        p_snd = params_replace(
             _P,
-            atmosphere_model="sounding",
-            sounding_case="example",
-            h0_m=380.0,
-            humid_air=flag,
+            {
+                "atmosphere.model": "sounding",
+                "soundings.case": "example",
+                "site.h0_m": 380.0,
+                "atmosphere.humid_air": flag,
+            },
         )
         air = air_state(0.0, _y_at_altitude(0.0), p_snd)
         assert math.isclose(air.rho, air.p / (_R_D * air.T), rel_tol=1e-12), flag
@@ -752,11 +795,21 @@ def test_field_tier_humid_air_matches_sounding_tier_single_station():
 
     try:
         load_case.cache_clear()
-        p_field = dataclasses.replace(
-            _P, atmosphere_model="field", sounding_case=case, humid_air=True
+        p_field = params_replace(
+            _P,
+            {
+                "atmosphere.model": "field",
+                "soundings.case": case,
+                "atmosphere.humid_air": True,
+            },
         )
-        p_snd = dataclasses.replace(
-            _P, atmosphere_model="sounding", sounding_case=case, humid_air=True
+        p_snd = params_replace(
+            _P,
+            {
+                "atmosphere.model": "sounding",
+                "soundings.case": case,
+                "atmosphere.humid_air": True,
+            },
         )
         for h in (200.0, 900.0, 1800.0):
             y = _y_at_altitude(h)

@@ -5,7 +5,6 @@ Physics sanity checks only, per the project's testing philosophy -- no
 fixtures, no conftest.py, plain `assert` + `math.isclose`.
 """
 
-import dataclasses
 import math
 import os
 
@@ -21,10 +20,11 @@ from sim.gravity import (
     ground_depth,
     z_hat_g,
 )
-from sim.params import Params
+from sim.params import Lengths, Params, Weight
+from sim.params import replace as params_replace
 from sim.state import State, X, Z
 
-_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
 
 
 def _y_at_altitude(h: float) -> np.ndarray:
@@ -52,11 +52,11 @@ def _y_at(x: float, z: float) -> np.ndarray:
 
 def test_both_models_agree_at_h_zero():
     y0 = _y_at_altitude(0.0)
-    g_const = g(0.0, y0, dataclasses.replace(_P, gravity_model="constant"))
-    g_rad = g(0.0, y0, dataclasses.replace(_P, gravity_model="radial"))
+    g_const = g(0.0, y0, params_replace(_P, {"gravity.model": "constant"}))
+    g_rad = g(0.0, y0, params_replace(_P, {"gravity.model": "radial"}))
 
-    assert math.isclose(g_const, _P.g, rel_tol=1e-12)
-    assert math.isclose(g_rad, _P.g, rel_tol=1e-12)
+    assert math.isclose(g_const, _P.g0, rel_tol=1e-12)
+    assert math.isclose(g_rad, _P.g0, rel_tol=1e-12)
 
 
 def test_constant_reproduces_p_g_at_any_altitude():
@@ -64,13 +64,13 @@ def test_constant_reproduces_p_g_at_any_altitude():
     down, since it is the default that every other Phase 2 step regression-
     tests against.
     """
-    p = dataclasses.replace(_P, gravity_model="constant")
+    p = params_replace(_P, {"gravity.model": "constant"})
     for h in (0.0, 1650.7, 10_000.0, 100_000.0, -5.0):
-        assert g(0.0, _y_at_altitude(h), p) == _P.g
+        assert g(0.0, _y_at_altitude(h), p) == _P.g0
 
 
 def test_radial_decreases_monotonically_with_altitude():
-    p = dataclasses.replace(_P, gravity_model="radial")
+    p = params_replace(_P, {"gravity.model": "radial"})
     altitudes = [0.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0]
     values = [g(0.0, _y_at_altitude(h), p) for h in altitudes]
     assert all(a > b for a, b in zip(values, values[1:]))
@@ -80,7 +80,14 @@ def test_wgs84_matches_equatorial_gravity_at_equator_sea_level():
     """gamma0(0) = ge = 9.7803253359 m/s^2 exactly (sin(0) = 0 kills both
     the Somigliana correction and the free-air term at h = 0).
     """
-    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=0.0, h0_m=0.0)
+    p = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 0.0,
+            "site.h0_m": 0.0,
+        },
+    )
     assert math.isclose(g(0.0, _y_at_altitude(0.0), p), 9.7803253359, rel_tol=1e-9)
 
 
@@ -88,7 +95,14 @@ def test_wgs84_matches_polar_gravity_at_pole_sea_level():
     """gamma0(90deg) = ge*(1+k)/sqrt(1-e^2) = gp = 9.8321849378 m/s^2, the
     published WGS84 polar normal gravity (architecture.md SS13).
     """
-    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=90.0, h0_m=0.0)
+    p = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 90.0,
+            "site.h0_m": 0.0,
+        },
+    )
     assert math.isclose(g(0.0, _y_at_altitude(0.0), p), 9.8321849378, rel_tol=1e-6)
 
 
@@ -96,7 +110,14 @@ def test_wgs84_mid_latitude_near_standard_gravity():
     """roadmap.md Step 11's check: ~9.80665 near 45.5 deg latitude at sea
     level (the WGS84 ellipsoid is defined so its normal gravity crosses the
     "standard gravity" g0 value close to 45.5 deg, not exactly 45 deg)."""
-    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.5, h0_m=0.0)
+    p = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 45.5,
+            "site.h0_m": 0.0,
+        },
+    )
     assert math.isclose(g(0.0, _y_at_altitude(0.0), p), 9.80665, rel_tol=2e-4)
 
 
@@ -104,7 +125,14 @@ def test_wgs84_decreases_with_altitude():
     """Free-air correction: g must decrease as h_msl increases, at fixed
     latitude (architecture.md SS13's second-order correction, leading term
     -2h/a)."""
-    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.0, h0_m=0.0)
+    p = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 45.0,
+            "site.h0_m": 0.0,
+        },
+    )
     altitudes = [0.0, 1_000.0, 10_000.0, 30_000.0]
     values = [g(0.0, _y_at_altitude(h), p) for h in altitudes]
     assert all(a > b for a, b in zip(values, values[1:]))
@@ -114,8 +142,15 @@ def test_wgs84_agrees_with_radial_to_1e4_relative_over_0_to_30km():
     """roadmap.md Step 11's check: the wgs84 altitude dependence matches
     `radial` to ~1e-4 relative over 0-30 km (both models correct the same
     g0-at-h=0 reference by a comparable inverse-square-like falloff)."""
-    p_wgs = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.5, h0_m=0.0)
-    p_rad = dataclasses.replace(_P, gravity_model="radial", g=9.80665)
+    p_wgs = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 45.5,
+            "site.h0_m": 0.0,
+        },
+    )
+    p_rad = params_replace(_P, {"gravity.model": "radial", "g0": 9.80665})
     for h in (0.0, 1_000.0, 10_000.0, 30_000.0):
         g_wgs = g(0.0, _y_at_altitude(h), p_wgs)
         g_rad = g(0.0, _y_at_altitude(h), p_rad)
@@ -126,8 +161,22 @@ def test_wgs84_h0_m_offsets_altitude_msl():
     """h_msl = p.h0_m - z (architecture.md SS15): a launch site elevated
     above MSL sees a *lower* g at z = 0 than one at MSL, matching the h0_m
     metres of extra free-air correction."""
-    p_sea = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.0, h0_m=0.0)
-    p_high = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=45.0, h0_m=2000.0)
+    p_sea = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 45.0,
+            "site.h0_m": 0.0,
+        },
+    )
+    p_high = params_replace(
+        _P,
+        {
+            "gravity.model": "wgs84",
+            "site.lat0_deg": 45.0,
+            "site.h0_m": 2000.0,
+        },
+    )
     y0 = _y_at_altitude(0.0)
     assert g(0.0, y0, p_high) < g(0.0, y0, p_sea)
 
@@ -137,7 +186,7 @@ def test_z_hat_g_parallel_is_the_fixed_up_vector_regardless_of_downrange_positio
     z_hat_g = (0, 1) for every x -- the direction is frozen at the launch
     site's own local vertical, so it must not read y[X] at all.
     """
-    p = dataclasses.replace(_P, gravity_direction="parallel")
+    p = params_replace(_P, {"gravity.direction": "parallel"})
     for x in (0.0, 1e3, 1e5, 1e6):
         z = z_hat_g(0.0, _y_at_downrange(x), p)
         assert np.array_equal(z, np.array([0.0, 1.0]))
@@ -148,7 +197,7 @@ def test_z_hat_g_radial_matches_parallel_at_zero_downrange_and_has_unit_norm():
     exactly at x = 0 (phi = 0), and stays a unit vector for every phi --
     it is a rigid rotation of the launch-point basis, never a rescaling.
     """
-    p = dataclasses.replace(_P, gravity_direction="radial")
+    p = params_replace(_P, {"gravity.direction": "radial"})
 
     z0 = z_hat_g(0.0, _y_at_downrange(0.0), p)
     assert z0[0] == 0.0
@@ -164,7 +213,7 @@ def test_unknown_gravity_model_raises_keyerror():
     `gravity_model` string raises KeyError at the first RHS call, from the
     module-private dispatch dict.
     """
-    p = dataclasses.replace(_P, gravity_model="not-a-real-model")
+    p = params_replace(_P, {"gravity.model": "not-a-real-model"})
     with pytest.raises(KeyError):
         g(0.0, _y_at_altitude(0.0), p)
 
@@ -185,8 +234,8 @@ def test_parallel_and_radial_reproduce_prior_z_hat_g_bit_for_bit():
     """
     for x in (0.0, 1e3, 1e4, 1e5):
         for R_e in (6371000.0, 1000.0):
-            p_par = dataclasses.replace(_P, gravity_direction="parallel", R_e=R_e)
-            p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=R_e)
+            p_par = params_replace(_P, {"gravity.direction": "parallel", "gravity.R_e": R_e})
+            p_rad = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": R_e})
             y = _y_at_downrange(x)
 
             z_par = z_hat_g(0.0, y, p_par)
@@ -202,7 +251,7 @@ def test_R_chi_matches_meridional_radius_at_chi_zero():
     radius of curvature (architecture.md SS24.1's pinned table), since
     cos^2(0)=1, sin^2(0)=0 collapses the Euler formula to 1/(1/M) = M."""
     for lat0_deg, expected_M in ((0.0, 6335439.3273), (50.0, 6372955.9257), (90.0, 6399593.6258)):
-        p = dataclasses.replace(_P, lat0_deg=lat0_deg, azimuth_deg=0.0)
+        p = params_replace(_P, {"site.lat0_deg": lat0_deg, "site.azimuth_deg": 0.0})
         assert math.isclose(_R_chi(p), expected_M, rel_tol=1e-8)
 
 
@@ -210,16 +259,16 @@ def test_R_chi_matches_prime_vertical_radius_at_chi_90():
     """R_chi(phi0, chi=90 -- due East) is exactly N(phi0), the prime-
     vertical radius of curvature (architecture.md SS24.1's pinned table)."""
     for lat0_deg, expected_N in ((0.0, 6378137.0000), (50.0, 6390702.0442), (90.0, 6399593.6258)):
-        p = dataclasses.replace(_P, lat0_deg=lat0_deg, azimuth_deg=90.0)
+        p = params_replace(_P, {"site.lat0_deg": lat0_deg, "site.azimuth_deg": 90.0})
         assert math.isclose(_R_chi(p), expected_N, rel_tol=1e-8)
 
 
 def test_R_chi_is_azimuth_independent_at_the_pole():
     """At the pole M(90) == N(90) exactly (sin^2(90) = 1 in both formulas
     collapses to the same value), so R_chi must not depend on chi there."""
-    p0 = dataclasses.replace(_P, lat0_deg=90.0, azimuth_deg=0.0)
+    p0 = params_replace(_P, {"site.lat0_deg": 90.0, "site.azimuth_deg": 0.0})
     for chi in (0.0, 30.0, 45.0, 90.0, 180.0, 270.0):
-        p = dataclasses.replace(_P, lat0_deg=90.0, azimuth_deg=chi)
+        p = params_replace(_P, {"site.lat0_deg": 90.0, "site.azimuth_deg": chi})
         assert math.isclose(_R_chi(p), _R_chi(p0), rel_tol=1e-12)
 
 
@@ -227,12 +276,19 @@ def test_curvature_radius_dispatch():
     """`curvature_radius(p)` is the public accessor the "elliptical"
     z_hat_g/ground-depth constructions share: `None` for "parallel",
     `p.R_e` for "radial" (unchanged), `_R_chi(p)` for "elliptical"."""
-    p_par = dataclasses.replace(_P, gravity_direction="parallel", R_e=6371000.0)
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
-    p_ell = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=50.0, azimuth_deg=90.0)
+    p_par = params_replace(_P, {"gravity.direction": "parallel", "gravity.R_e": 6371000.0})
+    p_rad = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
+    p_ell = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+        },
+    )
 
     assert curvature_radius(p_par) is None
-    assert curvature_radius(p_rad) == p_rad.R_e
+    assert curvature_radius(p_rad) == p_rad.gravity.R_e
     assert math.isclose(curvature_radius(p_ell), _R_chi(p_ell), rel_tol=1e-15)
 
 
@@ -240,7 +296,14 @@ def test_z_hat_g_elliptical_unit_norm_and_exact_at_zero_downrange():
     """`z_hat_g` for "elliptical" is a unit vector for every phi, and
     exactly `(0.0, 1.0)` at x=0 (phi=0) -- same properties Step 38 pinned
     for "radial"."""
-    p = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=50.0, azimuth_deg=90.0)
+    p = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+        },
+    )
 
     z0 = z_hat_g(0.0, _y_at_downrange(0.0), p)
     assert z0[0] == 0.0
@@ -257,18 +320,31 @@ def test_elliptical_vs_radial_matches_pinned_delta_phi_at_10km():
     gravity component -g*sin(phi) moves from -1.539263e-2 to
     -1.534518e-2 m/s^2 (a 0.31% refinement of a small term)."""
     lat0_deg, azimuth_deg, x = 50.0, 90.0, 10_000.0
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", lat0_deg=lat0_deg,
-                                 azimuth_deg=azimuth_deg, R_e=6371000.0)
-    p_ell = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=lat0_deg,
-                                 azimuth_deg=azimuth_deg)
+    p_rad = params_replace(
+        _P,
+        {
+            "gravity.direction": "radial",
+            "site.lat0_deg": lat0_deg,
+            "site.azimuth_deg": azimuth_deg,
+            "gravity.R_e": 6371000.0,
+        },
+    )
+    p_ell = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": lat0_deg,
+            "site.azimuth_deg": azimuth_deg,
+        },
+    )
 
-    phi_rad = x / p_rad.R_e
+    phi_rad = x / p_rad.gravity.R_e
     phi_ell = x / _R_chi(p_ell)
     # Delta_phi = x*(1/R_e - 1/R_chi) = phi_rad - phi_ell (R_chi > R_e here,
     # so the elliptical phi is the smaller one).
     assert math.isclose(phi_rad - phi_ell, 4.839e-6, rel_tol=1e-3)
 
-    g0 = _P.g  # gravity_model="constant" (the default): g is exactly p.g
+    g0 = _P.g0  # gravity_model="constant" (the default): g is exactly p.g
     downrange_rad = -g0 * math.sin(phi_rad)
     downrange_ell = -g0 * math.sin(phi_ell)
     assert math.isclose(downrange_rad, -1.539263e-2, rel_tol=1e-5)
@@ -278,10 +354,24 @@ def test_elliptical_vs_radial_matches_pinned_delta_phi_at_10km():
 def test_elliptical_direction_ignores_R_e():
     """architecture.md SS24.1: "p.R_e is not read by the elliptical
     direction" -- sweeping R_e must not move an "elliptical" z_hat_g."""
-    p_a = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=50.0,
-                               azimuth_deg=90.0, R_e=6371000.0)
-    p_b = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=50.0,
-                               azimuth_deg=90.0, R_e=1000.0)
+    p_a = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+            "gravity.R_e": 6371000.0,
+        },
+    )
+    p_b = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+            "gravity.R_e": 1000.0,
+        },
+    )
     y = _y_at_downrange(10_000.0)
     assert np.array_equal(z_hat_g(0.0, y, p_a), z_hat_g(0.0, y, p_b))
 
@@ -290,10 +380,24 @@ def test_radial_direction_ignores_lat0_and_azimuth():
     """The flip side of the check above: sweeping `lat0_deg`/`azimuth_deg`
     (the two quantities "elliptical" reads) must not move a "radial"
     z_hat_g -- the two dispatches stay orthogonal."""
-    p_a = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0,
-                               lat0_deg=0.0, azimuth_deg=0.0)
-    p_b = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0,
-                               lat0_deg=50.0, azimuth_deg=90.0)
+    p_a = params_replace(
+        _P,
+        {
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+            "site.lat0_deg": 0.0,
+            "site.azimuth_deg": 0.0,
+        },
+    )
+    p_b = params_replace(
+        _P,
+        {
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+        },
+    )
     y = _y_at_downrange(10_000.0)
     assert np.array_equal(z_hat_g(0.0, y, p_a), z_hat_g(0.0, y, p_b))
 
@@ -301,7 +405,7 @@ def test_radial_direction_ignores_lat0_and_azimuth():
 def test_unknown_gravity_direction_raises_keyerror():
     """Same "no silent flat fallback" property `test_unknown_gravity_model_
     raises_keyerror` exercises for the magnitude dispatch."""
-    p = dataclasses.replace(_P, gravity_direction="not-a-real-direction")
+    p = params_replace(_P, {"gravity.direction": "not-a-real-direction"})
     with pytest.raises(KeyError):
         z_hat_g(0.0, _y_at_downrange(0.0), p)
 
@@ -320,7 +424,7 @@ def test_ground_depth_parallel_is_y_z_itself_at_arbitrary_x_z():
     scalar object each time, so `y[Z] is y[Z]` is `False` even trivially,
     independent of anything `ground_depth` does -- `==` is the correct and
     sufficient check for "returned unchanged" here.)"""
-    p = dataclasses.replace(_P, gravity_direction="parallel")
+    p = params_replace(_P, {"gravity.direction": "parallel"})
     for x, z in ((0.0, 0.0), (0.0, -5000.0), (10_000.0, -5000.0), (-3000.0, 200.0)):
         y = _y_at(x, z)
         assert ground_depth(0.0, y, p) == y[Z]
@@ -331,7 +435,14 @@ def test_ground_depth_curved_is_exact_z_at_zero_downrange():
     to `z*1 - 0 + R*(1-1) = z` bitwise -- the same property `ground_depth`'s
     docstring claims."""
     for direction in ("radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         for z in (0.0, -5000.0, 3000.0):
             y = _y_at(0.0, z)
             assert ground_depth(0.0, y, p) == z
@@ -349,7 +460,7 @@ _PINNED_NEG_H_TRUE = {
 
 
 def test_ground_depth_radial_matches_pinned_h_true_table():
-    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     for x, expected in _PINNED_NEG_H_TRUE.items():
         y = _y_at(x, 0.0)
         assert math.isclose(ground_depth(0.0, y, p), expected, rel_tol=1e-5)
@@ -361,7 +472,7 @@ def test_ground_depth_parallel_would_be_wrong_for_a_tilted_scenario():
     "parallel" value, `z`) at finite `R_e` for any `x != 0` -- only in the
     limit `R -> infinity`. Confirms the "parallel" branch is a real branch,
     not something the algebra would give for free."""
-    p_curved = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p_curved = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     for x in (1_000.0, 4_600.0, 10_000.0, 30_000.0):
         y = _y_at(x, 0.0)
         assert not math.isclose(ground_depth(0.0, y, p_curved), 0.0, abs_tol=1e-6)
@@ -372,11 +483,11 @@ def test_ground_depth_differs_from_small_angle_approximation_by_pinned_residual(
     form `-(x^2/2R - z) = z - x^2/2R` by a pinned residual at
     (x=10km, z=-5000) and (x=100km, z=-5000) -- itself the check that the
     *exact* trigonometric form was implemented, not the approximation."""
-    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     z = -5000.0
 
     for x, expected in ((10_000.0, 6.164e-3), (100_000.0, 0.664)):
-        small_angle = z - x ** 2 / (2.0 * p.R_e)
+        small_angle = z - x ** 2 / (2.0 * p.gravity.R_e)
         exact = ground_depth(0.0, _y_at(x, z), p)
         assert math.isclose(exact - small_angle, expected, rel_tol=1e-2)
 
@@ -386,9 +497,9 @@ def test_ground_depth_radial_and_elliptical_differ_at_same_lat0_and_azimuth():
     formula shape but different `curvature_radius(p)` (Step 41), so they
     must give different impact-depth readings at the same non-cardinal,
     non-equatorial launch site and nonzero x."""
-    common = dict(lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", **common)
-    p_ell = dataclasses.replace(_P, gravity_direction="elliptical", **common)
+    common = {"site.lat0_deg": 50.0, "site.azimuth_deg": 90.0, "gravity.R_e": 6371000.0}
+    p_rad = params_replace(_P, {**common, "gravity.direction": "radial"})
+    p_ell = params_replace(_P, {**common, "gravity.direction": "elliptical"})
     y = _y_at(10_000.0, 0.0)
 
     assert not math.isclose(ground_depth(0.0, y, p_rad), ground_depth(0.0, y, p_ell), rel_tol=1e-6)
@@ -424,14 +535,21 @@ def test_altitude_agl_equals_negative_ground_depth():
     `altitude_agl` is exactly `-ground_depth`, for all three direction
     models, at several (x, z) including x = 0 and large x."""
     for direction in ("parallel", "radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         for x, z in ((0.0, 0.0), (0.0, -5000.0), (10_000.0, -1000.0), (-3000.0, 200.0), (30_000.0, 0.0)):
             y = _y_at(x, z)
             assert altitude_agl(y, p) == -ground_depth(0.0, y, p)
 
 
 def test_altitude_agl_is_minus_y_z_under_parallel_for_arbitrary_x_z():
-    p = dataclasses.replace(_P, gravity_direction="parallel")
+    p = params_replace(_P, {"gravity.direction": "parallel"})
     for x, z in ((0.0, 0.0), (5000.0, -2000.0), (-3000.0, 500.0), (30_000.0, -100.0)):
         y = _y_at(x, z)
         assert altitude_agl(y, p) == -y[Z]
@@ -441,7 +559,14 @@ def test_altitude_agl_at_zero_downrange_is_minus_z_for_all_directions():
     """cos(0) = 1, sin(0) = 0, R*(1-1) = 0 -- bitwise, architecture.md
     SS24.2's argument, now read as an altitude."""
     for direction in ("parallel", "radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         for z in (0.0, -5000.0, 3000.0):
             y = _y_at(0.0, z)
             assert altitude_agl(y, p) == -z
@@ -449,7 +574,15 @@ def test_altitude_agl_at_zero_downrange_is_minus_z_for_all_directions():
 
 def test_altitude_msl_equals_altitude_agl_plus_h0_m():
     for direction in ("parallel", "radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, h0_m=380.0, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.h0_m": 380.0,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         y = _y_at(10_000.0, -1000.0)
         assert altitude_msl(y, p) == altitude_agl(y, p) + 380.0
 
@@ -458,7 +591,7 @@ def test_unknown_gravity_direction_raises_keyerror_from_altitude_agl():
     """Same "no silent flat fallback" property as `z_hat_g`/`ground_depth`
     -- now from inside the atmosphere and wind paths too, since they call
     `altitude_agl`/`altitude_msl` (architecture.md SS25.9)."""
-    p = dataclasses.replace(_P, gravity_direction="not-a-real-direction")
+    p = params_replace(_P, {"gravity.direction": "not-a-real-direction"})
     with pytest.raises(KeyError):
         altitude_agl(_y_at(0.0, 0.0), p)
 
@@ -491,7 +624,7 @@ def test_altitude_agl_matches_pinned_h_true_table():
     """architecture.md SS25.7: `altitude_agl(z=0, "radial", R_e)` matches
     `_PINNED_NEG_H_TRUE`'s literals with the sign flipped -- reused, not
     re-derived."""
-    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     for x, expected_neg in _PINNED_NEG_H_TRUE.items():
         y = _y_at(x, 0.0)
         assert math.isclose(altitude_agl(y, p), -expected_neg, rel_tol=1e-5)
@@ -501,7 +634,14 @@ def test_altitude_agl_strictly_greater_than_minus_z_for_curved_nonzero_x():
     """The ground fell away beneath a rocket that did not -- strictly
     greater for x != 0 under a curved direction, equal at x = 0."""
     for direction in ("radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         for x in (1_000.0, 10_000.0, 30_000.0):
             y = _y_at(x, -500.0)
             assert altitude_agl(y, p) > -y[Z]
@@ -514,7 +654,7 @@ def test_altitude_agl_depends_on_z_as_well_as_x():
     x^2/2R approximation -- the curvature *correction*
     (altitude_agl - (-z)) at x=10km still varies with z, rather than being
     a pure function of x alone."""
-    p = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     pinned_correction = {0.0: 7.848057, -1000.0: 7.846825, -5000.0: 7.841897}
     for z, expected in pinned_correction.items():
         y = _y_at(10_000.0, z)
@@ -525,9 +665,9 @@ def test_altitude_agl_depends_on_z_as_well_as_x():
 def test_altitude_agl_elliptical_vs_radial_pinned():
     """architecture.md SS25.7: phi0=50, chi=90, x=10km, z=0 -- a live,
     distinguishable code path between the two curved direction models."""
-    common = dict(lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", **common)
-    p_ell = dataclasses.replace(_P, gravity_direction="elliptical", **common)
+    common = {"site.lat0_deg": 50.0, "site.azimuth_deg": 90.0, "gravity.R_e": 6371000.0}
+    p_rad = params_replace(_P, {**common, "gravity.direction": "radial"})
+    p_ell = params_replace(_P, {**common, "gravity.direction": "elliptical"})
     y = _y_at(10_000.0, 0.0)
     assert math.isclose(altitude_agl(y, p_rad), 7.848057, rel_tol=1e-5)
     assert math.isclose(altitude_agl(y, p_ell), 7.823862, rel_tol=1e-5)
@@ -540,7 +680,14 @@ def test_altitude_agl_vectorises_over_history_array():
     xs = np.array([0.0, 1_000.0, 5_000.0, 10_000.0, -3_000.0])
     zs = np.array([0.0, -500.0, -1_000.0, -5_000.0, 200.0])
     for direction in ("parallel", "radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         y2d = np.zeros((7, xs.size))
         y2d[X] = xs
         y2d[Z] = zs
@@ -564,11 +711,18 @@ def test_g_constant_immune_to_gravity_direction():
     """`gravity_model="constant"` has no `h` in it at all -- must stay
     immune to `gravity_direction` for every value, at any x."""
     for direction in ("parallel", "radial", "elliptical"):
-        p = dataclasses.replace(_P, gravity_model="constant", gravity_direction=direction,
-                                 lat0_deg=50.0, azimuth_deg=90.0)
+        p = params_replace(
+            _P,
+            {
+                "gravity.model": "constant",
+                "gravity.direction": direction,
+                "site.lat0_deg": 50.0,
+                "site.azimuth_deg": 90.0,
+            },
+        )
         for x in (0.0, 10_000.0, 100_000.0):
             y = _y_at(x, -1000.0)
-            assert g(0.0, y, p) == _P.g
+            assert g(0.0, y, p) == _P.g0
 
 
 def test_g_radial_moves_with_gravity_direction_pinned():
@@ -577,8 +731,22 @@ def test_g_radial_moves_with_gravity_direction_pinned():
     test exists specifically so nobody "restores orthogonality" by
     reverting Step 45."""
     y = _y_at(10_000.0, -1000.0)
-    p_par = dataclasses.replace(_P, gravity_model="radial", gravity_direction="parallel", R_e=6371000.0)
-    p_rad = dataclasses.replace(_P, gravity_model="radial", gravity_direction="radial", R_e=6371000.0)
+    p_par = params_replace(
+        _P,
+        {
+            "gravity.model": "radial",
+            "gravity.direction": "parallel",
+            "gravity.R_e": 6371000.0,
+        },
+    )
+    p_rad = params_replace(
+        _P,
+        {
+            "gravity.model": "radial",
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+        },
+    )
 
     g_par = g(0.0, y, p_par)
     g_rad = g(0.0, y, p_rad)
@@ -592,9 +760,9 @@ def test_g_radial_moves_with_gravity_direction_pinned():
 def test_g_wgs84_moves_with_gravity_direction_pinned():
     """architecture.md SS25.7's pinned table, at lat0_deg=50."""
     y = _y_at(10_000.0, -1000.0)
-    common = dict(gravity_model="wgs84", lat0_deg=50.0, R_e=6371000.0)
-    p_par = dataclasses.replace(_P, gravity_direction="parallel", **common)
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", **common)
+    common = {"gravity.model": "wgs84", "site.lat0_deg": 50.0, "gravity.R_e": 6371000.0}
+    p_par = params_replace(_P, {**common, "gravity.direction": "parallel"})
+    p_rad = params_replace(_P, {**common, "gravity.direction": "radial"})
 
     assert math.isclose(g(0.0, y, p_par), 9.807617683881, rel_tol=1e-9)
     assert math.isclose(g(0.0, y, p_rad), 9.807593486449, rel_tol=1e-9)
@@ -605,10 +773,12 @@ def test_elliptical_R_e_sweep_leaves_altitude_agl_unchanged_but_moves_g():
     sweeping p.R_e moves g (the falloff radius) but leaves altitude_agl
     EXACTLY unchanged (curvature comes from _R_chi, not R_e)."""
     y = _y_at(10_000.0, -1000.0)
-    common = dict(gravity_model="radial", gravity_direction="elliptical",
-                  lat0_deg=50.0, azimuth_deg=90.0)
-    p_a = dataclasses.replace(_P, R_e=6371000.0, **common)
-    p_b = dataclasses.replace(_P, R_e=1000.0, **common)
+    common = {
+        "gravity.model": "radial", "gravity.direction": "elliptical",
+        "site.lat0_deg": 50.0, "site.azimuth_deg": 90.0,
+    }
+    p_a = params_replace(_P, {**common, "gravity.R_e": 6371000.0})
+    p_b = params_replace(_P, {**common, "gravity.R_e": 1000.0})
 
     assert altitude_agl(y, p_a) == altitude_agl(y, p_b)
     assert g(0.0, y, p_a) != g(0.0, y, p_b)
@@ -619,9 +789,9 @@ def test_radial_R_e_sweep_moves_both_altitude_agl_and_g():
     altitude_agl and g (architecture.md SS25.2 -- the two happen to
     coincide for a sphere)."""
     y = _y_at(10_000.0, -1000.0)
-    common = dict(gravity_model="radial", gravity_direction="radial")
-    p_a = dataclasses.replace(_P, R_e=6371000.0, **common)
-    p_b = dataclasses.replace(_P, R_e=1000.0, **common)
+    common = {"gravity.model": "radial", "gravity.direction": "radial"}
+    p_a = params_replace(_P, {**common, "gravity.R_e": 6371000.0})
+    p_b = params_replace(_P, {**common, "gravity.R_e": 1000.0})
 
     assert altitude_agl(y, p_a) != altitude_agl(y, p_b)
     assert g(0.0, y, p_a) != g(0.0, y, p_b)
@@ -633,10 +803,40 @@ def test_elliptical_lat0_azimuth_sweep_moves_altitude_agl_radial_does_not():
     dispatches stay orthogonal in the geometry too."""
     y = _y_at(10_000.0, -1000.0)
 
-    p_ell_a = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=0.0, azimuth_deg=0.0)
-    p_ell_b = dataclasses.replace(_P, gravity_direction="elliptical", lat0_deg=50.0, azimuth_deg=90.0)
+    p_ell_a = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 0.0,
+            "site.azimuth_deg": 0.0,
+        },
+    )
+    p_ell_b = params_replace(
+        _P,
+        {
+            "gravity.direction": "elliptical",
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+        },
+    )
     assert altitude_agl(y, p_ell_a) != altitude_agl(y, p_ell_b)
 
-    p_rad_a = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0, lat0_deg=0.0, azimuth_deg=0.0)
-    p_rad_b = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0, lat0_deg=50.0, azimuth_deg=90.0)
+    p_rad_a = params_replace(
+        _P,
+        {
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+            "site.lat0_deg": 0.0,
+            "site.azimuth_deg": 0.0,
+        },
+    )
+    p_rad_b = params_replace(
+        _P,
+        {
+            "gravity.direction": "radial",
+            "gravity.R_e": 6371000.0,
+            "site.lat0_deg": 50.0,
+            "site.azimuth_deg": 90.0,
+        },
+    )
     assert altitude_agl(y, p_rad_a) == altitude_agl(y, p_rad_b)

@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from sim.thrust_curve import _load_motor_curve, thrust
-from sim.params import Params
+from sim.params import Lengths, Params, Thrust, Weight
 from sim.state import State
 
 
@@ -29,7 +29,11 @@ def test_thrust_curve_shape():
     """Test thrust curve at key points: ignition spike, settle, sustain,
     tail-off, and clean cutoff at burnout.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 
     # Before ignition (should return first point: zero thrust)
@@ -64,7 +68,11 @@ def test_thrust_curve_total_impulse():
 
 def test_thrust_zero_when_no_curve():
     """Test that thrust returns zero when no curve is specified."""
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="")  # Empty string
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve=""),
+    )  # Empty string
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 
     assert thrust(0.0, s, p) == 0.0
@@ -83,7 +91,11 @@ def test_thrust_interpolation():
         f.write("2.0, 50.0\n")
 
     try:
-        p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="test_curve.csv")
+        p = Params(
+            weight=Weight(m=0.5, I=0.05),
+            lengths=Lengths(l1=0.3, l2=0.4),
+            thrust=Thrust(motor_curve="test_curve.csv"),
+        )
         s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 
         # Before first point
@@ -112,7 +124,11 @@ def test_pressure_correction_inert_at_default_A_e():
     points, including a pre-ignition point, several during-burn points
     and a post-burnout point.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 
     for t, expected in [
@@ -143,9 +159,10 @@ def test_pressure_correction_increases_thrust_with_lower_ambient_pressure():
     t = 0.8  # flat-sustain part of the curve: raw T_ref = 90.0 N
     A_e = 0.001  # m^2
     p_ref = 150000.0  # Pa, above the sea-level ambient the curve implies
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        motor_curve="placeholder.csv", A_e=A_e, p_ref=p_ref,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv", A_e=A_e, p_ref=p_ref),
     )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 
@@ -165,9 +182,10 @@ def test_pressure_correction_still_zero_after_burnout():
     isn't actually flowing, since `integrate.py`'s `_burnout_event` and
     Step 14's own check both depend on a clean cut to zero.
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        motor_curve="placeholder.csv", A_e=0.001, p_ref=150000.0,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv", A_e=0.001, p_ref=150000.0),
     )
     s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
 

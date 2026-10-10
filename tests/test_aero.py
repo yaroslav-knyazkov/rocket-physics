@@ -15,7 +15,7 @@ from sim import aero
 from sim.dynamics import derivatives
 from sim.flow import flow_state
 from sim.integrate import run_sim
-from sim.params import Params
+from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import OMEGA, State
 
 
@@ -36,7 +36,11 @@ def test_table_lookup_interpolates_alpha_within_bracketed_M():
       M=0.5: C_A=[0.35, 0.30, 0.35], C_N=[-0.5236, 0, 0.5236], l1=0.28
       M=1.0: C_A=[0.60, 0.55, 0.60], C_N=[-0.6981, 0, 0.6981], l1=0.35
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="table", table="example.csv"),
+    )
     alpha = math.radians(5.0)  # exactly halfway between the 0/10 deg columns
     M = 0.75                   # exactly halfway between the M=0.5/1.0 rows
 
@@ -59,7 +63,11 @@ def test_table_lookup_interpolates_alpha_within_bracketed_M():
 def test_table_lookup_exact_grid_point():
     """At an exact (alpha, M) grid point, the lookup returns the raw
     table value with no interpolation error at all."""
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="table", table="example.csv"),
+    )
     alpha = math.radians(10.0)
     M = 1.0
 
@@ -75,7 +83,11 @@ def test_table_clamps_at_M_grid_edges_no_extrapolation():
     extrapolation" convention (thrust_curve.py holds the pre-ignition/
     post-burnout value; soundings.py holds wind constant outside its
     altitude range)."""
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="table", table="example.csv"),
+    )
     alpha = 0.0
 
     assert aero.cop_l1(alpha, 0.1, p) == 0.28  # below M=0.5 -> clamped low
@@ -104,7 +116,11 @@ def test_table_rejects_non_rectangular_grid():
         f.write("0,1.0,0.55,0.0,0.0,0.35\n")
 
     try:
-        p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="test_bad_grid.csv")
+        p = Params(
+            weight=Weight(m=0.5, I=0.05),
+            lengths=Lengths(l1=0.3, l2=0.4),
+            aero=Aero(model="table", table="test_bad_grid.csv"),
+        )
         try:
             aero.C_A(0.0, 0.5, p)
             assert False, "expected ValueError for a non-rectangular table"
@@ -136,30 +152,30 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
     indistinguishable, but the assertions below use `sin` explicitly so
     they stay exact rather than merely "close".
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3),
     )
     alpha_probe, M_probe = 0.12, 0.9
 
-    assert aero.C_A(alpha_probe, M_probe, p) == p.C_A0
-    assert aero.C_N(alpha_probe, M_probe, p) == p.C_N_alpha * math.sin(alpha_probe)
-    assert aero.C_m(alpha_probe, M_probe, p) == p.C_m_alpha * math.sin(alpha_probe)
-    assert aero.cop_l1(alpha_probe, M_probe, p) == p.l1
+    assert aero.C_A(alpha_probe, M_probe, p) == p.aero.C_A0
+    assert aero.C_N(alpha_probe, M_probe, p) == p.aero.C_N_alpha * math.sin(alpha_probe)
+    assert aero.C_m(alpha_probe, M_probe, p) == p.aero.C_m_alpha * math.sin(alpha_probe)
+    assert aero.cop_l1(alpha_probe, M_probe, p) == p.lengths.l1
 
     s = State(x=0.0, z=0.0, vx=0.0, vz=-60.0, theta=math.pi / 2 - 0.1, omega=0.3)
     y = np.array(s)
     dydt = derivatives(0.0, y, p)
 
-    # Manually reconstruct dynamics.derivatives()'s aA (constant p.l1) and
-    # forces.py's current A_x/A_z/A_m formulas, and confirm identical
+    # Manually reconstruct dynamics.derivatives()'s aA (constant p.lengths.l1)
+    # and forces.py's current A_x/A_z/A_m formulas, and confirm identical
     # dydt[OMEGA].
     flow = flow_state(0.0, y, p)
-    A_x = flow.q * p.S * p.C_A0
-    A_z = flow.q * p.S * p.C_N_alpha * math.sin(flow.alpha)
-    A_m = flow.q * p.S * p.d_ref * p.C_m_alpha * math.sin(flow.alpha)
-    aA = np.array([-p.l1, 0.0])
+    A_x = flow.q * p.aero.S * p.aero.C_A0
+    A_z = flow.q * p.aero.S * p.aero.C_N_alpha * math.sin(flow.alpha)
+    A_m = flow.q * p.aero.S * p.aero.d_ref * p.aero.C_m_alpha * math.sin(flow.alpha)
+    aA = np.array([-p.lengths.l1, 0.0])
     # Body axis, not wind axis (Step 35, Phase 2.5) -- see forces.py's
     # aero_force_body docstring.
     aero_force = np.array([-A_x, -A_z])
@@ -169,7 +185,7 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
 
     M_aero = _cross_y(aA, aero_force)
     M_moment = -A_m
-    expected_omega_dot = (M_aero + M_moment) / p.I  # p.T == 0.0: no thrust term
+    expected_omega_dot = (M_aero + M_moment) / p.weight.I  # p.T == 0.0: no thrust term
 
     assert math.isclose(dydt[OMEGA], expected_omega_dot, rel_tol=1e-12, abs_tol=1e-12)
 
@@ -195,10 +211,10 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     coefficient lookups have zero interpolation error, isolating the
     l1-wiring check from any table-interpolation error.
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=999.0, l2=0.4,
-        aero_model="coefficients", S=0.02, d_ref=0.08,
-        aero_table="example.csv",
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=999.0, l2=0.4),
+        aero=Aero(model="coefficients", S=0.02, d_ref=0.08, table="example.csv"),
     )
     alpha0 = math.radians(10.0)
     theta0 = math.pi / 2 + alpha0
@@ -238,17 +254,17 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     # alpha. No thrust (p.T defaults to 0.0, no motor_curve), so
     # M_thrust = 0; M_moment = aero_moment_y = -A_m.
     q = flow.q
-    A_z = q * p.S * C_N
-    A_m = q * p.S * p.d_ref * C_m
+    A_z = q * p.aero.S * C_N
+    A_m = q * p.aero.S * p.aero.d_ref * C_m
     expected_M_y = -l1_table * A_z - A_m
 
-    assert math.isclose(dydt[OMEGA] * p.I, expected_M_y, rel_tol=1e-9)
+    assert math.isclose(dydt[OMEGA] * p.weight.I, expected_M_y, rel_tol=1e-9)
 
-    # And decisively NOT the constant p.l1 = 999.0 (l1_table/p.l1 ~ 2.8e-4
-    # -- if dynamics.py had stayed on the constant, M_y would be off by
-    # nearly 4 orders of magnitude).
-    wrong_M_y = -p.l1 * A_z - A_m
-    assert not math.isclose(dydt[OMEGA] * p.I, wrong_M_y, rel_tol=1e-2)
+    # And decisively NOT the constant p.lengths.l1 = 999.0 (l1_table/p.l1 ~
+    # 2.8e-4 -- if dynamics.py had stayed on the constant, M_y would be off
+    # by nearly 4 orders of magnitude).
+    wrong_M_y = -p.lengths.l1 * A_z - A_m
+    assert not math.isclose(dydt[OMEGA] * p.weight.I, wrong_M_y, rel_tol=1e-2)
 
 
 # ----------------------------------------------------------------------
@@ -292,10 +308,10 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     (never exceeding the initial 0.15 rad magnitude) and oscillatory
     (sign-flipping, non-monotonic) -- restoring, not growing.
     """
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4,
-        aero_model="coefficients", S=0.005, d_ref=0.08,
-        aero_table="example.csv",
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, table="example.csv"),
     )
     alpha0 = -0.15
     theta0 = math.pi / 2 + alpha0
@@ -329,7 +345,11 @@ def test_C_mq_no_table_returns_constant_regardless_of_alpha_M():
     returns the constant `p.c_mq` unconditionally, ignoring `alpha`/`M`
     entirely -- same fallback shape as `C_A`/`C_N`/`C_m`/`cop_l1`.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, c_mq=12.5)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(c_mq=12.5),
+    )
     for alpha, M in [(0.0, 0.5), (0.3, 1.0), (-0.2, 2.5)]:
         assert aero.C_mq(alpha, M, p) == 12.5
 
@@ -342,7 +362,11 @@ def test_C_mq_table_without_column_falls_back_to_params_constant():
     completely". Set `p.c_mq` to an unmistakable nonzero value so a stray
     `0.0` fallback could not be missed.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv", c_mq=7.0)
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="table", table="example.csv", c_mq=7.0),
+    )
 
     table = aero._load_table("example.csv")
     assert table.C_mq is None
@@ -372,8 +396,11 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
         f.write("10,1.0,0.60,0.6981,-0.1396,0.35,60.0\n")
 
     try:
-        p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
-                   aero_table="test_c_mq_table.csv", c_mq=-999.0)
+        p = Params(
+            weight=Weight(m=0.5, I=0.05),
+            lengths=Lengths(l1=0.3, l2=0.4),
+            aero=Aero(model="table", table="test_c_mq_table.csv", c_mq=-999.0),
+        )
 
         table = aero._load_table("test_c_mq_table.csv")
         assert table.C_mq is not None
@@ -392,8 +419,8 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
         assert math.isclose(aero.C_mq(alpha, M, p), expected, rel_tol=1e-9)
 
         # Decisively not the Params sentinel -- confirms the table, not
-        # p.c_mq, is what answered both queries above.
-        assert aero.C_mq(0.0, 1.0, p) != p.c_mq
+        # p.aero.c_mq, is what answered both queries above.
+        assert aero.C_mq(0.0, 1.0, p) != p.aero.c_mq
     finally:
         aero._load_table.cache_clear()
         if os.path.exists(test_path):
@@ -405,16 +432,24 @@ def test_pitch_damping_default_reproduces_derivatives_bit_for_bit_with_and_witho
     result bit-for-bit, including with a table configured (architecture.md
     SS24.4's "Checks for the step").
     """
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        aero_model="coefficients", S=0.005, d_ref=0.08,
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero_common = dict(
+        model="coefficients", S=0.005, d_ref=0.08,
         C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
     )
     s = State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
     y = np.array(s)
     t = 0.5
 
-    for extra in ({}, {"aero_table": "example.csv"}):
-        p_implicit = Params.flat(**common, **extra)
-        p_explicit = Params.flat(c_mq=0.0, **common, **extra)
+    for extra in ({}, {"table": "example.csv"}):
+        p_implicit = Params(
+            weight=weight, lengths=lengths, thrust=thrust,
+            aero=Aero(**aero_common, **extra),
+        )
+        p_explicit = Params(
+            weight=weight, lengths=lengths, thrust=thrust,
+            aero=Aero(c_mq=0.0, **aero_common, **extra),
+        )
         assert np.array_equal(derivatives(t, y, p_implicit), derivatives(t, y, p_explicit))

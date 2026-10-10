@@ -12,13 +12,12 @@ the summary now also prints the burnout time from `result.events`.
 
 Step 27: on top of the single-run scenario above (unchanged), a small
 model-comparison sweep -- the payoff for the dispatch-dict selection
-pattern (architecture.md SS12): `dataclasses.replace(p, <field>=<value>)`
-per variant, one `run_sim` each, a printed summary table and an overlay
-plot. Two comparisons: the four gravity models, and ISA vs. a real
-sounding (station LKPR).
+pattern (architecture.md SS12): `params.replace(p, {<dotted.path>:
+<value>})` (architecture-28-rewrite.md SS28.4) per variant, one `run_sim`
+each, a printed summary table and an overlay plot. Two comparisons: the
+four gravity models, and ISA vs. a real sounding (station LKPR).
 """
 
-import dataclasses
 import math
 from pathlib import Path
 
@@ -28,7 +27,8 @@ import matplotlib.pyplot as plt
 from sim.flow import flow_state
 from sim.gravity import altitude_agl
 from sim.integrate import run_sim
-from sim.params import Params
+from sim.params import Aero, Lengths, Params, Thrust, Weight
+from sim.params import replace as params_replace
 from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
 from sim.state import State, X, Z, VX, VZ, THETA, OMEGA
 
@@ -75,10 +75,15 @@ def sweep(base_params: Params, field: str, values, s0: State, **run_kwargs) -> d
     """Model comparison sweep (architecture.md SS12, roadmap.md Step 27 --
     "the payoff for the selection pattern"): run `run_sim` once per `value`
     of `field`, varying only that one field on `base_params` via
-    `dataclasses.replace`, exactly the idiom SS12 gives:
+    `sim.params.replace`'s dotted-path helper (architecture-28-rewrite.md
+    SS28.4), exactly the idiom SS12 gives:
 
         for gm in ("constant", "radial", "wgs84"):
-            run_sim(dataclasses.replace(p, gravity_model=gm), s0)
+            run_sim(params_replace(p, {"gravity.model": gm}), s0)
+
+    `field` is therefore a dotted group path (e.g. `"gravity.model"`), not a
+    flat Params kwarg -- the printed table's column header is that same
+    dotted string.
 
     Returns `{value: {"result": Result, "params": Params, **_flight_summary}}`,
     keyed by the model-selection string so callers (the printed table,
@@ -86,7 +91,7 @@ def sweep(base_params: Params, field: str, values, s0: State, **run_kwargs) -> d
     """
     out = {}
     for value in values:
-        p = dataclasses.replace(base_params, **{field: value})
+        p = params_replace(base_params, {field: value})
         result = run_sim(p, s0, **run_kwargs)
         out[value] = dict(result=result, params=p, **_flight_summary(result, p))
     return out
@@ -109,15 +114,21 @@ def _print_sweep_table(title: str, field: str, results: dict) -> None:
 
 def main() -> None:
     # Placeholder values, small-model-rocket scale (unchanged from Step 1).
-    params = Params.flat(
-        m=0.5,      # 0.5 kg dry+propellant mass
-        I=0.05,     # kg*m^2, rough estimate for a small rocket
-        l1=0.3,     # m, CoP -> CoG distance
-        l2=0.4,     # m, CoP -> thrust point distance
-        motor_curve="placeholder.csv",  # Step 14: real (time, thrust) curve
-        A_x=0.5,    # N, placeholder axial aero force
-        A_z=0.0,    # N, placeholder normal aero force
-        A_m=0.0,    # N*m, placeholder aero pitching moment
+    params = Params(
+        weight=Weight(
+            m=0.5,      # 0.5 kg dry+propellant mass
+            I=0.05,     # kg*m^2, rough estimate for a small rocket
+        ),
+        lengths=Lengths(
+            l1=0.3,     # m, CoP -> CoG distance
+            l2=0.4,     # m, CoP -> thrust point distance
+        ),
+        thrust=Thrust(motor_curve="placeholder.csv"),  # Step 14: real (time, thrust) curve
+        aero=Aero(
+            C_x=0.5,    # N, placeholder axial aero force
+            C_z=0.0,    # N, placeholder normal aero force
+            C_m=0.0,    # N*m, placeholder aero pitching moment
+        ),
     )
 
     # At rest on the pad, pointing straight up (theta = pi/2, nose-up
@@ -199,9 +210,9 @@ def main() -> None:
     # above (aero_model="constant" here, so gravity is the only thing
     # varying). "linear" was removed at Phase 2.5 Step 34.
     gravity_sweep = sweep(
-        params, "gravity_model", ("constant", "radial", "wgs84"), state0
+        params, "gravity.model", ("constant", "radial", "wgs84"), state0
     )
-    _print_sweep_table("Gravity model comparison", "gravity_model", gravity_sweep)
+    _print_sweep_table("Gravity model comparison", "gravity.model", gravity_sweep)
     fig_gravity = plot_trajectory_overlay(
         {v: d["result"] for v, d in gravity_sweep.items()},
         title="Gravity model comparison",
@@ -217,20 +228,22 @@ def main() -> None:
     # LKPR's own station elevation, so the flight stays inside the
     # station's measured data -- same setup Step 18's own tests used
     # (tests/test_atmosphere.py's `_AERO_KW`/`common`).
-    atmo_base = dataclasses.replace(
+    atmo_base = params_replace(
         params,
-        aero_model="coefficients",
-        S=0.005,
-        d_ref=0.08,
-        C_A0=0.5,
-        C_N_alpha=2.0,
-        C_m_alpha=-0.5,
-        h0_m=380.0,
-        sounding_case="example",
+        {
+            "aero.model": "coefficients",
+            "aero.S": 0.005,
+            "aero.d_ref": 0.08,
+            "aero.C_A0": 0.5,
+            "aero.C_N_alpha": 2.0,
+            "aero.C_m_alpha": -0.5,
+            "site.h0_m": 380.0,
+            "soundings.case": "example",
+        },
     )
-    atmo_sweep = sweep(atmo_base, "atmosphere_model", ("isa", "sounding"), state0)
+    atmo_sweep = sweep(atmo_base, "atmosphere.model", ("isa", "sounding"), state0)
     _print_sweep_table(
-        "Atmosphere model comparison (station LKPR)", "atmosphere_model", atmo_sweep
+        "Atmosphere model comparison (station LKPR)", "atmosphere.model", atmo_sweep
     )
     fig_atmo = plot_trajectory_overlay(
         {v: d["result"] for v, d in atmo_sweep.items()},

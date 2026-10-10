@@ -6,7 +6,6 @@ Physics-sanity + smoke checks only, per this project's testing philosophy --
 no fixtures, no conftest.py, plain `assert` + `math.isclose`.
 """
 
-import dataclasses
 import math
 
 import matplotlib
@@ -22,7 +21,8 @@ import numpy as np
 from run import _flight_summary, sweep
 from sim.gravity import altitude_agl, g
 from sim.integrate import Result, run_sim
-from sim.params import Params
+from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
+from sim.params import replace as params_replace
 from sim.plotting import (
     _dense_time_grid,
     plot_time_histories,
@@ -35,9 +35,11 @@ from sim.state import State, X, Z
 # aero_model="constant" -- Phase 1 style constant axial drag), so the
 # gravity sweep here reproduces the ~4.6 km apogee scale roadmap.md Step 27
 # refers to.
-_P = Params.flat(
-    m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-    A_x=0.5, A_z=0.0, A_m=0.0,
+_P = Params(
+    weight=Weight(m=0.5, I=0.05),
+    lengths=Lengths(l1=0.3, l2=0.4),
+    thrust=Thrust(motor_curve="placeholder.csv"),
+    aero=Aero(C_x=0.5, C_z=0.0, C_m=0.0),
 )
 _S0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
@@ -46,7 +48,7 @@ _S0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 # the atmosphere entirely) -- same setup tests/test_atmosphere.py's
 # `_AERO_KW` uses for its own Step 18 ISA-vs-sounding trajectory checks.
 _AERO_KW = dict(
-    aero_model="coefficients",
+    model="coefficients",
     S=0.005,
     d_ref=0.08,
     C_A0=0.5,
@@ -57,12 +59,12 @@ _AERO_KW = dict(
 
 def test_sweep_produces_one_result_per_variant():
     variants = ("constant", "radial", "wgs84")
-    results = sweep(_P, "gravity_model", variants, _S0)
+    results = sweep(_P, "gravity.model", variants, _S0)
 
     assert set(results.keys()) == set(variants)
     for value, d in results.items():
         assert isinstance(d["result"], Result)
-        assert d["params"].gravity_model == value
+        assert d["params"].gravity.model == value
         assert d["apogee_altitude"] > 0.0
         assert d["apogee_time"] > 0.0
         assert d["max_q"] > 0.0
@@ -79,7 +81,7 @@ def test_sweep_gravity_apogee_ordering_is_physically_predictable():
     the same kind of directional check Step 10's own gravity tests used.
     """
     results = sweep(
-        _P, "gravity_model", ("constant", "radial", "wgs84"), _S0
+        _P, "gravity.model", ("constant", "radial", "wgs84"), _S0
     )
     apogees = {k: v["apogee_altitude"] for k, v in results.items()}
 
@@ -98,8 +100,12 @@ def test_sweep_atmosphere_isa_vs_sounding_shows_real_atmosphere_matters():
     roadmap.md Step 27's stated check: "ISA vs a real sounding shows where
     the real atmosphere matters".
     """
-    base = dataclasses.replace(_P, h0_m=380.0, sounding_case="example", **_AERO_KW)
-    results = sweep(base, "atmosphere_model", ("isa", "sounding"), _S0)
+    base = params_replace(_P, {
+        "site.h0_m": 380.0,
+        "soundings.case": "example",
+        **{f"aero.{k}": v for k, v in _AERO_KW.items()},
+    })
+    results = sweep(base, "atmosphere.model", ("isa", "sounding"), _S0)
 
     assert results["sounding"]["apogee_altitude"] > results["isa"]["apogee_altitude"]
     assert results["sounding"]["max_q"] < results["isa"]["max_q"]
@@ -120,9 +126,9 @@ def test_gravity_divergence_grows_with_altitude():
             State(x=0.0, z=-h, vx=0.0, vz=0.0, theta=0.0, omega=0.0)
         )
         values = [
-            g(0.0, y, dataclasses.replace(_P, gravity_model=v)) for v in variants
+            g(0.0, y, params_replace(_P, {"gravity.model": v})) for v in variants
         ]
-        return (max(values) - min(values)) / _P.g
+        return (max(values) - min(values)) / _P.g0
 
     spread_low = _relative_spread(4609.2267)  # this scenario's own apogee
     spread_high = _relative_spread(100_000.0)
@@ -135,8 +141,8 @@ def test_gravity_divergence_grows_with_altitude():
 
 
 def test_plot_trajectory_overlay_returns_valid_figure_for_two_variants():
-    r_const = run_sim(dataclasses.replace(_P, gravity_model="constant"), _S0)
-    r_wgs84 = run_sim(dataclasses.replace(_P, gravity_model="wgs84"), _S0)
+    r_const = run_sim(params_replace(_P, {"gravity.model": "constant"}), _S0)
+    r_wgs84 = run_sim(params_replace(_P, {"gravity.model": "wgs84"}), _S0)
 
     fig = plot_trajectory_overlay({"constant": r_const, "wgs84": r_wgs84})
 
@@ -157,7 +163,7 @@ def test_plot_trajectory_overlay_returns_valid_figure_for_two_variants():
 # converted from an unconverted call site (architecture.md SS25.5).
 _TILT_S0 = State(x=0.0, z=0.0, vx=50.0, vz=0.0, theta=math.radians(80.0), omega=0.0)
 _TILT_AERO_KW = dict(
-    aero_model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5,
+    model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5,
     C_N_alpha=2.0, C_m_alpha=-0.5,
 )
 
@@ -170,7 +176,11 @@ def test_plotted_altitude_bit_for_bit_under_parallel():
     and compared against `-y[Z]`-style reference arrays built the old way,
     on the same dense grid `_dense_time_grid` produces.
     """
-    p = dataclasses.replace(_P, gravity_model="wgs84", lat0_deg=50.0, **_TILT_AERO_KW)
+    p = params_replace(_P, {
+        "gravity.model": "wgs84",
+        "site.lat0_deg": 50.0,
+        **{f"aero.{k}": v for k, v in _TILT_AERO_KW.items()},
+    })
     r = run_sim(p, _TILT_S0)
 
     t = _dense_time_grid(r)
@@ -197,10 +207,10 @@ def test_plot_trajectory_overlay_reads_each_variants_own_params():
     directly -- isolating the "params read per line" wiring from any
     physics difference between the two runs.
     """
-    p_par = dataclasses.replace(_P, gravity_direction="parallel")
+    p_par = params_replace(_P, {"gravity.direction": "parallel"})
     r = run_sim(p_par, _TILT_S0)
 
-    p_rad = dataclasses.replace(_P, gravity_direction="radial", R_e=6371000.0)
+    p_rad = params_replace(_P, {"gravity.direction": "radial", "gravity.R_e": 6371000.0})
     r_relabelled = Result(t=r.t, y=r.y, events=r.events, raw=r.raw, params=p_rad)
 
     fig = plot_trajectory_overlay({"parallel": r, "radial": r_relabelled})
@@ -219,12 +229,16 @@ def test_flight_summary_apogee_altitude_equals_helper_directly():
     """architecture.md SS25.9: `_flight_summary(result, p)["apogee_altitude"]`
     equals `altitude_agl(result.raw.sol(t_apogee), p)` exactly, for all
     three direction models, on a tilted (x != 0) run."""
-    common = dict(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        **_TILT_AERO_KW,
-    )
+    weight = Weight(m=0.5, I=0.05)
+    lengths = Lengths(l1=0.3, l2=0.4)
+    thrust = Thrust(motor_curve="placeholder.csv")
+    aero = Aero(**_TILT_AERO_KW)
+    site = Site(lat0_deg=50.0, azimuth_deg=90.0)
     for direction in ("parallel", "radial", "elliptical"):
-        p = Params.flat(**common, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
+        p = Params(
+            weight=weight, lengths=lengths, thrust=thrust, aero=aero, site=site,
+            gravity=Gravity(direction=direction, R_e=6371000.0),
+        )
         result = run_sim(p, _TILT_S0)
         summary = _flight_summary(result, p)
         t_apogee = result.events["apogee"]
@@ -249,9 +263,12 @@ def test_apogee_altitude_geometric_magnitude_for_tilted_radial_run():
     `x_a**2 / (2*R_e)` (the small-angle approximation).
     """
     R_e = 6371000.0
-    p = Params.flat(
-        m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
-        **_TILT_AERO_KW, gravity_direction="radial", R_e=R_e,
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+        aero=Aero(**_TILT_AERO_KW),
+        gravity=Gravity(direction="radial", R_e=R_e),
     )
     result = run_sim(p, _TILT_S0)
 
@@ -275,7 +292,7 @@ def test_reported_altitude_is_agl_not_msl_with_h0_m():
     plotted altitude at `z=0` (the pad, `t=0`) is `0.0`, not `380.0` --
     the check against `altitude_msl` being wired in by mistake, which
     would silently raise every LKPR-sweep curve by 380 m."""
-    p = dataclasses.replace(_P, h0_m=380.0)
+    p = params_replace(_P, {"site.h0_m": 380.0})
     result = run_sim(p, _S0)
 
     altitude = plot_trajectory(result).axes[0].lines[0].get_ydata()

@@ -10,25 +10,17 @@ import math
 import numpy as np
 
 from sim.flow import flow_state
-from sim.params import Params
+from sim.params import Aero, Lengths, Params, Weight
 from sim.state import State
 
 # Parameters for existing tests (Step 9)
-_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
 
 # Parameters for Step 13 tests (with non-zero reference values)
-_P_step13 = Params.flat(
-    m=0.5,
-    I=0.05,
-    l1=0.3,
-    l2=0.4,
-    l_ref=0.5,   # reference length [m]
-    S=0.1,       # reference area [m^2]
-    d_ref=0.3,   # reference diameter [m]
-    C_A0=0.0,
-    C_N_alpha=2.0,
-    C_m_alpha=-0.5,
-    aero_model="constant",  # we'll test the coefficients model separately
+_P_step13 = Params(
+    weight=Weight(m=0.5, I=0.05),
+    lengths=Lengths(l1=0.3, l2=0.4),
+    aero=Aero(l_ref=0.5, S=0.1, d_ref=0.3, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=-0.5, model="constant"),
 )
 
 
@@ -149,7 +141,7 @@ def test_flow_q_M_Re_nonzero_velocity():
     # Mach number: M = V / a
     expected_M = V / a
     # Reynolds number: Re = rho * V * l_ref / mu
-    expected_Re = rho * V * _P_step13.l_ref / mu
+    expected_Re = rho * V * _P_step13.aero.l_ref / mu
 
     assert math.isclose(flow.q, expected_q, rel_tol=1e-9)
     assert math.isclose(flow.M, expected_M, rel_tol=1e-9)

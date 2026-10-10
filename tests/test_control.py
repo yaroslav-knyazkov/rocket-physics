@@ -16,7 +16,7 @@ import numpy as np
 from sim import control, thrust_curve
 from sim.dynamics import derivatives
 from sim.integrate import run_sim
-from sim.params import Params
+from sim.params import Aero, Control, Lengths, Params, Thrust, Weight
 from sim.state import State, VZ, Z
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
@@ -27,8 +27,19 @@ _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 # constant body-axial drag. Reaches a real, well-separated apogee during
 # an unpowered coast long enough to sample many points of (architecture.md
 # SS27.3's "Check" list).
-_LAUNCH_COMMON = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE,
-                       A_x=0.5, A_z=0.0, A_m=0.0)
+_LAUNCH_WEIGHT = Weight(m=0.5, I=0.05)
+_LAUNCH_LENGTHS = Lengths(l1=0.3, l2=0.4)
+_LAUNCH_THRUST = Thrust(motor_curve=_MOTOR_CURVE)
+_LAUNCH_AERO = Aero(C_x=0.5, C_z=0.0, C_m=0.0)
+
+
+def _launch_params(**control_kw) -> Params:
+    """The shared launch scenario (weight/lengths/thrust/aero groups) plus
+    a `Control` group built from the airbrake kwargs passed by each test."""
+    return Params(
+        weight=_LAUNCH_WEIGHT, lengths=_LAUNCH_LENGTHS, thrust=_LAUNCH_THRUST,
+        aero=_LAUNCH_AERO, control=Control(**control_kw),
+    )
 
 
 def _launch_state():
@@ -46,7 +57,7 @@ def test_airbrake_deploy_fraction_is_zero_for_the_default_model():
     SS27.3) -- even states that would otherwise satisfy the "proportional"
     variant's activation gate.
     """
-    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
     for t, y in [
         (0.0, np.zeros(6)),
         (12.0, np.array([100.0, -2000.0, 50.0, -80.0, math.pi / 2, 0.0])),
@@ -64,10 +75,10 @@ def test_airbrake_none_leaves_derivatives_unaffected_by_other_airbrake_fields():
     `test_mass_model_off_reproduces_fixed_mass_bit_for_bit` already
     exercise for Step 36/37's own gates (tests/test_dynamics.py).
     """
-    p_inert = Params.flat(airbrake_model="none", **_LAUNCH_COMMON)
-    p_loaded = Params.flat(
+    p_inert = _launch_params(airbrake_model="none")
+    p_loaded = _launch_params(
         airbrake_model="none", airbrake_kp=5.0, airbrake_target_apogee_m=100.0,
-        airbrake_Cd=2.0, airbrake_S_max=0.5, **_LAUNCH_COMMON,
+        airbrake_Cd=2.0, airbrake_S_max=0.5,
     )
     # An unpowered, ascending state -- the window where "proportional"
     # would otherwise be active -- so this genuinely exercises the "none"
@@ -86,11 +97,10 @@ def test_airbrake_S_max_zero_is_an_independent_off_switch():
     that commands full deployment, `derivatives` stays bit-for-bit
     identical to the no-airbrake baseline when `S_max == 0.0`.
     """
-    p_none = Params.flat(airbrake_model="none", **_LAUNCH_COMMON)
-    p_prop_inert = Params.flat(
+    p_none = _launch_params(airbrake_model="none")
+    p_prop_inert = _launch_params(
         airbrake_model="proportional", airbrake_kp=1000.0,  # saturating
         airbrake_target_apogee_m=0.0, airbrake_Cd=2.0, airbrake_S_max=0.0,
-        **_LAUNCH_COMMON,
     )
     # Unpowered, ascending state: the activation gate is open, so this
     # genuinely exercises control.airbrake_deploy_fraction (confirmed
@@ -120,17 +130,16 @@ def test_proportional_airbrake_lowers_apogee_and_saturates_during_coast():
     """
     s0 = _launch_state()
 
-    p_none = Params.flat(airbrake_model="none", **_LAUNCH_COMMON)
+    p_none = _launch_params(airbrake_model="none")
     r_none = run_sim(p_none, s0, method="RK45")
     apogee_t_none = r_none.events["apogee"]
     assert apogee_t_none is not None
     alt_none = -r_none.raw.sol(apogee_t_none)[Z]
 
-    p_brake = Params.flat(
+    p_brake = _launch_params(
         airbrake_model="proportional", airbrake_kp=1.0,
         airbrake_target_apogee_m=alt_none - 1000.0,  # well below the unconstrained apogee
         airbrake_Cd=1.0, airbrake_S_max=0.05,
-        **_LAUNCH_COMMON,
     )
     r_brake = run_sim(p_brake, s0, method="RK45")
     apogee_t_brake = r_brake.events["apogee"]
@@ -155,11 +164,10 @@ def test_airbrake_deploy_fraction_is_zero_outside_the_activation_window():
     trajectory, not a controller that happens to never deploy at all).
     """
     s0 = _launch_state()
-    p_brake = Params.flat(
+    p_brake = _launch_params(
         airbrake_model="proportional", airbrake_kp=1.0,
         airbrake_target_apogee_m=0.0,  # guarantees a positive error whenever active
         airbrake_Cd=1.0, airbrake_S_max=0.05,
-        **_LAUNCH_COMMON,
     )
     r = run_sim(p_brake, s0, method="RK45")
     burnout_t = r.events["burnout"]
@@ -187,11 +195,10 @@ def test_proportional_airbrake_takes_intermediate_values_for_a_modest_gain():
     saturating everywhere.
     """
     s0 = _launch_state()
-    p = Params.flat(
+    p = _launch_params(
         airbrake_model="proportional", airbrake_kp=0.0001,
         airbrake_target_apogee_m=4400.0,  # close to, but below, the ~4609 m unconstrained apogee
         airbrake_Cd=1.0, airbrake_S_max=0.05,
-        **_LAUNCH_COMMON,
     )
     r = run_sim(p, s0, method="RK45")
     burnout_t = r.events["burnout"]
