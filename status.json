@@ -27,7 +27,10 @@
       "committed docs/architecture-28-rewrite.md + architecture.md pointer, commit 03918e2",
       ".gitignore: docs/latex build artifacts, commit e460b61"
     ],
-    "next": "dispatch S50 to developer"
+    "steps_done": [
+      {"step": 50, "name": "Params composition, part 1 -- groups + sim/ migration", "commit": "2120ed1", "note": "12 group dataclasses per SS28.3; pure rename (A_x/A_z/A_m -> Aero.C_x/C_z/C_m, same un-scaled-by-q semantics, fixed at S55 not here); transitional Params.flat shim + hand-written __init__ keeps tests/run.py/apps/ working unmodified (mechanical Params( -> Params.flat( substitution only). Verified independently by orchestrator: 245/245 both sides, trajectory.csv byte-identical, stdout identical except the necessarily-changed Params repr line."}
+    ],
+    "next": "dispatch S51 to developer (migrate tests/run.py/apps/ off Params.flat to native nested construction + dotted-path replace())"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

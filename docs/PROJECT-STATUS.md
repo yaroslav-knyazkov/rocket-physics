@@ -63,7 +63,15 @@ committed — "App 2," the CFD condition selector) committed as-is (commit `c22d
 committed (commit `03918e2`); `docs/latex/*.{aux,pdf,log,...}` build artifacts added to `.gitignore`
 (commit `e460b61`).
 
-**Next:** dispatch S50 to developer.
+**S50 done (commit `2120ed1`), independently re-verified by the orchestrator** (not taken on the
+developer's self-report alone): full suite 245/245 both before and after; `python run.py`'s
+`output/trajectory.csv` byte-identical before vs after (git stash round-trip); stdout identical
+except the one necessarily-changed printed `Params` repr line (flat → nested shape). `sim/forces.py`
+confirmed still reading `Aero.C_x/C_z/C_m` as raw, un-scaled-by-q placeholders under
+`aero.model == "constant"` — the bug fix is still S55's job, not this step's.
+
+**Next:** dispatch S51 to developer (migrate `tests/`/`run.py`/`apps/` off `Params.flat` to native
+nested construction and the dotted-path `replace()` helper).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
