@@ -4336,3 +4336,29 @@ hold-value forward as an extra `Params`-like input to each segment. Both are mat
 this step; picking this up is a prerequisite for a *realistic* (not merely stable) airbrake or
 direction-control loop, and for comparing against a real flight computer's logged behaviour. Revisit
 alongside B11, which has the same root cause.
+
+---
+
+## 28. Phase 2.11 — rewrite pass (Steps 50-59) — *lives in a separate file*
+
+**→ `docs/architecture-28-rewrite.md`** (proposal, not yet approved; no code written).
+
+This section is **not** inlined here. `architecture.md` is already past the point where any agent can
+read it whole, so from §28 on, each stage's design goes in its own `architecture-<n>-<slug>.md` file
+with its own table of contents and stable anchors — append-only navigation here, content there.
+
+§28 covers the pre-Step-30 rewrite pass: (28.3) `Params` split into twelve composed sub-dataclasses
+plus a dotted-path `replace` helper; (28.5) `sim/aero.py` rewritten as an explicit
+`"constant" | "linearized" | "table"` dispatch with the raw-force placeholders `A_x`/`A_z`/`A_m`
+replaced by `q·S·C_x`, `q·S·C_z`, `q·S·d_ref·C_m` — **the one deliberately non-bit-for-bit change in
+the pass**; (28.6) a control-coefficient seam so a future law can perturb `C_x`/`C_z`/`C_m`/`l1`
+directly; (28.7) a `Solver` group and `run_sim(p, s0)`; (28.8) an opt-in fixed-step
+sampled-data/zero-order-hold integration mode, which is what unblocks backlog **B11** and **B12**;
+(28.9) `run.py` reduced to scenario definition with the reporting machinery moved to a new
+`sim/report.py`; (28.10) the matching structural/notational LaTeX pass. Ordered tickets are §28.11,
+the 17 open decisions §28.12.
+
+Two corrections to **this** document that §28 forces, recorded here so a reader of §12 does not take
+the stale claim on trust: §12's "`constant` ignores the atmosphere entirely" becomes false (every
+aero model is dynamic-pressure-scaled after §28.5), and §18's flat `Params` field list is superseded
+by §28.3. Neither is edited above yet — both land with Step 55.
