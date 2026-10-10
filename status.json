@@ -30,7 +30,9 @@
     "steps_done": [
       {"step": 50, "name": "Params composition, part 1 -- groups + sim/ migration", "commit": "2120ed1", "note": "12 group dataclasses per SS28.3; pure rename (A_x/A_z/A_m -> Aero.C_x/C_z/C_m, same un-scaled-by-q semantics, fixed at S55 not here); transitional Params.flat shim + hand-written __init__ keeps tests/run.py/apps/ working unmodified (mechanical Params( -> Params.flat( substitution only). Verified independently by orchestrator: 245/245 both sides, trajectory.csv byte-identical, stdout identical except the necessarily-changed Params repr line."}
     ],
-    "next": "dispatch S51 to developer (migrate tests/run.py/apps/ off Params.flat to native nested construction + dotted-path replace())"
+      {"step": 51, "name": "Params composition, part 2 -- tests/run.py/apps/ migrated to native nested API", "commit": "beaf99b", "note": "164 Params.flat(...) constructions + ~104 replace() calls migrated to native nested form; scope grew mid-step (correctly) to also cover bare flat-attribute reads inside test bodies (p.m, p.R_e, p.gravity_model, d[\"params\"].gravity_model, etc.) -- orchestrator's own dispatch had underspecified this, developer flagged rather than guessed. One session-limit interruption, resumed with no work lost. Verified independently twice: 245/245 both rounds, trajectory.csv byte-identical, AST-based scan (not text grep) confirms zero residual bare flat-attribute reads outside sim/."}
+    ],
+    "next": "dispatch S52 to developer (delete the transitional Params.flat shim)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

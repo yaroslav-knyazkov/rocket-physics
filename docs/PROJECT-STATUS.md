@@ -70,8 +70,17 @@ except the one necessarily-changed printed `Params` repr line (flat → nested s
 confirmed still reading `Aero.C_x/C_z/C_m` as raw, un-scaled-by-q placeholders under
 `aero.model == "constant"` — the bug fix is still S55's job, not this step's.
 
-**Next:** dispatch S51 to developer (migrate `tests/`/`run.py`/`apps/` off `Params.flat` to native
-nested construction and the dotted-path `replace()` helper).
+**S51 done (commit `beaf99b`), independently re-verified by the orchestrator, twice** (a session-limit
+interruption hit mid-pass; resumed with no work lost). `tests/`/`run.py`/`apps/` fully migrated off
+`Params.flat` to native nested construction and the dotted-path `replace()` helper — including bare
+flat-attribute reads inside test bodies (`p.m`, `p.R_e`, `p.gravity_model`,
+`d["params"].gravity_model`, etc.), a scope point the orchestrator's own dispatch had
+underspecified and the developer correctly flagged rather than guessed. Verification: 245/245 both
+rounds; `output/trajectory.csv` byte-identical; a from-scratch AST-based scan (not text grep)
+confirms zero residual bare flat-attribute reads outside `sim/`. Two sanctioned stdout text changes
+(not numbers): `run.py`'s sweep-table headers now read `gravity.model`/`atmosphere.model`.
+
+**Next:** dispatch S52 to developer (delete the transitional `Params.flat` shim).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
