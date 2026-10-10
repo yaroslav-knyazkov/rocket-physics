@@ -162,9 +162,9 @@ def _rail_exit_event(t, y, p):
     `p.L_rail <= 0.0` (the default) means the rocket is never on the rail
     (see `dynamics.on_rail`), so this event must never fire.
     """
-    if t < 0.1 or p.L_rail <= 0.0:
+    if t < 0.1 or p.site.L_rail <= 0.0:
         return -1.0
-    return dynamics.rail_distance(y, p) - p.L_rail
+    return dynamics.rail_distance(y, p) - p.site.L_rail
 
 
 _rail_exit_event.terminal = False
@@ -299,9 +299,9 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
         # Rail exit: `rail_distance - L_rail` crosses from negative to
         # positive (Step 47, architecture.md SS27.1), same t=0/off-switch
         # guard as `_rail_exit_event`.
-        if t_rail_exit is None and p.L_rail > 0.0 and t_next >= 0.1:
-            r_now = dynamics.rail_distance(y, p) - p.L_rail
-            r_next = dynamics.rail_distance(y_next, p) - p.L_rail
+        if t_rail_exit is None and p.site.L_rail > 0.0 and t_next >= 0.1:
+            r_now = dynamics.rail_distance(y, p) - p.site.L_rail
+            r_next = dynamics.rail_distance(y_next, p) - p.site.L_rail
             if r_now < 0.0 <= r_next:
                 frac = -r_now / (r_next - r_now)
                 t_rail_exit = t + frac * dt_step

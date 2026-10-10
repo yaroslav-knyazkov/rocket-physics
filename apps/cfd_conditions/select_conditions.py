@@ -199,7 +199,7 @@ def main() -> None:
     # this first version's output is directly comparable to what run.py
     # already prints -- not "the" rocket, a placeholder until real Params
     # are supplied for an actual design.
-    params = Params(
+    params = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         motor_curve="placeholder.csv",
         A_x=0.5, A_z=0.0, A_m=0.0,

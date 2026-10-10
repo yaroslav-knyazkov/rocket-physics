@@ -44,8 +44,8 @@ y-component) is the 3D analogue of the 2D scalar pitch rate, since the
 x-z plane's only rotation axis is y. `M` (mass) is left at `0.0`: the
 13-component layout has no mass field of its own (no 3D variable-mass
 model exists yet), and `weight_inertial` only ever reads `s[M]` when
-`p.m_d` is set -- every Step-29 scenario leaves that off, so this is an
-inert placeholder, not a silently wrong value.
+`p.weight.m_d` is set -- every Step-29 scenario leaves that off, so this is
+an inert placeholder, not a silently wrong value.
 
 This adapter array is a disposable *view* built fresh per call, not a
 stored/cached conversion, and it is only ever handed to the 2D force

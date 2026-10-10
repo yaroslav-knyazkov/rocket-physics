@@ -109,7 +109,7 @@ def _print_sweep_table(title: str, field: str, results: dict) -> None:
 
 def main() -> None:
     # Placeholder values, small-model-rocket scale (unchanged from Step 1).
-    params = Params(
+    params = Params.flat(
         m=0.5,      # 0.5 kg dry+propellant mass
         I=0.05,     # kg*m^2, rough estimate for a small rocket
         l1=0.3,     # m, CoP -> CoG distance

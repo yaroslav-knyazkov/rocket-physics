@@ -35,7 +35,7 @@ from sim.state import State, X, Z
 # aero_model="constant" -- Phase 1 style constant axial drag), so the
 # gravity sweep here reproduces the ~4.6 km apogee scale roadmap.md Step 27
 # refers to.
-_P = Params(
+_P = Params.flat(
     m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
     A_x=0.5, A_z=0.0, A_m=0.0,
 )
@@ -224,7 +224,7 @@ def test_flight_summary_apogee_altitude_equals_helper_directly():
         **_TILT_AERO_KW,
     )
     for direction in ("parallel", "radial", "elliptical"):
-        p = Params(**common, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
+        p = Params.flat(**common, gravity_direction=direction, lat0_deg=50.0, azimuth_deg=90.0, R_e=6371000.0)
         result = run_sim(p, _TILT_S0)
         summary = _flight_summary(result, p)
         t_apogee = result.events["apogee"]
@@ -249,7 +249,7 @@ def test_apogee_altitude_geometric_magnitude_for_tilted_radial_run():
     `x_a**2 / (2*R_e)` (the small-angle approximation).
     """
     R_e = 6371000.0
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
         **_TILT_AERO_KW, gravity_direction="radial", R_e=R_e,
     )

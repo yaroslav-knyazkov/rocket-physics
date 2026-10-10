@@ -30,7 +30,7 @@ from sim.soundings import interp_altitude as soundings_interp_altitude
 from sim.soundings import load_case
 from sim.state import State, X, Z
 
-_P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
 _SOUNDINGS_DIR = os.path.join(
     os.path.dirname(__file__), "..", "data", "soundings"
@@ -271,7 +271,7 @@ def _write_isa_synthetic_case(case_dir: str, station: str = "ISA0") -> None:
     conftest.py" testing philosophy: each test file is self-contained).
     """
     os.makedirs(case_dir, exist_ok=True)
-    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
     nodes = [0.0, 2000.0, 5000.0, 8000.0, 11000.0, 15000.0, 20000.0]
 
     lines = [
@@ -352,8 +352,8 @@ def test_sounding_tier_trajectory_matches_isa_within_interpolation_error():
         common = dict(
             m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, **_AERO_KW
         )
-        p_isa = Params(**common, atmosphere_model="isa")
-        p_snd = Params(
+        p_isa = Params.flat(**common, atmosphere_model="isa")
+        p_snd = Params.flat(
             **common, atmosphere_model="sounding", sounding_case=case
         )
         s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
@@ -443,8 +443,8 @@ def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():
         m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE, h0_m=380.0,
         **_AERO_KW,
     )
-    p_isa = Params(**common, atmosphere_model="isa")
-    p_snd = Params(**common, atmosphere_model="sounding", sounding_case="example")
+    p_isa = Params.flat(**common, atmosphere_model="isa")
+    p_snd = Params.flat(**common, atmosphere_model="sounding", sounding_case="example")
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     load_case.cache_clear()

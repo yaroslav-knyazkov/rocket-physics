@@ -103,8 +103,8 @@ def omega_components(p) -> tuple[float, float, float]:
     (a pure change of basis) -- exercised directly by
     tests/test_dynamics.py.
     """
-    phi0 = np.radians(p.lat0_deg)
-    chi = np.radians(p.azimuth_deg)
+    phi0 = np.radians(p.site.lat0_deg)
+    chi = np.radians(p.site.azimuth_deg)
     omega_x = OMEGA_EARTH * np.cos(phi0) * np.cos(chi)
     omega_y = -OMEGA_EARTH * np.cos(phi0) * np.sin(chi)
     omega_z = -OMEGA_EARTH * np.sin(phi0)
@@ -121,8 +121,8 @@ def coriolis_inplane(t: float, y: np.ndarray, p) -> np.ndarray:
     Added to the translational acceleration by sim/dynamics.py only when
     `p.earth_rotation` is `True`; harmless (but wasted) to call otherwise.
     """
-    phi0 = np.radians(p.lat0_deg)
-    chi = np.radians(p.azimuth_deg)
+    phi0 = np.radians(p.site.lat0_deg)
+    chi = np.radians(p.site.azimuth_deg)
     k = 2.0 * OMEGA_EARTH * np.cos(phi0) * np.sin(chi)
     vx, vz = y[VX], y[VZ]
     a_x = k * vz

@@ -114,7 +114,7 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
     sim/gravity.py (`p.gravity_direction`), not the fixed `(0, 1)` --
     see the gravity.py docstring for the two variants.
     """
-    m = s[M] if p.m_d is not None else p.m
+    m = s[M] if p.weight.m_d is not None else p.weight.m
     return m * gravity.g(t, s, p) * gravity.z_hat_g(t, s, p)
 
 
@@ -135,7 +135,7 @@ def thrust_body(t: float, s, p) -> np.ndarray:
     since `np.cos(0.0) == 1.0` and `np.sin(0.0) == 0.0` exactly.
     """
     thrust = thrust_curve.thrust(t, s, p)
-    delta = np.radians(p.thrust_misalign_deg)
+    delta = np.radians(p.lengths.misalign_deg)
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
@@ -183,15 +183,15 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     exactly `0.0`, reproducing every prior step bit-for-bit.
     """
     flow = flow_state(t, s, p)
-    if p.aero_model == "constant":
-        A_x = p.A_x
-        A_z = p.A_z
-    elif p.aero_model == "coefficients":
-        A_x = flow.q * p.S * aero.C_A(flow.alpha, flow.M, p)
-        A_z = flow.q * p.S * aero.C_N(flow.alpha, flow.M, p)
+    if p.aero.model == "constant":
+        A_x = p.aero.C_x
+        A_z = p.aero.C_z
+    elif p.aero.model == "coefficients":
+        A_x = flow.q * p.aero.S * aero.C_A(flow.alpha, flow.M, p)
+        A_z = flow.q * p.aero.S * aero.C_N(flow.alpha, flow.M, p)
     else:
-        raise ValueError(f"Unknown aero_model: {p.aero_model}")
-    A_brake = flow.q * p.airbrake_Cd * p.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
+        raise ValueError(f"Unknown aero_model: {p.aero.model}")
+    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
     return np.array([-(A_x + A_brake), -A_z])
 
 
@@ -225,14 +225,14 @@ def aero_moment_y(t: float, s, p) -> float:
     there.
     """
     flow = flow_state(t, s, p)
-    if p.aero_model == "constant":
-        A_m = p.A_m
-    elif p.aero_model == "coefficients":
-        A_m = flow.q * p.S * p.d_ref * aero.C_m(flow.alpha, flow.M, p)
-        A_m += 0.25 * flow.air.rho * flow.V * p.S * p.d_ref**2 * s[OMEGA] \
+    if p.aero.model == "constant":
+        A_m = p.aero.C_m
+    elif p.aero.model == "coefficients":
+        A_m = flow.q * p.aero.S * p.aero.d_ref * aero.C_m(flow.alpha, flow.M, p)
+        A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] \
             * aero.C_mq(flow.alpha, flow.M, p)
     else:
-        raise ValueError(f"Unknown aero_model: {p.aero_model}")
+        raise ValueError(f"Unknown aero_model: {p.aero.model}")
     return -A_m
 
 
@@ -246,10 +246,10 @@ def parachute_deployed(t: float, y: np.ndarray, p) -> bool:
     `p.parachute_model == "none"` (the default) is the primary off switch --
     always `False`, reproducing every prior step bit-for-bit.
     """
-    if p.parachute_model == "none":
+    if p.recovery.model == "none":
         return False
-    if p.parachute_deploy_trigger == "timer":
-        return t >= p.parachute_deploy_time
+    if p.recovery.trigger == "timer":
+        return t >= p.recovery.deploy_time
     # "apogee" (the default): y[VZ] > 0 means currently descending. On any
     # simple ballistic/drag trajectory this is true from apogee onward and
     # false before it -- a continuous, RHS-computable stand-in for "has
@@ -280,4 +280,4 @@ def parachute_drag_inertial(t: float, s: np.ndarray, p) -> np.ndarray:
 
     flow = flow_state(t, s, p)
     v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p)
-    return -0.5 * flow.air.rho * p.parachute_Cd * p.parachute_S * flow.V * v_rel_i
+    return -0.5 * flow.air.rho * p.recovery.Cd * p.recovery.S * flow.V * v_rel_i

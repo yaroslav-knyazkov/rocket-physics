@@ -24,7 +24,7 @@ from sim.gravity import (
 from sim.params import Params
 from sim.state import State, X, Z
 
-_P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
 
 def _y_at_altitude(h: float) -> np.ndarray:

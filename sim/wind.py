@@ -92,8 +92,8 @@ def _mean_speed(h: float, p) -> float:
     character-for-character Step 21's, so `_analytic_wind` is bitwise
     unchanged by the extraction.
     """
-    h_ref = p.wind_ref_h_m
-    return p.wind_ref_ms * (max(h, h_ref) / h_ref) ** p.wind_shear_exp
+    h_ref = p.wind.ref_h_m
+    return p.wind.ref_ms * (max(h, h_ref) / h_ref) ** p.wind.shear_exp
 
 
 @functools.lru_cache(maxsize=None)
@@ -153,7 +153,7 @@ def _dryden_scales(h: float, p) -> tuple[float, float]:
     if h_ft <= _H_LOW_FT:
         L_ft, sigma = _low(h_ft)
     elif h_ft >= _H_HIGH_FT:
-        L_ft, sigma = _L_HIGH_FT, p.turbulence_sigma_high_ms
+        L_ft, sigma = _L_HIGH_FT, p.wind.turbulence_sigma_high_ms
     else:
         # MIL-F-8785C leaves 1000-2000 ft undefined; implementors fill it
         # with a linear interpolation of the PARAMETERS between the two
@@ -163,7 +163,7 @@ def _dryden_scales(h: float, p) -> tuple[float, float]:
         L_lo, sigma_lo = _low(_H_LOW_FT)
         f = (h_ft - _H_LOW_FT) / (_H_HIGH_FT - _H_LOW_FT)
         L_ft = (1.0 - f) * L_lo + f * _L_HIGH_FT
-        sigma = (1.0 - f) * sigma_lo + f * p.turbulence_sigma_high_ms
+        sigma = (1.0 - f) * sigma_lo + f * p.wind.turbulence_sigma_high_ms
 
     return L_ft * _M_PER_FT, sigma
 
@@ -211,9 +211,9 @@ def _dryden_turbulence(t: float, h: float, p) -> tuple[float, float]:
     function of the state, exactly like the mean profile's own `W(h)`
     (architecture.md SS26.8).
     """
-    omegas, domegas, phases_u, phases_v = _turbulence_realization(p.turbulence_seed)
+    omegas, domegas, phases_u, phases_v = _turbulence_realization(p.wind.turbulence_seed)
     L, sigma = _dryden_scales(h, p)
-    V = p.turbulence_ref_speed_ms
+    V = p.wind.turbulence_ref_speed_ms
 
     x2 = (L * omegas / V) ** 2
     k_u = (2.0 * L / (np.pi * V)) / (1.0 + x2) * domegas
@@ -274,9 +274,9 @@ def _analytic_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     """
     h = altitude_agl(y, p)
     W = _mean_speed(h, p)
-    u, v = _TURBULENCE_MODELS[p.turbulence_model](t, h, p)
+    u, v = _TURBULENCE_MODELS[p.wind.turbulence_model](t, h, p)
 
-    delta = np.radians(p.wind_dir_deg - p.azimuth_deg)
+    delta = np.radians(p.wind.dir_deg - p.site.azimuth_deg)
     cos_d, sin_d = np.cos(delta), np.sin(delta)
     w_x = -(W + u) * cos_d + v * sin_d
     w_y = -(W + u) * sin_d - v * cos_d
@@ -346,10 +346,10 @@ def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     from sim import soundings
 
     h_msl = altitude_msl(y, p)
-    snd = soundings.load_case(p.sounding_case)[0]
+    snd = soundings.load_case(p.soundings.case)[0]
     state = soundings.interp_altitude(snd, h_msl)
 
-    A = np.radians(p.azimuth_deg)
+    A = np.radians(p.site.azimuth_deg)
     w_along = state.u * np.sin(A) + state.v * np.cos(A)
     w_cross = state.u * np.cos(A) - state.v * np.sin(A)
     return (float(w_along), float(w_cross))
@@ -374,9 +374,9 @@ def _field_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     from sim import soundings
 
     h_msl = altitude_msl(y, p)
-    state = soundings.interp_field(p.sounding_case, y, h_msl, p)
+    state = soundings.interp_field(p.soundings.case, y, h_msl, p)
 
-    A = np.radians(p.azimuth_deg)
+    A = np.radians(p.site.azimuth_deg)
     w_along = state.u * np.sin(A) + state.v * np.cos(A)
     w_cross = state.u * np.cos(A) - state.v * np.sin(A)
     return (float(w_along), float(w_cross))
@@ -404,7 +404,7 @@ def wind_horizontal_enu(t: float, y: np.ndarray, p) -> tuple[float, float]:
     use yet but Phase 3 can, unchanged (architecture.md SS16). Dispatches
     on `p.wind_model`.
     """
-    return _MODELS[p.wind_model](t, y, p)
+    return _MODELS[p.wind.model](t, y, p)
 
 
 def wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:

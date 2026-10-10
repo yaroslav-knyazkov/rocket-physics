@@ -55,8 +55,8 @@ def _proportional_airbrake(t: float, y: np.ndarray, p) -> float:
     if thrust_curve.thrust(t, y, p) > 0.0 or y[VZ] >= 0.0:
         return 0.0   # only active during unpowered ascent (post-burnout, pre-apogee)
     predicted_apogee = gravity.altitude_agl(y, p) + y[VZ]**2 / (2.0 * gravity.g(t, y, p))
-    error = predicted_apogee - p.airbrake_target_apogee_m
-    return float(np.clip(p.airbrake_kp * error, 0.0, 1.0))
+    error = predicted_apogee - p.control.airbrake_target_apogee_m
+    return float(np.clip(p.control.airbrake_kp * error, 0.0, 1.0))
 
 
 # Module-private dispatch dict (architecture.md SS12), same pattern as
@@ -73,4 +73,4 @@ def airbrake_deploy_fraction(t: float, y: np.ndarray, p) -> float:
     """Airbrake deployment fraction, `[0.0, 1.0]` (architecture.md SS27.3),
     dispatching on `p.airbrake_model`.
     """
-    return _AIRBRAKE_CONTROLLERS[p.airbrake_model](t, y, p)
+    return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)

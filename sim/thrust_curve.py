@@ -110,11 +110,11 @@ def thrust(_t: float, _s, p) -> float:
     bit-for-bit identical to Step 14 -- regardless of `p_ref` or the
     selected `atmosphere_model`.
     """
-    if not p.motor_curve:
+    if not p.thrust.motor_curve:
         # No curve defined -> zero thrust (safe default)
         return 0.0
 
-    times, thrust_curves = _load_motor_curve(p.motor_curve)
+    times, thrust_curves = _load_motor_curve(p.thrust.motor_curve)
     # np.interp handles extrapolation: values left of range return
     # `left`, values right of range return `right`.  We want the first
     # point for t < t[0] and 0.0 for t > t[-1].
@@ -122,8 +122,8 @@ def thrust(_t: float, _s, p) -> float:
         np.interp(_t, times, thrust_curves, left=thrust_curves[0], right=0.0)
     )
 
-    if p.A_e == 0.0 or T_ref <= 0.0:
+    if p.thrust.A_e == 0.0 or T_ref <= 0.0:
         return T_ref
 
     p_amb = atmosphere.air_state(_t, _s, p).p
-    return T_ref + p.A_e * (p.p_ref - p_amb)
+    return T_ref + p.thrust.A_e * (p.thrust.p_ref - p_amb)

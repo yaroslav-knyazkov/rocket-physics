@@ -211,10 +211,10 @@ def C_A(alpha: float, M: float, p) -> float:
     Table-driven when `p.aero_table` is set; otherwise the constant
     `p.C_A0` (Step 13's "coefficients" formula, unchanged).
     """
-    if p.aero_table:
-        table = _load_table(p.aero_table)
+    if p.aero.table:
+        table = _load_table(p.aero.table)
         return _table_lookup(table, alpha, M, table.C_A)
-    return p.C_A0
+    return p.aero.C_A0
 
 
 def C_N(alpha: float, M: float, p) -> float:
@@ -226,10 +226,10 @@ def C_N(alpha: float, M: float, p) -> float:
     formula, smoothed at Phase 2.5 Step 35 -- see the module docstring's
     "no table configured" section for why).
     """
-    if p.aero_table:
-        table = _load_table(p.aero_table)
+    if p.aero.table:
+        table = _load_table(p.aero.table)
         return _table_lookup(table, alpha, M, table.C_N)
-    return p.C_N_alpha * np.sin(alpha)
+    return p.aero.C_N_alpha * np.sin(alpha)
 
 
 def C_m(alpha: float, M: float, p) -> float:
@@ -240,10 +240,10 @@ def C_m(alpha: float, M: float, p) -> float:
     sin(alpha)` (Step 13's `C_m_alpha*alpha` formula, smoothed at Phase 2.5
     Step 35, same reasoning as `C_N` above).
     """
-    if p.aero_table:
-        table = _load_table(p.aero_table)
+    if p.aero.table:
+        table = _load_table(p.aero.table)
         return _table_lookup(table, alpha, M, table.C_m)
-    return p.C_m_alpha * np.sin(alpha)
+    return p.aero.C_m_alpha * np.sin(alpha)
 
 
 def C_mq(alpha: float, M: float, p) -> float:
@@ -265,11 +265,11 @@ def C_mq(alpha: float, M: float, p) -> float:
     opposite of the textbook C_mq < 0. Same flip C_m_alpha already
     carries.
     """
-    if p.aero_table:
-        table = _load_table(p.aero_table)
+    if p.aero.table:
+        table = _load_table(p.aero.table)
         if table.C_mq is not None:
             return _table_lookup(table, alpha, M, table.C_mq)
-    return p.c_mq
+    return p.aero.c_mq
 
 
 def cop_l1(alpha: float, M: float, p) -> float:
@@ -281,7 +281,7 @@ def cop_l1(alpha: float, M: float, p) -> float:
     Table-driven when `p.aero_table` is set; otherwise the constant
     `p.l1`, which is exactly `dynamics.py`'s pre-Step-25 behaviour.
     """
-    if p.aero_table:
-        table = _load_table(p.aero_table)
+    if p.aero.table:
+        table = _load_table(p.aero.table)
         return _table_lookup(table, alpha, M, table.l1)
-    return p.l1
+    return p.lengths.l1

@@ -38,7 +38,7 @@ def test_wind_inertial_is_zero_for_the_default_model():
     exactly zero for arbitrary `(t, y)` (architecture.md SS16: "the
     default; makes every Phase 1/2 result reproducible").
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
     for t, y in [
         (0.0, np.zeros(6)),
         (5.3, np.array([12.0, -340.0, 71.0, -8.0, 0.4, -0.1])),
@@ -55,7 +55,7 @@ def test_none_model_full_trajectory_matches_pre_wind_stub_bit_for_bit():
     `sim.wind.wind_inertial`) is behaviour-preserving for the default
     model, without needing to pin an arbitrary numeric baseline.
     """
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve=_MOTOR_CURVE,
         aero_model="coefficients", S=0.005, d_ref=0.08,
         C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5,
@@ -95,8 +95,8 @@ def test_pure_headwind_raises_V_by_exactly_wind_speed():
     W = 12.0
     h_ref = 10.0
     common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=0.0)
-    p_none = Params(**common, wind_model="none")
-    p_head = Params(
+    p_none = Params.flat(**common, wind_model="none")
+    p_head = Params.flat(
         **common, wind_model="analytic", wind_dir_deg=0.0,
         wind_ref_ms=W, wind_ref_h_m=h_ref,
     )
@@ -141,10 +141,10 @@ def test_cardinal_wind_directions_give_expected_downrange_sign():
     y = np.zeros(6)
     y[Z] = -h_ref  # W(h) == W_ref exactly
 
-    w_x_north = wind_inertial(0.0, y, Params(**common, wind_dir_deg=0.0))[0]
-    w_x_east = wind_inertial(0.0, y, Params(**common, wind_dir_deg=90.0))[0]
-    w_x_south = wind_inertial(0.0, y, Params(**common, wind_dir_deg=180.0))[0]
-    w_x_west = wind_inertial(0.0, y, Params(**common, wind_dir_deg=270.0))[0]
+    w_x_north = wind_inertial(0.0, y, Params.flat(**common, wind_dir_deg=0.0))[0]
+    w_x_east = wind_inertial(0.0, y, Params.flat(**common, wind_dir_deg=90.0))[0]
+    w_x_south = wind_inertial(0.0, y, Params.flat(**common, wind_dir_deg=180.0))[0]
+    w_x_west = wind_inertial(0.0, y, Params.flat(**common, wind_dir_deg=270.0))[0]
 
     assert math.isclose(w_x_north, -W_ref, rel_tol=1e-12)  # headwind
     assert math.isclose(w_x_east, 0.0, abs_tol=1e-9)       # crosswind
@@ -194,12 +194,12 @@ def test_headwind_and_tailwind_bracket_the_still_air_apogee():
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0)
 
     W = 4.0
-    p_none = Params(**common, wind_model="none")
-    p_head = Params(
+    p_none = Params.flat(**common, wind_model="none")
+    p_head = Params.flat(
         **common, wind_model="analytic", wind_dir_deg=0.0,
         wind_ref_ms=W, wind_ref_h_m=1.0,
     )
-    p_tail = Params(
+    p_tail = Params.flat(
         **common, wind_model="analytic", wind_dir_deg=180.0,
         wind_ref_ms=W, wind_ref_h_m=1.0,
     )
@@ -234,7 +234,7 @@ def test_turbulence_is_deterministic_bit_for_bit_across_repeated_calls():
     `wind_inertial` twice with identical `(t, y, p)` (`turbulence_model =
     "dryden"`) must give bit-for-bit identical results.
     """
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4, wind_model="analytic",
         wind_ref_ms=8.0, wind_ref_h_m=10.0,
         turbulence_model="dryden", turbulence_sigma_high_ms=2.0,
@@ -272,8 +272,8 @@ def test_turbulence_none_reproduces_no_turbulence_analytic_profile_exactly():
         wind_ref_ms=8.0, wind_ref_h_m=10.0, wind_dir_deg=45.0,
         azimuth_deg=90.0, turbulence_model="none",
     )
-    p_seed_a = Params(**common, turbulence_seed=123, turbulence_sigma_high_ms=5.0)
-    p_seed_b = Params(**common, turbulence_seed=999999, turbulence_ref_speed_ms=0.0)
+    p_seed_a = Params.flat(**common, turbulence_seed=123, turbulence_sigma_high_ms=5.0)
+    p_seed_b = Params.flat(**common, turbulence_seed=999999, turbulence_ref_speed_ms=0.0)
 
     y = np.zeros(6)
     y[Z] = -30.0
@@ -286,7 +286,7 @@ def test_turbulence_none_reproduces_no_turbulence_analytic_profile_exactly():
     # exactly.
     h = 30.0
     h_ref = common["wind_ref_h_m"]
-    W = common["wind_ref_ms"] * (max(h, h_ref) / h_ref) ** Params(**common).wind_shear_exp
+    W = common["wind_ref_ms"] * (max(h, h_ref) / h_ref) ** Params.flat(**common).wind_shear_exp
     delta = math.radians(common["wind_dir_deg"] - common["azimuth_deg"])
     expected_w_x = -W * math.cos(delta)
     assert math.isclose(w_a[0], expected_w_x, rel_tol=1e-12)
@@ -363,11 +363,11 @@ def test_sounding_constant_wind_reproduces_analytic_model_with_zero_shear():
     try:
         load_case.cache_clear()
         common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=azimuth_deg)
-        p_analytic = Params(
+        p_analytic = Params.flat(
             **common, wind_model="analytic", wind_dir_deg=wdir_deg,
             wind_ref_ms=W, wind_ref_h_m=1.0, wind_shear_exp=0.0,
         )
-        p_sounding = Params(**common, wind_model="sounding", sounding_case=case)
+        p_sounding = Params.flat(**common, wind_model="sounding", sounding_case=case)
 
         for h in [0.0, 500.0, 3000.0, 7000.0, 9500.0, 11000.0]:
             y = np.zeros(6)
@@ -422,7 +422,7 @@ def test_sounding_pure_veering_shifts_downrange_component_as_predicted():
 
     try:
         load_case.cache_clear()
-        p = Params(
+        p = Params.flat(
             m=0.5, I=0.05, l1=0.3, l2=0.4,
             wind_model="sounding", sounding_case=case, azimuth_deg=0.0,
         )
@@ -471,7 +471,7 @@ def test_sounding_real_example_case_veers_and_shifts_downrange_component():
     wdir_high, wspd_high = 265.0, 35.0   # h_msl = 10000 m (last row)
     azimuth_deg = 0.0
 
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         wind_model="sounding", sounding_case="example", azimuth_deg=azimuth_deg,
     )
@@ -536,11 +536,11 @@ def test_sounding_uses_msl_altitude_not_agl_unlike_analytic_tier():
 
     try:
         load_case.cache_clear()
-        p_pad = Params(
+        p_pad = Params.flat(
             m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=0.0,
             wind_model="sounding", sounding_case=case, h0_m=5000.0,
         )
-        p_direct = Params(
+        p_direct = Params.flat(
             m=0.5, I=0.05, l1=0.3, l2=0.4, azimuth_deg=0.0,
             wind_model="sounding", sounding_case=case, h0_m=0.0,
         )
@@ -577,11 +577,11 @@ def test_field_single_station_matches_sounding_tier_exactly():
     `test_field_single_station_matches_sounding_tier_exactly` in
     tests/test_atmosphere.py, so no new data is needed for this check.
     """
-    p_field = Params(
+    p_field = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         wind_model="field", sounding_case="example", azimuth_deg=0.0,
     )
-    p_sounding = Params(
+    p_sounding = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         wind_model="sounding", sounding_case="example", azimuth_deg=0.0,
     )
@@ -676,7 +676,7 @@ def test_field_two_opposing_stations_wind_reverses_smoothly_along_ground_track()
     D_m = 20000.0  # separation [m], >> idw_epsilon_m's default 500 m
     W = 9.0
 
-    p_probe = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)  # only for its R_e default
+    p_probe = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)  # only for its R_e default
     lat_b_deg = math.degrees(D_m / p_probe.R_e)
 
     case = "test_wind_field_opposing"
@@ -685,7 +685,7 @@ def test_field_two_opposing_stations_wind_reverses_smoothly_along_ground_track()
 
     try:
         load_case.cache_clear()
-        p = Params(
+        p = Params.flat(
             m=0.5, I=0.05, l1=0.3, l2=0.4,
             wind_model="field", sounding_case=case, azimuth_deg=0.0,
             lat0_deg=0.0, lon0_deg=0.0,
@@ -723,7 +723,7 @@ def test_unknown_wind_model_raises_keyerror():
     atmosphere.py's and gravity.py's dispatch tables: an unrecognised
     `wind_model` string raises KeyError at the first call.
     """
-    p = dataclasses.replace(Params(m=0.5, I=0.05, l1=0.3, l2=0.4), wind_model="not-a-real-model")
+    p = dataclasses.replace(Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4), wind_model="not-a-real-model")
     with pytest.raises(KeyError):
         wind_inertial(0.0, np.zeros(6), p)
 
@@ -754,8 +754,8 @@ def test_tier1_W_pinned_parallel_vs_radial():
         wind_ref_ms=5.0, wind_ref_h_m=10.0, wind_shear_exp=0.143,
     )
     y = _y_at(10_000.0, -1000.0)
-    p_par = Params(**common, gravity_direction="parallel")
-    p_rad = Params(**common, gravity_direction="radial", R_e=6371000.0)
+    p_par = Params.flat(**common, gravity_direction="parallel")
+    p_rad = Params.flat(**common, gravity_direction="radial", R_e=6371000.0)
 
     W_par = -wind_inertial(0.0, y, p_par)[0]
     W_rad = -wind_inertial(0.0, y, p_rad)[0]
@@ -777,7 +777,7 @@ def test_tier2_and_tier3_field_read_the_same_h_msl_as_atmosphere():
     from sim.gravity import altitude_msl
 
     p = dataclasses.replace(
-        Params(m=0.5, I=0.05, l1=0.3, l2=0.4),
+        Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4),
         wind_model="sounding", sounding_case="example",
         h0_m=380.0, gravity_direction="radial", R_e=6371000.0,
     )

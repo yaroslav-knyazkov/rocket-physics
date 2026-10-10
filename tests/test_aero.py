@@ -36,7 +36,7 @@ def test_table_lookup_interpolates_alpha_within_bracketed_M():
       M=0.5: C_A=[0.35, 0.30, 0.35], C_N=[-0.5236, 0, 0.5236], l1=0.28
       M=1.0: C_A=[0.60, 0.55, 0.60], C_N=[-0.6981, 0, 0.6981], l1=0.35
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
     alpha = math.radians(5.0)  # exactly halfway between the 0/10 deg columns
     M = 0.75                   # exactly halfway between the M=0.5/1.0 rows
 
@@ -59,7 +59,7 @@ def test_table_lookup_interpolates_alpha_within_bracketed_M():
 def test_table_lookup_exact_grid_point():
     """At an exact (alpha, M) grid point, the lookup returns the raw
     table value with no interpolation error at all."""
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
     alpha = math.radians(10.0)
     M = 1.0
 
@@ -75,7 +75,7 @@ def test_table_clamps_at_M_grid_edges_no_extrapolation():
     extrapolation" convention (thrust_curve.py holds the pre-ignition/
     post-burnout value; soundings.py holds wind constant outside its
     altitude range)."""
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv")
     alpha = 0.0
 
     assert aero.cop_l1(alpha, 0.1, p) == 0.28  # below M=0.5 -> clamped low
@@ -104,7 +104,7 @@ def test_table_rejects_non_rectangular_grid():
         f.write("0,1.0,0.55,0.0,0.0,0.35\n")
 
     try:
-        p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="test_bad_grid.csv")
+        p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="test_bad_grid.csv")
         try:
             aero.C_A(0.0, 0.5, p)
             assert False, "expected ValueError for a non-rectangular table"
@@ -136,7 +136,7 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
     indistinguishable, but the assertions below use `sin` explicitly so
     they stay exact rather than merely "close".
     """
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         aero_model="coefficients", S=0.005, d_ref=0.08,
         C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3,
@@ -195,7 +195,7 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     coefficient lookups have zero interpolation error, isolating the
     l1-wiring check from any table-interpolation error.
     """
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=999.0, l2=0.4,
         aero_model="coefficients", S=0.02, d_ref=0.08,
         aero_table="example.csv",
@@ -292,7 +292,7 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     (never exceeding the initial 0.15 rad magnitude) and oscillatory
     (sign-flipping, non-monotonic) -- restoring, not growing.
     """
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4,
         aero_model="coefficients", S=0.005, d_ref=0.08,
         aero_table="example.csv",
@@ -329,7 +329,7 @@ def test_C_mq_no_table_returns_constant_regardless_of_alpha_M():
     returns the constant `p.c_mq` unconditionally, ignoring `alpha`/`M`
     entirely -- same fallback shape as `C_A`/`C_N`/`C_m`/`cop_l1`.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, c_mq=12.5)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, c_mq=12.5)
     for alpha, M in [(0.0, 0.5), (0.3, 1.0), (-0.2, 2.5)]:
         assert aero.C_mq(alpha, M, p) == 12.5
 
@@ -342,7 +342,7 @@ def test_C_mq_table_without_column_falls_back_to_params_constant():
     completely". Set `p.c_mq` to an unmistakable nonzero value so a stray
     `0.0` fallback could not be missed.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv", c_mq=7.0)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, aero_table="example.csv", c_mq=7.0)
 
     table = aero._load_table("example.csv")
     assert table.C_mq is None
@@ -372,7 +372,7 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
         f.write("10,1.0,0.60,0.6981,-0.1396,0.35,60.0\n")
 
     try:
-        p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4,
+        p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
                    aero_table="test_c_mq_table.csv", c_mq=-999.0)
 
         table = aero._load_table("test_c_mq_table.csv")
@@ -415,6 +415,6 @@ def test_pitch_damping_default_reproduces_derivatives_bit_for_bit_with_and_witho
     t = 0.5
 
     for extra in ({}, {"aero_table": "example.csv"}):
-        p_implicit = Params(**common, **extra)
-        p_explicit = Params(c_mq=0.0, **common, **extra)
+        p_implicit = Params.flat(**common, **extra)
+        p_explicit = Params.flat(c_mq=0.0, **common, **extra)
         assert np.array_equal(derivatives(t, y, p_implicit), derivatives(t, y, p_explicit))

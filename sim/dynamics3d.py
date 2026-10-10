@@ -16,10 +16,11 @@ place of the 2D `frames.R_body_to_inertial(theta)`):
     dq/dt     = 0   (constant -- Step 29 holds attitude fixed; see state3d.py)
     domega/dt = 0   (constant -- no moments computed yet; Step 30's job)
 
-`m` is the fixed `p.m`: there is no 3D variable-mass model yet (the
+`m` is the fixed `p.weight.m`: there is no 3D variable-mass model yet (the
 13-component layout has no mass field; forces3d.py's 2D-state adapter
 always passes mass `0.0` through, which is inert since `weight_inertial`
-only reads it when `p.m_d` is set -- off for every Step-29 scenario).
+only reads it when `p.weight.m_d` is set -- off for every Step-29
+scenario).
 
 Step 29's own "Check" (roadmap.md): planar initial conditions (`r[1] = 0`,
 `v[1] = 0`, `q` pitch-only) must reproduce the Phase 1 2D trajectory to
@@ -43,7 +44,7 @@ def derivatives_3d(t: float, y: np.ndarray, p) -> np.ndarray:
     T_b = thrust_body_3d(t, y, p)
     A_b = aero_force_body_3d(t, y, p)
 
-    dvdt = (W_i + quaternion.to_dcm(q) @ (T_b + A_b)) / p.m
+    dvdt = (W_i + quaternion.to_dcm(q) @ (T_b + A_b)) / p.weight.m
 
     dydt = np.empty(N)
     dydt[R] = v

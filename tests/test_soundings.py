@@ -72,7 +72,7 @@ def _write_isa_synthetic_case(case_dir: str, station: str = "ISA0") -> None:
     the full column set instead of leaving it blank).
     """
     os.makedirs(case_dir, exist_ok=True)
-    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
     nodes = [0.0, 2000.0, 5000.0, 8000.0, 11000.0, 15000.0, 20000.0]
 
     lines = [
@@ -108,7 +108,7 @@ def test_isa_synthetic_case_matches_isa_within_half_percent_between_nodes():
     try:
         load_case.cache_clear()
         snd = load_case(case)[0]
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
         # Query strictly between the synthetic nodes (0, 2000, 5000, 8000,
         # 11000, 15000, 20000).
@@ -316,7 +316,7 @@ def test_field_single_station_with_dewpoint_matches_tier2_exactly():
         load_case.cache_clear()
         _resample_case.cache_clear()
         snd = load_case(case)[0]
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=10.0, lon0_deg=20.0)
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=10.0, lon0_deg=20.0)
 
         for h in (200.0, 1500.0):
             want = interp_altitude(snd, h)
@@ -368,7 +368,7 @@ def test_rbf_stacking_includes_td_at_correct_offset():
         load_case.cache_clear()
         _resample_case.cache_clear()
 
-        p_params = Params(
+        p_params = Params.flat(
             m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0,
             horizontal_interp="rbf",
         )
@@ -580,7 +580,7 @@ def test_horizontal_single_station_matches_tier2_exactly():
     _resample_case.cache_clear()
     case = "example"
     snd = load_case(case)[0]
-    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+    p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
     # 1150 sits strictly inside the [1000, 1500] segment; its bracketing
     # grid nodes (1100, 1200) are also inside that same segment.
@@ -649,7 +649,7 @@ def test_horizontal_query_at_station_own_coordinates_dominated_by_it():
         load_case.cache_clear()
         _resample_case.cache_clear()
 
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
         snd_A, snd_B, snd_C = load_case(case)
 
         E_q, N_q = project_latlon(lat_A, lon_A, p_params)
@@ -709,7 +709,7 @@ def test_horizontal_two_identical_stations_same_profile_everywhere():
         load_case.cache_clear()
         _resample_case.cache_clear()
 
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0)
         snd_A = load_case(case)[0]
         want = interp_altitude(snd_A, 7500.0)
 
@@ -753,7 +753,7 @@ def test_horizontal_field_via_rocket_ground_position():
         load_case.cache_clear()
         _resample_case.cache_clear()
 
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, azimuth_deg=30.0)
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, azimuth_deg=30.0)
         y = np.zeros(6)
         y[X] = 4000.0
         A = math.radians(p_params.azimuth_deg)
@@ -796,7 +796,7 @@ def test_horizontal_rbf_reproduces_constant_profile_across_stations():
         load_case.cache_clear()
         _resample_case.cache_clear()
 
-        p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, horizontal_interp="rbf")
+        p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=0.0, lon0_deg=0.0, horizontal_interp="rbf")
         snd_A = load_case(case)[0]
         want = interp_altitude(snd_A, 6000.0)
 
@@ -840,7 +840,7 @@ def test_projected_distance_matches_haversine_within_point_one_percent():
     here. See the developer's handoff report for this as a flagged risk
     rather than something silently worked around.
     """
-    p_params = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=45.0, lon0_deg=10.0)
+    p_params = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, lat0_deg=45.0, lon0_deg=10.0)
     R_e = p_params.R_e
 
     offsets_deg = [

@@ -61,7 +61,7 @@ def test_rk4_agrees_with_rk45_on_apogee_and_impact():
     would show up as a difference many orders of magnitude larger, not a
     grid-resolution artifact -- would fail this test.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     rk45 = run_sim(p, s0, method="RK45")
@@ -107,7 +107,7 @@ def test_mass_model_off_reproduces_fixed_mass_bit_for_bit():
     vs. a deliberately wrong 999.0) must give bit-for-bit identical
     derivatives.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5)
     s_default_m = State(x=0.0, z=0.0, vx=0.0, vz=-10.0, theta=math.pi / 2, omega=0.1)
     s_garbage_m = State(x=0.0, z=0.0, vx=0.0, vz=-10.0, theta=math.pi / 2, omega=0.1, m=999.0)
 
@@ -123,7 +123,7 @@ def test_mass_reaches_dry_mass_at_burnout():
     burnout at t=2.0 s) must bring `m` down to `m_d` -- `_M_P0` above is
     exactly the propellant mass that curve's impulse consumes.
     """
-    p = Params(
+    p = Params.flat(
         m=_M0, I=0.05, l1=0.3, l2=0.4,
         motor_curve="placeholder.csv",
         m_d=_M_D, l_d=0.3, l_p=0.3, I_d=0.05, I_sp=_ISP_S,
@@ -149,7 +149,7 @@ def test_cog_position_stays_at_l_d_when_l_p_equals_l_d():
     every m_p, and I(t)'s parallel-axis terms vanish -- "no CoG shift",
     the regression check's own phrase.
     """
-    p = Params(m=_M0, I=0.05, l1=0.3, l2=0.4, m_d=_M_D, l_d=0.3, l_p=0.3, I_d=0.05, I_sp=_ISP_S)
+    p = Params.flat(m=_M0, I=0.05, l1=0.3, l2=0.4, m_d=_M_D, l_d=0.3, l_p=0.3, I_d=0.05, I_sp=_ISP_S)
 
     for m in (p.m, 0.6, 0.5, p.m_d + 0.01, p.m_d):
         m_p = _propellant_mass(m, p)
@@ -168,7 +168,7 @@ def test_cog_shifts_and_inertia_grows_when_l_p_differs_from_l_d():
     case at the same mass -- isolating the effect of l_B(t) != l_d that
     the regression check asks for.
     """
-    p = Params(m=_M0, I=0.05, l1=0.3, l2=0.4, m_d=_M_D, l_d=0.3, l_p=0.5, I_d=0.05, I_sp=_ISP_S)
+    p = Params.flat(m=_M0, I=0.05, l1=0.3, l2=0.4, m_d=_M_D, l_d=0.3, l_p=0.5, I_d=0.05, I_sp=_ISP_S)
     m_p_wet = p.m - p.m_d
     assert m_p_wet > 0.0
 
@@ -196,8 +196,8 @@ def test_real_cog_offset_changes_pitch_trajectory():
         m_d=_M_D, I_d=0.05, I_sp=_ISP_S,
         A_m=0.05,  # constant pitching moment -- the only moment source here
     )
-    p_noshift = Params(l_d=0.3, l_p=0.3, **common)
-    p_shift = Params(l_d=0.3, l_p=0.5, **common)
+    p_noshift = Params.flat(l_d=0.3, l_p=0.3, **common)
+    p_shift = Params.flat(l_d=0.3, l_p=0.5, **common)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0, m=_M0)
 
     r_noshift = run_sim(p_noshift, s0, t_max=2.5)
@@ -226,7 +226,7 @@ def test_omega_components_have_unit_norm():
     """
     for lat0_deg in (-90.0, -50.0, 0.0, 23.4, 50.0, 90.0):
         for azimuth_deg in (0.0, 45.0, 90.0, 135.0, 180.0, 270.0, 359.0):
-            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            p = Params.flat(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
             omega_x, omega_y, omega_z = omega_components(p)
             norm_sq = omega_x**2 + omega_y**2 + omega_z**2
             assert math.isclose(norm_sq, OMEGA_EARTH**2, rel_tol=1e-9)
@@ -243,8 +243,8 @@ def test_earth_rotation_off_reproduces_derivatives_bit_for_bit():
     the gate.
     """
     common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.5)
-    p_site_a = Params(lat0_deg=0.0, azimuth_deg=90.0, **common)
-    p_site_b = Params(lat0_deg=50.0, azimuth_deg=30.0, **common)
+    p_site_a = Params.flat(lat0_deg=0.0, azimuth_deg=90.0, **common)
+    p_site_b = Params.flat(lat0_deg=50.0, azimuth_deg=30.0, **common)
     s = State(x=100.0, z=-500.0, vx=120.0, vz=-40.0, theta=math.pi / 2, omega=0.05)
 
     dydt_a = derivatives(5.0, np.array(s), p_site_a)
@@ -266,9 +266,9 @@ def test_earth_rotation_on_matches_closed_form_in_plane_acceleration():
     `vz=0`) the architect's report and models.tex SS"Magnitudes" both give
     ~2.8e-2 m/s^2.
     """
-    p_off = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
+    p_off = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
                     lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=False)
-    p_on = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
+    p_on = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, A_x=0.0,
                    lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=True)
     s = State(x=0.0, z=-1000.0, vx=300.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
@@ -303,8 +303,8 @@ def test_earth_rotation_deflects_vertical_flight_by_order_ten_metres():
     common = dict(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    p_off = Params(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=False, **common)
-    p_on = Params(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=True, **common)
+    p_off = Params.flat(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=False, **common)
+    p_on = Params.flat(lat0_deg=50.0, azimuth_deg=90.0, earth_rotation=True, **common)
 
     r_off = run_sim(p_off, s0)
     r_on = run_sim(p_on, s0)
@@ -332,7 +332,7 @@ def test_coriolis_inplane_zero_for_due_north_south_launch():
     s = State(x=10.0, z=-2000.0, vx=250.0, vz=-30.0, theta=math.pi / 2, omega=0.0)
     for lat0_deg in (-60.0, 0.0, 45.0, 89.0):
         for azimuth_deg in (0.0, 180.0):
-            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            p = Params.flat(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
             a = coriolis_inplane(0.0, np.array(s), p)
             assert math.isclose(a[0], 0.0, abs_tol=1e-15)
             assert math.isclose(a[1], 0.0, abs_tol=1e-15)
@@ -350,7 +350,7 @@ def test_coriolis_lateral_diagnostic_nonzero_at_the_blind_spot():
 
     for lat0_deg in (-60.0, 30.0, 60.0):
         for azimuth_deg in (0.0, 180.0):
-            p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
+            p = Params.flat(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=lat0_deg, azimuth_deg=azimuth_deg)
             in_plane = coriolis_inplane(0.0, np.array(s), p)
             lateral = coriolis_lateral_diagnostic(0.0, np.array(s), p)
 
@@ -360,7 +360,7 @@ def test_coriolis_lateral_diagnostic_nonzero_at_the_blind_spot():
 
     # And it is generically nonzero away from the blind spot too, for a
     # moving rocket (it is not a "only fires at chi=0/180" quantity).
-    p_generic = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=50.0, azimuth_deg=90.0)
+    p_generic = Params.flat(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=50.0, azimuth_deg=90.0)
     assert abs(coriolis_lateral_diagnostic(0.0, np.array(s), p_generic)) > 1e-6
 
 
@@ -370,7 +370,7 @@ def test_coriolis_lateral_diagnostic_matches_closed_form():
     computed independently here from `omega_components` (not by re-calling
     `coriolis_lateral_diagnostic` itself)."""
     s = State(x=0.0, z=-1500.0, vx=180.0, vz=-25.0, theta=math.pi / 2, omega=0.0)
-    p = Params(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=35.0, azimuth_deg=60.0)
+    p = Params.flat(m=1.0, I=1.0, l1=0.1, l2=0.1, lat0_deg=35.0, azimuth_deg=60.0)
 
     omega_x, _omega_y, omega_z = omega_components(p)
     expected = -2.0 * (omega_z * s.vx - omega_x * s.vz)
@@ -425,14 +425,14 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
     sample_times = [0.1, 0.2, 0.3, 0.4]
 
     # --- Baseline: delta = 0.0 -> the trivial aligned equilibrium -----
-    p_baseline = Params(thrust_misalign_deg=0.0, **common)
+    p_baseline = Params.flat(thrust_misalign_deg=0.0, **common)
     r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
     for t in sample_times:
         alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
         assert math.isclose(alpha, 0.0, abs_tol=1e-9)
 
     # --- Positive cant: alpha(t) > 0 throughout the sampled window ----
-    p_pos = Params(thrust_misalign_deg=0.2, **common)
+    p_pos = Params.flat(thrust_misalign_deg=0.2, **common)
     r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
     alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
     for a in alphas_pos:
@@ -440,7 +440,7 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
         assert abs(a) < 0.5  # bounded -- nowhere near the tumbling regime
 
     # --- Negative cant: mirrors the positive case almost exactly ------
-    p_neg = Params(thrust_misalign_deg=-0.2, **common)
+    p_neg = Params.flat(thrust_misalign_deg=-0.2, **common)
     r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
     alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
     for a in alphas_neg:
@@ -477,14 +477,14 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
     sample_times = [0.1, 0.2, 0.3, 0.4]
 
     # --- Baseline: u_B = u_C = 0.0 -> the trivial aligned equilibrium ---
-    p_baseline = Params(u_B=0.0, u_C=0.0, **common)
+    p_baseline = Params.flat(u_B=0.0, u_C=0.0, **common)
     r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
     for t in sample_times:
         alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
         assert math.isclose(alpha, 0.0, abs_tol=1e-9)
 
     # --- Positive u_B: alpha(t) takes a consistent, bounded sign --------
-    p_pos = Params(u_B=0.001, u_C=0.0, **common)
+    p_pos = Params.flat(u_B=0.001, u_C=0.0, **common)
     r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
     alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
     for a in alphas_pos:
@@ -492,7 +492,7 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
         assert abs(a) < 0.5  # bounded -- nowhere near the tumbling regime
 
     # --- Negative u_B: mirrors the positive case almost exactly ---------
-    p_neg = Params(u_B=-0.001, u_C=0.0, **common)
+    p_neg = Params.flat(u_B=-0.001, u_C=0.0, **common)
     r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
     alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
 
@@ -561,7 +561,7 @@ def test_pitch_damping_sign_convention_decays_undamped_grows():
 
     ratios = {}
     for label, c_mq in (("damped", 56.25), ("undamped", 0.0), ("anti_damped", -56.25)):
-        p = Params(c_mq=c_mq, **common)
+        p = Params.flat(c_mq=c_mq, **common)
         r = run_sim(p, s0, t_max=t_max, method="RK45")
         assert r.events["apogee"] is None  # confirms t_max stays pre-apogee
 
@@ -617,7 +617,7 @@ def test_rail_off_switch_reproduces_existing_scenario_bit_for_bit():
     step's "Check" list asks for, beyond "every existing test still
     passes" on its own.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
     assert p.L_rail == 0.0  # the dataclass default
 
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
@@ -646,8 +646,8 @@ def test_rail_freezes_attitude_and_x_against_crosswind_vs_visible_drift_off_rail
     theta0 = math.pi / 2
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0)
 
-    p_rail = Params(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
-    p_norail = Params(L_rail=0.0, **_RAIL_WIND_COMMON)
+    p_rail = Params.flat(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
+    p_norail = Params.flat(L_rail=0.0, **_RAIL_WIND_COMMON)
 
     r_rail = run_sim(p_rail, s0, method="RK45", t_max=2.0)
     r_norail = run_sim(p_norail, s0, method="RK45", t_max=2.0)
@@ -674,7 +674,7 @@ def test_rail_exit_event_fires_once_near_l_rail_both_integrators():
     exactly once, at `rail_distance ~= L_rail` (solver tolerance), on both
     integration paths."""
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
-    p = Params(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
+    p = Params.flat(L_rail=5.0, rail_angle_deg=90.0, **_RAIL_WIND_COMMON)
 
     r_rk45 = run_sim(p, s0, method="RK45", t_max=2.0)
     assert len(r_rk45.raw.t_events[3]) == 1  # events=[ground, apogee, burnout, rail_exit]
@@ -698,7 +698,7 @@ def test_tilted_rail_exit_attitude_matches_rail_angle_both_integrators():
     architecture note describes, not something the code enforces).
     """
     rail_angle_deg = 85.0
-    p = Params(
+    p = Params.flat(
         m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv",
         A_x=0.5, A_z=0.0, A_m=0.0,
         L_rail=5.0, rail_angle_deg=rail_angle_deg,
@@ -740,7 +740,7 @@ def test_parachute_off_switch_reproduces_existing_scenario_bit_for_bit():
     -- so `dynamics.py`'s parachute branch never activates and
     `Result.events["parachute_deploy"]` stays `None`.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
     assert p.parachute_model == "none"  # the dataclass default
     assert p.parachute_S == 0.0         # the second, independent off switch
 
@@ -775,7 +775,7 @@ def test_parachute_descent_converges_to_terminal_velocity():
     rho_sea_level = 1.225  # ISA sea-level density (sim/atmosphere.py's own table)
     S = 2.0 * m * 9.80665 / (rho_sea_level * Cd * v_terminal_sea_level**2)
 
-    p = Params(
+    p = Params.flat(
         m=m, I=0.05, l1=0.3, l2=0.4,
         parachute_model="deploy", parachute_deploy_trigger="timer", parachute_deploy_time=0.0,
         parachute_Cd=Cd, parachute_S=S,
@@ -809,7 +809,7 @@ _PARACHUTE_FREEZE_DRIFT_PARAMS = dict(
 
 def _run_parachute_freeze_drift_scenario(t_max=15.0):
     s0 = State(x=0.0, z=-800.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
-    p = Params(**_PARACHUTE_FREEZE_DRIFT_PARAMS)
+    p = Params.flat(**_PARACHUTE_FREEZE_DRIFT_PARAMS)
     r = run_sim(p, s0, method="RK45", t_max=t_max)
     t_dep = r.events["parachute_deploy"]
     assert t_dep is not None
@@ -874,7 +874,7 @@ def test_parachute_timer_trigger_deploys_independent_of_trajectory_apogee():
     not at the `y[VZ]`-crossing-zero apogee time, on both integration
     paths.
     """
-    p = Params(
+    p = Params.flat(
         m=1.0, I=0.05, l1=0.3, l2=0.4,
         parachute_model="deploy", parachute_deploy_trigger="timer", parachute_deploy_time=2.0,
         parachute_Cd=0.8, parachute_S=0.05,

@@ -14,10 +14,10 @@ from sim.params import Params
 from sim.state import State
 
 # Parameters for existing tests (Step 9)
-_P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4)
+_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4)
 
 # Parameters for Step 13 tests (with non-zero reference values)
-_P_step13 = Params(
+_P_step13 = Params.flat(
     m=0.5,
     I=0.05,
     l1=0.3,

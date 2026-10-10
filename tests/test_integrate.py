@@ -24,7 +24,7 @@ def test_rk45_burnout_event_detected():
     tail-off-to-zero time, and not spuriously at t=0 (the curve starts at
     zero thrust and rises on ignition, which `direction=-1` excludes).
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     result = run_sim(p, s0, method="RK45")
@@ -39,7 +39,7 @@ def test_rk4_burnout_event_detected():
     which locates the burnout crossing by linear interpolation within the
     one step that straddles it (same approach as apogee/ground there).
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     result = run_sim(p, s0, method="rk4", dt=1e-3)
@@ -54,7 +54,7 @@ def test_no_burnout_event_when_no_curve():
     thrust never goes from positive to negative, so the burnout event must
     never fire for either integrator.
     """
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="")
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     rk45 = run_sim(p, s0, method="RK45", t_max=5.0)
@@ -72,7 +72,7 @@ def test_no_burnout_event_when_no_curve():
 
 
 def test_result_params_is_p_on_both_integrator_paths():
-    p = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
+    p = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv")
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     r_rk45 = run_sim(p, s0, method="RK45")
@@ -163,7 +163,7 @@ def test_tilted_run_bit_for_bit_under_parallel_both_integrators():
     "coefficients", wind_model="analytic"), under the default
     gravity_direction="parallel", reproduces the pre-Step-45 events/t/y
     bit-for-bit (`np.array_equal`), on both integrator paths."""
-    p = Params(**_TILT_PARAMS_KW)
+    p = Params.flat(**_TILT_PARAMS_KW)
 
     r_rk45 = run_sim(p, _TILT_S0, method="RK45")
     pin = _TILT_PINNED["RK45"]
@@ -185,7 +185,7 @@ def test_tilted_sounding_run_bit_for_bit_under_parallel_both_integrators():
     sounding case), covering the sounding call sites (architecture.md
     SS25.9's "repeat once with atmosphere_model=sounding + wind_model=
     sounding on the committed example case")."""
-    p = Params(**_TILT_SOUNDING_KW)
+    p = Params.flat(**_TILT_SOUNDING_KW)
 
     r_rk45 = run_sim(p, _TILT_S0, method="RK45")
     pin = _TILT_SOUNDING_PINNED["RK45"]

@@ -8,261 +8,713 @@ Frame convention (see architecture.md SS2): a single NED-like inertial
 frame with z pointing DOWN. This makes main.tex's W = m*g*z_hat_g literally
 true with g > 0. Altitude is -z; nothing in the physics ever refers to
 "altitude" directly.
+
+Phase 2.11 rewrite, Step 50 (architecture-28-rewrite.md SS28.3): `Params`
+is now composed of twelve small group dataclasses (`Weight`, `Thrust`,
+`Lengths`, `Aero`, `Gravity`, `Site`, `Atmosphere`, `Soundings`, `Wind`,
+`Recovery`, `Control`, `Solver`) instead of one ~70-field flat dataclass --
+"one group per module that owns a dispatch", so the group structure
+mirrors sim/'s own module structure.
+
+This step is a **pure rename**: every group's field keeps the exact
+physics/semantics its flat predecessor had (including, deliberately, the
+"constant" aero model's un-scaled-by-q `A_x`/`A_z`/`A_m` placeholder bug --
+that is fixed at Step 55, not here). `Aero.C_x`/`C_z`/`C_m` are today's
+`A_x`/`A_z`/`A_m` field *names*, renamed to match the shape Step 55 will
+give them meaning under; the formula that uses them is untouched in this
+step (sim/forces.py still reads them as raw-Newton placeholders under
+`aero.model == "constant"`).
+
+### The transitional flat shim (deleted at Step 52)
+
+Every module outside `sim/` (`tests/`, `run.py`, `apps/`) still builds
+`Params` with the pre-Step-50 flat keyword names -- `Params.flat(m=...,
+I=..., l1=..., aero_table=...)` -- and still calls `dataclasses.replace(p,
+<old_flat_name>=...)` throughout. Both must keep working unmodified until
+Step 51 migrates those call sites to the native nested constructors and
+`replace()` below.
+
+The mechanism: `Params.__init__` is written by hand (`@dataclass(init=False)`
+below) instead of letting `@dataclass` generate it. It accepts the twelve
+real nested group fields *and* arbitrary extra keyword arguments -- every
+old flat name from Step-49-and-earlier `Params`, routed through
+`_FLAT_TO_GROUP` into the group/field it now lives on. This one seam makes
+three different call shapes work with no special-casing anywhere else:
+
+  * `Params.flat(m=0.5, I=0.05, aero_table="x.csv")` -- a brand-new nested
+    `Params` built entirely from old flat names. `Params.flat` is nothing
+    more than `cls(**kwargs)`; the real work is in `__init__`.
+  * `dataclasses.replace(p, aero_model="table")` -- `dataclasses.replace`
+    (stdlib) always passes every *real* dataclass field's current value
+    forward explicitly (`fields(p)` only ever sees the twelve groups +
+    `g0`), plus whatever override kwargs the caller gave it, then calls
+    `Params(**that_dict)`. So `__init__` receives the previous `p.aero`
+    *object* (unchanged) alongside the flat override `aero_model="table"`;
+    it rebuilds just the `aero` group from the passed-in object plus the
+    matching override, leaving every other field of that group (and every
+    other group entirely) untouched. This is exactly `replace()`'s own
+    dotted-path logic (SS28.4 below), just reached through the flat name
+    instead of a dotted one.
+  * `Params(weight=Weight(...), aero=Aero(...))` -- plain nested
+    construction (what Step 51 migrates everything to) -- no flat kwargs
+    present, works exactly like an ordinary dataclass `__init__`.
+
+`T` (Phase 1's constant-thrust magnitude) is dead code since Step 14
+(`thrust_body` reads the motor curve, never `p.T`) and is deleted as a
+field here (SS28.3's D-14) -- but `tests/test_forces.py` still passes
+`T=...` to two `Params(...)` constructions as a harmless leftover. Routed
+to nothing, silently: accepted and discarded, not rejected, since rejecting
+it would be a behaviour change this step is not allowed to make.
 """
 
-from dataclasses import dataclass
-from typing import Optional
+import dataclasses
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+
+# ----------------------------------------------------------------------
+# The twelve group dataclasses (architecture-28-rewrite.md SS28.3)
+# ----------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class Params:
-    """Every symbol from main.tex, as a constant (Phase 1)."""
+class Weight:
+    m: float                      # initial (wet) mass [kg]
+    I: float                      # pitch MOI about the CoG [kg*m^2]
+    m_d: Optional[float] = None   # dry mass [kg]; None = mass model off (Step 36 gate)
+    l_d: float = 0.0
+    l_p: float = 0.0
+    I_d: float = 0.0
+    I_sp: float = 0.0
 
-    # inertia & geometry (main.tex SSGeometry)
-    m: float   # mass [kg]
-    I: float   # pitch moment of inertia about CoG a [kg*m^2]
-    l1: float  # |Aa|, CoP -> CoG distance [m]
-    l2: float  # |AB|, CoP -> thrust point distance [m]
 
-    # environment
-    g: float = 9.80665  # gravitational acceleration [m/s^2], now read as g0 by gravity.py
+@dataclass(frozen=True)
+class Thrust:
+    motor_curve: str = ""         # file under data/motors/
+    A_e: float = 0.0              # nozzle exit area [m^2]; 0.0 = pressure correction inert
+    p_ref: float = 101325.0       # ambient pressure the curve was measured at [Pa]
 
-    # force magnitudes -- Phase 1 constants, Phase 2 model outputs
-    T: float = 0.0    # thrust magnitude [N]
-    A_x: float = 0.0  # axial aero force magnitude [N]
-    A_z: float = 0.0  # normal aero force magnitude [N]
-    A_m: float = 0.0  # aero pitching moment magnitude [N*m]
 
-    # Step 13: aerodynamic model parameters
-    S: float = 0.0      # reference area [m^2]
-    d_ref: float = 0.0  # reference diameter [m]
-    l_ref: float = 0.0  # reference length [m] (for Reynolds number)
-    C_A0: float = 0.0   # axial force coefficient at zero angle of attack
-    C_N_alpha: float = 0.0  # normal force coefficient slope [1/rad]
-    C_m_alpha: float = 0.0  # pitching moment coefficient slope [1/rad]
-    aero_model: str = "constant"  # "constant" or "coefficients"
+@dataclass(frozen=True)
+class Lengths:                    # geometry, all nose-tip-referenced, metres
+    l1: float = 0.0               # CoP(D) -> CoG(B)
+    l2: float = 0.0               # CoG -> thrust point(C) offset along the axis
+    u_B: float = 0.0              # lateral offset of the CoG
+    u_C: float = 0.0              # lateral offset of the thrust point
+    misalign_deg: float = 0.0     # fixed nozzle cant delta [deg]  (was thrust_misalign_deg)
 
-    # Step 25: aero coefficients as functions of (alpha, M) (architecture.md
-    # SS19; sim/aero.py). "" = no table; the constants above (and the
-    # constant p.l1 CoP-to-CoG distance) are used as-is, reproducing every
-    # pre-Step-25 "coefficients" result bit-for-bit.
-    aero_table: str = ""  # file under data/aero/; "" = use the constants above
 
-    # model selection (architecture.md SS12)
-    gravity_model: str = "constant"     # constant | radial | wgs84
-    atmosphere_model: str = "isa"       # isa | sounding | field
+@dataclass(frozen=True)
+class Aero:
+    model: str = "constant"       # constant | linearized | table
+    # shared by all three models
+    S: float = 0.0                # reference area [m^2]
+    d_ref: float = 0.0            # reference length for the moment and the static margin [m]
+    l_ref: float = 0.0            # Reynolds reference length [m] (NOT the moment length)
+    # model == "constant"
+    C_x: float = 0.0              # axial-force coefficient [-]   (was A_x, raw Newtons until Step 55)
+    C_z: float = 0.0              # normal-force coefficient [-]  (was A_z, raw Newtons until Step 55)
+    C_m: float = 0.0              # pitching-moment coefficient [-] (was A_m, raw Newton-metres until Step 55)
+    # model == "linearized"
+    C_A0: float = 0.0
+    C_N_alpha: float = 0.0        # [1/rad]
+    C_m_alpha: float = 0.0        # [1/rad]
+    # model == "table"
+    table: str = ""               # file under data/aero/      (was aero_table)
+    # all three models
+    c_mq: float = 0.0             # pitch-damping derivative [-]
 
-    # Step 38: non-parallel gravity direction (main.tex SSModels > Gravity >
-    # Direction; architecture.md SS23.1). Orthogonal to `gravity_model`
-    # above -- that dispatch is the *magnitude*, this one is the
-    # *direction*, and any magnitude may combine with any direction.
-    # "parallel" (the default) is today's fixed z_hat_g = (0, 1): bit-for-
-    # bit every prior step. "radial" rotates the local vertical with
-    # downrange distance (main.tex eq:zhat_g_rotated), phi = x/R_e.
-    # Step 41 (Phase 2.7; architecture.md SS24.1) adds "elliptical": the
-    # WGS84 ellipsoid normal via its osculating sphere in the flight-plane
-    # azimuth, phi = x/R_chi(lat0_deg, azimuth_deg) -- reuses those two
-    # existing fields (the launch site's one latitude/heading), no new
-    # `Params` fields.
-    gravity_direction: str = "parallel"  # parallel | radial | elliptical
 
-    # launch site / Earth (architecture.md SS13, SS15, SS17)
-    R_e:         float = 6371000.0  # mean Earth radius [m] (radial gravity)
-    lat0_deg:    float = 0.0   # geodetic latitude of the launch site [deg] (wgs84 gravity)
-    lon0_deg:    float = 0.0   # geodetic longitude of the launch site [deg] (station projection, tier 3)
-    h0_m:        float = 0.0   # launch site elevation above MSL [m]
-    azimuth_deg: float = 90.0  # direction of +x, degrees clockwise from North
+@dataclass(frozen=True)
+class Gravity:
+    model: str = "constant"       # constant | radial | wgs84      (magnitude)
+    direction: str = "parallel"   # parallel | radial | elliptical (direction)
+    R_e: float = 6371000.0        # mean Earth radius [m]
+    earth_rotation: bool = False  # in-plane Coriolis correction (Step 37)
 
-    # Step 18: atmosphere/wind tier 2/3 sounding data (architecture.md SS17)
-    sounding_case: str = ""  # case folder under data/soundings/; "" = unused unless atmosphere_model/wind_model select "sounding"/"field"
 
-    # Step 19: horizontal (tier 3) station combination (architecture.md SS17)
-    horizontal_interp: str = "idw"     # idw | rbf -- station combination method
-    grid_top_m: float = 30000.0        # common altitude grid for tier-3 resampling [m MSL]
-    grid_step_m: float = 100.0         # grid spacing [m]
-    idw_epsilon_m: float = 500.0       # IDW singularity-avoidance term [m]
+@dataclass(frozen=True)
+class Site:                       # the launch site and the pad standing on it
+    lat0_deg: float = 0.0
+    lon0_deg: float = 0.0
+    h0_m: float = 0.0             # site elevation above MSL
+    azimuth_deg: float = 90.0     # direction of +x, deg clockwise from North
+    L_rail: float = 0.0           # launch rail length [m]; 0.0 = off
+    rail_angle_deg: float = 90.0  # rail elevation from horizontal
 
-    # thrust (architecture.md SS19)
-    motor_curve: str = ""  # file under data/motors/; "" = no curve, zero thrust
 
-    # Step 16: altitude pressure correction on thrust (architecture.md SS19)
-    A_e: float = 0.0        # nozzle exit area [m^2]; 0.0 = correction is inert
-    p_ref: float = 101325.0  # ambient pressure the curve was measured at [Pa]
-
-    # Step 21: wind tier 1, analytic model (architecture.md SS16, SS18)
-    wind_model: str = "none"    # none | analytic | sounding | field
-    wind_ref_ms: float = 0.0    # reference wind speed W_ref at wind_ref_h_m [m/s]
-    wind_dir_deg: float = 0.0   # meteorological wind direction (from North, clockwise) [deg]
-    wind_ref_h_m: float = 10.0  # reference height for wind_ref_ms / the shear power law [m]
-    wind_shear_exp: float = 0.143  # power-law shear exponent, ~= 1/7
-    # Step 46: Dryden turbulence (MIL-F-8785C / MIL-HDBK-1797) for tier-1
-    # gusts (architecture.md SS26; latex/research/dryden_turbulence_model.md).
-    # Same "unset = bit-for-bit reproduces every prior step" gate convention
-    # as `wind_model`/`aero_model`: "none" (the default) means wind.py never
-    # builds a realization, never touches the RNG, and `_analytic_wind`
-    # returns exactly the mean-profile decomposition. Orthogonal to
-    # `wind_model` in the same sense `gravity_direction` is orthogonal to
-    # `gravity_model` (architecture.md SS23.1): a second dispatch inside one
-    # module, not a product of names -- and the seam a von Karman variant
-    # would slot into later with no other change (SS26.13).
-    # TIER 1 ONLY. Tiers 2/3 ("sounding"/"field") ignore it entirely, exactly
-    # as they ignore today's gusts (SS26.10).
-    turbulence_model: str = "none"           # none | dryden
-
-    # Isotropic turbulence intensity above 2000 ft AGL [m/s]. MIL-F-8785C
-    # gives no closed form here -- only a probability-of-exceedance chart --
-    # so this is set by the user per scenario (the user's own decision, see
-    # the research note SS5), not looked up and not a light/moderate/severe
-    # preset. 0.0 means "no turbulence above 2000 ft AGL", which also tapers
-    # the 1000-2000 ft transition band to zero; it is a legitimate setting,
-    # not an error, and the low-altitude band is still driven by W20 (SS26.5).
-    turbulence_sigma_high_ms: float = 0.0
-
-    # The single constant airspeed `V` used for the Taylor frozen-turbulence
-    # conversion `omega = V*Omega`, for the whole flight [m/s]. A DELIBERATE
-    # SIMPLIFICATION with a documented limitation (architecture.md SS26.9):
-    # this rocket's true airspeed spans 0 to supersonic, and a realization
-    # that tracked it would make the solver's RHS a non-function of its own
-    # arguments (SS26.8). Must be > 0 when turbulence_model != "none"; the
-    # default is a representative mid-flight airspeed for a small sounding
-    # rocket, to be set per scenario, NOT a value with any authority.
-    turbulence_ref_speed_ms: float = 100.0
-
-    # RNG seed for the frozen phase draw (architecture.md SS26.8). Renamed
-    # from Step 21's `gust_seed` so the family reads as one group; the
-    # quantity and its role are unchanged.
-    turbulence_seed: int = 0
-
-    # Step 36: variable mass -- CoG and moment-of-inertia travel (main.tex
-    # SSModels > Mass and moment of inertia). `m_d` is the single on/off
-    # gate, the same "unset sentinel disables the new model" convention as
-    # `aero_table`/`motor_curve` (""), `wind_model` ("none"): `None` (the
-    # default) reproduces every prior step bit-for-bit -- `m` stays fixed
-    # at `p.m`, `I` stays fixed at `p.I`, `state.M` is carried along
-    # unused. Setting `m_d` switches on the two-lumped-mass model
-    # (dry structure at `l_d`, remaining propellant at `l_p`): `m` becomes
-    # the integrated mass state, `dm/dt = -T_ref(t)/(I_sp*g0)`, and
-    # `l_B(t)`, `I(t)` are recomputed every RHS call from it
-    # (dynamics.py). `p.m` is then only the *initial* (wet) mass used to
-    # seed `state.m` -- not read by the moment/translational equations
-    # anymore.
-    m_d: Optional[float] = None  # dry (burnout) mass [kg]; None = mass model off
-    l_d: float = 0.0   # dry structure's centroid, distance from the nose [m]
-    l_p: float = 0.0   # propellant centroid, distance from the nose [m] (main.tex's grain-geometry \todo placeholder: held constant)
-    I_d: float = 0.0   # dry structure's own moment of inertia about l_d [kg*m^2]
-    I_sp: float = 0.0  # specific impulse [s], for dm/dt = -T_ref(t)/(I_sp*g0)
-
-    # Step 37: non-inertial (Coriolis) frame correction (main.tex SSModels >
-    # Non-inertial frame corrections; sim/rotation.py). Same "unset =
-    # bit-for-bit reproduces every prior step" gate convention as
-    # `m_d`/`aero_table`/`wind_model`: `False` (the default) means
-    # dynamics.py never calls sim.rotation.coriolis_inplane at all. `True`
-    # adds the in-plane Coriolis acceleration only -- the residual
-    # centrifugal term and the out-of-plane Coriolis component are
-    # deliberately not folded into the physics (see sim/rotation.py's
-    # module docstring for why); `lat0_deg`/`azimuth_deg` above (already
-    # used by gravity.py's WGS84 model and wind.py's ENU projection) are
-    # reused as-is -- no new parameter beyond this one flag.
-    earth_rotation: bool = False
-
-    # Step 39: thrust-axis misalignment (main.tex SSForces eq:thrust_vector;
-    # architecture.md SS23.2). Same "unset = bit-for-bit reproduces every
-    # prior step" convention as `A_e`/`aero_table`/`wind_model`/`m_d`: 0.0
-    # (the default) makes `thrust_body` return exactly `(T, 0.0)`, since
-    # `np.cos(0.0) == 1.0` and `np.sin(0.0) == 0.0` bitwise. A nonzero value
-    # is a fixed, small (manufacturing-grade, ~0.1-1.0 deg) nozzle cant, not
-    # a commanded gimbal angle -- there is no control law here.
-    thrust_misalign_deg: float = 0.0  # fixed nozzle cant delta [deg], + toward +z_hat_r
-
-    # Step 40: humid-air density -- virtual-temperature correction (main.tex
-    # SSModels > Atmosphere > Density; architecture.md SS23.3). Same "unset =
-    # bit-for-bit reproduces every prior step" convention as `earth_rotation`/
-    # `m_d`/`wind_model`: `False` (the default) means `_sounding_air_state`/
-    # `_field_air_state` never even evaluate `moist_density`, `rho` stays the
-    # dry `p/(R_d*T)` from `sim.soundings.interp_altitude`. `True` applies
-    # the correction wherever the sounding/field data has a finite dewpoint
-    # (`Td_K` column); with no dewpoint data the fallback is dry air, level
-    # by level, so the flag is safe to leave on. Tier "isa" is never
-    # affected -- the ISA is dry air by definition (architecture.md SS14's
-    # `g_isa` argument, reused here).
+@dataclass(frozen=True)
+class Atmosphere:
+    model: str = "isa"            # isa | sounding | field
     humid_air: bool = False
 
-    # Step 43: lateral (off-axis) offsets of the CoG (B) and the thrust point (C)
-    # from the body axis, measured along +z_hat_r (towards the belly), metres.
-    # rocket-2d.tex SSGeometry: AB = -l_B*x_hat_r - u_B*z_hat_r, likewise AC with
-    # u_C; u_D == 0 by definition. As-built manufacturing quantities to be swept,
-    # not functions of the flight state -- the same standing as
-    # thrust_misalign_deg. 0.0 (the default) recovers the on-axis geometry
-    # bit-for-bit.
-    u_B: float = 0.0   # lateral offset of the centre of gravity [m]
-    u_C: float = 0.0   # lateral offset of the thrust application point [m]
 
-    # Step 44: pitch-damping derivative (analysis.tex SSDynamic stability;
-    # architecture.md SS24.4). Scaffold only -- 0.0 (the default) makes the
-    # damping term exactly zero, bit-for-bit every prior step, with no separate
-    # on/off flag (the A_e/thrust_misalign_deg pattern). SIGN: positive c_mq is
-    # DAMPING here, because positive C_m is a nose-DOWN moment in this
-    # document's convention -- the same flip that makes c_m_alpha > 0 the
-    # statically stable sign. Supplying a real value (measurement, unsteady CFD,
-    # or the strip estimate 2*C_N_alpha*(l1/d_ref)^2) is future work, not this
-    # step. Overridden per (alpha, M) by an optional `c_mq` column in
-    # `aero_table`, when one is present.
-    c_mq: float = 0.0   # pitch-damping derivative dC_m/d(q_hat) [-]
+@dataclass(frozen=True)
+class Soundings:                  # the shared data layer for atmosphere AND wind tiers 2/3
+    case: str = ""                # case folder under data/soundings/
+    horizontal_interp: str = "idw"  # idw | rbf
+    grid_top_m: float = 30000.0
+    grid_step_m: float = 100.0
+    idw_epsilon_m: float = 500.0
 
-    # Step 47: launch rail constraint (architecture.md SS27.1). While the
-    # rocket's travel along the rail is less than `L_rail`, the rail buttons
-    # mechanically react every transverse force component and prevent
-    # rotation -- the rocket can only slide, not pitch or drift sideways
-    # (dynamics.py's `on_rail`/`rail_distance`). Same "unset sentinel
-    # disables the model" convention as `aero_table`/`wind_model`/`m_d`:
-    # `L_rail = 0.0` (the default) is the off switch -- `rail_distance` is
-    # 0 at t=0, so `0 < 0.0` is false and the rocket is never on the rail,
-    # reproducing every prior step bit-for-bit. `rail_angle_deg` is the
-    # rail's fixed mount angle (independent of, but meant to be set
-    # consistent with, the launch `State.theta` the scenario supplies);
-    # default 90.0 (vertical) matches every existing scenario's
-    # `theta = pi/2`.
-    L_rail: float = 0.0          # launch rail length [m]; 0.0 = off, unconstrained from t=0
-    rail_angle_deg: float = 90.0  # rail elevation from horizontal [deg]; direction of e_rail
 
-    # Step 48: recovery / parachute (architecture.md SS27.2). Once deployed,
-    # `dtheta/dt = domega/dt = 0` (the same "a mechanical constraint freezes
-    # the attitude state" mechanism as the rail above, re-used rather than
-    # invented) and the canopy drag is computed directly in the inertial
-    # frame (sim/forces.py's `parachute_drag_inertial`), not routed through
-    # the body axial/normal decomposition -- a round canopy's drag opposes
-    # the relative wind vector, not the body's nose direction. Two
-    # independent off switches, same belt-and-suspenders style as
-    # `turbulence_sigma_high_ms`/`A_e`: `parachute_model = "none"` (the
-    # default) is the primary one -- `forces.parachute_deployed` returns
-    # `False` unconditionally, so `dynamics.py`'s new branch never
-    # activates. `parachute_S = 0.0` (also the default) is a second,
-    # independent one -- even if `parachute_model == "deploy"`, zero
-    # reference area makes the chute force exactly zero. Either alone
-    # reproduces every prior step bit-for-bit.
-    parachute_model: str = "none"              # none | deploy
-    parachute_deploy_trigger: str = "apogee"   # apogee | timer
-    parachute_deploy_time: float = 0.0         # [s], used only when trigger == "timer"
-    parachute_Cd: float = 0.8                  # [-], typical flat-circular canopy; override per design
-    parachute_S: float = 0.0                   # [m^2] canopy reference area; 0.0 = inert even if deployed
+@dataclass(frozen=True)
+class Wind:
+    model: str = "none"           # none | analytic | sounding | field
+    ref_ms: float = 0.0
+    dir_deg: float = 0.0          # meteorological, from North, clockwise
+    ref_h_m: float = 10.0
+    shear_exp: float = 0.143
+    turbulence_model: str = "none"  # none | dryden
+    turbulence_sigma_high_ms: float = 0.0
+    turbulence_ref_speed_ms: float = 100.0
+    turbulence_seed: int = 0
 
-    # Step 49: control-engineering scaffold -- feedback airbrake
-    # (architecture.md SS27.3; sim/control.py). A pure, memoryless
-    # proportional (P) control law on predicted apogee, re-evaluated fresh
-    # at every RHS call -- no integral/derivative term, no fixed-rate
-    # sample-and-hold, the same determinism-contract reasoning Step 46/B11
-    # already applied to turbulence (see sim/control.py's module docstring).
-    # Three independent off switches, same belt-and-suspenders style as
-    # `parachute_model`/`parachute_S`: `airbrake_model = "none"` (the
-    # default) is the primary one -- `control.airbrake_deploy_fraction`
-    # returns `0.0` unconditionally. `airbrake_kp = 0.0` and
-    # `airbrake_S_max = 0.0` (also both defaults) are two further,
-    # independent ones -- even with `airbrake_model = "proportional"`, a
-    # zero gain commands zero deployment and a zero max area makes the
-    # brake's drag term exactly zero regardless of the commanded fraction.
-    # Any one alone reproduces every prior step bit-for-bit.
-    airbrake_model: str = "none"           # none | proportional
-    airbrake_target_apogee_m: float = 0.0  # target AGL altitude [m]
-    airbrake_kp: float = 0.0               # proportional gain [1/m]
-    airbrake_Cd: float = 1.0               # [-], flat-plate-ish brake surface
-    airbrake_S_max: float = 0.0            # [m^2] exposed area at full (fraction=1.0) deployment
+
+@dataclass(frozen=True)
+class Recovery:
+    model: str = "none"           # none | deploy      (was parachute_model)
+    trigger: str = "apogee"       # apogee | timer
+    deploy_time: float = 0.0
+    Cd: float = 0.8
+    S: float = 0.0                # canopy reference area [m^2]; 0.0 = inert even if deployed
+
+
+@dataclass(frozen=True)
+class Control:
+    airbrake_model: str = "none"          # none | proportional
+    airbrake_target_apogee_m: float = 0.0
+    airbrake_kp: float = 0.0
+    airbrake_Cd: float = 1.0
+    airbrake_S_max: float = 0.0
+    aero_coeff_model: str = "none"        # Step 57 seam; "none" = identity
+
+
+@dataclass(frozen=True)
+class Solver:
+    method: str = "RK45"          # RK45 (or any scipy name) | rk4
+    rtol: float = 1e-8
+    atol: float = 1e-10
+    t_max: float = 300.0
+    dt: float = 0.001             # fixed-step path only
+    sample_rate_hz: float = 0.0   # Step 59; 0.0 = no sampled-data mode
+
+
+# ----------------------------------------------------------------------
+# The old flat name -> (group attribute, group field name) map. Every key
+# here is a Params kwarg some caller (tests/, run.py, apps/) could still
+# pass today, pre-Step-51. "g" (-> top-level g0) and "T" (-> deleted,
+# silently discarded) are handled outside this dict -- see __init__ below.
+# ----------------------------------------------------------------------
+
+_FLAT_TO_GROUP: "dict[str, tuple[str, str]]" = {
+    # Weight
+    "m": ("weight", "m"),
+    "I": ("weight", "I"),
+    "m_d": ("weight", "m_d"),
+    "l_d": ("weight", "l_d"),
+    "l_p": ("weight", "l_p"),
+    "I_d": ("weight", "I_d"),
+    "I_sp": ("weight", "I_sp"),
+    # Thrust
+    "motor_curve": ("thrust", "motor_curve"),
+    "A_e": ("thrust", "A_e"),
+    "p_ref": ("thrust", "p_ref"),
+    # Lengths
+    "l1": ("lengths", "l1"),
+    "l2": ("lengths", "l2"),
+    "u_B": ("lengths", "u_B"),
+    "u_C": ("lengths", "u_C"),
+    "thrust_misalign_deg": ("lengths", "misalign_deg"),
+    # Aero
+    "aero_model": ("aero", "model"),
+    "S": ("aero", "S"),
+    "d_ref": ("aero", "d_ref"),
+    "l_ref": ("aero", "l_ref"),
+    "A_x": ("aero", "C_x"),
+    "A_z": ("aero", "C_z"),
+    "A_m": ("aero", "C_m"),
+    "C_A0": ("aero", "C_A0"),
+    "C_N_alpha": ("aero", "C_N_alpha"),
+    "C_m_alpha": ("aero", "C_m_alpha"),
+    "aero_table": ("aero", "table"),
+    "c_mq": ("aero", "c_mq"),
+    # Gravity
+    "gravity_model": ("gravity", "model"),
+    "gravity_direction": ("gravity", "direction"),
+    "R_e": ("gravity", "R_e"),
+    "earth_rotation": ("gravity", "earth_rotation"),
+    # Site
+    "lat0_deg": ("site", "lat0_deg"),
+    "lon0_deg": ("site", "lon0_deg"),
+    "h0_m": ("site", "h0_m"),
+    "azimuth_deg": ("site", "azimuth_deg"),
+    "L_rail": ("site", "L_rail"),
+    "rail_angle_deg": ("site", "rail_angle_deg"),
+    # Atmosphere
+    "atmosphere_model": ("atmosphere", "model"),
+    "humid_air": ("atmosphere", "humid_air"),
+    # Soundings
+    "sounding_case": ("soundings", "case"),
+    "horizontal_interp": ("soundings", "horizontal_interp"),
+    "grid_top_m": ("soundings", "grid_top_m"),
+    "grid_step_m": ("soundings", "grid_step_m"),
+    "idw_epsilon_m": ("soundings", "idw_epsilon_m"),
+    # Wind
+    "wind_model": ("wind", "model"),
+    "wind_ref_ms": ("wind", "ref_ms"),
+    "wind_dir_deg": ("wind", "dir_deg"),
+    "wind_ref_h_m": ("wind", "ref_h_m"),
+    "wind_shear_exp": ("wind", "shear_exp"),
+    "turbulence_model": ("wind", "turbulence_model"),
+    "turbulence_sigma_high_ms": ("wind", "turbulence_sigma_high_ms"),
+    "turbulence_ref_speed_ms": ("wind", "turbulence_ref_speed_ms"),
+    "turbulence_seed": ("wind", "turbulence_seed"),
+    # Recovery
+    "parachute_model": ("recovery", "model"),
+    "parachute_deploy_trigger": ("recovery", "trigger"),
+    "parachute_deploy_time": ("recovery", "deploy_time"),
+    "parachute_Cd": ("recovery", "Cd"),
+    "parachute_S": ("recovery", "S"),
+    # Control
+    "airbrake_model": ("control", "airbrake_model"),
+    "airbrake_target_apogee_m": ("control", "airbrake_target_apogee_m"),
+    "airbrake_kp": ("control", "airbrake_kp"),
+    "airbrake_Cd": ("control", "airbrake_Cd"),
+    "airbrake_S_max": ("control", "airbrake_S_max"),
+}
+
+# Old flat names silently accepted and discarded -- dead fields with no
+# new-shape equivalent. "T": Params.T, dead since Step 14 (D-14).
+_FLAT_DISCARDED = frozenset({"T"})
+
+# Group attribute name -> its dataclass type, used by __init__ below to
+# construct/rebuild a group from a dict of its own field overrides.
+_GROUP_TYPES = {
+    "weight": Weight,
+    "thrust": Thrust,
+    "lengths": Lengths,
+    "aero": Aero,
+    "gravity": Gravity,
+    "site": Site,
+    "atmosphere": Atmosphere,
+    "soundings": Soundings,
+    "wind": Wind,
+    "recovery": Recovery,
+    "control": Control,
+    "solver": Solver,
+}
+
+
+@dataclass(frozen=True, init=False)
+class Params:
+    """Every symbol from main.tex, composed into twelve groups (SS28.3).
+
+    `__init__` is hand-written (see module docstring) so that old flat
+    keyword arguments keep working through Step 51 via the transitional
+    shim; everything else about this class (`fields()`, `__repr__`,
+    `__eq__`, frozen `__setattr__` protection, `dataclasses.replace`) is
+    the ordinary `@dataclass(frozen=True)` machinery, unaffected by
+    `init=False`.
+    """
+
+    weight: Weight                              # the only required group
+    g0: float = 9.80665                         # standard gravity, shared constant (see note)
+    lengths:    Lengths    = field(default_factory=Lengths)
+    thrust:     Thrust     = field(default_factory=Thrust)
+    aero:       Aero       = field(default_factory=Aero)
+    gravity:    Gravity    = field(default_factory=Gravity)
+    site:       Site       = field(default_factory=Site)
+    atmosphere: Atmosphere = field(default_factory=Atmosphere)
+    soundings:  Soundings  = field(default_factory=Soundings)
+    wind:       Wind       = field(default_factory=Wind)
+    recovery:   Recovery   = field(default_factory=Recovery)
+    control:    Control    = field(default_factory=Control)
+    solver:     Solver     = field(default_factory=Solver)
+
+    def __init__(
+        self,
+        weight: "Weight | None" = None,
+        g0: float = 9.80665,
+        lengths: "Lengths | None" = None,
+        thrust: "Thrust | None" = None,
+        aero: "Aero | None" = None,
+        gravity: "Gravity | None" = None,
+        site: "Site | None" = None,
+        atmosphere: "Atmosphere | None" = None,
+        soundings: "Soundings | None" = None,
+        wind: "Wind | None" = None,
+        recovery: "Recovery | None" = None,
+        control: "Control | None" = None,
+        solver: "Solver | None" = None,
+        **flat_kwargs: Any,
+    ) -> None:
+        groups: "dict[str, Any]" = {
+            "weight": weight, "lengths": lengths, "thrust": thrust,
+            "aero": aero, "gravity": gravity, "site": site,
+            "atmosphere": atmosphere, "soundings": soundings, "wind": wind,
+            "recovery": recovery, "control": control, "solver": solver,
+        }
+
+        # Collect per-group field overrides coming in through flat kwargs
+        # (old names) before constructing/rebuilding each group once.
+        per_group_overrides: "dict[str, dict[str, Any]]" = {}
+        for key, value in flat_kwargs.items():
+            if key in ("g0", "g"):  # "g" is the old (Phase 1) flat name for g0
+                g0 = value
+                continue
+            if key in _FLAT_DISCARDED:
+                continue  # e.g. "T" -- dead field, accepted and dropped (D-14)
+            if key not in _FLAT_TO_GROUP:
+                raise TypeError(
+                    f"Params() got an unexpected keyword argument {key!r}"
+                )
+            group_name, field_name = _FLAT_TO_GROUP[key]
+            per_group_overrides.setdefault(group_name, {})[field_name] = value
+
+        for group_name, group_type in _GROUP_TYPES.items():
+            base = groups[group_name]
+            overrides = per_group_overrides.get(group_name)
+            if base is None:
+                resolved = group_type(**overrides) if overrides else group_type()
+            elif overrides:
+                resolved = dataclasses.replace(base, **overrides)
+            else:
+                resolved = base
+            object.__setattr__(self, group_name, resolved)
+            # Note: `weight` has no explicit "is it present" check here --
+            # `Weight.m`/`Weight.I` have no defaults, so `Weight()`/
+            # `Weight(**overrides)` above already raises TypeError on its
+            # own when neither `weight=` nor the flat `m=`/`I=` kwargs were
+            # given, exactly like the pre-Step-50 flat dataclass did.
+
+        object.__setattr__(self, "g0", g0)
+
+    @classmethod
+    def flat(cls, **old_kwargs: Any) -> "Params":
+        """Construct a `Params` from pre-Step-50 flat keyword arguments
+        only -- `Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4,
+        aero_table="x.csv")`. A thin, explicitly-named alias for
+        `cls(**old_kwargs)` (the real routing lives in `__init__`), kept
+        as its own classmethod so call sites read as "this is the
+        transitional flat constructor" rather than looking like ordinary
+        nested construction (architecture-28-rewrite.md SS28.11's S50
+        ticket: "`tests/`, `run.py` and `apps/` are touched only by a
+        mechanical `Params(` -> `Params.flat(` substitution"). Deleted at
+        Step 52 along with the rest of the shim.
+        """
+        return cls(**old_kwargs)
+
+    # ------------------------------------------------------------------
+    # Read-only flat-name aliases (deleted at Step 52). Every pre-Step-50
+    # `Params` field is reachable here under its old name, so any `p.<old
+    # name>` read outside sim/ (tests/, run.py, apps/) keeps working
+    # unmodified until Step 51 migrates those reads too.
+    # ------------------------------------------------------------------
+
+    @property
+    def g(self) -> float:
+        return self.g0
+
+    # Weight
+    @property
+    def m(self) -> float:
+        return self.weight.m
+
+    @property
+    def I(self) -> float:
+        return self.weight.I
+
+    @property
+    def m_d(self) -> "Optional[float]":
+        return self.weight.m_d
+
+    @property
+    def l_d(self) -> float:
+        return self.weight.l_d
+
+    @property
+    def l_p(self) -> float:
+        return self.weight.l_p
+
+    @property
+    def I_d(self) -> float:
+        return self.weight.I_d
+
+    @property
+    def I_sp(self) -> float:
+        return self.weight.I_sp
+
+    # Thrust
+    @property
+    def motor_curve(self) -> str:
+        return self.thrust.motor_curve
+
+    @property
+    def A_e(self) -> float:
+        return self.thrust.A_e
+
+    @property
+    def p_ref(self) -> float:
+        return self.thrust.p_ref
+
+    # Lengths
+    @property
+    def l1(self) -> float:
+        return self.lengths.l1
+
+    @property
+    def l2(self) -> float:
+        return self.lengths.l2
+
+    @property
+    def u_B(self) -> float:
+        return self.lengths.u_B
+
+    @property
+    def u_C(self) -> float:
+        return self.lengths.u_C
+
+    @property
+    def thrust_misalign_deg(self) -> float:
+        return self.lengths.misalign_deg
+
+    # Aero
+    @property
+    def aero_model(self) -> str:
+        return self.aero.model
+
+    @property
+    def S(self) -> float:
+        return self.aero.S
+
+    @property
+    def d_ref(self) -> float:
+        return self.aero.d_ref
+
+    @property
+    def l_ref(self) -> float:
+        return self.aero.l_ref
+
+    @property
+    def A_x(self) -> float:
+        return self.aero.C_x
+
+    @property
+    def A_z(self) -> float:
+        return self.aero.C_z
+
+    @property
+    def A_m(self) -> float:
+        return self.aero.C_m
+
+    @property
+    def C_A0(self) -> float:
+        return self.aero.C_A0
+
+    @property
+    def C_N_alpha(self) -> float:
+        return self.aero.C_N_alpha
+
+    @property
+    def C_m_alpha(self) -> float:
+        return self.aero.C_m_alpha
+
+    @property
+    def aero_table(self) -> str:
+        return self.aero.table
+
+    @property
+    def c_mq(self) -> float:
+        return self.aero.c_mq
+
+    # Gravity
+    @property
+    def gravity_model(self) -> str:
+        return self.gravity.model
+
+    @property
+    def gravity_direction(self) -> str:
+        return self.gravity.direction
+
+    @property
+    def R_e(self) -> float:
+        return self.gravity.R_e
+
+    @property
+    def earth_rotation(self) -> bool:
+        return self.gravity.earth_rotation
+
+    # Site
+    @property
+    def lat0_deg(self) -> float:
+        return self.site.lat0_deg
+
+    @property
+    def lon0_deg(self) -> float:
+        return self.site.lon0_deg
+
+    @property
+    def h0_m(self) -> float:
+        return self.site.h0_m
+
+    @property
+    def azimuth_deg(self) -> float:
+        return self.site.azimuth_deg
+
+    @property
+    def L_rail(self) -> float:
+        return self.site.L_rail
+
+    @property
+    def rail_angle_deg(self) -> float:
+        return self.site.rail_angle_deg
+
+    # Atmosphere
+    @property
+    def atmosphere_model(self) -> str:
+        return self.atmosphere.model
+
+    @property
+    def humid_air(self) -> bool:
+        return self.atmosphere.humid_air
+
+    # Soundings
+    @property
+    def sounding_case(self) -> str:
+        return self.soundings.case
+
+    @property
+    def horizontal_interp(self) -> str:
+        return self.soundings.horizontal_interp
+
+    @property
+    def grid_top_m(self) -> float:
+        return self.soundings.grid_top_m
+
+    @property
+    def grid_step_m(self) -> float:
+        return self.soundings.grid_step_m
+
+    @property
+    def idw_epsilon_m(self) -> float:
+        return self.soundings.idw_epsilon_m
+
+    # Wind
+    @property
+    def wind_model(self) -> str:
+        return self.wind.model
+
+    @property
+    def wind_ref_ms(self) -> float:
+        return self.wind.ref_ms
+
+    @property
+    def wind_dir_deg(self) -> float:
+        return self.wind.dir_deg
+
+    @property
+    def wind_ref_h_m(self) -> float:
+        return self.wind.ref_h_m
+
+    @property
+    def wind_shear_exp(self) -> float:
+        return self.wind.shear_exp
+
+    @property
+    def turbulence_model(self) -> str:
+        return self.wind.turbulence_model
+
+    @property
+    def turbulence_sigma_high_ms(self) -> float:
+        return self.wind.turbulence_sigma_high_ms
+
+    @property
+    def turbulence_ref_speed_ms(self) -> float:
+        return self.wind.turbulence_ref_speed_ms
+
+    @property
+    def turbulence_seed(self) -> int:
+        return self.wind.turbulence_seed
+
+    # Recovery
+    @property
+    def parachute_model(self) -> str:
+        return self.recovery.model
+
+    @property
+    def parachute_deploy_trigger(self) -> str:
+        return self.recovery.trigger
+
+    @property
+    def parachute_deploy_time(self) -> float:
+        return self.recovery.deploy_time
+
+    @property
+    def parachute_Cd(self) -> float:
+        return self.recovery.Cd
+
+    @property
+    def parachute_S(self) -> float:
+        return self.recovery.S
+
+    # Control
+    @property
+    def airbrake_model(self) -> str:
+        return self.control.airbrake_model
+
+    @property
+    def airbrake_target_apogee_m(self) -> float:
+        return self.control.airbrake_target_apogee_m
+
+    @property
+    def airbrake_kp(self) -> float:
+        return self.control.airbrake_kp
+
+    @property
+    def airbrake_Cd(self) -> float:
+        return self.control.airbrake_Cd
+
+    @property
+    def airbrake_S_max(self) -> float:
+        return self.control.airbrake_S_max
+
+
+# ----------------------------------------------------------------------
+# architecture-28-rewrite.md SS28.4: the dotted-path `dataclasses.replace`
+# helper, and the `Solver`-group convenience sugar.
+# ----------------------------------------------------------------------
+
+
+def replace(p: Params, changes: "dict[str, Any]") -> Params:
+    """`replace(p, {"gravity.model": "wgs84", "aero.S": 0.005})` -- a nested
+    `dataclasses.replace` that only ever rebuilds the groups it touches, so
+    no untouched field in a changed group (or any other group) can be
+    silently reset to its default. Unknown paths raise `TypeError` from
+    `dataclasses.replace` itself (no input validation, SS7).
+
+    A single-segment key (`"g0"`) passes straight through to `Params`
+    itself. Only two levels of nesting exist in this schema, but the
+    grouping-by-first-segment below supports arbitrary depth.
+    """
+    by_group: "dict[str, dict[str, Any]]" = {}
+    top_level: "dict[str, Any]" = {}
+    for path, value in changes.items():
+        head, sep, rest = path.partition(".")
+        if not sep:
+            top_level[head] = value
+        else:
+            by_group.setdefault(head, {})[rest] = value
+
+    group_updates: "dict[str, Any]" = {}
+    for group_name, sub_changes in by_group.items():
+        current_group = getattr(p, group_name)
+        group_updates[group_name] = dataclasses.replace(current_group, **sub_changes)
+
+    return dataclasses.replace(p, **group_updates, **top_level)
+
+
+def with_solver(p: Params, **kw: Any) -> Params:
+    """`with_solver(p, method="rk4", dt=1e-3)` -- convenience sugar for the
+    one group almost every test touches (F6, ~60 call sites)."""
+    return dataclasses.replace(p, solver=dataclasses.replace(p.solver, **kw))

@@ -64,7 +64,7 @@ from sim.state import X, Z
 
 def _g_constant(t: float, y: np.ndarray, p) -> float:
     """g = g0 (Phase 1 baseline). Bit-for-bit reproduces Phase 1."""
-    return p.g
+    return p.g0
 
 
 def _g_radial(t: float, y: np.ndarray, p) -> float:
@@ -77,7 +77,7 @@ def _g_radial(t: float, y: np.ndarray, p) -> float:
     never substituted for one another).
     """
     h = altitude_agl(y, p)
-    return p.g * (p.R_e / (p.R_e + h)) ** 2
+    return p.g0 * (p.gravity.R_e / (p.gravity.R_e + h)) ** 2
 
 
 # WGS84 (Somigliana) normal-gravity constants, architecture.md SS13. These
@@ -107,7 +107,7 @@ def _g_wgs84(t: float, y: np.ndarray, p) -> float:
     flat `p.h0_m - z`. The ellipsoid/geoid distinction is ignored -- far
     below the model's own error here (architecture.md SS13).
     """
-    phi = np.radians(p.lat0_deg)
+    phi = np.radians(p.site.lat0_deg)
     sin2phi = np.sin(phi) ** 2
 
     gamma0 = (
@@ -141,7 +141,7 @@ def g(t: float, y: np.ndarray, p) -> float:
     """Gravitational acceleration magnitude [m/s^2] (main.tex SSModels >
     Gravity), dispatching on `p.gravity_model`.
     """
-    return _GRAVITY_MODELS[p.gravity_model](t, y, p)
+    return _GRAVITY_MODELS[p.gravity.model](t, y, p)
 
 
 def _dir_parallel(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -167,8 +167,8 @@ def _R_chi(p) -> float:
     quantity `_g_wgs84` uses), `chi = p.azimuth_deg` (the flight-plane
     heading, the same quantity `wind.py`/`soundings.py`/`rotation.py` use).
     """
-    phi0 = np.radians(p.lat0_deg)
-    chi = np.radians(p.azimuth_deg)
+    phi0 = np.radians(p.site.lat0_deg)
+    chi = np.radians(p.site.azimuth_deg)
     s2 = np.sin(phi0) ** 2
     M = _WGS84_A * (1.0 - _WGS84_E2) / (1.0 - _WGS84_E2 * s2) ** 1.5
     N = _WGS84_A / np.sqrt(1.0 - _WGS84_E2 * s2)
@@ -182,7 +182,7 @@ def _R_chi(p) -> float:
 # raises KeyError here too.
 _CURVATURE_RADII = {
     "parallel":   lambda p: None,
-    "radial":     lambda p: p.R_e,
+    "radial":     lambda p: p.gravity.R_e,
     "elliptical": _R_chi,
 }
 
@@ -191,7 +191,7 @@ def curvature_radius(p) -> "float | None":
     """Radius of the sphere the local vertical (and, from Step 42, the
     ground) is constructed on, per `p.gravity_direction`. `None` for the
     flat "parallel" model (architecture.md SS24.1)."""
-    return _CURVATURE_RADII[p.gravity_direction](p)
+    return _CURVATURE_RADII[p.gravity.direction](p)
 
 
 def _dir_curved(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -221,7 +221,7 @@ def z_hat_g(t: float, y: np.ndarray, p) -> np.ndarray:
     """Unit vector for the local gravity ("down") direction (main.tex
     SSModels > Gravity > Direction), dispatching on `p.gravity_direction`.
     """
-    return _GRAVITY_DIRECTIONS[p.gravity_direction](t, y, p)
+    return _GRAVITY_DIRECTIONS[p.gravity.direction](t, y, p)
 
 
 def ground_depth(t: float, y: np.ndarray, p) -> "float | np.ndarray":
@@ -288,6 +288,6 @@ def altitude_msl(y: np.ndarray, p) -> "float | np.ndarray":
     Curvature reaches it entirely through `altitude_agl` above -- this
     function has no curvature code of its own.
     """
-    return altitude_agl(y, p) + getattr(p, "h0_m", 0.0)
+    return altitude_agl(y, p) + getattr(p.site, "h0_m", 0.0)
 
 

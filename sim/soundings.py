@@ -459,11 +459,11 @@ def project_latlon(lat_deg: float, lon_deg: float, p) -> "tuple[float, float]":
     the rocket's own ground position is `(x*sin(A), x*cos(A))`, not a
     lat/lon (see `interp_field` below).
     """
-    phi0 = np.radians(p.lat0_deg)
-    dlat = np.radians(lat_deg - p.lat0_deg)
-    dlon = np.radians(lon_deg - p.lon0_deg)
-    E = p.R_e * np.cos(phi0) * dlon
-    N = p.R_e * dlat
+    phi0 = np.radians(p.site.lat0_deg)
+    dlat = np.radians(lat_deg - p.site.lat0_deg)
+    dlon = np.radians(lon_deg - p.site.lon0_deg)
+    E = p.gravity.R_e * np.cos(phi0) * dlon
+    N = p.gravity.R_e * dlat
     return float(E), float(N)
 
 
@@ -473,25 +473,25 @@ def _combine(resampled: ResampledCase, E: float, N: float, p):
     `p.horizontal_interp` (architecture.md SS17's table). Returns
     `(T, ln_p, u, v, Td)`, each `(n_levels,)`.
     """
-    phi0 = np.radians(p.lat0_deg)
-    station_E = p.R_e * np.cos(phi0) * np.radians(resampled.lon - p.lon0_deg)
-    station_N = p.R_e * np.radians(resampled.lat - p.lat0_deg)
+    phi0 = np.radians(p.site.lat0_deg)
+    station_E = p.gravity.R_e * np.cos(phi0) * np.radians(resampled.lon - p.site.lon0_deg)
+    station_N = p.gravity.R_e * np.radians(resampled.lat - p.site.lat0_deg)
 
-    if p.horizontal_interp == "idw":
+    if p.soundings.horizontal_interp == "idw":
         # w_i ~ 1/(d_i^2 + eps^2), normalised -- architecture.md SS17.
         # eps > 0 always, so this is well-defined even when the query
         # point exactly coincides with a station (d_i = 0), and reduces
         # to weight 1.0 for the (only) station in a single-station case
         # regardless of eps.
         d2 = (station_E - E) ** 2 + (station_N - N) ** 2
-        w = 1.0 / (d2 + p.idw_epsilon_m ** 2)
+        w = 1.0 / (d2 + p.soundings.idw_epsilon_m ** 2)
         w = w / w.sum()
         T = w @ resampled.T
         ln_p = w @ resampled.ln_p
         u = w @ resampled.u
         v = w @ resampled.v
         Td = w @ resampled.Td
-    elif p.horizontal_interp == "rbf":
+    elif p.soundings.horizontal_interp == "rbf":
         # scipy.interpolate.RBFInterpolator, verified present in the
         # installed scipy 1.18.1 (architecture.md SS17). d can carry
         # several output columns at once (evaluated as one linear system
@@ -527,7 +527,7 @@ def _combine(resampled: ResampledCase, E: float, N: float, p):
         v = combined[3 * n:4 * n]
         Td = combined[4 * n:5 * n]
     else:
-        raise KeyError(f"Unknown horizontal_interp: {p.horizontal_interp!r}")
+        raise KeyError(f"Unknown horizontal_interp: {p.soundings.horizontal_interp!r}")
 
     return T, ln_p, u, v, Td
 
@@ -544,7 +544,7 @@ def interp_field_at(case: str, E: float, N: float, h: float, p) -> SoundingState
     the common case of a rocket state vector, and is what Step 20's
     atmosphere tier 3 / Step 23's wind tier 3 actually call.
     """
-    resampled = _resample_case(case, p.grid_top_m, p.grid_step_m)
+    resampled = _resample_case(case, p.soundings.grid_top_m, p.soundings.grid_step_m)
     T, ln_p, u, v, Td = _combine(resampled, E, N, p)
 
     combined = Sounding(
@@ -567,7 +567,7 @@ def interp_field(case: str, y: np.ndarray, h: float, p) -> SoundingState:
     roadmap.md Step 23's note that tier 3 wind "reuses the Step 19
     weighting machinery unchanged".
     """
-    A = np.radians(p.azimuth_deg)
+    A = np.radians(p.site.azimuth_deg)
     x = float(y[X])
     E = x * np.sin(A)
     N = x * np.cos(A)

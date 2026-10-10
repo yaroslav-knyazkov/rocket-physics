@@ -137,7 +137,7 @@ def _propellant_mass(m: float, p) -> float:
     -- a stray negative `m_p` right after burnout would flip the sign of
     every term below instead of just settling at the dry-mass endpoint.
     """
-    return max(m - p.m_d, 0.0)
+    return max(m - p.weight.m_d, 0.0)
 
 
 def _cog_position(m_p: float, p) -> float:
@@ -146,7 +146,7 @@ def _cog_position(m_p: float, p) -> float:
     (mass m_p, centroid l_p) -- main.tex SSModels > Mass and moment of
     inertia.
     """
-    return (p.m_d * p.l_d + m_p * p.l_p) / (p.m_d + m_p)
+    return (p.weight.m_d * p.weight.l_d + m_p * p.weight.l_p) / (p.weight.m_d + m_p)
 
 
 def _moment_of_inertia(m_p: float, l_B: float, p) -> float:
@@ -166,15 +166,15 @@ def _moment_of_inertia(m_p: float, l_B: float, p) -> float:
     this step introduces (`m_d, l_d, l_p, I_d`). Revisit once real grain
     geometry is available (main.tex's own note).
     """
-    I_p = (p.I_d / p.m_d) * m_p
-    return p.I_d + p.m_d * (l_B - p.l_d) ** 2 + I_p + m_p * (l_B - p.l_p) ** 2
+    I_p = (p.weight.I_d / p.weight.m_d) * m_p
+    return p.weight.I_d + p.weight.m_d * (l_B - p.weight.l_d) ** 2 + I_p + m_p * (l_B - p.weight.l_p) ** 2
 
 
 def _e_rail(p) -> np.ndarray:
     """Fixed unit vector along the launch rail, inertial frame (architecture.md
     SS27.1): the rail points the way the nose initially points.
     """
-    return to_inertial(np.array([1.0, 0.0]), np.radians(p.rail_angle_deg))
+    return to_inertial(np.array([1.0, 0.0]), np.radians(p.site.rail_angle_deg))
 
 
 def rail_distance(y: np.ndarray, p) -> float:
@@ -190,7 +190,7 @@ def on_rail(y: np.ndarray, p) -> bool:
     """`p.L_rail <= 0.0` is the off switch (params.py): `rail_distance` is
     0 at t=0, so `0 < 0.0` is false and the rocket is never on the rail,
     reproducing every prior step bit-for-bit."""
-    return p.L_rail > 0.0 and rail_distance(y, p) < p.L_rail
+    return p.site.L_rail > 0.0 and rail_distance(y, p) < p.site.L_rail
 
 
 def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -232,16 +232,16 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # whenever `p.A_e == 0.0` (the default, and every scenario below),
     # and only differs by the Step-16 nozzle-exit pressure term
     # otherwise, which is a thrust correction, not a mass-flow one.
-    if p.m_d is None:
-        m = p.m
-        I = p.I
+    if p.weight.m_d is None:
+        m = p.weight.m
+        I = p.weight.I
         dm_dt = 0.0
     else:
         m = y[M]
         m_p = _propellant_mass(m, p)
         l_B = _cog_position(m_p, p)
         I = _moment_of_inertia(m_p, l_B, p)
-        dm_dt = -thrust_curve.thrust(t, y, p) / (p.I_sp * p.g)
+        dm_dt = -thrust_curve.thrust(t, y, p) / (p.weight.I_sp * p.g0)
 
     a_i = F_i / m
 
@@ -252,7 +252,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # residual centrifugal term and the out-of-plane Coriolis component
     # are deliberately not implemented; see sim/rotation.py's module
     # docstring). Purely translational -- no effect on M_y/domega/dt below.
-    if p.earth_rotation:
+    if p.gravity.earth_rotation:
         a_i = a_i + coriolis_inplane(t, y, p)
 
     # Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
@@ -297,8 +297,8 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # both arrays are bitwise identical to the pre-Step-43 literals below.
     flow = flow_state(t, y, p)
     l1_aero = aero.cop_l1(flow.alpha, flow.M, p)
-    aA = np.array([-l1_aero, p.u_B])                     # CoP position
-    aB = np.array([-(p.l1 + p.l2), p.u_B - p.u_C])       # thrust application point
+    aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
+    aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
 
     # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
     # to T) produces zero pitching moment -- that was the only case here

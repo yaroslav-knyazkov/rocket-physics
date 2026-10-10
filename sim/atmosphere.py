@@ -192,11 +192,11 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     from sim import soundings
 
     h_msl = altitude_msl(y, p)
-    snd = soundings.load_case(p.sounding_case)[0]
+    snd = soundings.load_case(p.soundings.case)[0]
     state = soundings.interp_altitude(snd, h_msl)
 
     rho = state.rho
-    if p.humid_air and np.isfinite(state.Td):
+    if p.atmosphere.humid_air and np.isfinite(state.Td):
         rho = moist_density(state.p, state.T, state.Td)
 
     return AirState(
@@ -237,10 +237,10 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     from sim import soundings
 
     h_msl = altitude_msl(y, p)
-    state = soundings.interp_field(p.sounding_case, y, h_msl, p)
+    state = soundings.interp_field(p.soundings.case, y, h_msl, p)
 
     rho = state.rho
-    if p.humid_air and np.isfinite(state.Td):
+    if p.atmosphere.humid_air and np.isfinite(state.Td):
         rho = moist_density(state.p, state.T, state.Td)
 
     return AirState(
@@ -266,4 +266,4 @@ def air_state(t: float, y: np.ndarray, p) -> AirState:
     lookup/interpolation per quantity and to keep them thermodynamically
     consistent (architecture.md SS14).
     """
-    return _MODELS[p.atmosphere_model](t, y, p)
+    return _MODELS[p.atmosphere.model](t, y, p)

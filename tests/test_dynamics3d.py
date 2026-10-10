@@ -27,7 +27,7 @@ from sim.state3d import OMEGA, Q, R, V
 # `l2`, so `theta`/`omega` are *exact* constants in the 2D solution too
 # (not merely held fixed by the 3D code) -- the two sides integrate the
 # same physics, not an approximation of it.
-_P = Params(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
+_P = Params.flat(m=0.5, I=0.05, l1=0.3, l2=0.4, motor_curve="placeholder.csv", A_x=0.5, A_z=0.0, A_m=0.0)
 _THETA0 = math.radians(45.0)  # non-vertical, so both x and z actually move
 _VX0, _VZ0 = 10.0, -5.0       # nonzero initial velocity, both components
 
