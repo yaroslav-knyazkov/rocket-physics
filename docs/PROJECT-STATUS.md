@@ -80,7 +80,13 @@ rounds; `output/trajectory.csv` byte-identical; a from-scratch AST-based scan (n
 confirms zero residual bare flat-attribute reads outside `sim/`. Two sanctioned stdout text changes
 (not numbers): `run.py`'s sweep-table headers now read `gravity.model`/`atmosphere.model`.
 
-**Next:** dispatch S52 to developer (delete the transitional `Params.flat` shim).
+**S52 done (commit `6d14b7a`), independently re-verified by the orchestrator.** Deleted
+`Params.flat`/`_FLAT_TO_GROUP`/the ~50 flat `@property` aliases — `Params` is a plain
+auto-generated-`__init__` dataclass again. Proof the S50/S51 migration was complete: zero test edits
+needed, and `run.py`'s entire stdout came back byte-identical (not just `trajectory.csv`/the repr
+line as at S50→S51 — this time nothing at all differs, since this step changes neither). 245/245.
+
+**Next:** dispatch S53 to developer (`Solver` group wired into `run_sim(p, s0)`, no more kwargs).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
