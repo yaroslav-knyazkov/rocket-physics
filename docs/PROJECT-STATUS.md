@@ -123,7 +123,16 @@ descent, not ascent. A pre-existing scenario-design simplification, only consequ
 drag is real. Explicitly out of S55's scope to fix (would mean changing the scenario's own physics) —
 worth the user's attention separately from this rewrite.
 
-**Next:** dispatch S56 to developer (collapse 3×`flow_state` per RHS call down to 1×).
+**S56 done (commit `2720c82`), independently re-verified by the orchestrator.** `dynamics.derivatives`
+now computes `flow_state` once per RHS call and threads it into `aero_force_body`/`aero_moment_y`
+(both gain a required `flow` parameter); `forces3d.py`'s 2D-compat adapter updated to match
+(mechanical only, no new 3D physics). Strictly bit-for-bit: `flow_state` confirmed genuinely pure
+(Dryden turbulence's RNG draw is cached per seed, consumed once for the process's lifetime).
+~44% faster per RHS evaluation measured (83.55µs→47.01µs); the full suite itself ran ~198s vs ~320s
+for the same 247 tests as a side effect. `trajectory.csv`/stdout byte-identical (zero diff).
+
+**Next:** dispatch S57 to developer (control-coefficient seam — structure only, identity by default,
+no controller written).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
