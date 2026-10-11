@@ -332,24 +332,31 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     )
 
 
-def run_sim(
-    p,
-    s0: State,
-    t_max: float = 300.0,
-    method: str = "RK45",
-    rtol: float = 1e-8,
-    atol: float = 1e-10,
-    dt: float = 0.001,
-) -> Result:
+def run_sim(p, s0: State) -> Result:
     """Integrate the equations of motion from `s0` until ground impact or
-    `t_max`, whichever comes first.
+    `p.solver.t_max`, whichever comes first.
 
-    `method="rk4"` routes to the hand-written fixed-step integrator
-    (`_run_rk4`) instead of `scipy.integrate.solve_ivp`; `dt` is only used
-    in that path and ignored otherwise (roadmap.md Step 8). Every other
-    `method` value (the default `"RK45"`, or any other scipy method name)
-    is unchanged from before Step 8.
+    Step 53 (architecture.md SS28.7, decision D-10): strict `run_sim(p, s0)`
+    signature, no solver override kwargs. All solver settings are read from
+    `p.solver` (`sim/params.py`'s `Solver` group) so that `Result.params` is
+    always the true record of what produced the run -- a `Result` can no
+    longer carry `solver.method == "RK45"` while having actually been
+    integrated with `rk4`. Callers that want non-default solver settings
+    build the `Params` first, e.g. `params.with_solver(p, method="rk4",
+    dt=1e-3)`, then call `run_sim(p, s0)`.
+
+    `p.solver.method == "rk4"` routes to the hand-written fixed-step
+    integrator (`_run_rk4`) instead of `scipy.integrate.solve_ivp`;
+    `p.solver.dt` is only used in that path and ignored otherwise
+    (roadmap.md Step 8). Every other `method` value (the default `"RK45"`,
+    or any other scipy method name) is unchanged from before Step 8.
     """
+    method = p.solver.method
+    t_max = p.solver.t_max
+    rtol = p.solver.rtol
+    atol = p.solver.atol
+    dt = p.solver.dt
+
     if method == "rk4":
         return _run_rk4(p, s0, t_max, dt)
 

@@ -15,7 +15,7 @@ from sim import aero
 from sim.dynamics import derivatives
 from sim.flow import flow_state
 from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
+from sim.params import Aero, Lengths, Params, Thrust, Weight, with_solver
 from sim.state import OMEGA, State
 
 
@@ -318,7 +318,7 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     V0 = 60.0
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=-V0, theta=theta0, omega=0.0)
 
-    r = run_sim(p, s0, t_max=4.5, method="RK45")
+    r = run_sim(with_solver(p, t_max=4.5), s0)
     assert r.events["apogee"] is None  # confirms t_max=4.5 stays pre-apogee
 
     sample_times = [0.0, 0.8, 1.6, 2.4, 3.2, 4.0]

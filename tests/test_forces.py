@@ -17,7 +17,7 @@ from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
 from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
+from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight, with_solver
 from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State
 
 
@@ -177,7 +177,7 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=-V0, theta=theta0, omega=0.0)
 
     # --- Corrected sign: run the real dynamics via run_sim -----------
-    r = run_sim(p, s0, t_max=5.0, method="RK45")
+    r = run_sim(with_solver(p, t_max=5.0), s0)
     assert r.events["apogee"] is None  # confirms t_max=5.0 stays pre-apogee
 
     sample_times = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]

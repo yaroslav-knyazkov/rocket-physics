@@ -131,7 +131,7 @@ def test_proportional_airbrake_lowers_apogee_and_saturates_during_coast():
     s0 = _launch_state()
 
     p_none = _launch_params(airbrake_model="none")
-    r_none = run_sim(p_none, s0, method="RK45")
+    r_none = run_sim(p_none, s0)
     apogee_t_none = r_none.events["apogee"]
     assert apogee_t_none is not None
     alt_none = -r_none.raw.sol(apogee_t_none)[Z]
@@ -141,7 +141,7 @@ def test_proportional_airbrake_lowers_apogee_and_saturates_during_coast():
         airbrake_target_apogee_m=alt_none - 1000.0,  # well below the unconstrained apogee
         airbrake_Cd=1.0, airbrake_S_max=0.05,
     )
-    r_brake = run_sim(p_brake, s0, method="RK45")
+    r_brake = run_sim(p_brake, s0)
     apogee_t_brake = r_brake.events["apogee"]
     burnout_t_brake = r_brake.events["burnout"]
     assert apogee_t_brake is not None and burnout_t_brake is not None
@@ -169,7 +169,7 @@ def test_airbrake_deploy_fraction_is_zero_outside_the_activation_window():
         airbrake_target_apogee_m=0.0,  # guarantees a positive error whenever active
         airbrake_Cd=1.0, airbrake_S_max=0.05,
     )
-    r = run_sim(p_brake, s0, method="RK45")
+    r = run_sim(p_brake, s0)
     burnout_t = r.events["burnout"]
     apogee_t = r.events["apogee"]
     ground_t = r.events["ground"]
@@ -200,7 +200,7 @@ def test_proportional_airbrake_takes_intermediate_values_for_a_modest_gain():
         airbrake_target_apogee_m=4400.0,  # close to, but below, the ~4609 m unconstrained apogee
         airbrake_Cd=1.0, airbrake_S_max=0.05,
     )
-    r = run_sim(p, s0, method="RK45")
+    r = run_sim(p, s0)
     burnout_t = r.events["burnout"]
     apogee_t = r.events["apogee"]
     assert burnout_t is not None and apogee_t is not None

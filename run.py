@@ -71,7 +71,7 @@ def _flight_summary(result, p) -> dict:
     )
 
 
-def sweep(base_params: Params, field: str, values, s0: State, **run_kwargs) -> dict:
+def sweep(base_params: Params, field: str, values, s0: State) -> dict:
     """Model comparison sweep (architecture.md SS12, roadmap.md Step 27 --
     "the payoff for the selection pattern"): run `run_sim` once per `value`
     of `field`, varying only that one field on `base_params` via
@@ -92,7 +92,7 @@ def sweep(base_params: Params, field: str, values, s0: State, **run_kwargs) -> d
     out = {}
     for value in values:
         p = params_replace(base_params, {field: value})
-        result = run_sim(p, s0, **run_kwargs)
+        result = run_sim(p, s0)
         out[value] = dict(result=result, params=p, **_flight_summary(result, p))
     return out
 

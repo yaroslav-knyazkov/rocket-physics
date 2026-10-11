@@ -14,7 +14,7 @@ from scipy.integrate import solve_ivp
 from sim.dynamics import derivatives
 from sim.dynamics3d import derivatives_3d
 from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
+from sim.params import Aero, Lengths, Params, Thrust, Weight, with_solver
 from sim.quaternion import from_euler
 from sim.state import State
 from sim.state3d import OMEGA, Q, R, V
@@ -49,7 +49,7 @@ def test_planar_3d_matches_phase1_2d_trajectory():
     # artifact, not a dynamics discrepancy -- the pointwise RHS cross-check
     # below confirms the two derivative functions agree to machine
     # precision at matching states).
-    result_2d = run_sim(_P, s0_2d, method="RK45", rtol=1e-11, atol=1e-13)
+    result_2d = run_sim(with_solver(_P, rtol=1e-11, atol=1e-13), s0_2d)
     t_ground = result_2d.events["ground"]
     assert t_ground is not None
 
@@ -103,7 +103,7 @@ def test_derivatives_3d_cross_checks_derivatives_2d_pointwise():
     independent of the dense-output integration above -- a direct,
     single-call-per-sample check of the RHS itself."""
     s0_2d = State(x=0.0, z=0.0, vx=_VX0, vz=_VZ0, theta=_THETA0, omega=0.0)
-    result_2d = run_sim(_P, s0_2d, method="RK45")
+    result_2d = run_sim(_P, s0_2d)
     t_ground = result_2d.events["ground"]
     assert t_ground is not None
 

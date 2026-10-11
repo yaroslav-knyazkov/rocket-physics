@@ -15,7 +15,7 @@ import pytest
 import sim.flow as flow_mod
 from sim.flow import flow_state
 from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Site, Soundings, Thrust, Weight, Wind
+from sim.params import Aero, Gravity, Lengths, Params, Site, Soundings, Thrust, Weight, Wind, with_solver
 from sim.params import replace as params_replace
 from sim.soundings import load_case
 from sim.state import State, VX, X, Z
@@ -63,12 +63,12 @@ def test_none_model_full_trajectory_matches_pre_wind_stub_bit_for_bit():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    r_new = run_sim(p, s0, t_max=30.0)
+    r_new = run_sim(with_solver(p, t_max=30.0), s0)
 
     original = flow_mod._wind_inertial
     flow_mod._wind_inertial = lambda t, y, p: np.zeros(2)
     try:
-        r_old = run_sim(p, s0, t_max=30.0)
+        r_old = run_sim(with_solver(p, t_max=30.0), s0)
     finally:
         flow_mod._wind_inertial = original
 
@@ -213,9 +213,9 @@ def test_headwind_and_tailwind_bracket_the_still_air_apogee():
         wind=Wind(model="analytic", dir_deg=180.0, ref_ms=W, ref_h_m=1.0),
     )
 
-    r_none = run_sim(p_none, s0, t_max=60.0)
-    r_head = run_sim(p_head, s0, t_max=60.0)
-    r_tail = run_sim(p_tail, s0, t_max=60.0)
+    r_none = run_sim(with_solver(p_none, t_max=60.0), s0)
+    r_head = run_sim(with_solver(p_head, t_max=60.0), s0)
+    r_tail = run_sim(with_solver(p_tail, t_max=60.0), s0)
 
     h_none = -r_none.raw.sol(r_none.events["apogee"])[Z]
     h_head = -r_head.raw.sol(r_head.events["apogee"])[Z]

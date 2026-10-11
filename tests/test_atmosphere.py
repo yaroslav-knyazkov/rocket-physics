@@ -24,7 +24,7 @@ from sim.atmosphere import (
 )
 from sim.gravity import altitude_msl
 from sim.integrate import run_sim
-from sim.params import Aero, Atmosphere, Lengths, Params, Site, Soundings, Thrust, Weight
+from sim.params import Aero, Atmosphere, Lengths, Params, Site, Soundings, Thrust, Weight, with_solver
 from sim.params import replace as params_replace
 from sim.soundings import interp_altitude as soundings_interp_altitude
 from sim.soundings import load_case
@@ -361,8 +361,8 @@ def test_sounding_tier_trajectory_matches_isa_within_interpolation_error():
         )
         s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-        r_isa = run_sim(p_isa, s0, t_max=120.0)
-        r_snd = run_sim(p_snd, s0, t_max=120.0)
+        r_isa = run_sim(with_solver(p_isa, t_max=120.0), s0)
+        r_snd = run_sim(with_solver(p_snd, t_max=120.0), s0)
 
         t_apogee_isa = r_isa.events["apogee"]
         t_apogee_snd = r_snd.events["apogee"]
@@ -469,8 +469,8 @@ def test_sounding_real_example_trajectory_apogee_shifts_higher_than_isa():
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
     load_case.cache_clear()
-    r_isa = run_sim(p_isa, s0, t_max=120.0)
-    r_snd = run_sim(p_snd, s0, t_max=120.0)
+    r_isa = run_sim(with_solver(p_isa, t_max=120.0), s0)
+    r_snd = run_sim(with_solver(p_snd, t_max=120.0), s0)
 
     h_apogee_isa = -r_isa.raw.sol(r_isa.events["apogee"])[Z]
     h_apogee_snd = -r_snd.raw.sol(r_snd.events["apogee"])[Z]

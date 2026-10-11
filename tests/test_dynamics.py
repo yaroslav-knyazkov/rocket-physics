@@ -29,7 +29,7 @@ from sim.atmosphere import air_state
 from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives, on_rail, rail_distance
 from sim.flow import flow_state
 from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Recovery, Site, Thrust, Weight, Wind
+from sim.params import Aero, Gravity, Lengths, Params, Recovery, Site, Thrust, Weight, Wind, with_solver
 from sim.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
 from sim.state import M, OMEGA, THETA, VX, VZ, State, X, Z
 
@@ -69,8 +69,8 @@ def test_rk4_agrees_with_rk45_on_apogee_and_impact():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    rk45 = run_sim(p, s0, method="RK45")
-    rk4 = run_sim(p, s0, method="rk4", dt=1e-4)
+    rk45 = run_sim(p, s0)
+    rk4 = run_sim(with_solver(p, method="rk4", dt=1e-4), s0)
 
     apogee_rk45 = rk45.events["apogee"]
     apogee_rk4 = rk4.events["apogee"]
@@ -140,7 +140,7 @@ def test_mass_reaches_dry_mass_at_burnout():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0, m=_M0)
 
-    result = run_sim(p, s0, t_max=2.5)
+    result = run_sim(with_solver(p, t_max=2.5), s0)
 
     t_burnout = result.events["burnout"]
     assert t_burnout is not None
@@ -217,8 +217,8 @@ def test_real_cog_offset_changes_pitch_trajectory():
     p_shift = Params(weight=_weight(l_d=0.3, l_p=0.5), lengths=lengths, thrust=thrust, aero=aero)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0, m=_M0)
 
-    r_noshift = run_sim(p_noshift, s0, t_max=2.5)
-    r_shift = run_sim(p_shift, s0, t_max=2.5)
+    r_noshift = run_sim(with_solver(p_noshift, t_max=2.5), s0)
+    r_shift = run_sim(with_solver(p_shift, t_max=2.5), s0)
 
     theta_noshift = r_noshift.raw.sol(2.0)[THETA]
     theta_shift = r_shift.raw.sol(2.0)[THETA]
@@ -484,7 +484,7 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
     p_baseline = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.0), thrust=thrust, aero=aero,
     )
-    r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
+    r_baseline = run_sim(with_solver(p_baseline, t_max=1.0), s0)
     for t in sample_times:
         alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
         assert math.isclose(alpha, 0.0, abs_tol=1e-9)
@@ -493,7 +493,7 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
     p_pos = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.2), thrust=thrust, aero=aero,
     )
-    r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
+    r_pos = run_sim(with_solver(p_pos, t_max=1.0), s0)
     alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
     for a in alphas_pos:
         assert a > 0.0
@@ -503,7 +503,7 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
     p_neg = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=-0.2), thrust=thrust, aero=aero,
     )
-    r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
+    r_neg = run_sim(with_solver(p_neg, t_max=1.0), s0)
     alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
     for a in alphas_neg:
         assert a < 0.0
@@ -539,7 +539,7 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
     p_baseline = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0, u_C=0.0), thrust=thrust, aero=aero,
     )
-    r_baseline = run_sim(p_baseline, s0, t_max=1.0, method="RK45")
+    r_baseline = run_sim(with_solver(p_baseline, t_max=1.0), s0)
     for t in sample_times:
         alpha = flow_state(t, r_baseline.raw.sol(t), p_baseline).alpha
         assert math.isclose(alpha, 0.0, abs_tol=1e-9)
@@ -548,7 +548,7 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
     p_pos = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.001, u_C=0.0), thrust=thrust, aero=aero,
     )
-    r_pos = run_sim(p_pos, s0, t_max=1.0, method="RK45")
+    r_pos = run_sim(with_solver(p_pos, t_max=1.0), s0)
     alphas_pos = [flow_state(t, r_pos.raw.sol(t), p_pos).alpha for t in sample_times]
     for a in alphas_pos:
         assert a != 0.0
@@ -558,7 +558,7 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
     p_neg = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=-0.001, u_C=0.0), thrust=thrust, aero=aero,
     )
-    r_neg = run_sim(p_neg, s0, t_max=1.0, method="RK45")
+    r_neg = run_sim(with_solver(p_neg, t_max=1.0), s0)
     alphas_neg = [flow_state(t, r_neg.raw.sol(t), p_neg).alpha for t in sample_times]
 
     for a_pos, a_neg in zip(alphas_pos, alphas_neg):
@@ -625,7 +625,7 @@ def test_pitch_damping_sign_convention_decays_undamped_grows():
     ratios = {}
     for label, c_mq in (("damped", 56.25), ("undamped", 0.0), ("anti_damped", -56.25)):
         p = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=c_mq, **aero_common))
-        r = run_sim(p, s0, t_max=t_max, method="RK45")
+        r = run_sim(with_solver(p, t_max=t_max), s0)
         assert r.events["apogee"] is None  # confirms t_max stays pre-apogee
 
         peaks = _envelope_peaks(r, p, t_max)
@@ -699,7 +699,7 @@ def test_rail_off_switch_reproduces_existing_scenario_bit_for_bit():
     assert p.site.L_rail == 0.0  # the dataclass default
 
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
-    r = run_sim(p, s0, method="RK45")
+    r = run_sim(p, s0)
 
     for t in np.linspace(0.0, r.t[-1], 50):
         assert not on_rail(r.raw.sol(t), p)
@@ -727,8 +727,8 @@ def test_rail_freezes_attitude_and_x_against_crosswind_vs_visible_drift_off_rail
     p_rail = _rail_wind_params(L_rail=5.0, rail_angle_deg=90.0)
     p_norail = _rail_wind_params(L_rail=0.0)
 
-    r_rail = run_sim(p_rail, s0, method="RK45", t_max=2.0)
-    r_norail = run_sim(p_norail, s0, method="RK45", t_max=2.0)
+    r_rail = run_sim(with_solver(p_rail, t_max=2.0), s0)
+    r_norail = run_sim(with_solver(p_norail, t_max=2.0), s0)
 
     t_exit = r_rail.events["rail_exit"]
     assert t_exit is not None
@@ -754,13 +754,13 @@ def test_rail_exit_event_fires_once_near_l_rail_both_integrators():
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     p = _rail_wind_params(L_rail=5.0, rail_angle_deg=90.0)
 
-    r_rk45 = run_sim(p, s0, method="RK45", t_max=2.0)
+    r_rk45 = run_sim(with_solver(p, t_max=2.0), s0)
     assert len(r_rk45.raw.t_events[3]) == 1  # events=[ground, apogee, burnout, rail_exit]
     t_exit_rk45 = r_rk45.events["rail_exit"]
     assert t_exit_rk45 is not None
     assert math.isclose(rail_distance(r_rk45.raw.sol(t_exit_rk45), p), p.site.L_rail, rel_tol=1e-6)
 
-    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-4, t_max=2.0)
+    r_rk4 = run_sim(with_solver(p, method="rk4", dt=1e-4, t_max=2.0), s0)
     t_exit_rk4 = r_rk4.events["rail_exit"]
     assert t_exit_rk4 is not None
     assert math.isclose(rail_distance(r_rk4.raw.sol(t_exit_rk4), p), p.site.L_rail, abs_tol=1e-2)
@@ -785,14 +785,14 @@ def test_tilted_rail_exit_attitude_matches_rail_angle_both_integrators():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.radians(rail_angle_deg), omega=0.0)
 
-    r_rk45 = run_sim(p, s0, method="RK45", t_max=2.0)
+    r_rk45 = run_sim(with_solver(p, t_max=2.0), s0)
     t_exit_rk45 = r_rk45.events["rail_exit"]
     assert t_exit_rk45 is not None
     y45 = r_rk45.raw.sol(t_exit_rk45)
     angle_rk45 = math.degrees(math.atan2(-y45[VZ], y45[VX]))
     assert math.isclose(angle_rk45, rail_angle_deg, abs_tol=1e-2)
 
-    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-4, t_max=2.0)
+    r_rk4 = run_sim(with_solver(p, method="rk4", dt=1e-4, t_max=2.0), s0)
     t_exit_rk4 = r_rk4.events["rail_exit"]
     assert t_exit_rk4 is not None
     y4 = r_rk4.raw.sol(t_exit_rk4)
@@ -830,7 +830,7 @@ def test_parachute_off_switch_reproduces_existing_scenario_bit_for_bit():
     assert p.recovery.S == 0.0         # the second, independent off switch
 
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
-    r = run_sim(p, s0, method="RK45")
+    r = run_sim(p, s0)
 
     for t in np.linspace(0.0, r.t[-1], 50):
         assert not forces.parachute_deployed(t, r.raw.sol(t), p)
@@ -866,7 +866,7 @@ def test_parachute_descent_converges_to_terminal_velocity():
         recovery=Recovery(model="deploy", trigger="timer", deploy_time=0.0, Cd=Cd, S=S),
     )
     s0 = State(x=0.0, z=-500.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
-    r = run_sim(p, s0, method="RK45", t_max=20.0)
+    r = run_sim(with_solver(p, t_max=20.0), s0)
 
     t_sample = 6.0  # ~= 4 time constants (v_t/g ~= 1.53 s) -- tanh(3.92) > 0.999
     y = r.raw.sol(t_sample)
@@ -898,7 +898,7 @@ _PARACHUTE_FREEZE_DRIFT_PARAMS = Params(
 def _run_parachute_freeze_drift_scenario(t_max=15.0):
     s0 = State(x=0.0, z=-800.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     p = _PARACHUTE_FREEZE_DRIFT_PARAMS
-    r = run_sim(p, s0, method="RK45", t_max=t_max)
+    r = run_sim(with_solver(p, t_max=t_max), s0)
     t_dep = r.events["parachute_deploy"]
     assert t_dep is not None
     assert math.isclose(t_dep, p.recovery.deploy_time, abs_tol=1e-6)
@@ -969,13 +969,13 @@ def test_parachute_timer_trigger_deploys_independent_of_trajectory_apogee():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=-50.0, theta=math.pi / 2, omega=0.0)
 
-    r_rk45 = run_sim(p, s0, method="RK45", t_max=15.0)
+    r_rk45 = run_sim(with_solver(p, t_max=15.0), s0)
     assert r_rk45.events["parachute_deploy"] is not None
     assert math.isclose(r_rk45.events["parachute_deploy"], 2.0, abs_tol=1e-6)
     assert r_rk45.events["apogee"] is not None
     assert r_rk45.events["apogee"] > 2.0 + 1e-3  # distinctly after the timer deploy, not the same instant
 
-    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-3, t_max=15.0)
+    r_rk4 = run_sim(with_solver(p, method="rk4", dt=1e-3, t_max=15.0), s0)
     assert r_rk4.events["parachute_deploy"] is not None
     assert math.isclose(r_rk4.events["parachute_deploy"], 2.0, abs_tol=2e-3)
     assert r_rk4.events["apogee"] is not None

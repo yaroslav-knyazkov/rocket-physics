@@ -10,6 +10,7 @@ import numpy as np
 from sim.integrate import _apogee_event, run_sim
 from sim.params import (
     Aero, Atmosphere, Gravity, Lengths, Params, Site, Soundings, Thrust, Weight, Wind,
+    with_solver,
 )
 from sim.state import State
 
@@ -33,7 +34,7 @@ def test_rk45_burnout_event_detected():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    result = run_sim(p, s0, method="RK45")
+    result = run_sim(p, s0)
 
     t_burnout = result.events["burnout"]
     assert t_burnout is not None
@@ -52,7 +53,7 @@ def test_rk4_burnout_event_detected():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    result = run_sim(p, s0, method="rk4", dt=1e-3)
+    result = run_sim(with_solver(p, method="rk4", dt=1e-3), s0)
 
     t_burnout = result.events["burnout"]
     assert t_burnout is not None
@@ -71,8 +72,8 @@ def test_no_burnout_event_when_no_curve():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    rk45 = run_sim(p, s0, method="RK45", t_max=5.0)
-    rk4 = run_sim(p, s0, method="rk4", t_max=5.0, dt=1e-3)
+    rk45 = run_sim(with_solver(p, t_max=5.0), s0)
+    rk4 = run_sim(with_solver(p, method="rk4", t_max=5.0, dt=1e-3), s0)
 
     assert rk45.events["burnout"] is None
     assert rk4.events["burnout"] is None
@@ -93,11 +94,12 @@ def test_result_params_is_p_on_both_integrator_paths():
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    r_rk45 = run_sim(p, s0, method="RK45")
-    r_rk4 = run_sim(p, s0, method="rk4", dt=1e-3)
+    p_rk4 = with_solver(p, method="rk4", dt=1e-3)
+    r_rk45 = run_sim(p, s0)
+    r_rk4 = run_sim(p_rk4, s0)
 
     assert r_rk45.params is p
-    assert r_rk4.params is p
+    assert r_rk4.params is p_rk4
 
 
 def test_apogee_event_attributes_unchanged():
@@ -189,14 +191,14 @@ def test_tilted_run_bit_for_bit_under_parallel_both_integrators():
     bit-for-bit (`np.array_equal`), on both integrator paths."""
     p = _TILT_PARAMS
 
-    r_rk45 = run_sim(p, _TILT_S0, method="RK45")
+    r_rk45 = run_sim(p, _TILT_S0)
     pin = _TILT_PINNED["RK45"]
     assert np.array_equal(r_rk45.y[:, -1], np.array(pin["y_final"]))
     assert r_rk45.t[-1] == pin["t_final"]
     for key, val in pin["events"].items():
         assert r_rk45.events[key] == val
 
-    r_rk4 = run_sim(p, _TILT_S0, method="rk4", dt=1e-3)
+    r_rk4 = run_sim(with_solver(p, method="rk4", dt=1e-3), _TILT_S0)
     pin = _TILT_PINNED["rk4"]
     assert np.array_equal(r_rk4.y[:, -1], np.array(pin["y_final"]))
     assert r_rk4.t[-1] == pin["t_final"]
@@ -211,14 +213,14 @@ def test_tilted_sounding_run_bit_for_bit_under_parallel_both_integrators():
     sounding on the committed example case")."""
     p = _TILT_SOUNDING_PARAMS
 
-    r_rk45 = run_sim(p, _TILT_S0, method="RK45")
+    r_rk45 = run_sim(p, _TILT_S0)
     pin = _TILT_SOUNDING_PINNED["RK45"]
     assert np.array_equal(r_rk45.y[:, -1], np.array(pin["y_final"]))
     assert r_rk45.t[-1] == pin["t_final"]
     for key, val in pin["events"].items():
         assert r_rk45.events[key] == val
 
-    r_rk4 = run_sim(p, _TILT_S0, method="rk4", dt=1e-3)
+    r_rk4 = run_sim(with_solver(p, method="rk4", dt=1e-3), _TILT_S0)
     pin = _TILT_SOUNDING_PINNED["rk4"]
     assert np.array_equal(r_rk4.y[:, -1], np.array(pin["y_final"]))
     assert r_rk4.t[-1] == pin["t_final"]
