@@ -46,7 +46,9 @@
     ],
       {"step": 58, "name": "run.py -> sim/report.py", "commit": "78a7e55", "note": "run.py now scenario-definition only; sim/report.py gets flight_summary/sweep/print_sweep_table/print_run_summary/save_run_artifacts/save_sweep_artifacts + a run_sweep(...) convenience wrapper. plt.show() dropped (was a known hang risk since Step 45). Step 55's deliberate aero.model='linearized' atmosphere-sweep override preserved despite the spec's own stale suggestion otherwise. Verified independently: 249/249, trajectory.csv byte-identical, stdout differs only by the now-absent plt.show() warning lines."}
     ],
-    "next": "dispatch S59 to developer (sampled-data/zero-order-hold integration mode -- largest, riskiest step, unblocks B11/B12)"
+      {"step": 59, "name": "sampled-data/zero-order-hold integration mode -- unblocks B11/B12", "commit": "37f0b68", "note": "largest/riskiest step in the pass. _run_rk4 refactored (not copied) with a substep_in_tick counter triggering sim.sampling.sample(...) once per fixed-rate tick, hold constant across all 4 RK4 stages per substep. New sim/sampling.py (Hold NamedTuple + _CHANNELS dispatch registry). hold=None threaded through the full RHS chain, every pre-Step-59 call site unaffected. Gated by solver.sample_rate_hz>0.0 + requires method='rk4' (raises otherwise); non-integer T_s/dt raises. 11 new tests incl. the critical prev-threaded-once-per-tick proof. Measured ~74x slower than RK45 (ZOH overhead itself ~1%, rest is inherent fixed-step cost). Verified independently with unusual rigor given the risk: 260/260, bit-for-bit confirmed, core driver/sampling.py/control.py hold-consumption all read line-by-line against spec, the load-bearing prev-threading test read in full."}
+    ],
+    "next": "dispatch S60 to architect (tracker/roadmap/LaTeX close-out -- final step of Phase 2.11)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

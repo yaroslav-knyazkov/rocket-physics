@@ -148,8 +148,21 @@ convenience wrapper). `plt.show()` dropped (a known hang risk since Step 45). St
 architecture doc's own illustrative snippet suggesting otherwise. 249/249; `trajectory.csv`
 byte-identical; stdout differs only by the now-absent `plt.show()` warning lines.
 
-**Next:** dispatch S59 to developer (sampled-data/zero-order-hold integration mode — the largest,
-riskiest step in the pass, unblocking backlog B11/B12).
+**S59 done (commit `37f0b68`), independently re-verified by the orchestrator with extra scrutiny
+given its flagged risk level — the largest step in the pass.** `_run_rk4` refactored (not copied) to
+support an opt-in zero-order-hold mode: a `Hold` (new `sim/sampling.py`) is recomputed once per
+fixed-rate tick and held constant across all 4 RK4 stages of every substep inside that tick, keeping
+the RHS smooth within a tick. Gated by `p.solver.sample_rate_hz > 0.0` + requires `p.solver.method ==
+"rk4"` (raises otherwise); non-integer `T_s/dt` raises rather than silently rounding. `hold=None`
+threaded through the full RHS chain — every pre-Step-59 call site unaffected. No controller, no
+turbulence model written — just the capability B11/B12 were both blocked on. 11 new tests, including
+one proving `prev` is threaded exactly once per tick (not per substep/stage) — the single most
+load-bearing assertion in the step. Measured ~74× slower than RK45 (almost entirely inherent to
+fixed-step RK4, not the ZOH machinery itself, measured at ~1% overhead). 260/260; default
+(`sample_rate_hz=0.0`) confirmed bit-for-bit via git-stash round-trip; core driver logic, `sim/
+sampling.py`, and the hold-consumption code all read and checked directly against spec line-by-line.
+
+**Next:** dispatch S60 to architect (tracker/roadmap/LaTeX close-out — the final step of Phase 2.11).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
