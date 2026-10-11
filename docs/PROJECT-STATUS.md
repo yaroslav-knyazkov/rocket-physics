@@ -103,8 +103,27 @@ the architect's self-report): 57 labels/0 duplicates, 186 refs/48 targets/0 dang
 environment balance in all 4 files. No LaTeX toolchain here — structural check only; **compile
 locally before treating as final**, same standing caveat as every prior doc pass.
 
-**Next:** dispatch S55 to developer (the aero three-way dispatch itself — the one deliberately
-non-bit-for-bit step, now with a document to match instead of contradict).
+**S55 done (commit `8b8a343`), independently re-verified by the orchestrator — this is the actual bug
+fix the user asked for.** `sim/aero.py` gains `AeroCoeffs` + a `_AERO_MODELS` dispatch dict
+(`constant`/`linearized`/`table`); `"constant"` is finally `q`-scaled (`q·S·C_x` etc.) instead of
+being raw, atmosphere-independent Newtons; `"linearized"` is bit-for-bit the old `"coefficients"`;
+`forces.py`'s `if/elif` blocks are gone; `dynamics.py`'s F2 leak (table-driven CoP disagreeing with
+constant-driven force) is closed. **Deliberately non-bit-for-bit** (2nd time in this project's
+history, after Step 46): `run.py`'s scenario apogee drops from ~4.6 km to ~666.5 m, since `C_x=0.5`
+now produces real drag instead of an inert 0.5 N placeholder. The developer found and correctly
+re-pinned 4 more affected sites than the architect's original blast-radius estimate had counted
+(`test_control.py`'s airbrake fixture among them). 247/247 verified independently; `run.py`'s printed
+output matched exactly; the dispatch/bundle/closed-form re-derivation/`architecture.md` diff were all
+reviewed line-by-line against spec, not taken on trust.
+
+**Finding, flagged not hidden:** the committed scenario has `C_m=0.0` (no restoring moment), so
+`theta` stays frozen nose-up through a tail-first post-apogee descent — the (alpha-independent) axial
+drag now *accelerates* that fall instead of opposing it, giving a printed max speed (414.7 m/s) during
+descent, not ascent. A pre-existing scenario-design simplification, only consequential now that the
+drag is real. Explicitly out of S55's scope to fix (would mean changing the scenario's own physics) —
+worth the user's attention separately from this rewrite.
+
+**Next:** dispatch S56 to developer (collapse 3×`flow_state` per RHS call down to 1×).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
