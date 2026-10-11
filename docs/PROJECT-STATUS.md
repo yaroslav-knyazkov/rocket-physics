@@ -131,8 +131,17 @@ now computes `flow_state` once per RHS call and threads it into `aero_force_body
 ~44% faster per RHS evaluation measured (83.55µs→47.01µs); the full suite itself ran ~198s vs ~320s
 for the same 247 tests as a side effect. `trajectory.csv`/stdout byte-identical (zero diff).
 
-**Next:** dispatch S57 to developer (control-coefficient seam — structure only, identity by default,
-no controller written).
+**S57 done (commit `00d7219`), independently re-verified by the orchestrator.** `sim/control.py` gains
+`_AERO_COEFF_CONTROLLERS`/`aero_coeff_delta`; `sim/aero.py`'s `coefficients()` calls through as the
+single choke point (forces, moment, damping, and `dynamics.py`'s CoP arm all see one consistent,
+controlled coefficient set — the exact F2-leak shape Step 55 just closed stays closed). Only `"none"`
+(identity) is registered — no controller written. Circular import resolved via this codebase's own
+existing precedent (deferred import, same shape as `flow.py`/`forces.py`'s `sim.wind` cycle). Two new
+tests prove the default is genuinely `is`-identity and that a delta reaches all four consumers via
+closed-form checks. 249/249; `trajectory.csv`/stdout byte-identical (zero diff).
+
+**Next:** dispatch S58 to developer (`run.py` reduced to scenario definition only; summary/plot/CSV/
+sweep machinery moves to new `sim/report.py`).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,

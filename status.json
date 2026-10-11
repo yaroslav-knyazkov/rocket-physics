@@ -42,7 +42,9 @@
     ],
       {"step": 56, "name": "one flow_state per RHS call", "commit": "2720c82", "note": "dynamics.derivatives computes flow_state once, threads it into aero_force_body/aero_moment_y (now require a flow param); forces3d.py's 2D-compat adapter updated to match. Pure plumbing, strictly bit-for-bit -- flow_state confirmed genuinely pure (Dryden turbulence RNG is lru_cache'd per seed, consumed once per seed for process lifetime). ~44% faster per RHS call measured (83.55us->47.01us), full suite itself ~198s vs ~320s. Verified independently: 247/247, trajectory.csv+stdout byte-identical (zero diff)."}
     ],
-    "next": "dispatch S57 to developer (control-coefficient seam -- structure only, identity by default, no controller written)"
+      {"step": 57, "name": "control-coefficient seam (structure only, identity by default)", "commit": "00d7219", "note": "sim/control.py gains _AERO_COEFF_CONTROLLERS/aero_coeff_delta, sim/aero.py's coefficients() calls through as the single choke point; only 'none' (identity) registered, no controller written; circular import resolved via existing project precedent (deferred import, same as flow.py/forces.py's sim.wind cycle). 2 new tests prove is-identity default and that a delta reaches all 4 consumers (force/moment/damping/CoP arm). One session-limit interruption during verification, resumed with no work lost. Verified independently: 249/249, trajectory.csv+stdout byte-identical (zero diff)."}
+    ],
+    "next": "dispatch S58 to developer (run.py reduced to scenario definition only, summary/plot/CSV/sweep machinery moved to new sim/report.py)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
