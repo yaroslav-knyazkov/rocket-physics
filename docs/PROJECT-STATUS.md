@@ -93,8 +93,18 @@ strictly `run_sim(p, s0)` — all 67 call sites migrated (28 mechanical, 39 via 
 instead of a now-meaningless one. 245/245; `run.py`'s stdout and `trajectory.csv` came back
 completely byte-identical (zero diff), same as Step 52 — this step changes no physics.
 
-**Next:** dispatch S54 to architect (LaTeX notation pass — three aero models, `C_x`/`C_z`/`C_m`,
-shared `S`/`d_ref` — must land before S55's aero rewrite).
+**S54 done (commit `3373b06`), independently re-verified by the orchestrator, doc-only.**
+`models.tex` restated around `Constant`/`Linearized`/`Table` as three equally-first-class models;
+`Constant` now explicitly documented as `q`-scaled ("reads the atmosphere exactly as the other two
+do"); `C_x≡C_A`/`C_z≡C_N` bridge added; `c_mq` documented as applying under all three. Two collateral
+corrections flagged and made (`analysis.tex`'s `c_mq` paragraph, `main.tex`'s CFD-pipeline bullet).
+Verified independently with a from-scratch label/cross-reference/brace/environment script (not just
+the architect's self-report): 57 labels/0 duplicates, 186 refs/48 targets/0 dangling, clean brace and
+environment balance in all 4 files. No LaTeX toolchain here — structural check only; **compile
+locally before treating as final**, same standing caveat as every prior doc pass.
+
+**Next:** dispatch S55 to developer (the aero three-way dispatch itself — the one deliberately
+non-bit-for-bit step, now with a document to match instead of contradict).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,

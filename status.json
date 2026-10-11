@@ -36,7 +36,9 @@
     ],
       {"step": 53, "name": "Solver group wired into run_sim(p, s0), no more kwargs", "commit": "b1f6c2e", "note": "strict run_sim(p,s0) per D-10; all 67 call sites migrated (28 mechanical, 39 via params.with_solver(...)); corrected test_result_params_is_p_on_both_integrator_paths to assert against p_rk4 not stale p, exercising D-10's actual guarantee; run.py sweep()'s dead **run_kwargs removed. Verified independently: 245/245, run.py stdout+trajectory.csv byte-identical (zero diff)."}
     ],
-    "next": "dispatch S54 to architect (LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared S/d_ref -- must land before S55)"
+      {"step": 54, "name": "LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared S/d_ref (doc-only)", "commit": "3373b06", "note": "models.tex restated around Constant/Linearized/Table as three equally-first-class models; Constant now explicitly documented as q-scaled (reads the atmosphere like the other two); C_x=C_A/C_z=C_N bridge added; c_mq documented as applying under all three models; two collateral corrections flagged and made (analysis.tex's c_mq paragraph, main.tex's CFD-pipeline bullet). Verified independently: exactly 4 docs/latex files touched, 57 labels/0 duplicates, 186 refs/48 targets/0 dangling, brace+environment balance clean (from-scratch script, not just self-report). No LaTeX toolchain here -- structural check only, compile locally before final."}
+    ],
+    "next": "dispatch S55 to developer (aero three-way dispatch -- the one deliberately non-bit-for-bit step)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
