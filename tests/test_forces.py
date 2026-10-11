@@ -57,18 +57,42 @@ def test_moment_matches_closed_form_minus_l1_Az_minus_Am():
     = -(a_x*b_z - a_z*b_x) = -((-l1)*(-A_z) - 0*(-A_x)) = -l1*A_z`. Adding
     `aero_moment_y = -A_m` (main.tex SSMoments) gives the expected total
     `M_y = -l1*A_z - A_m`.
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4) -- re-pinned, the pass's
+    one deliberately non-bit-for-bit change: `"constant"`'s `C_x`/`C_z`/
+    `C_m` are true coefficients now, not raw Newton/Newton-metre
+    placeholders, so `A_z = q*S*C_z` and `A_m = q*S*d_ref*C_m` -- the
+    closed form above still holds, just with every aero magnitude
+    multiplied through by `q*S` (and, for the moment, `d_ref`) first.
+    `flow_state` is still a deterministic pure function of `(t, s, p)`, so
+    this stays an *exact* closed-form check, not an approximate one -- `q`
+    is read from `flow_state` directly rather than hand-reproducing the
+    ISA formula, since what this test exercises is the coefficient-times-
+    q-times-S wiring and the `_cross_y` sign, not the atmosphere model
+    itself (covered on its own in tests/test_atmosphere.py).
+
+    The state below also needs a nonzero relative airspeed now (`vz =
+    -50.0`, new at this step) -- at rest (`V = 0`), `q = 0` and every
+    aero term collapses to exactly `0.0` regardless of `C_x`/`C_z`/`C_m`,
+    which would no longer exercise this closed form at all (the old,
+    pre-Step-55 version of this test could sit at `V = 0` precisely
+    because `A_x`/`A_z`/`A_m` were raw, unscaled constants back then).
     """
+    S, d_ref = 0.005, 0.08
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(C_x=1.23, C_z=2.0, C_m=0.5),
+        aero=Aero(S=S, d_ref=d_ref, C_x=1.23, C_z=2.0, C_m=0.5),
     )
-    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=0.7, omega=1.5)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=-50.0, theta=0.7, omega=1.5)
     y = np.array(s)
 
     dydt = derivatives(10.0, y, p)  # t > T_BURN, thrust is zero
 
-    expected_M_y = -p.lengths.l1 * p.aero.C_z - p.aero.C_m
+    q = flow_state(10.0, y, p).q
+    A_z = q * S * p.aero.C_z
+    A_m = q * S * d_ref * p.aero.C_m
+    expected_M_y = -p.lengths.l1 * A_z - A_m
     assert math.isclose(dydt[OMEGA] * p.weight.I, expected_M_y, rel_tol=1e-12, abs_tol=1e-12)
 
 
@@ -126,7 +150,7 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     dynamics rather than re-deriving algebra: a rocket launched with a
     small initial angle of attack (a wind-gust- or off-axis-launch-like
     perturbation: `theta0` offset from the velocity direction by 0.15 rad,
-    ~8.6 deg) with `aero_model="coefficients"`, a positive `C_N_alpha`, and
+    ~8.6 deg) with `aero_model="linearized"`, a positive `C_N_alpha`, and
     `l1 > 0` should show a *restoring* (weathercocking) pitching moment
     with the corrected sign, and a *destabilizing* one with the old sign.
 
@@ -169,7 +193,7 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0),
     )
     alpha0 = -0.15
     theta0 = math.pi / 2 + alpha0  # vz-only launch: alpha = theta - pi/2 exactly
@@ -453,13 +477,13 @@ def test_moment_shift_is_independent_of_angle_of_attack():
     static-stability result": `delta` is a constant, so
     `d(M_delta)/d(alpha) == 0` -- the moment shift from a fixed `delta`
     must be *identical* at two states with different angles of attack
-    (same thrust magnitude, `aero_model="coefficients"` so `alpha` really
+    (same thrust magnitude, `aero_model="linearized"` so `alpha` really
     does drive a nonzero, alpha-dependent aero moment/force on top of it),
     not merely "nonzero at both".
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     p_aligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.0), thrust=thrust, aero=aero)
     p_misaligned = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=3.0), thrust=thrust, aero=aero)
     t = 1.0
@@ -499,13 +523,20 @@ def test_lateral_offsets_default_reproduce_derivatives_bit_for_bit():
     """`u_B = u_C = 0.0` (the default) -- the on/off gate for Step 43 --
     must give bit-for-bit identical `derivatives()` output to a Params
     without the fields set at all, at several states, with a table-driven
-    CoP (`aero_table`) and with `thrust_misalign_deg != 0` both exercised
+    CoP (`aero.table`) and with `thrust_misalign_deg != 0` both exercised
     (the two other lateral-geometry-adjacent seams), per architecture.md
     SS24.3's "Checks for the step".
+
+    Step 55 (architecture-28-rewrite.md SS28.5, F2): `model` must actually
+    switch to `"table"` for the table-configured cases below -- under the
+    pre-Step-55 leak, setting `p.aero.table` alone drove the table lookup
+    regardless of `model`, but that leak is exactly what this step closes,
+    so leaving `model="linearized"` here would silently stop exercising
+    the table-driven-CoP case this test's own docstring claims to cover.
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_common = dict(S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     states = [
         State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0),
         State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05),
@@ -518,7 +549,8 @@ def test_lateral_offsets_default_reproduce_derivatives_bit_for_bit():
         ("", 3.0),
         ("example.csv", 3.0),
     ):
-        aero = Aero(table=table, **aero_common)
+        model = "table" if table else "linearized"
+        aero = Aero(model=model, table=table, **aero_common)
         p_implicit = Params(
             weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=misalign_deg),
             thrust=thrust, aero=aero,
@@ -542,7 +574,7 @@ def test_lateral_offsets_shift_moment_by_closed_form():
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero_group = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_group = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=0.3)
     p_zero = Params(
         weight=weight, lengths=Lengths(l1=0.3, l2=0.4, misalign_deg=0.2, u_B=0.0, u_C=0.0),
         thrust=thrust, aero=aero_group,
@@ -604,14 +636,23 @@ def test_lateral_offset_equal_ub_uc_zeroes_thrust_term_but_not_aero_term():
     *difference* matters for thrust) while the `-u_B*A_x` term is not --
     the sharpest available test that the two fields are not conflated
     (architecture.md SS24.3).
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4): "constant"'s `C_x` is
+    now `q`-scaled, so a nonzero relative airspeed (`vz = -50.0`) and
+    `S`/`d_ref` are needed for the aero term to be nonzero at all -- the
+    pre-Step-55 version of this test could sit at rest precisely because
+    `A_x` was a raw, unscaled constant back then. `theta = pi/2` with a
+    purely vertical velocity keeps `alpha = 0` exactly, so `C_x` (the only
+    nonzero coefficient here) is unaffected by the added velocity.
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    A_x = 0.5
-    aero = Aero(C_x=A_x, C_z=0.0, C_m=0.0)
+    C_x = 0.5
+    S, d_ref = 0.005, 0.08
+    aero = Aero(S=S, d_ref=d_ref, C_x=C_x, C_z=0.0, C_m=0.0)
     p_zero_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0, u_C=0.0), thrust=thrust, aero=aero)
     p_equal_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.002, u_C=0.002), thrust=thrust, aero=aero)
-    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=-50.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
     t = 0.5  # mid-burn -- T > 0
 
@@ -621,31 +662,44 @@ def test_lateral_offset_equal_ub_uc_zeroes_thrust_term_but_not_aero_term():
     My_zero = derivatives(t, y, p_zero_offset)[OMEGA] * p_zero_offset.weight.I
     My_equal = derivatives(t, y, p_equal_offset)[OMEGA] * p_equal_offset.weight.I
 
+    q = flow_state(t, y, p_zero_offset).q
+    A_x = q * S * C_x
     # Thrust term unaffected (u_B - u_C == 0): only the -u_B*A_x term shifts.
     expected_shift = -p_equal_offset.lengths.u_B * A_x
-    assert math.isclose(My_equal - My_zero, expected_shift, rel_tol=1e-12)
+    assert math.isclose(My_equal - My_zero, expected_shift, rel_tol=1e-9)
     assert not math.isclose(expected_shift, 0.0, abs_tol=1e-15)
 
 
 def test_lateral_offset_at_alpha_zero_no_thrust_moment_is_exactly_minus_uB_Ax():
     """At `alpha = 0`, `T = 0`: `M_y == -u_B*A_x` exactly, the only
     surviving term of eq:moment_full (architecture.md SS24.3).
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4): `A_x = q*S*C_x` now, so
+    `S`/`d_ref` and a nonzero relative airspeed are required (at `V = 0`,
+    `A_x` would be exactly `0.0` regardless of `C_x`, and this check would
+    no longer exercise anything). `theta = pi/2` with a purely vertical
+    velocity (`vz = -60.0`) keeps `alpha = 0` exactly, as required.
     """
+    S, d_ref = 0.005, 0.08
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0015, u_C=0.003),
         thrust=Thrust(motor_curve="placeholder.csv"),
-        aero=Aero(C_x=0.75, C_z=0.0, C_m=0.0),
+        aero=Aero(S=S, d_ref=d_ref, C_x=0.75, C_z=0.0, C_m=0.0),
     )
-    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=-60.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
     t = 10.0  # past burnout -- T == 0
 
     T = thrust_curve.thrust(t, y, p)
     assert T == 0.0
 
+    flow = flow_state(t, y, p)
+    assert math.isclose(flow.alpha, 0.0, abs_tol=1e-9)  # sanity: alpha really is 0
+    A_x = flow.q * S * p.aero.C_x
+
     M_y = derivatives(t, y, p)[OMEGA] * p.weight.I
-    assert math.isclose(M_y, -p.lengths.u_B * p.aero.C_x, rel_tol=1e-12, abs_tol=1e-15)
+    assert math.isclose(M_y, -p.lengths.u_B * A_x, rel_tol=1e-12, abs_tol=1e-15)
 
 
 def test_lateral_offsets_do_not_affect_translation_only_rotation():
@@ -653,15 +707,25 @@ def test_lateral_offsets_do_not_affect_translation_only_rotation():
     `u_B`/`u_C` are moment arms only -- `dvx/dt`, `dvz/dt`, `dm/dt` are
     identical with and without the offsets at the same state, only
     `dydt[OMEGA]` differs.
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4): `t = 0.0` used to work
+    because thrust was irrelevant (`A_x` alone, a raw constant, already
+    made the moment shift nonzero via `u_B`) -- now `A_x = q*S*C_x` needs
+    a nonzero relative airspeed, so `t = 0.5` (mid-burn, `T > 0`) and
+    `S`/`d_ref` are added; a nonzero `vz` also exercises the `u_C` thrust
+    term the docstring's claim ("moment arms only") is really about.
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero = Aero(C_x=0.5, C_z=0.3, C_m=0.1)
+    aero = Aero(S=0.005, d_ref=0.08, C_x=0.5, C_z=0.3, C_m=0.1)
     p_zero = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.0, u_C=0.0), thrust=thrust, aero=aero)
     p_offset = Params(weight=weight, lengths=Lengths(l1=0.3, l2=0.4, u_B=0.002, u_C=-0.001), thrust=thrust, aero=aero)
-    s = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    s = State(x=0.0, z=0.0, vx=0.0, vz=-50.0, theta=math.pi / 2, omega=0.0)
     y = np.array(s)
-    t = 0.0
+    t = 0.5
+
+    T = thrust_curve.thrust(t, y, p_zero)
+    assert T > 0.0  # otherwise the thrust (u_C) term would not be exercised
 
     dydt_zero = derivatives(t, y, p_zero)
     dydt_offset = derivatives(t, y, p_offset)
@@ -675,7 +739,9 @@ def test_lateral_offsets_do_not_affect_translation_only_rotation():
 # ---------------------------------------------------------------------
 # Step 44: pitch-damping c_mq scaffold (architecture.md SS24.4;
 # analysis.tex sec:analysis_dynamic). Division-free q_hat*c_mq term,
-# added to A_m inside aero_moment_y's "coefficients" regime only.
+# added to A_m. Step 55 (architecture-28-rewrite.md SS28.5.3) extends
+# this from the old "coefficients" (now "linearized") regime only to all
+# three aero models.
 # ---------------------------------------------------------------------
 
 
@@ -686,7 +752,7 @@ def test_pitch_damping_default_is_exactly_zero_shift():
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=0.0),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=0.0),
     )
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
     y = np.array(s)
@@ -694,7 +760,7 @@ def test_pitch_damping_default_is_exactly_zero_shift():
     p_no_damping_field = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3),
     )
 
     assert aero_moment_y(0.5, y, p) == aero_moment_y(0.5, y, p_no_damping_field)
@@ -710,7 +776,7 @@ def test_pitch_damping_shifts_A_m_by_closed_form():
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_common = dict(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
     p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
@@ -731,7 +797,7 @@ def test_pitch_damping_shift_is_exactly_zero_at_omega_zero_and_at_V_zero():
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_common = dict(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
     p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
 
@@ -753,7 +819,7 @@ def test_pitch_damping_no_nan_at_denormal_V():
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=56.25),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3, c_mq=56.25),
     )
     s = State(x=0.0, z=0.0, vx=1e-300, vz=0.0, theta=math.pi / 2, omega=0.3)
     y = np.array(s)
@@ -772,7 +838,7 @@ def test_pitch_damping_shift_is_linear_and_odd_in_omega():
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_common = dict(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
     p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     t = 0.5
@@ -797,7 +863,7 @@ def test_pitch_damping_shift_is_independent_of_alpha():
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
+    aero_common = dict(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3)
     p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
     p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     t = 0.5
@@ -818,18 +884,41 @@ def test_pitch_damping_shift_is_independent_of_alpha():
         assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
 
 
-def test_pitch_damping_constant_regime_untouched():
-    """`aero_model="constant"` has no `q`/`V`/`rho` in it by definition
-    (main.tex SSMoments Phase 1 form) -- `c_mq`/`C_mq` are not consulted
-    there, so a nonzero `c_mq` changes nothing (architecture.md SS24.4).
+def test_pitch_damping_now_applies_under_constant_regime_too():
+    """Step 55 (architecture-28-rewrite.md SS28.5.3, decision D-8)
+    supersedes the pre-Step-55 claim this test used to make ("constant"
+    has no `q`/`V`/`rho` in it, so `c_mq` changes nothing there): pitch
+    damping is a property of the airframe, not of how the static
+    coefficients happen to be supplied, so it now applies identically
+    under all three models, "constant" included. `"constant"`'s own
+    `C_x`/`C_z`/`C_m` are now true, `q`-scaled coefficients (this step's
+    actual bug fix -- sim/aero.py's module docstring), so `q`/`V`/`rho`
+    are very much present under this model too.
+
+    Same closed-form shift `test_pitch_damping_shifts_A_m_by_closed_form`
+    pins for "linearized": `0.25*rho*V*S*d_ref^2*omega*c_mq`, applied to
+    "constant" here instead.
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(model="constant", C_x=0.5, C_z=0.3, C_m=0.1, c_mq=0.0))
-    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(model="constant", C_x=0.5, C_z=0.3, C_m=0.1, c_mq=56.25))
+    aero_common = dict(model="constant", S=0.005, d_ref=0.08, C_x=0.5, C_z=0.3, C_m=0.1)
+    p_zero = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=0.0, **aero_common))
+    p_damped = Params(weight=weight, lengths=lengths, aero=Aero(c_mq=56.25, **aero_common))
     s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.3)
     y = np.array(s)
+    t = 0.5
 
-    assert aero_moment_y(0.5, y, p_zero) == aero_moment_y(0.5, y, p_damped)
-    assert np.array_equal(derivatives(0.5, y, p_zero), derivatives(0.5, y, p_damped))
+    flow = flow_state(t, y, p_zero)
+    expected_A_m_shift = (
+        0.25 * flow.air.rho * flow.V * p_zero.aero.S * p_zero.aero.d_ref**2 * y[OMEGA] * p_damped.aero.c_mq
+    )
+    assert not math.isclose(expected_A_m_shift, 0.0, abs_tol=1e-15)  # sanity: the shift is genuinely nonzero
+
+    shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
+    assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
+
+    dydt_zero = derivatives(t, y, p_zero)
+    dydt_damped = derivatives(t, y, p_damped)
+    assert not np.array_equal(dydt_zero, dydt_damped)
+    assert math.isclose(dydt_damped[OMEGA] - dydt_zero[OMEGA], -expected_A_m_shift / p_zero.weight.I, rel_tol=1e-12)
 

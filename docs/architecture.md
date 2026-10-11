@@ -543,6 +543,11 @@ in `tests/test_dynamics.py` keep passing untouched forever** — they simply run
 `aero_model="constant"`. Without it, every Phase 1 closed-form check would have to be rewritten or
 deleted at Step 13. That alone pays for the selector.
 
+**Corrected at Step 55** (Phase 2.11 rewrite pass, `architecture-28-rewrite.md` §28.5): the
+paragraph above described `"constant"` as a raw, atmosphere-independent force — that is now false.
+`aero_model` is a three-way `"constant" | "linearized" | "table"` dispatch, and every variant,
+`"constant"` included, is `q`-scaled; see §28.5 for the corrected seam.
+
 ---
 
 ## 13. `sim/gravity.py` — four gravity models
@@ -4358,7 +4363,9 @@ sampled-data/zero-order-hold integration mode, which is what unblocks backlog **
 `sim/report.py`; (28.10) the matching structural/notational LaTeX pass. Ordered tickets are §28.11,
 the 17 open decisions §28.12.
 
-Two corrections to **this** document that §28 forces, recorded here so a reader of §12 does not take
-the stale claim on trust: §12's "`constant` ignores the atmosphere entirely" becomes false (every
-aero model is dynamic-pressure-scaled after §28.5), and §18's flat `Params` field list is superseded
-by §28.3. Neither is edited above yet — both land with Step 55.
+Two corrections to **this** document that §28 forces, recorded here so a reader does not take a
+stale claim on trust: §12's description of `"constant"` as a raw, atmosphere-independent force
+becomes false (every aero model is dynamic-pressure-scaled after §28.5), and §18's flat `Params`
+field list is superseded by §28.3. §12 was corrected at Step 55 (its own one-line addendum, not a
+rewrite). §18's flat field list is a larger rewrite, out of Step 55's scope, and still not
+edited — it describes the pre-S50 flat `Params`, now historical.

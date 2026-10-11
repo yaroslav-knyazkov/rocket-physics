@@ -59,7 +59,7 @@ def test_none_model_full_trajectory_matches_pre_wind_stub_bit_for_bit():
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
         thrust=Thrust(motor_curve=_MOTOR_CURVE),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
     )
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
@@ -171,7 +171,7 @@ def test_headwind_and_tailwind_bracket_the_still_air_apogee():
     must bracket the still-air ("none") apogee, in the physically correct
     order.
 
-    `aero_model="coefficients"` with `C_N_alpha = C_m_alpha = 0` and
+    `aero_model="linearized"` with `C_N_alpha = C_m_alpha = 0` and
     `l1 = 0.0` isolates pure axial drag (`A_x = q*S*C_A0`, no normal
     force/pitching moment engaged, no moment arm for the axial force
     either) so `theta` never departs from its initial value -- this test
@@ -198,7 +198,7 @@ def test_headwind_and_tailwind_bracket_the_still_air_apogee():
     lengths = Lengths(l1=0.0, l2=0.4)
     thrust = Thrust(motor_curve=_MOTOR_CURVE)
     site = Site(azimuth_deg=0.0)
-    aero = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=0.0, C_m_alpha=0.0)
+    aero = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=0.0, C_m_alpha=0.0)
     theta0 = 1.2  # rad, inclined launch (not vertical) -- see docstring
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0)
 

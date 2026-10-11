@@ -253,7 +253,7 @@ _MOTOR_CURVE = "placeholder.csv"
 # never actually engage -- only C_A0 (axial drag, driven by q = 0.5*rho*V^2)
 # matters for these comparisons.
 _AERO_KW = dict(
-    model="coefficients",
+    model="linearized",
     S=0.005,
     d_ref=0.08,
     C_A0=0.5,
@@ -330,7 +330,7 @@ def test_sounding_tier_trajectory_matches_isa_within_interpolation_error():
     """A full run_sim trajectory with atmosphere_model="sounding" (ISA-
     derived synthetic case) must match the atmosphere_model="isa" run's
     apogee altitude/time and impact ("ground") time to within the same
-    interpolation-error tolerance, with `aero_model="coefficients"` so the
+    interpolation-error tolerance, with `aero_model="linearized"` so the
     atmosphere is actually load-bearing on drag (architecture.md SS12's
     note: "constant" ignores the atmosphere entirely, which would make
     this comparison vacuous).

@@ -48,7 +48,7 @@ _S0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 # the atmosphere entirely) -- same setup tests/test_atmosphere.py's
 # `_AERO_KW` uses for its own Step 18 ISA-vs-sounding trajectory checks.
 _AERO_KW = dict(
-    model="coefficients",
+    model="linearized",
     S=0.005,
     d_ref=0.08,
     C_A0=0.5,
@@ -163,7 +163,7 @@ def test_plot_trajectory_overlay_returns_valid_figure_for_two_variants():
 # converted from an unconverted call site (architecture.md SS25.5).
 _TILT_S0 = State(x=0.0, z=0.0, vx=50.0, vz=0.0, theta=math.radians(80.0), omega=0.0)
 _TILT_AERO_KW = dict(
-    model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5,
+    model="linearized", S=0.005, d_ref=0.08, C_A0=0.5,
     C_N_alpha=2.0, C_m_alpha=-0.5,
 )
 

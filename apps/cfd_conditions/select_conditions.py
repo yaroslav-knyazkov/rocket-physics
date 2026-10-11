@@ -203,7 +203,13 @@ def main() -> None:
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
         thrust=Thrust(motor_curve="placeholder.csv"),
-        aero=Aero(C_x=0.5, C_z=0.0, C_m=0.0),
+        # Step 55 (architecture-28-rewrite.md SS28.5.4, F10): "constant"'s
+        # C_x/C_z/C_m are true, q-scaled coefficients now, not raw
+        # Newton/Newton-metre placeholders -- S/d_ref are required for any
+        # nonzero force/moment to result at all. Same small-model-rocket
+        # values as run.py's own placeholder scenario, which this module's
+        # own docstring already says it mirrors.
+        aero=Aero(S=0.005, d_ref=0.08, C_x=0.5, C_z=0.0, C_m=0.0),
     )
     state0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     result = run_sim(params, state0)

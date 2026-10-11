@@ -42,6 +42,20 @@ which is table-driven (`p.aero_table`) with the exact same constant
 formulas as the fallback (architecture.md SS19). Bit-for-bit unchanged
 when `p.aero_table == ""` (the default).
 
+Step 55 (Phase 2.11 rewrite pass, architecture-28-rewrite.md SS28.5):
+`aero_force_body`/`aero_moment_y` no longer have their own `if/elif/else`
+aero-model branch at all -- both call the single `aero.coefficients(t, s,
+p, flow)` seam and read the `AeroCoeffs` bundle it returns (`C_x`, `C_z`,
+`C_m`, `C_mq`), which itself dispatches on `p.aero.model` ("constant" |
+"linearized" | "table"). `"linearized"` is bit-for-bit the old
+"coefficients" regime; `"constant"`'s `C_x`/`C_z`/`C_m` are now true
+dimensionless coefficients (the fix this step exists for -- see
+sim/aero.py's module docstring), so `"constant"` is now `q`-scaled like
+every other model, where it used to be a raw, atmosphere-independent
+force. The pitch-damping term (Step 44, below) now applies identically
+under all three models (architecture-28-rewrite.md SS28.5.3) instead of
+being specific to the old "coefficients" regime.
+
 Step 36: `weight_inertial`'s `m` is the current, possibly time-varying
 mass (`s[M]`) once the variable-mass model is on (`p.m_d` set, main.tex
 SSModels > Mass and moment of inertia) -- the fixed `p.m` otherwise,
@@ -153,17 +167,15 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     2.5; see main.tex SSModels > Relative wind and angle of attack for what
     `u_hat`/`n_hat` are used for instead: V, alpha, q).
 
-    Step 13: two regimes:
-      * "constant": use the constant magnitudes p.A_x, p.A_z (Phase 1 behaviour)
-      * "coefficients": compute from dynamic pressure and coefficients:
-            A_x = q * S * C_A(alpha, M)
-            A_z = q * S * C_N(alpha, M)
-
-    Step 25: `C_A`/`C_N` come from sim/aero.py, which is table-driven
-    (`p.aero_table`) with `p.C_A0`/`p.C_N_alpha*sin(alpha)` as the fallback
-    (the `sin`, not raw `alpha`, is Phase 2.5 Step 35 -- see aero.py's
-    module docstring) -- matching the pre-Step-25 formulas above to within
-    that fallback's own small-angle error when no table is configured.
+    Step 55 (architecture-28-rewrite.md SS28.5): `C_x`/`C_z` come from the
+    single `aero.coefficients(t, s, p, flow)` bundle, dispatched on
+    `p.aero.model` ("constant" | "linearized" | "table" -- sim/aero.py's
+    module docstring):
+            A_x = q * S * c.C_x
+            A_z = q * S * c.C_z
+    `"constant"` is now `q`-scaled like the other two models -- the bug
+    fix this step exists for (sim/aero.py's module docstring); it used to
+    be the raw, atmosphere-independent placeholder `p.A_x`/`p.A_z`.
 
     Step 49 (architecture.md SS27.3): an additive airbrake term,
     `A_brake = q*Cd_brake*S_max*deploy_fraction`, after the `aero_model`
@@ -183,14 +195,9 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     exactly `0.0`, reproducing every prior step bit-for-bit.
     """
     flow = flow_state(t, s, p)
-    if p.aero.model == "constant":
-        A_x = p.aero.C_x
-        A_z = p.aero.C_z
-    elif p.aero.model == "coefficients":
-        A_x = flow.q * p.aero.S * aero.C_A(flow.alpha, flow.M, p)
-        A_z = flow.q * p.aero.S * aero.C_N(flow.alpha, flow.M, p)
-    else:
-        raise ValueError(f"Unknown aero_model: {p.aero.model}")
+    c = aero.coefficients(t, s, p, flow)
+    A_x = flow.q * p.aero.S * c.C_x
+    A_z = flow.q * p.aero.S * c.C_z
     A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
     return np.array([-(A_x + A_brake), -A_z])
 
@@ -201,38 +208,32 @@ def aero_moment_y(t: float, s, p) -> float:
     Not used by dynamics.py yet -- theta/omega aren't integrated states
     until Step 6. Exposed now so that step just calls it.
 
-    Step 13: two regimes:
-      * "constant": use the constant magnitude p.A_m (Phase 1 behaviour)
-      * "coefficients": compute from dynamic pressure and coefficients:
-            A_m = q * S * d_ref * C_m(alpha, M)
+    Step 55 (architecture-28-rewrite.md SS28.5): `C_m`/`C_mq` come from the
+    single `aero.coefficients(t, s, p, flow)` bundle, dispatched on
+    `p.aero.model` ("constant" | "linearized" | "table" -- sim/aero.py's
+    module docstring):
+            A_m = q * S * d_ref * c.C_m
 
-    Step 25: `C_m` comes from sim/aero.py, table-driven (`p.aero_table`)
-    with `p.C_m_alpha*alpha` as the fallback -- identical numbers to the
-    pre-Step-25 formula above when no table is configured.
-
-    Step 44 (analysis.tex SSDynamic stability; architecture.md SS24.4):
-    the "coefficients" regime adds a pitch-damping term, `c_m += q_hat*c_mq`
-    with `q_hat = omega*d_ref/(2V)`, i.e. `A_m += q*S*d_ref*q_hat*c_mq`.
-    Written division-free below (algebraically identical):
+    The pitch-damping term (Step 44; analysis.tex SSDynamic stability;
+    architecture.md SS24.4), `c_m += q_hat*c_mq` with `q_hat =
+    omega*d_ref/(2V)`, i.e. `A_m += q*S*d_ref*q_hat*c_mq`, now applies
+    identically under all three models (architecture-28-rewrite.md
+    SS28.5.3) -- it used to be specific to the old "coefficients" regime,
+    but pitch damping is a property of the airframe, not of how the
+    static coefficients happen to be supplied. Written division-free
+    below (algebraically identical):
     `q*d_ref*q_hat = (rho*V^2/2)*d_ref*(omega*d_ref/(2V)) = rho*V*omega*d_ref^2/4`
     -- NOT a literal `omega*d_ref/(2*V)` intermediate, which would produce
     `0.0*inf = nan` at `V = 0.0` (every unperturbed flight's apogee; see
     aero.py's module docstring for the precedent, Step 35's `atan2` branch
     cut). `c_mq = 0.0` (the default) makes this term exactly `0.0` for
     every state, bit-for-bit pre-Step-44 -- same pattern as `A_e`/
-    `thrust_misalign_deg`. `"constant"` regime untouched: it has no `q`,
-    `V` or `rho` in it by definition, and `C_m`/`C_mq` are not consulted
-    there.
+    `thrust_misalign_deg`.
     """
     flow = flow_state(t, s, p)
-    if p.aero.model == "constant":
-        A_m = p.aero.C_m
-    elif p.aero.model == "coefficients":
-        A_m = flow.q * p.aero.S * p.aero.d_ref * aero.C_m(flow.alpha, flow.M, p)
-        A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] \
-            * aero.C_mq(flow.alpha, flow.M, p)
-    else:
-        raise ValueError(f"Unknown aero_model: {p.aero.model}")
+    c = aero.coefficients(t, s, p, flow)
+    A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
+    A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
     return -A_m
 
 

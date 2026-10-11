@@ -111,7 +111,7 @@ def test_apogee_event_attributes_unchanged():
 
 
 # Tilted, curvature-exercising scenario (gravity_model="wgs84",
-# atmosphere_model="isa" (default), aero_model="coefficients",
+# atmosphere_model="isa" (default), aero_model="linearized",
 # wind_model="analytic") under the default gravity_direction="parallel" --
 # pinned final-state/event values captured from the pre-Step-45 code (the
 # unedited repository, before sim/gravity.py/sim/flow.py/sim/atmosphere.py/
@@ -124,7 +124,7 @@ _TILT_PARAMS = Params(
     weight=Weight(m=0.5, I=0.05),
     lengths=Lengths(l1=0.3, l2=0.4),
     thrust=Thrust(motor_curve="placeholder.csv"),
-    aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
+    aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
     gravity=Gravity(model="wgs84"),
     atmosphere=Atmosphere(model="isa"),
     wind=Wind(model="analytic", ref_ms=5.0, ref_h_m=10.0, shear_exp=0.143, dir_deg=45.0),
@@ -157,7 +157,7 @@ _TILT_SOUNDING_PARAMS = Params(
     weight=Weight(m=0.5, I=0.05),
     lengths=Lengths(l1=0.3, l2=0.4),
     thrust=Thrust(motor_curve="placeholder.csv"),
-    aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
+    aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
     atmosphere=Atmosphere(model="sounding"),
     wind=Wind(model="sounding"),
     soundings=Soundings(case="example"),

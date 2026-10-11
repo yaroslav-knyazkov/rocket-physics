@@ -269,15 +269,23 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # the tail): `aB = -(l1 + l2)*x_hat_r`.
     #
     # Step 25 (architecture.md SS19, "CoP travel"): `aA`'s `l1` is no
-    # longer necessarily the constant `p.l1` -- `aero.cop_l1(alpha, M, p)`
-    # looks it up from `p.aero_table` when one is configured, falling
-    # back to the constant `p.l1` otherwise (bit-for-bit the line this
-    # replaces). This is the one seam through which a table-driven CoP
-    # location reaches the moment equation without otherwise
-    # restructuring this function -- an extra `flow_state` call, matching
-    # the existing (already-not-cached, per architecture.md SS21)
-    # `aero_moment_y` call below, which recomputes `flow_state` a second
-    # time on its own.
+    # longer necessarily the constant `p.l1` -- it comes from the table
+    # when `p.aero.model == "table"`, falling back to the constant
+    # `p.lengths.l1` under "constant"/"linearized" otherwise (bit-for-bit
+    # the line this replaces). This is the one seam through which a
+    # table-driven CoP location reaches the moment equation without
+    # otherwise restructuring this function -- an extra `flow_state`
+    # call, matching the existing (already-not-cached, per
+    # architecture.md SS21) `aero_moment_y` call below, which recomputes
+    # `flow_state` a second time on its own.
+    #
+    # Step 55 (architecture-28-rewrite.md SS28.5, closing F2's leak): `l1`
+    # now comes out of the same `aero.coefficients(...)` bundle every
+    # other aero consumer reads, instead of a separate `aero.cop_l1(...)`
+    # call -- the table can no longer drive the moment arm while a
+    # different model drives the force/moment, which was possible before
+    # this step (the two selectors, `aero_model` and `aero_table`, could
+    # disagree).
     #
     # `aB` deliberately keeps the constant `p.l1` (not the dynamic CoP
     # location): B is the thrust exit point, a fixed mechanical point on
@@ -296,7 +304,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
     # both arrays are bitwise identical to the pre-Step-43 literals below.
     flow = flow_state(t, y, p)
-    l1_aero = aero.cop_l1(flow.alpha, flow.M, p)
+    l1_aero = aero.coefficients(t, y, p, flow).l1
     aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
     aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
 

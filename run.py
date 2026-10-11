@@ -125,9 +125,18 @@ def main() -> None:
         ),
         thrust=Thrust(motor_curve="placeholder.csv"),  # Step 14: real (time, thrust) curve
         aero=Aero(
-            C_x=0.5,    # N, placeholder axial aero force
-            C_z=0.0,    # N, placeholder normal aero force
-            C_m=0.0,    # N*m, placeholder aero pitching moment
+            # Step 55 (architecture-28-rewrite.md SS28.5.4): "constant"'s
+            # C_x/C_z/C_m are true, q-scaled coefficients now, not raw
+            # Newton/Newton-metre placeholders -- S/d_ref are therefore
+            # required for any nonzero force/moment to result at all
+            # (pre-Step-55, C_x=0.5 alone meant "0.5 N of drag for the
+            # whole flight", which was never physical). Values match the
+            # atmosphere-sweep scenario further down in this same file.
+            S=0.005,    # m^2, reference area
+            d_ref=0.08,  # m, reference length (moment arm + Reynolds number)
+            C_x=0.5,    # axial-force coefficient [-]
+            C_z=0.0,    # normal-force coefficient [-]
+            C_m=0.0,    # pitching-moment coefficient [-]
         ),
     )
 
@@ -204,10 +213,12 @@ def main() -> None:
     # are unaffected by anything below.
     # ------------------------------------------------------------------
 
-    # (a) The three gravity models, at this scenario's own ~4.6 km apogee
-    # scale, where roadmap.md Step 27 expects them to differ "by a
-    # predictable, small amount" -- same base scenario as the single run
-    # above (aero_model="constant" here, so gravity is the only thing
+    # (a) The three gravity models, at this scenario's own apogee scale
+    # (substantially lower since Step 55 gave "constant" real, q-scaled
+    # drag instead of a near-inert 0.5 N placeholder -- see the Aero(...)
+    # comment above), where roadmap.md Step 27 expects them to differ "by
+    # a predictable, small amount" -- same base scenario as the single run
+    # above (aero.model="constant" here, so gravity is the only thing
     # varying). "linear" was removed at Phase 2.5 Step 34.
     gravity_sweep = sweep(
         params, "gravity.model", ("constant", "radial", "wgs84"), state0
@@ -222,16 +233,19 @@ def main() -> None:
 
     # (b) ISA vs. a real sounding (station LKPR, data/soundings/example,
     # Step 17), where roadmap.md Step 27 expects the comparison to "show
-    # where the real atmosphere matters". Needs aero_model="coefficients"
-    # (architecture.md SS12: "constant" ignores the atmosphere entirely,
-    # which would make this comparison vacuous) and h0_m=380.0 to match
-    # LKPR's own station elevation, so the flight stays inside the
-    # station's measured data -- same setup Step 18's own tests used
-    # (tests/test_atmosphere.py's `_AERO_KW`/`common`).
+    # where the real atmosphere matters". Uses aero.model="linearized" so
+    # alpha actually drives a nonzero normal-force/moment slope (every
+    # aero model is atmosphere-coupled since Step 55 -- architecture.md
+    # SS12 -- so "constant" would no longer make this comparison vacuous
+    # the way it used to; "linearized" is kept here for its C_N_alpha/
+    # C_m_alpha slope, not because "constant" is somehow atmosphere-blind)
+    # and h0_m=380.0 to match LKPR's own station elevation, so the flight
+    # stays inside the station's measured data -- same setup Step 18's own
+    # tests used (tests/test_atmosphere.py's `_AERO_KW`/`common`).
     atmo_base = params_replace(
         params,
         {
-            "aero.model": "coefficients",
+            "aero.model": "linearized",
             "aero.S": 0.005,
             "aero.d_ref": 0.08,
             "aero.C_A0": 0.5,

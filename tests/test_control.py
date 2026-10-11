@@ -30,7 +30,14 @@ _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 _LAUNCH_WEIGHT = Weight(m=0.5, I=0.05)
 _LAUNCH_LENGTHS = Lengths(l1=0.3, l2=0.4)
 _LAUNCH_THRUST = Thrust(motor_curve=_MOTOR_CURVE)
-_LAUNCH_AERO = Aero(C_x=0.5, C_z=0.0, C_m=0.0)
+# Step 55 (architecture-28-rewrite.md SS28.5.4): "constant"'s C_x is now
+# q-scaled (A_x = q*S*C_x), so S/d_ref are required for the "constant
+# body-axial drag" this module's docstring describes to be anything but
+# zero -- this scenario's own blast radius was missed by the Step 55
+# ticket's original measurement (which counted only tests/test_forces.py,
+# run.py and apps/), found by running this suite after the fix. Values
+# match run.py's own placeholder scenario.
+_LAUNCH_AERO = Aero(S=0.005, d_ref=0.08, C_x=0.5, C_z=0.0, C_m=0.0)
 
 
 def _launch_params(**control_kw) -> Params:
@@ -193,11 +200,22 @@ def test_proportional_airbrake_takes_intermediate_values_for_a_modest_gain():
     between `0` and `1` somewhere during the coast, not purely bang-bang
     -- confirming the law is genuinely proportional, not accidentally
     saturating everywhere.
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4): re-pinned. This
+    scenario's unconstrained apogee used to be ~4609 m back when
+    `_LAUNCH_AERO`'s `C_x` was an unscaled 0.5 N placeholder; with real,
+    `q`-scaled drag it is ~666.5 m (verified numerically) -- `kp`/
+    `target_apogee_m` below are re-chosen (not merely rescaled) so the
+    deployment fraction genuinely lands strictly between 0 and 1 without
+    saturating, confirmed by the same numerical search this project's
+    other feedback-law-dependent scenarios use (no closed form exists
+    here, same standing as Step 25's aero-table checks, this module's own
+    docstring).
     """
     s0 = _launch_state()
     p = _launch_params(
-        airbrake_model="proportional", airbrake_kp=0.0001,
-        airbrake_target_apogee_m=4400.0,  # close to, but below, the ~4609 m unconstrained apogee
+        airbrake_model="proportional", airbrake_kp=0.0005,
+        airbrake_target_apogee_m=650.0,  # close to, but below, the ~666.5 m unconstrained apogee
         airbrake_Cd=1.0, airbrake_S_max=0.05,
     )
     r = run_sim(p, s0)

@@ -205,10 +205,17 @@ def test_real_cog_offset_changes_pitch_trajectory():
     differs between the two runs (main.tex SSModels > Mass and moment of
     inertia; `p.l1`/`p.l2` are unchanged in both runs -- see this file's
     module docstring).
+
+    Step 55 (architecture-28-rewrite.md SS28.5.4): `A_m = q*S*d_ref*C_m`
+    now, so `S`/`d_ref` must be nonzero for `C_m` to produce any moment at
+    all -- the launch starts from rest (`V = 0`, so `q = 0` momentarily),
+    but thrust accelerates the vehicle within a fraction of a second, so
+    `q != 0` for virtually the whole window this test samples (`t = 2.0`,
+    well into the flight).
     """
     lengths = Lengths(l1=0.3, l2=0.4)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero = Aero(C_m=0.05)  # constant pitching moment -- the only moment source here
+    aero = Aero(S=0.005, d_ref=0.08, C_m=0.05)  # constant pitching moment -- the only moment source here
 
     def _weight(l_d, l_p):
         return Weight(m=_M0, I=0.05, m_d=_M_D, l_d=l_d, l_p=l_p, I_d=0.05, I_sp=_ISP_S)
@@ -444,7 +451,7 @@ def test_coriolis_lateral_diagnostic_matches_closed_form():
 
 
 def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
-    """A statically stable airframe (the same aero_model="coefficients"
+    """A statically stable airframe (the same aero_model="linearized"
     fixture Steps 25/35 use, tests/test_forces.py's
     `test_offaxis_alpha_stays_bounded_with_corrected_sign...`: positive
     `C_N_alpha`, `l1 > 0`, i.e. CoP aft of CoG) launched dead vertical
@@ -476,7 +483,7 @@ def test_misaligned_thrust_trims_stable_airframe_instead_of_diverging():
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
+    aero = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     sample_times = [0.1, 0.2, 0.3, 0.4]
 
@@ -531,7 +538,7 @@ def test_lateral_cog_offset_trims_stable_airframe_like_a_thrust_cant():
     """
     weight = Weight(m=0.5, I=0.05)
     thrust = Thrust(motor_curve="placeholder.csv")
-    aero = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
+    aero = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     sample_times = [0.1, 0.2, 0.3, 0.4]
 
@@ -615,7 +622,7 @@ def test_pitch_damping_sign_convention_decays_undamped_grows():
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
-    aero_common = dict(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
+    aero_common = dict(model="linearized", S=0.005, d_ref=0.08, C_A0=0.0, C_N_alpha=2.0, C_m_alpha=0.0)
     alpha0 = -0.15
     theta0 = math.pi / 2 + alpha0
     V0 = 100.0
@@ -666,7 +673,7 @@ def test_pitch_damping_sign_convention_decays_undamped_grows():
 _RAIL_WIND_WEIGHT = Weight(m=0.5, I=0.05)
 _RAIL_WIND_LENGTHS = Lengths(l1=0.3, l2=0.4)
 _RAIL_WIND_THRUST = Thrust(motor_curve="placeholder.csv")
-_RAIL_WIND_AERO = Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5)
+_RAIL_WIND_AERO = Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5)
 _RAIL_WIND_WIND = Wind(model="analytic", ref_ms=15.0, dir_deg=90.0)
 
 
@@ -886,7 +893,7 @@ def test_parachute_descent_converges_to_terminal_velocity():
 _PARACHUTE_FREEZE_DRIFT_PARAMS = Params(
     weight=Weight(m=0.5, I=0.05),
     lengths=Lengths(l1=0.3, l2=0.4),
-    aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
+    aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.5, C_N_alpha=2.0, C_m_alpha=-0.5),
     wind=Wind(model="analytic", ref_ms=15.0, dir_deg=90.0),
     site=Site(azimuth_deg=90.0),
     recovery=Recovery(

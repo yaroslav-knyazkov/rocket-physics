@@ -155,7 +155,7 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3),
     )
     alpha_probe, M_probe = 0.12, 0.9
 
@@ -197,12 +197,19 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
 
 def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     """architecture.md SS19's "CoP travel makes l1 a function of (alpha,
-    M), which couples straight back into the moment": with a table
-    configured, dynamics.derivatives()'s aA must use
-    aero.cop_l1(alpha, M, p) -- here the table's exact M=1.0, alpha=10deg
-    row, l1=0.35 m -- not the Params constant p.l1, deliberately set to
-    an unmistakably different 999.0 m so a stale read could not be
-    missed.
+    M), which couples straight back into the moment": with `model="table"`,
+    dynamics.derivatives()'s aA must use the table's l1 (via
+    aero.coefficients(...).l1) -- here the table's exact M=1.0,
+    alpha=10deg row, l1=0.35 m -- not the Params constant p.l1,
+    deliberately set to an unmistakably different 999.0 m so a stale read
+    could not be missed.
+
+    Step 55 (architecture-28-rewrite.md SS28.5): this scenario used to set
+    `model="coefficients"` (today's "linearized") *together with* a table,
+    relying on the pre-Step-55 leak where `p.aero.table` being set drove
+    `C_A`/`C_N`/`C_m`/`cop_l1` regardless of `model` (F2) -- that leak is
+    exactly what this step closes, so the test now says what it actually
+    means: `model="table"`.
 
     alpha and M are driven to exact table grid values (alpha=10deg via
     a vz-only launch with theta offset by exactly alpha, main.tex's
@@ -214,7 +221,7 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=999.0, l2=0.4),
-        aero=Aero(model="coefficients", S=0.02, d_ref=0.08, table="example.csv"),
+        aero=Aero(model="table", S=0.02, d_ref=0.08, table="example.csv"),
     )
     alpha0 = math.radians(10.0)
     theta0 = math.pi / 2 + alpha0
@@ -307,11 +314,16 @@ def test_offaxis_alpha_stays_bounded_with_table_driven_coefficients():
     [-0.1500, +0.1193, +0.0418, +0.0877, -0.0247, +0.0916] rad -- bounded
     (never exceeding the initial 0.15 rad magnitude) and oscillatory
     (sign-flipping, non-monotonic) -- restoring, not growing.
+
+    Step 55 (architecture-28-rewrite.md SS28.5): `model="table"`, not the
+    pre-Step-55 `model="coefficients"` + a table together -- same F2-leak
+    correction as `test_cop_travel_moment_uses_table_l1_not_constant_pl1`
+    above.
     """
     p = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l1=0.3, l2=0.4),
-        aero=Aero(model="coefficients", S=0.005, d_ref=0.08, table="example.csv"),
+        aero=Aero(model="table", S=0.005, d_ref=0.08, table="example.csv"),
     )
     alpha0 = -0.15
     theta0 = math.pi / 2 + alpha0
@@ -431,19 +443,29 @@ def test_pitch_damping_default_reproduces_derivatives_bit_for_bit_with_and_witho
     """`c_mq = 0.0` (the default), no column: every prior `derivatives()`
     result bit-for-bit, including with a table configured (architecture.md
     SS24.4's "Checks for the step").
+
+    Step 55 (architecture-28-rewrite.md SS28.5): the two cases below used
+    to both say `model="coefficients"`, relying on the pre-Step-55 leak
+    where `p.aero.table` being set drove the table path regardless of
+    `model` (F2). With `model` now the sole selector, "no table" is
+    `model="linearized"` and "table configured" is `model="table"` --
+    the underlying C_A0/C_N_alpha/C_m_alpha fallback values are unused in
+    the table case (the table itself supplies C_A/C_N/C_m/l1), kept here
+    only because `Aero` is a single frozen dataclass shared between both
+    branches via `aero_common`.
     """
     weight = Weight(m=0.5, I=0.05)
     lengths = Lengths(l1=0.3, l2=0.4)
     thrust = Thrust(motor_curve="placeholder.csv")
     aero_common = dict(
-        model="coefficients", S=0.005, d_ref=0.08,
+        S=0.005, d_ref=0.08,
         C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3,
     )
     s = State(x=10.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
     y = np.array(s)
     t = 0.5
 
-    for extra in ({}, {"table": "example.csv"}):
+    for extra in ({"model": "linearized"}, {"model": "table", "table": "example.csv"}):
         p_implicit = Params(
             weight=weight, lengths=lengths, thrust=thrust,
             aero=Aero(**aero_common, **extra),
@@ -453,3 +475,56 @@ def test_pitch_damping_default_reproduces_derivatives_bit_for_bit_with_and_witho
             aero=Aero(c_mq=0.0, **aero_common, **extra),
         )
         assert np.array_equal(derivatives(t, y, p_implicit), derivatives(t, y, p_explicit))
+
+
+# ----------------------------------------------------------------------
+# Step 55 (architecture-28-rewrite.md SS28.5): the unified AeroCoeffs
+# dispatch seam itself -- aero.coefficients()/_AERO_MODELS, and the
+# project's "unknown model string raises KeyError" convention (SS12/SS20)
+# now applying to p.aero.model too.
+# ----------------------------------------------------------------------
+
+
+def test_coefficients_bundle_matches_the_five_thin_wrappers():
+    """`aero.coefficients(t, y, p, flow)` must return exactly the same
+    five values the thin per-coefficient wrappers (`C_A`/`C_N`/`C_m`/
+    `C_mq`/`cop_l1`) give individually -- the whole point of D-7 keeping
+    both: one dispatch, two ways to read it.
+    """
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3, c_mq=1.5),
+    )
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
+    y = np.array(s)
+    t = 0.5
+    flow = flow_state(t, y, p)
+
+    c = aero.coefficients(t, y, p, flow)
+    assert c.C_x == aero.C_A(flow.alpha, flow.M, p)
+    assert c.C_z == aero.C_N(flow.alpha, flow.M, p)
+    assert c.C_m == aero.C_m(flow.alpha, flow.M, p)
+    assert c.C_mq == aero.C_mq(flow.alpha, flow.M, p)
+    assert c.l1 == aero.cop_l1(flow.alpha, flow.M, p)
+
+
+def test_unknown_aero_model_raises_keyerror_not_valueerror():
+    """architecture.md SS12's established convention ("unknown strings
+    raise KeyError at the first call -- no input validation"), now
+    applying to `p.aero.model` too (Step 55, architecture-28-rewrite.md
+    SS28.5.1, consequence 2) -- matching `gravity_model="linear"`'s
+    removal at Step 34, not a new `ValueError` branch.
+    """
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="coefficients"),  # the old, now-removed model name
+    )
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
+
+    try:
+        derivatives(0.5, np.array(s), p)
+        assert False, "expected KeyError for an unknown aero.model string"
+    except KeyError:
+        pass

@@ -1,7 +1,42 @@
-"""Aerodynamic coefficients C_A(alpha, M), C_N(alpha, M), C_m(alpha, M), and
-CoP travel l1(alpha, M) -- table-driven with `Params`-constant fallbacks
-(architecture.md SS19; roadmap.md Step 25). Step 44 (architecture.md SS24.4)
-adds a fifth, optional coefficient, `C_mq(alpha, M)` (pitch damping).
+"""Aerodynamic coefficients C_x(alpha, M), C_z(alpha, M), C_m(alpha, M),
+C_mq(alpha, M) and the CoP-to-CoG distance l1(alpha, M) -- an explicit
+three-way model dispatch (architecture-28-rewrite.md SS28.5; supersedes the
+table-vs-constant-fallback shape of roadmap.md Step 25 / architecture.md
+SS19, and Step 44's `c_mq` scaffold, SS24.4).
+
+Step 55 (Phase 2.11 rewrite pass): `p.aero.model` is now the *sole*
+selector -- `"constant" | "linearized" | "table"` -- the same
+dispatch-dict shape `wind.py`'s `_MODELS`/`_TURBULENCE_MODELS` and
+`gravity.py`'s two dicts already use (architecture.md SS12). Previously,
+`p.aero_model in {"constant", "coefficients"}` and `p.aero_table` (a
+filename, empty = off) were two uncoordinated selectors for the same
+thing: a table could be configured while `aero_model == "constant"` and
+be silently ignored, or `dynamics.py`'s `cop_l1` call could read the table
+while `forces.py`'s force/moment calls used the constant fallback instead
+(architecture-28-rewrite.md's F2 finding -- two different models disagreeing
+about the CoP location they themselves jointly determine). Folding both
+selectors into one `model` string removes that whole class of bug by
+construction: there is now exactly one call (`coefficients`, below) that
+produces all five derived quantities together, and whichever model is
+selected, it is the only one producing them.
+
+This also closes the `"constant"` model's own bug the rewrite exists to
+fix (architecture-28-rewrite.md, "Confirmed bug, user-identified"):
+`"constant"`'s `C_x`/`C_z`/`C_m` used to be raw-Newton/Newton-metre
+placeholders (`A_x`, `A_z`, `A_m`), the only aero model that ignored the
+atmosphere entirely. They are now true dimensionless coefficients, scaled
+by dynamic pressure and reference area/length exactly like the other two
+models (`forces.py`'s `aero_force_body`/`aero_moment_y`) -- see
+`_constant_coeffs` below.
+
+The public seam is a single function, `coefficients(t, y, p, flow) ->
+AeroCoeffs`, returning all five coefficients at once (axial-force,
+normal-force, pitching-moment, pitch-damping, CoP-to-CoG distance) --
+`AeroCoeffs`'s own docstring lists the fields. `C_A`/`C_N`/`C_m`/`C_mq`/
+`cop_l1`, the pre-Step-55 per-coefficient public functions, are kept as
+thin wrappers around the same dispatch (architecture-28-rewrite.md D-7),
+so the existing unit tests and call sites that read one coefficient at a
+time keep their `(alpha, M, p)` signature unchanged.
 
 Table format (`data/aero/<config>.csv`, this module's own design -- SS19
 leaves the exact column layout unspecified, unlike the sounding/motor
@@ -17,15 +52,14 @@ SS21, SS22 item 3):
 
 Every `M` value in the file must repeat the exact same set of `alpha_deg`
 values (a full rectangular grid) -- `_load_table` raises `ValueError` if
-not. `l1_m` is the same physical quantity as `Params.l1` (the CoP-to-CoG
-distance, architecture.md SS19 "CoP travel makes l1 a function of
-(alpha, M)"), carried in the table so a single file supplies both the
-force/moment coefficients and the moment-arm they act through. `c_mq` (Step
-44) is the only *optional* column -- see `C_mq`'s own docstring for why an
-absent column falls back to `Params.c_mq` rather than to `_AeroTable.C_mq
-is None` being treated as a literal zero everywhere; every table committed
-before Step 44 lacks it, so this must not change any existing table's
-behaviour.
+not. `l1_m` is the same physical quantity as `Params.lengths.l1` (the
+CoP-to-CoG distance, architecture.md SS19 "CoP travel makes l1 a function
+of (alpha, M)"), carried in the table so a single file supplies both the
+force/moment coefficients and the moment-arm they act through. `c_mq`
+(Step 44) is the only *optional* column -- see `_table_coeffs`'s own
+docstring for why an absent column falls back to `Params.aero.c_mq`
+rather than to a literal zero everywhere; every table committed before
+Step 44 lacks it, so this must not change any existing table's behaviour.
 
 Interpolation, in both dimensions, matches this project's established
 "hold the edge value, never extrapolate" convention (`thrust_curve.py`
@@ -35,55 +69,19 @@ at the grid edges (no extrapolation beyond the table's Mach range), and
 within each bracketing `M` row, `alpha` is `np.interp`-ed (which already
 clamps at its own edges). The two per-row values are then linearly
 blended across the `M` bracket -- the same "interpolate within each row,
-then combine" shape as `soundings.py`'s tier-3 combination.
-
-No table configured (`p.aero_table == ""`, the default) -- every public
-function below falls back to the plain `Params` constant, reproducing
-`forces.py`'s pre-Step-25 "coefficients" formulas to within the linear
-model's own small-angle error (see the Phase 2.5 note just below):
-    C_A   -> p.C_A0                       (constant, no alpha/M dependence)
-    C_N   -> p.C_N_alpha * sin(alpha)     (main.tex's C_N_alpha*alpha, smoothed)
-    C_m   -> p.C_m_alpha * sin(alpha)     (main.tex's C_m_alpha*alpha, smoothed)
-    l1    -> p.l1                         (constant CoP-to-CoG distance)
-    C_mq  -> p.c_mq                       (constant pitch-damping derivative, default 0.0 -- Step 44)
-
-Phase 2.5 (after Step 35): `C_N`/`C_m`'s fallback uses `sin(alpha)` instead
-of the raw `alpha` main.tex's linear formula literally specifies.
-`sin(alpha) == alpha` to leading order for small alpha -- they differ by
-<0.4% at 8.6 degrees (deg2rad(8.6) - sin(deg2rad(8.6)) / deg2rad(8.6)), well
-inside this fallback's own small-angle-linearisation error -- so every
-normal (small-alpha) trajectory is unaffected in any way that matters. The
-reason for the change: raw `alpha = atan2(w, u)` is *discontinuous* at its
-own branch cut (`u < 0`, `w` crossing zero), and an unperturbed, symmetric
-flight coasting through `V = 0` at apogee with `theta` unchanged (no
-restoring moment ever having engaged) lands exactly there -- floating-point
-noise in `w` alone then flips `alpha` between +pi and -pi from one solver
-evaluation to the next. With the raw-alpha formula that flips
-`C_N`/`C_m`'s sign and (being unbounded) magnitude every RHS call, which
-sent `solve_ivp`'s adaptive step control into a step-size collapse that did
-not recover within any reasonable wall-clock time (observed: still not
-converged after several minutes, on a scenario Step 34's code finished in
-~1 second). A magnitude *clamp* on `alpha` was tried first and does not
-fix this -- it only shrinks the jump, and any genuine discontinuity, however
-small, still defeats an adaptive solver's local-smoothness assumption.
-`sin(alpha)` removes the discontinuity itself: it has no branch cut, so it
-passes through the `+-pi` crossing exactly as smoothly as everything else
-in the model does. It is also arguably the more physically honest formula
-at large `alpha` to begin with -- `sin(pi) = 0`, correctly zero net side
-force flying exactly tail-first (by symmetry, for a body of revolution),
-where the literal `C_N_alpha*alpha` formula gives a large, nonsensical
-value instead. `atan2(w, u)` itself remains ill-defined at the single
-physical point `u = w = 0`; that is inherent to using an angle at all and
-is not, and cannot be, "fixed" -- `sin(alpha)` only ensures nothing built
-from it blows up there.
+then combine" shape as `soundings.py`'s tier-3 combination. This loader/
+interpolation machinery (`_load_table`, `_bracket_M`, `_table_lookup`) is
+untouched by Step 55 -- only *when* it is called changed: on
+`p.aero.model == "table"` now, not on `p.aero.table` being non-empty.
 
 Note on `C_N`'s signature: main.tex writes `C_N(alpha)` (no explicit `M`
 dependence), but this module gives `C_N` the same `(alpha, M, p)` shape as
-`C_A`/`C_m`/`cop_l1` for one uniform interface -- the constant-fallback
-path still ignores `M` entirely (matching main.tex and the pre-Step-25
-formula exactly), and the table path is free to encode `M`-dependence in
-`C_N` too if the data has it (real compressible normal-force slopes do
-vary with Mach), without needing a second, differently-shaped function.
+`C_A`/`C_m`/`cop_l1` for one uniform interface -- the `"constant"`/
+`"linearized"` models ignore `M` entirely (matching main.tex and the
+pre-Step-25 formula exactly), and the `"table"` model is free to encode
+`M`-dependence in `C_N` too if the data has it (real compressible
+normal-force slopes do vary with Mach), without needing a second,
+differently-shaped function.
 """
 
 import functools
@@ -137,9 +135,9 @@ def _load_table(name: str) -> _AeroTable:
     l1_col = data["l1_m"].astype(float)
     # Step 44 (architecture.md SS24.4): the c_mq column is optional -- every
     # table committed before this step lacks it, so "absent -> None" (and
-    # C_mq()'s constant fallback below) must hold for bit-for-bit backward
-    # compatibility. This is the only column handled this way; every other
-    # column above is mandatory.
+    # _table_coeffs's constant fallback below) must hold for bit-for-bit
+    # backward compatibility. This is the only column handled this way;
+    # every other column above is mandatory.
     C_mq_col = data["c_mq"].astype(float) if "c_mq" in data.dtype.names else None
 
     M_grid = np.unique(M_col)
@@ -205,83 +203,188 @@ def _table_lookup(table: _AeroTable, alpha: float, M: float, grid: np.ndarray) -
     return float(val_lo + w * (val_hi - val_lo))
 
 
-def C_A(alpha: float, M: float, p) -> float:
-    """Axial-force coefficient (main.tex SSForces: `A_x = qSC_A(alpha, M)`).
+# ----------------------------------------------------------------------
+# The unified seam (architecture-28-rewrite.md SS28.5.1): one bundle, one
+# dispatch dict.
+# ----------------------------------------------------------------------
 
-    Table-driven when `p.aero_table` is set; otherwise the constant
-    `p.C_A0` (Step 13's "coefficients" formula, unchanged).
+
+class AeroCoeffs(NamedTuple):
+    C_x: float    # axial-force coefficient      (today's C_A)
+    C_z: float    # normal-force coefficient     (today's C_N)
+    C_m: float    # pitching-moment coefficient
+    C_mq: float   # pitch-damping derivative
+    l1: float     # CoP(D)-to-CoG(B) distance [m]
+
+
+def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
+    """`"constant"`: fixed inputs, independent of both `alpha` and `M` --
+    the cheapest model, for first-cut sizing and for isolating one effect
+    at a time in a comparison sweep (models.tex SSAerodynamics >
+    Coefficients).
+
+    Step 55's actual fix: `C_x`/`C_z`/`C_m` are true dimensionless
+    coefficients now, not raw Newton/Newton-metre placeholders -- the
+    force/moment they produce is still multiplied by dynamic pressure and
+    the reference area/length in `forces.py`'s `aero_force_body`/
+    `aero_moment_y`, exactly like the other two models. What is frozen
+    under this model is the *coefficients*, not the resulting force: the
+    force itself still varies over the flight through `q = 0.5*rho*V^2`.
     """
-    if p.aero.table:
-        table = _load_table(p.aero.table)
-        return _table_lookup(table, alpha, M, table.C_A)
-    return p.aero.C_A0
+    return AeroCoeffs(
+        C_x=p.aero.C_x,
+        C_z=p.aero.C_z,
+        C_m=p.aero.C_m,
+        C_mq=p.aero.c_mq,
+        l1=p.lengths.l1,
+    )
+
+
+def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
+    """`"linearized"`: a single linear slope in `alpha` about the
+    zero-`alpha` condition, `M`-independent, bit-for-bit today's (pre-
+    Step-55) `"coefficients"` regime.
+
+    Phase 2.5 (after Step 35): `C_z`/`C_m`'s formula uses `sin(alpha)`
+    instead of the raw `alpha` main.tex's linear formula literally
+    specifies. `sin(alpha) == alpha` to leading order for small alpha --
+    they differ by <0.4% at 8.6 degrees (deg2rad(8.6) - sin(deg2rad(8.6)) /
+    deg2rad(8.6)), well inside this model's own small-angle-linearisation
+    error -- so every normal (small-alpha) trajectory is unaffected in any
+    way that matters. The reason for the change: raw `alpha =
+    atan2(w, u)` is *discontinuous* at its own branch cut (`u < 0`, `w`
+    crossing zero), and an unperturbed, symmetric flight coasting through
+    `V = 0` at apogee with `theta` unchanged (no restoring moment ever
+    having engaged) lands exactly there -- floating-point noise in `w`
+    alone then flips `alpha` between +pi and -pi from one solver
+    evaluation to the next. With the raw-alpha formula that flips
+    `C_z`/`C_m`'s sign and (being unbounded) magnitude every RHS call,
+    which sent `solve_ivp`'s adaptive step control into a step-size
+    collapse that did not recover within any reasonable wall-clock time
+    (observed: still not converged after several minutes, on a scenario
+    Step 34's code finished in ~1 second). A magnitude *clamp* on `alpha`
+    was tried first and does not fix this -- it only shrinks the jump, and
+    any genuine discontinuity, however small, still defeats an adaptive
+    solver's local-smoothness assumption. `sin(alpha)` removes the
+    discontinuity itself: it has no branch cut, so it passes through the
+    `+-pi` crossing exactly as smoothly as everything else in the model
+    does. It is also arguably the more physically honest formula at large
+    `alpha` to begin with -- `sin(pi) = 0`, correctly zero net side force
+    flying exactly tail-first (by symmetry, for a body of revolution),
+    where the literal `C_N_alpha*alpha` formula gives a large, nonsensical
+    value instead. `atan2(w, u)` itself remains ill-defined at the single
+    physical point `u = w = 0`; that is inherent to using an angle at all
+    and is not, and cannot be, "fixed" -- `sin(alpha)` only ensures
+    nothing built from it blows up there.
+    """
+    return AeroCoeffs(
+        C_x=p.aero.C_A0,
+        C_z=p.aero.C_N_alpha * np.sin(alpha),
+        C_m=p.aero.C_m_alpha * np.sin(alpha),
+        C_mq=p.aero.c_mq,
+        l1=p.lengths.l1,
+    )
+
+
+def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
+    """`"table"`: `C_A, C_N, C_m` and `l1` read from `p.aero.table`
+    (`data/aero/<name>`, this module's own format -- see the module
+    docstring), interpolated at run time (bracket-and-clamp in `M`,
+    `np.interp` in `alpha`, then blend -- `_table_lookup`).
+
+    `C_mq` (Step 44, architecture.md SS24.4): table-driven only when the
+    table has a `c_mq` column, otherwise the constant `p.aero.c_mq` --
+    SIGN: positive c_mq is DAMPING in this document's convention (positive
+    `C_m` is a nose-down moment here), the opposite of the textbook
+    `C_mq < 0`, the same flip `C_m_alpha` already carries. This is a
+    deliberate exception to this model's usual "table wins completely"
+    rule: every table committed before Step 44 lacks the column, so an
+    absent column must fall back to `p.aero.c_mq`, not to a literal `0.0`,
+    for a user to be able to try a single constant damping value without
+    regenerating a whole `(M, alpha)` grid.
+
+    Step 55: `l1` now comes out of this same bundle as the force/moment
+    coefficients, closing the pre-existing leak (architecture-28-rewrite.md
+    F2) where `dynamics.py`'s CoP-arm lookup and `forces.py`'s force/
+    moment lookup could independently disagree about whether a table was
+    in effect.
+    """
+    table = _load_table(p.aero.table)
+    if table.C_mq is not None:
+        C_mq = _table_lookup(table, alpha, M, table.C_mq)
+    else:
+        C_mq = p.aero.c_mq
+    return AeroCoeffs(
+        C_x=_table_lookup(table, alpha, M, table.C_A),
+        C_z=_table_lookup(table, alpha, M, table.C_N),
+        C_m=_table_lookup(table, alpha, M, table.C_m),
+        C_mq=C_mq,
+        l1=_table_lookup(table, alpha, M, table.l1),
+    )
+
+
+_AERO_MODELS = {
+    "constant": _constant_coeffs,
+    "linearized": _linearized_coeffs,
+    "table": _table_coeffs,
+}
+
+
+def coefficients(t: float, y: np.ndarray, p, flow) -> AeroCoeffs:
+    """The one public seam: all five aero coefficients at once, dispatched
+    on `p.aero.model` (architecture-28-rewrite.md SS28.5.1) -- the same
+    `_MODELS[key](...)` shape `gravity.py`/`wind.py` already use
+    (architecture.md SS12). An unknown `p.aero.model` string raises
+    `KeyError` at this call, this project's established convention for
+    every other model-selection dict (no input validation, architecture.md
+    SS12/SS20) -- matching `gravity_model="linear"`'s removal at Step 34.
+
+    `t`/`y` are accepted but unused here today -- they exist for Step 57's
+    control-coefficient hook (architecture-28-rewrite.md SS28.6), which is
+    NOT implemented yet (`control.aero_coeff_delta` does not exist). This
+    function returns the base model's bundle directly until that step
+    lands.
+    """
+    return _AERO_MODELS[p.aero.model](flow.alpha, flow.M, p)
+
+
+# ----------------------------------------------------------------------
+# Thin per-coefficient wrappers (architecture-28-rewrite.md D-7), kept so
+# existing call sites/tests that read one coefficient at a time keep their
+# pre-Step-55 `(alpha, M, p)` signature unchanged.
+# ----------------------------------------------------------------------
+
+
+def C_A(alpha: float, M: float, p) -> float:
+    """Axial-force coefficient (models.tex: `A_x = qSC_x`, `C_x == C_A`).
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps."""
+    return _AERO_MODELS[p.aero.model](alpha, M, p).C_x
 
 
 def C_N(alpha: float, M: float, p) -> float:
-    """Normal-force coefficient (main.tex SSForces: `A_z = qSC_N(alpha)`).
-
-    Table-driven when `p.aero_table` is set (the table may vary `C_N`
-    with `M` too -- see the module docstring's note on this signature);
-    otherwise `p.C_N_alpha * sin(alpha)` (Step 13's `C_N_alpha*alpha`
-    formula, smoothed at Phase 2.5 Step 35 -- see the module docstring's
-    "no table configured" section for why).
-    """
-    if p.aero.table:
-        table = _load_table(p.aero.table)
-        return _table_lookup(table, alpha, M, table.C_N)
-    return p.aero.C_N_alpha * np.sin(alpha)
+    """Normal-force coefficient (models.tex: `A_z = qSC_z`, `C_z == C_N`).
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps."""
+    return _AERO_MODELS[p.aero.model](alpha, M, p).C_z
 
 
 def C_m(alpha: float, M: float, p) -> float:
-    """Pitching-moment coefficient (main.tex SSMoments' `A_m`, generalised
-    per architecture.md SS19: `A_m = qS*d_ref*C_m(alpha, M)`).
-
-    Table-driven when `p.aero_table` is set; otherwise `p.C_m_alpha *
-    sin(alpha)` (Step 13's `C_m_alpha*alpha` formula, smoothed at Phase 2.5
-    Step 35, same reasoning as `C_N` above).
-    """
-    if p.aero.table:
-        table = _load_table(p.aero.table)
-        return _table_lookup(table, alpha, M, table.C_m)
-    return p.aero.C_m_alpha * np.sin(alpha)
+    """Pitching-moment coefficient (models.tex: `A_m = qSd_ref*C_m`).
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps."""
+    return _AERO_MODELS[p.aero.model](alpha, M, p).C_m
 
 
 def C_mq(alpha: float, M: float, p) -> float:
-    """Pitch-damping derivative (analysis.tex SSDynamic stability:
-    c_m = c_m0 + alpha*c_m_alpha + q_hat*c_mq, q_hat = omega*d_ref/(2V)).
-
-    Table-driven when `p.aero_table` is set AND the table has a `c_mq`
-    column; otherwise the constant `p.c_mq` (default 0.0 -- inert). This
-    is a deliberate exception to this module's usual "table wins
-    completely" rule (see the module docstring's "no table configured"
-    section for the rule as it applies to every other coefficient): every
-    table committed before Step 44 lacks the column, so absent-column must
-    fall back to `p.c_mq`, not to a literal `0.0`, for a user to be able to
-    try a single constant damping value without regenerating a whole
-    `(M, alpha)` grid (architecture.md SS24.4).
-
-    SIGN: positive c_mq is DAMPING in this document's convention (positive
-    C_m is a nose-down moment here -- architecture.md SS24.4), the
-    opposite of the textbook C_mq < 0. Same flip C_m_alpha already
-    carries.
-    """
-    if p.aero.table:
-        table = _load_table(p.aero.table)
-        if table.C_mq is not None:
-            return _table_lookup(table, alpha, M, table.C_mq)
-    return p.aero.c_mq
+    """Pitch-damping derivative (analysis.tex SSDynamic stability).
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps,
+    and `_table_coeffs`'s docstring for the sign convention and the
+    optional-column fallback."""
+    return _AERO_MODELS[p.aero.model](alpha, M, p).C_mq
 
 
 def cop_l1(alpha: float, M: float, p) -> float:
-    """CoP-to-CoG distance [m] -- the same quantity as `Params.l1`, now a
-    function of `(alpha, M)` when a table is configured (architecture.md
-    SS19: "CoP travel makes l1 a function of (alpha, M), which couples
-    straight back into the moment").
-
-    Table-driven when `p.aero_table` is set; otherwise the constant
-    `p.l1`, which is exactly `dynamics.py`'s pre-Step-25 behaviour.
-    """
-    if p.aero.table:
-        table = _load_table(p.aero.table)
-        return _table_lookup(table, alpha, M, table.l1)
-    return p.lengths.l1
+    """CoP-to-CoG distance [m] -- the same quantity as `Params.lengths.l1`,
+    now a function of `(alpha, M)` only under the `"table"` model
+    (architecture.md SS19: "CoP travel makes l1 a function of (alpha, M),
+    which couples straight back into the moment"). See `coefficients`/
+    `AeroCoeffs` for the full dispatch this wraps."""
+    return _AERO_MODELS[p.aero.model](alpha, M, p).l1
