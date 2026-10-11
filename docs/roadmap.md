@@ -28,12 +28,22 @@ intensity (AGL), amplitudes from the published PSD, and two horizontal component
 `turbulence_model = "none"` default — **DONE and committed, still 2D**, and the only step so far
 that is deliberately *not* bit-for-bit for one configuration (any run that had gusts on), which
 `architecture.md` §26.1 argues as a documented behaviour change rather than a regression.
+Phase 2.10 (Steps 47-49) adds the launch rail, a recovery canopy and the control-engineering
+scaffold with its feedback air brake, promoting Backlog B1/B2 — **DONE and committed, still 2D**.
+Phase 2.11 (Steps 50-60) is not an additive physics phase but a **rewrite pass**, run at the user's
+request before Phase 3 resumed: a 12-group composed `Params`, a strict `run_sim(p, s0)`, the
+**aero bug fix** (the `constant` model was never scaled by dynamic pressure) as one explicit
+three-way `constant`/`linearized`/`table` dispatch, one `flow_state` per RHS call, a
+control-coefficient seam, the `run.py`/`sim/report.py` split, and an opt-in sampled-data/zero-order-
+hold integration mode that unblocks Backlog B11/B12 — **DONE and committed, still 2D**, with exactly
+one deliberately non-bit-for-bit step (55, the bug fix itself). Design: `architecture-28-rewrite.md`.
 Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
 **Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
 (Phase 2, **with Phase 2.5 resolutions inline**), §23 (Phase 2.6), §24 (Phase 2.7), §25
-(Phase 2.8), §26 (Phase 2.9). Physics
+(Phase 2.8), §26 (Phase 2.9), §27 (Phase 2.10), §28 → `architecture-28-rewrite.md` (Phase 2.11).
+Physics
 reference: `latex/main.tex` plus `latex/sections-ai/{rocket-2d,analysis,models}.tex` (the section
 files moved from `latex/sections/` — earlier citations mean the same content at the new path).
 Rule for every step: re-read the relevant LaTeX section first, because the user keeps extending
@@ -1046,6 +1056,16 @@ reported at that instant becomes curved.
   changed `A_x`/motor-curve handling or the drag model between Steps 28 and 44, but this is a guess,
   not a finding.
 
+  **Resolved 2026-10-10 (Phase 2.11, Step 60) — by re-pinning, not by investigation.** Phase 2.11
+  made the Step-27 record stale a second time over, independently of this drift: Step 55 changed the
+  scenario's numbers substantially (the real-drag bug fix — apogee ~4.6 km → ~666.5 m) and Step 58
+  changed the tables' column headers (`gravity_model`→`gravity.model`,
+  `atmosphere_model`→`atmosphere.model`). Step 60 therefore re-pinned the whole block in
+  `PROJECT-STATUS.md` against a fresh `python run.py` in this tree, which resolves this Steps-28-44
+  drift as a side effect — it does **not** explain where it came from. If the question of what moved
+  `max_q`/`impact_t` between Steps 28 and 44 ever matters, it still needs its own look; the record is
+  simply no longer the place where it shows up.
+
 ---
 
 ## Phase 2.9 — Dryden turbulence model (still 2D)
@@ -1384,6 +1404,221 @@ go in 3D"). Full design in `architecture.md` §27. Promotes backlog **B1** (rail
 
 ---
 
+## Phase 2.11 — Rewrite pass: `Params` composition, the aero bug, sampled-data mode — COMPLETE
+
+Not an additive physics phase: a **rewrite pass**, requested by the user on 2026-10-10 ("fix bugs and
+rewrite `Params`/`sim/aero.py`/`run.py`/the LaTeX") and run **before** resuming Phase 3's Step 30,
+which stayed paused and untouched throughout. Design: `docs/architecture-28-rewrite.md` (pointed to
+from `architecture.md` §28); approved by the user the same day, decision log in `status.json`'s
+`phase2_11_rewrite` block. Step numbers continue the 33+ sequence (last used: Step 49), so Phase 3
+keeps its reserved 28-32 block.
+
+The pass exists because of one user-identified bug and one found while designing the fix:
+`aero_model="constant"` used raw-Newton placeholders (`A_x`/`A_z`/`A_m`) that were never scaled by
+dynamic pressure — the only aero model that ignored the atmosphere — and `aero_model`/`aero_table`
+were two uncoordinated selectors for the same thing, with `dynamics.py`'s `cop_l1` call ignoring the
+`aero_model` switch entirely. Everything else in the pass is structural: a 12-group composed
+`Params`, a strict `run_sim(p, s0)`, one `flow_state` per RHS call, a control-coefficient seam, the
+`run.py`/`sim/report.py` split, and an opt-in sampled-data integration mode.
+
+Ten steps, one commit each, each independently re-verified by the orchestrator rather than taken on
+the implementer's self-report — bit-for-bit claims proved by **execution** (`git stash`, re-run,
+byte-compare `output/trajectory.csv` and stdout), the Step 45 method. Test count 245 → 260 across the
+pass. **Exactly one step (55) is deliberately not bit-for-bit**, only the second such step in the
+project's history after Step 46. Dependency chain and the seventeen decision forks (D-1 … D-17):
+`architecture-28-rewrite.md` §28.11 / §28.12.
+
+### Step 50 — `Params` composition, part 1: groups + `sim/` migration — done, commit `2120ed1`
+- **Files:** `sim/params.py` (rewrite) plus every read site under `sim/`.
+- **Spec:** `architecture-28-rewrite.md` §28.3 (full field table), §28.4.
+- **Do:** twelve group dataclasses (`Weight`/`Thrust`/`Lengths`/`Aero`/`Gravity`/`Site`/
+  `Atmosphere`/`Soundings`/`Wind`/`Recovery`/`Control`/`Solver`) composed into `Params`, plus
+  `params.replace(p, {"group.field": ...})` and `params.with_solver(...)`; every `sim/` read moved to
+  the nested names; a **transitional** `Params.flat(**old_kwargs)` classmethod and read-only flat
+  `@property` aliases so nothing outside `sim/` breaks yet (decision D-2 — three commits with a
+  throwaway shim, not one big one).
+- **Check:** 245/245 before and after; `output/trajectory.csv` byte-identical via a `git stash`
+  round-trip; stdout identical apart from the one necessarily-changed printed `Params` repr line
+  (flat → nested). `sim/forces.py` confirmed *still* reading `Aero.C_x/C_z/C_m` unscaled — the bug
+  fix is Step 55's job, not this step's.
+- **Commit:** "Step 50 (Phase 2.11): Params composition, part 1 -- groups + sim/ migration"
+
+### Step 51 — `Params` composition, part 2: `tests/`, `run.py`, `apps/` to the native API — done, commit `beaf99b`
+- **Files:** `tests/*.py`, `run.py`, `apps/cfd_conditions/select_conditions.py`. No `sim/` file.
+- **Spec:** `architecture-28-rewrite.md` §28.3, §28.4 (the old→new field-name map *is* the ticket).
+- **Do:** all 164 `Params.flat(...)` constructions rewritten as nested constructions and ~104
+  `dataclasses.replace(p, field=...)` calls as the dotted-path helper — including bare flat-attribute
+  *reads* inside test bodies (`p.m`, `p.R_e`, `p.gravity_model`, `d["params"].gravity_model`), a
+  scope point the dispatch had underspecified and the developer correctly flagged instead of guessing.
+- **Check:** 245/245; `trajectory.csv` byte-identical; a from-scratch **AST-based** scan (not a text
+  grep) proving zero residual bare flat-attribute reads outside `sim/`. Two sanctioned stdout *text*
+  changes, no number changes: the sweep-table headers became `gravity.model`/`atmosphere.model`.
+- **Commit:** "Step 51 (Phase 2.11): Params composition, part 2 -- tests/run.py/apps/ migrated to the
+  native nested API"
+
+### Step 52 — `Params` composition, part 3: delete the transitional shim — done, commit `6d14b7a`
+- **Files:** `sim/params.py`.
+- **Do:** delete `Params.flat`, `_FLAT_TO_GROUP` and the ~50 flat `@property` aliases; `Params` is a
+  plain auto-generated-`__init__` dataclass again, and any surviving old-name reader now fails loudly.
+- **Check:** 245/245 with **zero test edits needed** — the proof that Steps 50/51 were complete — and
+  `run.py`'s entire stdout byte-identical (not merely `trajectory.csv` plus the repr line as at
+  50→51: this step changes neither).
+- **Commit:** "Step 52 (Phase 2.11): Params composition, part 3 -- delete the transitional flat shim"
+
+### Step 53 — `Solver` group: `run_sim(p, s0)`, no override kwargs — done, commit `b1f6c2e`
+- **Files:** `sim/integrate.py`, `sim/params.py`, `tests/*`, `run.py`, `apps/`.
+- **Spec:** `architecture-28-rewrite.md` §28.7; decision **D-10**.
+- **Do:** delete `run_sim`'s five kwargs (`method`/`dt`/`t_max`/`rtol`/`atol`) and read `p.solver.*`
+  instead, so `Result.params` can no longer disagree with how the run was actually integrated — the
+  property `Result.params` was added at Step 45 to create. All 67 call sites migrated (28 mechanical,
+  39 through `params.with_solver(p, ...)`).
+- **Check:** 245/245; stdout and `trajectory.csv` **completely** byte-identical (this step changes no
+  physics). `test_result_params_is_p_on_both_integrator_paths` corrected to assert against the
+  `with_solver(...)`-built object rather than the stale original `p` — it was otherwise asserting
+  something that had become meaningless.
+- **Commit:** "Step 53 (Phase 2.11): Solver group wired into run_sim(p, s0), no more kwargs"
+
+### Step 54 — LaTeX notation pass: three aero models, `C_x/C_z/C_m`, shared `S`/`d_ref` — done, commit `3373b06`
+- **Files:** `docs/latex/main.tex`, `docs/latex/sections-ai/{models,rocket-2d,analysis}.tex`.
+  Doc-only, **no code**.
+- **Spec:** `architecture-28-rewrite.md` §28.10 items 1-7 and 10 (items 8-9 deferred to Step 60 —
+  they could not be written truthfully until Step 59 existed); decisions **D-4** … **D-8**, **D-16**.
+- **Do:** restate `§Aerodynamics > Coefficients` as three explicitly named, equally first-class
+  selectable models (`Constant`/`Linearized`/`Table`), matching the shape `§Gravity`/`§Atmosphere`/
+  `§Wind` already had; document `Constant` as genuinely `q`-scaled ("reads the atmosphere exactly as
+  the other two do"); add the `C_x\equiv C_A` / `C_z\equiv C_N` bridge in the style the document
+  already used for `c_z\equiv C_N`; state that `c_{m,q}` applies under all three models; narrow the
+  control-surface `\todo` to "the seam exists, the laws do not".
+- **Ordering, deliberately:** this lands **before** Step 55 so the document does not contradict the
+  code the implementer is about to write — working rule 1 makes the LaTeX the source of truth, and
+  Step 46 was blocked precisely because `models.tex` contradicted its own spec. Same order Phase 2.6
+  used (doc commit `17da67b` before Steps 38-40).
+- **Check:** structural only — a from-scratch label/cross-reference/brace/environment script re-run
+  independently: 57 labels / 0 duplicates, 186 refs / 48 targets / 0 dangling, clean brace and
+  environment balance in all four files. Two collateral corrections flagged and made
+  (`analysis.tex`'s `c_mq` paragraph, `main.tex`'s CFD-pipeline bullet). **No LaTeX toolchain in this
+  environment — compile locally before treating as final**, the standing caveat on every doc pass.
+- **Commit:** "Step 54 (Phase 2.11): LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared
+  S/d_ref (doc-only, no code)"
+
+### Step 55 — Aero three-way dispatch — **the bug fix** — done, commit `8b8a343`
+- **Files:** `sim/aero.py`, `sim/forces.py`, `sim/dynamics.py`, `tests/test_aero.py`,
+  `tests/test_forces.py`, `tests/test_dynamics.py`, `tests/test_control.py`, `run.py`, `apps/`.
+- **Spec:** `architecture-28-rewrite.md` §28.5 in full (§28.5.4 is the complete re-pin list);
+  decisions **D-4** … **D-9**; `latex/sections-ai/models.tex` §Aerodynamics as rewritten at Step 54.
+- **Do:** `AeroCoeffs` plus an `_AERO_MODELS` dispatch dict over `constant`/`linearized`/`table`;
+  `"constant"` is finally dynamic-pressure-scaled (`q\,S\,C_x` etc.) instead of raw,
+  atmosphere-independent Newtons; `"linearized"` is bit-for-bit the old `"coefficients"`;
+  `forces.py`'s `if/elif` blocks deleted; `dynamics.py`'s CoP leak closed (table-driven `l_1`
+  disagreeing with constant-driven force — finding F2). Coefficients `C_x`/`C_z`/`C_m` × one shared
+  reference area `Aero.S` replace `A_x`/`A_z`/`A_m`; **not** a new field `A`, which would have
+  reintroduced the symbol collision with the nose-tip point `A`/`\vec{A}_f` that the
+  report-finalization pass had deliberately removed (D-4).
+- **Check:** 247/247. **Deliberately not bit-for-bit** — `run.py`'s scenario apogee drops from
+  ~4.6 km to ~666.5 m, because `C_x=0.5` now produces real drag instead of an inert 0.5 N
+  placeholder. Everything with zero coefficients stays bit-for-bit and was *shown* to. The
+  implementer found and re-pinned **4 more affected sites** than the design's blast-radius estimate
+  had counted (`test_control.py`'s airbrake fixture among them).
+- **Finding, flagged not hidden:** the committed scenario has `C_m=0.0` (no restoring moment), so
+  `theta` stays frozen nose-up through a tail-first post-apogee descent, and the now-real
+  (α-independent) axial drag *accelerates* that fall — the printed max speed (414.7 m/s) occurs during
+  **descent**, not ascent. A pre-existing scenario-design simplification, only consequential now that
+  the drag is real; out of this step's scope to fix (it would mean changing the scenario's physics),
+  and worth the user's attention separately from the rewrite.
+- **Commit:** "Step 55 (Phase 2.11): aero three-way dispatch -- the bug fix"
+
+### Step 56 — One `flow_state` per RHS call — done, commit `2720c82`
+- **Files:** `sim/dynamics.py`, `sim/forces.py`, `sim/aero.py`, `sim/forces3d.py` (adapter only).
+- **Spec:** `architecture-28-rewrite.md` §28.11 [S56] (finding F8).
+- **Do:** compute `flow_state` once in `derivatives` and thread it down (`aero_force_body` and
+  `aero_moment_y` gain a required `flow` parameter) instead of three independent computations per RHS
+  call; `forces3d.py`'s 2D-compat adapter updated mechanically, no new 3D physics. Kept separate from
+  Step 55 on purpose: 55 changes numbers, 56 must not, and mixing them would make the bit-for-bit
+  check unprovable.
+- **Check:** strictly bit-for-bit — `trajectory.csv` and stdout zero-diff — with `flow_state`
+  confirmed genuinely pure (the Dryden RNG draw is cached per seed and consumed once per process).
+  ~44 % faster per RHS evaluation (83.55 µs → 47.01 µs); the suite itself ran ~198 s vs ~320 s for the
+  same 247 tests as a side effect, which matters directly for Step 59's fixed-step cost.
+- **Commit:** "Step 56 (Phase 2.11): one flow_state per RHS call"
+
+### Step 57 — Control-coefficient seam (structure only, identity by default) — done, commit `00d7219`
+- **Files:** `sim/control.py`, `sim/aero.py`, `sim/params.py`, `tests/test_control.py`,
+  `tests/test_aero.py`.
+- **Spec:** `architecture-28-rewrite.md` §28.6; decision **D-9**.
+- **Do:** `aero_coeff_delta` + `_AERO_COEFF_CONTROLLERS` keyed by `Control.aero_coeff_model`, with
+  **only** the `"none"` identity variant registered — **no controller is written**. `aero.py`'s
+  `coefficients()` calls through as the single choke point, so forces, moment, damping and
+  `dynamics.py`'s CoP arm all see one consistent controlled coefficient set: the exact shape of the
+  F2 leak Step 55 had just closed stays closed by construction. Step 49's airbrake keeps its separate
+  additive-area route (D-9) rather than being re-expressed as `\Delta C_x`, which would mean dividing
+  by an `S` that is `0.0` in most existing fixtures.
+- **Check:** 249/249; `trajectory.csv`/stdout zero-diff. Two new tests: the default is genuinely
+  `is`-identity of the returned bundle, and a locally-registered dummy variant proves a delta reaches
+  all four consumers by closed form. The circular import was resolved with this codebase's own
+  existing precedent (a deferred import, the same shape as `flow.py`/`forces.py`'s `sim.wind` cycle),
+  not a new pattern.
+- **Commit:** "Step 57 (Phase 2.11): control-coefficient seam (structure only, identity by default)"
+
+### Step 58 — `run.py` → `sim/report.py` — done, commit `78a7e55`
+- **Files:** new `sim/report.py`, `run.py`, `tests/test_plotting.py`, new `tests/test_report.py`.
+- **Spec:** `architecture-28-rewrite.md` §28.9; decision **D-13**.
+- **Do:** `run.py` becomes scenario definition only; `sim/report.py` takes `flight_summary`, `sweep`,
+  `print_sweep_table`, `print_run_summary`, `save_run_artifacts`, `save_sweep_artifacts` and a
+  `run_sweep` convenience wrapper. Which models to compare stays scenario configuration, in `run.py`
+  (D-13). `plt.show()` dropped — it is what hung two verification runs during Step 45.
+- **Check:** 249/249; `trajectory.csv` byte-identical; stdout differs only by the now-absent
+  `plt.show()` warning lines. Step 55's deliberate `aero.model="linearized"` override on the
+  atmosphere sweep was **preserved with its reasoning intact**, despite the design doc's own
+  illustrative snippet suggesting otherwise — the implementer checked rather than copied.
+- **Commit:** "Step 58 (Phase 2.11): run.py reduced to scenario definition only, sim/report.py takes
+  the rest"
+
+### Step 59 — Sampled-data / zero-order-hold integration mode — done, commit `37f0b68`
+- **Files:** new `sim/sampling.py`, `sim/integrate.py`, `sim/dynamics.py`, `sim/forces.py`,
+  `sim/aero.py`, `sim/control.py`, `sim/flow.py`, `sim/wind.py`, `sim/params.py`, new
+  `tests/test_sampling.py`, `tests/test_integrate.py`.
+- **Spec:** `architecture-28-rewrite.md` §28.8 (§28.8.3 for what it does and does not unblock);
+  decisions **D-11**, **D-12**, **D-17**.
+- **Do:** refactor `_run_rk4` (not copy it) to support an opt-in zero-order-hold mode: a `Hold` is
+  recomputed once per fixed-rate tick and held constant across all four RK4 stages of every substep
+  inside that tick, keeping the RHS smooth within a tick. Gated by `p.solver.sample_rate_hz > 0.0`
+  and requiring `p.solver.method == "rk4"` (raises otherwise — D-11, sampling is an orthogonal second
+  dispatch, not a third method string); a non-integer `T_s/dt` raises rather than silently rounding.
+  `hold=None` threaded through the **full** RHS chain (D-17), so B11 will not have to re-open the
+  plumbing. **No controller and no turbulence model written** — this is the capability B11/B12 were
+  both blocked on, nothing more.
+- **Check:** 260/260 (11 new), including the step's single most load-bearing assertion — a test
+  channel counting its own invocations sees exactly **one call per tick**, not one per substep or per
+  RK4 stage. Default (`sample_rate_hz=0.0`) confirmed bit-for-bit by a `git stash` round-trip.
+  Measured ~74× slower than RK45, almost entirely inherent to fixed-step RK4 rather than the ZOH
+  machinery itself (~1 % overhead) — the cost risk the design named, measured instead of assumed.
+- **Caveat recorded in the code, not just here:** a sampled run is a *different dynamical system*
+  from the continuously-evaluated one, not a more accurate solution of the same one, so the two are
+  not to be compared as though one refined the other.
+- **Commit:** "Step 59 (Phase 2.11): sampled-data / zero-order-hold integration mode -- unblocks
+  backlog B11/B12"
+
+### Step 60 — Tracker, roadmap and LaTeX close-out — done
+- **Files:** `docs/roadmap.md`, `docs/PROJECT-STATUS.md`, `docs/latex/main.tex`
+  (`architecture-28-rewrite.md` §28.10 items 8-9 only). Doc/tracker-only, **no code**.
+- **Do:** (1) record Phase 2.11 here — this section; (2) **re-pin** `PROJECT-STATUS.md`'s Step-27
+  "Actual printed sweep tables" record against the real current `run.py` output, which Step 55 moved
+  substantially (apogee ~4.6 km → ~666.5 m) and Step 58 moved textually (column headers
+  `gravity_model`→`gravity.model`, `atmosphere_model`→`atmosphere.model`) on top of the pre-existing
+  Step-45-era drift in `max_q`/`impact_t` — both now resolved together by one re-pin, see the Step 45
+  entry's own note; (3) move **B11** and **B12** below from "blocked on a different integration
+  strategy" to "unblocked by Step 59, law not written"; (4) apply §28.10 items **8-9** to `main.tex`
+  — the launch-rail/air-brake assumptions bullet and the sampled-data backlog bullet — which were
+  deliberately deferred at Step 54 because neither could be written truthfully until Step 59 existed.
+- **Check:** the sweep tables re-pinned from an actual headless `python run.py` in this tree, not
+  from the step reports. `main.tex` checked structurally (labels, `\autoref` targets, brace and
+  environment balance) as at Step 54 — **no LaTeX toolchain here, compile locally before treating as
+  final**. No `sim/`, `tests/`, `run.py`, `apps/` or `status.json` touched; Step 30 and
+  `docs/latex/research/3d_equations_of_motion.md` untouched, as throughout the pass.
+- **Commit:** "Step 60 (Phase 2.11): tracker/roadmap/LaTeX close-out -- Phase 2.11 complete"
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -1542,7 +1777,22 @@ file; (2) a measured profile's own vertical shear already contains some of what 
 superposing the two risks double-counting. Deciding either needs a look at what a radiosonde profile
 actually resolves. **Do not** fold this into Step 46.
 
-### B11 — State-coupled turbulence (true airspeed instead of a fixed reference)  *(opened by Step 46)*
+### B11 — State-coupled turbulence (true airspeed instead of a fixed reference)  *(opened by Step 46)* — **UNBLOCKED by Step 59, model not written**
+**Status, 2026-10-10 (Step 60):** the blocker named in this entry — "a fundamentally different
+integration strategy (fixed-step, with the filter state carried in the state vector)" — is **gone**.
+Phase 2.11's Step 59 (commit `37f0b68`, `architecture-28-rewrite.md` §28.8) ships exactly that
+capability: an opt-in fixed-rate, zero-order-hold integration mode in which a sampled quantity is
+computed once per tick and held constant across every RK4 stage of that tick, with a `hold` object
+threaded through the full RHS chain (including `flow.py`/`wind.py`, deliberately, so this item would
+not have to re-open the plumbing — decision D-17). What Step 59 did **not** do is write the model:
+the Dryden filter driven by the instantaneous true airspeed, its state, and its initialisation do not
+exist. So this item moves from *blocked* to *unwritten* — the remaining work is the turbulence model
+itself, plus a decision on how the filter state is carried across ticks, and nothing about the
+solver. Two things to carry into it: a sampled run is a different dynamical system from a
+continuously-evaluated one (not a refinement of it), and fixed-step integration measured ~74× slower
+than RK45 on this project's own scenario. The original entry, unchanged, follows.
+
+
 Step 46 freezes the Taylor frozen-turbulence conversion speed at one `turbulence_ref_speed_ms` for
 the whole flight — the user's decision, documented as a known simplification
 (`architecture.md` §26.9, research note §4.1/§5). The "gold standard" alternative drives a linear
@@ -1565,7 +1815,21 @@ for every scenario in this repo (confirmed: 235/235 tests still pass, and the pr
 warning-triggering tests now pass clean even with `RuntimeWarning` promoted to a hard error).
 Commit `657ff36`.
 
-### B12 — Sampled-data control (fixed-rate loop, zero-order hold, PID)  *(opened by Step 49)*
+### B12 — Sampled-data control (fixed-rate loop, zero-order hold, PID)  *(opened by Step 49)* — **UNBLOCKED by Step 59, law not written**
+**Status, 2026-10-10 (Step 60):** this entry's blocker is **gone**, and it is the item Step 59 was
+named after. `sim/sampling.py` + the refactored `_run_rk4` (commit `37f0b68`,
+`architecture-28-rewrite.md` §28.8) give a fixed-rate loop with a genuine zero-order hold: gated by
+`p.solver.sample_rate_hz > 0.0`, requiring `method="rk4"`, with the controller evaluated **once per
+tick** (proved by a test channel that counts its own invocations — one call per tick, not one per
+substep or per RK4 stage) and its output held constant until the next tick, so a term that must
+survive from one sample to the next is now well defined. Step 57 (commit `00d7219`) separately
+provides the single choke point a control law can perturb `C_x/C_z/C_m/l_1` through. What is
+**missing is the law**: no PID exists — not the gains, not the integral term's anti-windup or
+saturation treatment, not the choice of which signal it acts on. So this moves from *blocked* to
+*unwritten*, and it is the law that is now the work, not the solver. Revisit alongside B11, which was
+unblocked by the same step; the two no longer share a root cause, only a remaining shape (write the
+model/law against a capability that already exists). The original entry, unchanged, follows.
+
 Step 49's airbrake controller is a continuous, memoryless proportional law — `architecture.md`
 §27.3 makes the same call Step 46/B11 already made for turbulence, and for the same reason:
 `solve_ivp`'s RHS has no notion of "the last sample," so a real flight computer's fixed-rate loop
@@ -1599,12 +1863,18 @@ change.
                                      ↓
                       47 → 48  ·  49                         Phase 2.10: 48 needs 47; 49 independent
                                      ↓
+      50 → 51 → 52 → 53 → 58                                 Phase 2.11: rewrite pass — DONE
+                        └→ 55 → 56 → 57 → 59 → 60              (54 is doc-only and parallel, but
+      54 ──────────────→ 55                                     must land before 55; 59 needs 53+57)
+                                     ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
 Backlog (unscheduled): B3 EGM gravity · B6 crosswind
                        B7 vertical wind (no fitting theory found) · B9 a real c_mq value
                        B10 turbulence on wind tiers 2/3 · B11 state-coupled turbulence  (both new at 46)
                        B12 sampled-data/PID control (new at 49) · B13 ISA extrapolation robustness (found at 48)
+                       B11 and B12 both UNBLOCKED at 59 (the integration mode exists; neither the
+                       turbulence model nor the PID law is written — the work is now the model/law)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40
                              B8 → Step 45 · B1 → Step 47 · B2 → Step 48
 ```
@@ -1636,6 +1906,15 @@ Step 40 — but it is also the **only** step since 38 that is deliberately not b
 configuration (a run with `gust_sigma > 0.0` changes, by design — `architecture.md` §26.1), and the
 first since Step 34 to **remove** anything from the public surface (`gust_sigma` deleted, `gust_seed`
 renamed to `turbulence_seed`). It is **blocked** — see the table below.
+
+Phase 2.11 is the one phase that is almost entirely a **chain**, and that is a consequence of its own
+design rather than an accident: `Params` is upstream of every module, so 50 → 51 → 52 → 53 is strict,
+and the aero/report/solver work all lands on overlapping files. Only **54** (the LaTeX pass) is
+genuinely parallel-safe, since it touches no code file — but it still has to land *before* 55, so the
+document does not contradict the code being written against it. **58** needs only 53, and **59** needs
+53 (for the `Solver` group that holds `sample_rate_hz`) and 57 (for the hook argument to exist).
+**60** closes the pass. Full ticket list and the seventeen decision forks: `architecture-28-rewrite.md`
+§28.11 / §28.12.
 
 Steps in `[brackets]` are optional or gated. Step 21 (analytic wind) depends only on Step 13 and
 may be pulled forward. **Blocked or gated steps:**

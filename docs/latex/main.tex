@@ -109,9 +109,15 @@ choice'' at a glance.
     opening transient or the body's pendulum swing underneath it. A feedback-controlled air brake
     (a special case of the wing-body air brake described in \autoref{sec:backlog}, but
     standing alone as a switchable extra drag area rather than derived from an airframe) can
-    additionally modulate drag during the unpowered coast to target a commanded apogee; the control
-    law is a continuous, memoryless proportional law, not a sampled-data controller with memory
-    (\autoref{sec:backlog}).
+    additionally modulate drag during the unpowered coast to target a commanded apogee. Two distinct
+    things were simplified here, and only one of them still is. The control \emph{law} that is
+    actually implemented is continuous and memoryless --- a proportional law re-evaluated afresh from
+    the current flight state at every solver call, with no integral or derivative term and no notion
+    of a previous sample. The \emph{integration}, however, no longer rules out a law with memory: the
+    solver carries an opt-in fixed-rate, zero-order-hold mode in which a sampled quantity is
+    evaluated once per sample tick and held constant until the next, so that a value surviving from
+    one tick to the next is well defined. A controller with memory is therefore expressible but
+    unwritten --- what is missing is the law, not somewhere to run it (\autoref{sec:backlog}).
 \end{itemize}
 
 \newpage
@@ -143,7 +149,8 @@ tell a missing derivation from a missing input.
     during unpowered coast --- is already implemented and stays 2D-only (\autoref{sec:assumptions}):
     it needs no out-of-plane freedom, only an additional switchable drag term. Its control law is a
     continuous, memoryless proportional one, not a sampled-data controller with integral/derivative
-    memory --- the latter needs a different integration strategy and is itself future work.
+    memory --- the different integration strategy such a controller needs now exists, as an opt-in
+    solver mode, but the law itself is still future work (see the sampled-data item below).
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated, linearized or constant coefficients of \autoref{sec:aero} with a wing-body
     (Barrowman-style) build-up. Conceptually: the nose, the body, and each fin each contribute
@@ -194,11 +201,21 @@ tell a missing derivation from a missing input.
     Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the same 2D closure and
     both are lifted by the same future work, a full 6DOF model --- not by anything that can be
     done inside this document.
-    \item A sampled-data (fixed-rate, zero-order-hold) control loop, with integral/derivative
-    memory, for the air brake described in \autoref{sec:assumptions} --- or for any future control
-    law. \emph{Waiting on:} a different integration strategy than this document's solver assumes;
-    the present proportional law is re-evaluated fresh at every call specifically to avoid that
-    dependency.
+    \item A sampled-data control \emph{law} --- one with integral/derivative memory, running on the
+    fixed-rate, zero-order-hold loop --- for the air brake described in \autoref{sec:assumptions},
+    or for any future controller. The integration strategy this needs is \emph{no longer} missing: a
+    fixed-rate, zero-order-hold mode is available as an opt-in alternative to the adaptive-step
+    scheme this document otherwise assumes, holding each sampled quantity constant across a tick so
+    that a controller may legitimately carry state from one sample to the next. This item has
+    therefore gone from blocked to merely unwritten. \emph{Waiting on:} the law itself --- which
+    signal it acts on, its gains, and the saturation/anti-windup treatment of its integral term ---
+    none of which this document fixes. Two properties of the sampled mode are worth stating with it,
+    because neither is a defect to be corrected later: a run in that mode is a \emph{different}
+    dynamical system from the continuously-evaluated one rather than a more accurate solution of the
+    same one, so the two are not to be compared as though one refined the other; and the fixed-step
+    integration it requires is substantially more expensive than the adaptive scheme, which is why
+    it is opt-in rather than the default. The present proportional law
+    (\autoref{sec:assumptions}) remains re-evaluated fresh at every call, and needs none of this.
     \item A refined launch-rail model with friction, and a recovery model with the canopy's own
     opening transient and pendulum swing under the risers, rather than the current instantaneous-
     deployment, frozen-attitude treatment (\autoref{sec:assumptions}).

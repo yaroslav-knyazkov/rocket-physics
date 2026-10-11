@@ -16,7 +16,7 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
-## Phase 2.11 rewrite pass — IN PROGRESS (started 2026-10-10), Step 30 paused for it
+## Phase 2.11 rewrite pass — COMPLETE (2026-10-10), Step 30 still paused, unchanged by it
 
 User request (2026-10-10): fix bugs and rewrite `Params`/`sim/aero.py`/`run.py`/the LaTeX **before**
 resuming Step 30 (3D rotational EOM review), which stays paused and untouched throughout. Architect
@@ -162,19 +162,53 @@ fixed-step RK4, not the ZOH machinery itself, measured at ~1% overhead). 260/260
 (`sample_rate_hz=0.0`) confirmed bit-for-bit via git-stash round-trip; core driver logic, `sim/
 sampling.py`, and the hold-consumption code all read and checked directly against spec line-by-line.
 
-**Next:** dispatch S60 to architect (tracker/roadmap/LaTeX close-out — the final step of Phase 2.11).
+**S60 done, doc/tracker-only, the final step of the pass.** Four deliverables: (1) Phase 2.11
+recorded in `roadmap.md` as a full phase section (Steps 50-60, each with Files/Spec/Do/Check/Commit
+in this file's established shape), plus the Summary, dependency-diagram and dependency-prose entries
+the other phases have; (2) `PROJECT-STATUS.md`'s Step-27 "Actual printed sweep tables" record
+**re-pinned** against a real headless `python run.py` in this tree, with the four separate reasons it
+had drifted enumerated — items 1-2 pre-existing (the `linear` row removed at Step 34; the
+unattributed Steps-28-44 `max_q`/`impact_t` drift found during Step 45's verification), items 3-4
+this pass's own and intended (Step 55's real drag, Step 58's header rename). The re-pin resolves the
+*record*; it does **not** explain the Steps-28-44 drift, which still has no cause and would need its
+own look — stated plainly rather than claimed as a fix; (3) backlog **B11** and **B12** moved from
+*blocked on a different integration strategy* to *unblocked by Step 59, model/law not written*, with
+the remaining work named in each case (the Dryden filter and its state for B11; the PID's signal,
+gains and anti-windup for B12) — **no law and no turbulence model written**, per the step's scope;
+(4) `architecture-28-rewrite.md` §28.10 items **8-9** applied to `main.tex` — the two sentences
+deliberately deferred at Step 54 because neither could be written truthfully until Step 59 existed.
+A third site carrying the same now-false "needs a different integration strategy" claim (the
+commanded-gimbal backlog bullet) was found and corrected as flagged collateral, the same way Step 54
+handled its two. Checked structurally only (labels/`\autoref` targets/brace and environment
+balance) — **no LaTeX toolchain here, compile locally before treating as final**. No `sim/`,
+`tests/`, `run.py`, `apps/` or `status.json` touched; Step 30 and
+`docs/latex/research/3d_equations_of_motion.md` untouched, as throughout the pass.
+
+**Phase 2.11 is complete: all ten steps of `architecture-28-rewrite.md` §28.11 (S50-S60) are done,
+each committed individually and each independently re-verified by the orchestrator rather than
+accepted on the implementer's self-report.** The user-identified bug is fixed (S55), the second
+defect found while designing the fix is fixed with it (the `aero_model`/`aero_table` double selector
+and `dynamics.py`'s `cop_l1` leak), and B11/B12 are unblocked without either law being written.
+Test count 245 → 260 across the pass; exactly one step (55) deliberately not bit-for-bit, every other
+step proved bit-for-bit by execution.
+
+**Next:** Step 30 resumes exactly where it was paused — waiting on the user's review of
+`docs/latex/research/3d_equations_of_motion.md`. Nothing in this pass changed that, and nothing in
+this pass touched it.
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
 **Phase 2.6 (Steps 38-40) COMPLETE**, **Phase 2.7 (Steps 41-44) COMPLETE**, **Phase 2.8 (Step 45)
 COMPLETE**, **Phase 2.9 (Step 46) COMPLETE**, **Phase 2.10 (Steps 47-49) COMPLETE** — 2D is now
 feature-complete against the backlog (everything left needs new data, new theory, or a 3D degree of
-freedom). **Phase 3 (3D, full 6-DOF) STARTED 2026-10-04**: Step 28 (quaternion algebra, commit
+freedom) — and **Phase 2.11 (Steps 50-60) COMPLETE** (2026-10-10, the rewrite pass: see the section
+above). **Phase 3 (3D, full 6-DOF) STARTED 2026-10-04**: Step 28 (quaternion algebra, commit
 `26cbf1b`) and Step 29 (3D state + translational dynamics, commit `2d9acb5`) are done and
 independently verified. **Step 30 (3D rotational dynamics) is blocked**, waiting on the user's review
 of `docs/latex/research/3d_equations_of_motion.md` — a proposed inertia-tensor/Euler's-equations
 extension to `main.tex`, drafted by the orchestrator rather than invented unilaterally, since
-`main.tex` has no 3D content at all yet. 245/245 tests passing. Backlog items B1, B2, B4, B5 and B8
+`main.tex` has no 3D content at all yet. 260/260 tests passing (245 before Phase 2.11; the pass added
+15). Backlog items B1, B2, B4, B5 and B8
 are done (promoted at earlier
 phases); remaining backlog: B3 gridded EGM gravity, B6 crosswind (parked for Phase 3, now with a
 second item waiting on it — Step 46's Dryden cross-wind `v`), B7 vertical wind (parked; Step 46
@@ -183,7 +217,10 @@ updraft/downdraft question does not), B9 a real `c_mq` value (researched 2026-09
 keep the Step 44 test fixture rather than adopt OpenRocket's method), B10 turbulence on wind tiers 2/3
 and B11 state-coupled turbulence (both opened by Step 46), B12 sampled-data/PID control (opened by
 Step 49 — the airbrake controller is a pure, memoryless proportional law for the same
-solver-determinism reason B11 exists), B13 ISA-extrapolation robustness (a benign but real gap found,
+solver-determinism reason B11 exists; **B11 and B12 are both now unblocked by Phase 2.11's Step 59**,
+which ships the opt-in zero-order-hold integration mode they were both blocked on — but neither the
+turbulence model nor the PID law is written, so both items stay open with the *model/law* as the
+remaining work rather than the solver), B13 ISA-extrapolation robustness (a benign but real gap found,
 not introduced, during Step 48's verification — see roadmap.md). Also outstanding, as the user's own
 follow-up, not blocking anything: `latex/sections-ai/models.tex` §Wind > Analytic still documents the
 pre-Step-46 placeholder gust formula. B13 (ISA extrapolation robustness, found during Step 48's
@@ -1009,23 +1046,48 @@ own dedicated commit before Step 25:
   sounding gives higher apogee and lower max-Q than ISA (less dense air, less drag — consistent
   with Step 18's own finding); a direct check that gravity-model divergence is small (`<1%`) at
   ~4.6 km but clearly visible (`~8×` larger) at 100 km, exactly the roadmap's stated check; overlay
-  plot returns a valid figure. Actual printed sweep tables:
-  ```
-  Gravity model comparison (gravity_model sweep):
-  gravity_model    apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
-  ------------------------------------------------------------------------
-  constant             4609.2267       30.1209    54853.4687       62.4745
-  linear               4612.2749       30.1465    54852.6283       62.5327
-  radial               4612.2651       30.1465    54852.6241       62.5326
-  wgs84                4624.2535       30.2202    54864.7281       62.6972
+  plot returns a valid figure. Commit `9291b32`.
 
-  Atmosphere model comparison (station LKPR) (atmosphere_model sweep):
-  atmosphere_model   apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
-  --------------------------------------------------------------------------
-  isa                   682.3775        9.5833    23066.9337       25.9148
-  sounding              685.1434        9.6047    23002.8091       25.9532
+  **Actual printed sweep tables — re-pinned 2026-10-10 (Phase 2.11, Step 60).** Captured from a
+  real headless `MPLBACKEND=Agg python -u run.py` in this tree at commit `3f081a3` (i.e. with all of
+  Steps 50-59 in), not transcribed from any step report:
   ```
-  Commit `9291b32`.
+  Gravity model comparison (gravity.model sweep):
+  gravity.model    apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
+  ------------------------------------------------------------------------
+  constant              666.5064        9.4498   105350.1105       17.8740
+  radial                666.5328        9.4507   105349.8006       17.8758
+  wgs84                 667.0246        9.4633   105374.5378       17.9011
+
+  Atmosphere model comparison (station LKPR) (atmosphere.model sweep):
+  atmosphere.model   apogee_alt[m]   apogee_t[s]     max_q[Pa]   impact_t[s]
+  --------------------------------------------------------------------------
+  isa                   682.3777        9.5833    23068.9022       26.5922
+  sounding              685.1438        9.6047    23003.8544       26.6500
+  ```
+  **Why this record moved, and what it supersedes.** The numbers above are not a correction of an
+  error in Step 27's own work; four separate, individually documented changes landed on top of it,
+  and the record had simply never been re-pinned since:
+  1. **Step 34** removed the `linear` gravity model outright, so the gravity sweep has three rows,
+     not four. (Known stale since then.)
+  2. **Steps 28-44, unattributed** — a drift in `max_q`/`impact_t` of several percent in both
+     sweeps, found during Step 45's verification and *proved* unrelated to Step 45 by a
+     stash-and-diff, but never traced to its actual cause. This re-pin **resolves the record, not
+     the question**: where that drift came from is still unexplained, and if it ever matters it
+     needs its own look (`roadmap.md`'s Step 45 entry carries the same note).
+  3. **Step 55** (the aero bug fix, commit `8b8a343`) — the deliberately non-bit-for-bit step. With
+     `aero.model="constant"` now genuinely `q`-scaled, the scenario's `C_x=0.5` produces real drag
+     instead of an inert 0.5 N placeholder, so apogee drops ~4.6 km → ~666.5 m and `max_q` roughly
+     doubles (54.9 kPa → 105.4 kPa) at the much lower, denser-air trajectory. This is the dominant
+     change in the gravity sweep. The **atmosphere** sweep moved far less (682.3775 → 682.3777 m)
+     because it carries Step 55's deliberate `aero.model="linearized"` override — preserved with its
+     reasoning intact at Step 58 — so its coefficients were already `q`-scaled before the fix; its
+     `impact_t` shift (25.91 → 26.59 s) is item 2's drift, not item 3's.
+  4. **Step 58** (commit `78a7e55`) — column header text only: `gravity_model` → `gravity.model`,
+     `atmosphere_model` → `atmosphere.model`, following the nested `Params` of Steps 50-52.
+
+  Items 1 and 2 were pre-existing drift this pass did not cause; items 3 and 4 are this pass's own,
+  and intended. All four are now resolved together by the single re-pin above.
 
 ## Phase 2 milestone: COMPLETE
 Every model family in `main.tex` §Models is implemented and selectable via a `Params` string field:
