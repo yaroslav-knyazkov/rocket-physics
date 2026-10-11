@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.11-rewrite-in-progress-dispatching-S50-phase3-step30-paused",
+  "current_stage": "phase2.11-rewrite-COMPLETE-phase3-step30-resuming",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -48,7 +48,11 @@
     ],
       {"step": 59, "name": "sampled-data/zero-order-hold integration mode -- unblocks B11/B12", "commit": "37f0b68", "note": "largest/riskiest step in the pass. _run_rk4 refactored (not copied) with a substep_in_tick counter triggering sim.sampling.sample(...) once per fixed-rate tick, hold constant across all 4 RK4 stages per substep. New sim/sampling.py (Hold NamedTuple + _CHANNELS dispatch registry). hold=None threaded through the full RHS chain, every pre-Step-59 call site unaffected. Gated by solver.sample_rate_hz>0.0 + requires method='rk4' (raises otherwise); non-integer T_s/dt raises. 11 new tests incl. the critical prev-threaded-once-per-tick proof. Measured ~74x slower than RK45 (ZOH overhead itself ~1%, rest is inherent fixed-step cost). Verified independently with unusual rigor given the risk: 260/260, bit-for-bit confirmed, core driver/sampling.py/control.py hold-consumption all read line-by-line against spec, the load-bearing prev-threading test read in full."}
     ],
-    "next": "dispatch S60 to architect (tracker/roadmap/LaTeX close-out -- final step of Phase 2.11)"
+      {"step": 60, "name": "tracker/roadmap/LaTeX close-out -- Phase 2.11 complete", "commit": "50e1b6f", "note": "roadmap.md gains ## Phase 2.11 section; PROJECT-STATUS.md's Step-27 sweep tables re-pinned against a real run.py capture; B11/B12 marked unblocked-by-S59/law-not-written; main.tex's 2 deferred edits (items 8-9) + 1 collateral correction applied. Verified independently: 260/260 (sanity), run.py output byte-matched against the re-pinned record, from-scratch LaTeX structural check (57/0/187/48/0, clean braces+envs) matches architect's figures exactly."}
+    ],
+    "status": "COMPLETE -- all 10 steps (S50-S60) done, each independently verified and committed",
+    "completed_date": "2026-10-11",
+    "next": "Step 30 (3D rotational EOM) resumes, exactly where paused -- waiting on the user's review of docs/latex/research/3d_equations_of_motion.md"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

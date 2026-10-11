@@ -18,6 +18,17 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 
 ## Phase 2.11 rewrite pass — COMPLETE (2026-10-10), Step 30 still paused, unchanged by it
 
+**All 10 steps (S50–S60) done, each independently re-verified by the orchestrator, not taken on any
+agent's self-report alone** — commits `2120ed1`/`beaf99b`/`6d14b7a`/`b1f6c2e`/`3373b06`/`8b8a343`/
+`2720c82`/`00d7219`/`78a7e55`/`37f0b68`/`50e1b6f`. Full per-step log below. Headline result: the
+`"constant"` aero model bug the user originally reported is fixed (it now correctly scales with
+dynamic pressure); backlog **B11**/**B12** are unblocked by a new opt-in sampled-data integrator
+(neither law/model is written yet); `Params` is now 12 composed groups; `run.py` is scenario
+definition only. One finding surfaced, not yet acted on: the committed scenario's `C_m=0.0` gives it
+no restoring moment, so it now falls tail-first with real (not placeholder) drag accelerating the
+descent — see the S55 entry below for detail. **Next: Step 30 (3D rotational EOM) resumes**, exactly
+where it was paused before this pass started.
+
 User request (2026-10-10): fix bugs and rewrite `Params`/`sim/aero.py`/`run.py`/the LaTeX **before**
 resuming Step 30 (3D rotational EOM review), which stays paused and untouched throughout. Architect
 design: `docs/architecture-28-rewrite.md` (architecture.md §28 pointer). Approved by the user the
