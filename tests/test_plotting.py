@@ -1,6 +1,7 @@
-"""Tests for the Step 27 model comparison sweep (`run.sweep`) and overlay
-plot (`sim.plotting.plot_trajectory_overlay`) -- architecture.md SS12 ("the
-payoff for the selection pattern"), roadmap.md Step 27.
+"""Tests for the Step 27 model comparison sweep (`sim.report.sweep`, moved
+from `run.sweep` at Step 58) and overlay plot (`sim.plotting.
+plot_trajectory_overlay`) -- architecture.md SS12 ("the payoff for the
+selection pattern"), roadmap.md Step 27.
 
 Physics-sanity + smoke checks only, per this project's testing philosophy --
 no fixtures, no conftest.py, plain `assert` + `math.isclose`.
@@ -18,7 +19,6 @@ matplotlib.use("Agg")  # headless: this must run before pyplot is imported
 import matplotlib.figure
 import numpy as np
 
-from run import _flight_summary, sweep
 from sim.gravity import altitude_agl, g
 from sim.integrate import Result, run_sim
 from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
@@ -29,6 +29,7 @@ from sim.plotting import (
     plot_trajectory,
     plot_trajectory_overlay,
 )
+from sim.report import flight_summary, sweep
 from sim.state import State, X, Z
 
 # Same base scenario as run.py's own default (motor_curve="placeholder.csv",
@@ -240,7 +241,7 @@ def test_flight_summary_apogee_altitude_equals_helper_directly():
             gravity=Gravity(direction=direction, R_e=6371000.0),
         )
         result = run_sim(p, _TILT_S0)
-        summary = _flight_summary(result, p)
+        summary = flight_summary(result, p)
         t_apogee = result.events["apogee"]
         expected = altitude_agl(result.raw.sol(t_apogee), p)
         assert summary["apogee_altitude"] == expected

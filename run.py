@@ -16,100 +16,22 @@ pattern (architecture.md SS12): `params.replace(p, {<dotted.path>:
 <value>})` (architecture-28-rewrite.md SS28.4) per variant, one `run_sim`
 each, a printed summary table and an overlay plot. Two comparisons: the
 four gravity models, and ISA vs. a real sounding (station LKPR).
+
+Step 58 (architecture-28-rewrite.md SS28.9): this module is scenario
+definition only now -- which `Params`, which sweep field/values/title.
+The summary printing, plot building, PNG/CSV saving and sweep machinery
+(`flight_summary`, `sweep`, `print_sweep_table`, `print_run_summary`,
+`save_run_artifacts`, `save_sweep_artifacts`, `run_sweep`) all moved to
+`sim/report.py`, the orchestration layer above `sim/plotting.py`.
 """
 
 import math
-from pathlib import Path
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-from sim.flow import flow_state
-from sim.gravity import altitude_agl
+from sim import report
 from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.params import replace as params_replace
-from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
-from sim.state import State, X, Z, VX, VZ, THETA, OMEGA
-
-# Generated artifacts (plots, trajectory.csv) go under output/, kept out of
-# the repo root -- created on demand, gitignored wholesale (.gitignore).
-_OUTPUT_DIR = Path(__file__).parent / "output"
-
-
-def _flight_summary(result, p) -> dict:
-    """Apogee altitude/time, max dynamic pressure ("max-Q") over the whole
-    recorded flight, and impact time -- the same quantities `main()`'s
-    single-run summary below prints, generalised so `sweep()` can compute
-    them per variant.
-
-    `q` is sampled via `sim.flow.flow_state` on the same dense, uniform
-    time grid the single-run summary already uses for speed/downrange
-    (`result.raw.sol(t_grid)`) -- `flow_state` needs a single state vector
-    per call, so this loops over the grid columns.
-    """
-    apogee_time = result.events["apogee"]
-    impact_time = result.events["ground"]
-    apogee_altitude = (
-        altitude_agl(result.raw.sol(apogee_time), p) if apogee_time is not None else None
-    )
-
-    t_end = impact_time if impact_time is not None else result.t[-1]
-    t_grid = np.linspace(0.0, t_end, 2000)
-    y_grid = result.raw.sol(t_grid)
-
-    q_values = np.array(
-        [flow_state(t, y_grid[:, i], p).q for i, t in enumerate(t_grid)]
-    )
-    max_q = float(q_values.max())
-
-    return dict(
-        apogee_altitude=apogee_altitude,
-        apogee_time=apogee_time,
-        max_q=max_q,
-        impact_time=impact_time,
-    )
-
-
-def sweep(base_params: Params, field: str, values, s0: State) -> dict:
-    """Model comparison sweep (architecture.md SS12, roadmap.md Step 27 --
-    "the payoff for the selection pattern"): run `run_sim` once per `value`
-    of `field`, varying only that one field on `base_params` via
-    `sim.params.replace`'s dotted-path helper (architecture-28-rewrite.md
-    SS28.4), exactly the idiom SS12 gives:
-
-        for gm in ("constant", "radial", "wgs84"):
-            run_sim(params_replace(p, {"gravity.model": gm}), s0)
-
-    `field` is therefore a dotted group path (e.g. `"gravity.model"`), not a
-    flat Params kwarg -- the printed table's column header is that same
-    dotted string.
-
-    Returns `{value: {"result": Result, "params": Params, **_flight_summary}}`,
-    keyed by the model-selection string so callers (the printed table,
-    `plot_trajectory_overlay`) can label each variant directly.
-    """
-    out = {}
-    for value in values:
-        p = params_replace(base_params, {field: value})
-        result = run_sim(p, s0)
-        out[value] = dict(result=result, params=p, **_flight_summary(result, p))
-    return out
-
-
-def _print_sweep_table(title: str, field: str, results: dict) -> None:
-    """Plain-text summary table (this project's existing "print a flight
-    summary" style, no table library -- roadmap.md Step 27's check)."""
-    print(f"\n{title} ({field} sweep):")
-    header = f"{field:<14}{'apogee_alt[m]':>16}{'apogee_t[s]':>14}{'max_q[Pa]':>14}{'impact_t[s]':>14}"
-    print(header)
-    print("-" * len(header))
-    for value, d in results.items():
-        impact_t = d["impact_time"] if d["impact_time"] is not None else float("nan")
-        print(
-            f"{value:<14}{d['apogee_altitude']:16.4f}{d['apogee_time']:14.4f}"
-            f"{d['max_q']:14.4f}{impact_t:14.4f}"
-        )
+from sim.state import State
 
 
 def main() -> None:
@@ -146,66 +68,8 @@ def main() -> None:
 
     result = run_sim(params, state0)
 
-    apogee_time = result.events["apogee"]
-    impact_time = result.events["ground"]
-    burnout_time = result.events["burnout"]
-    # Evaluate the dense interpolant exactly at the apogee event time
-    # rather than taking -min(z) over the adaptive-step samples: RK45's
-    # accepted steps rarely land exactly on the apogee, so a raw min()
-    # under-estimates it. dense_output=True gives us that interpolant.
-    # altitude_agl (Step 45, architecture.md SS25.5) reads the curved
-    # ground under gravity_direction != "parallel"; under the default
-    # "parallel" it is bitwise -result.raw.sol(apogee_time)[Z], unchanged.
-    apogee_altitude = altitude_agl(result.raw.sol(apogee_time), params)
-
-    # Max speed and downrange-at-impact: sample the dense interpolant on a
-    # fine uniform grid over the whole recorded flight (apogee is a
-    # non-terminal event, so the interpolant is valid past it too) rather
-    # than relying on the sparse adaptive-step points in result.t/result.y.
-    t_end = impact_time if impact_time is not None else result.t[-1]
-    t_grid = np.linspace(0.0, t_end, 2000)
-    y_grid = result.raw.sol(t_grid)
-    speed = np.hypot(y_grid[VX], y_grid[VZ])
-    max_speed = speed.max()
-
-    if impact_time is not None:
-        downrange_impact = result.raw.sol(impact_time)[X]
-    else:
-        downrange_impact = y_grid[X, -1]
-
-    print(params)
-    print(state0)
-    print(f"Burnout time:        {burnout_time:.4f} s")
-    print(f"Apogee altitude:     {apogee_altitude:.4f} m")
-    print(f"Apogee time:         {apogee_time:.4f} s")
-    print(f"Max speed:           {max_speed:.4f} m/s")
-    print(f"Impact time:         {impact_time:.4f} s")
-    print(f"Downrange at impact: {downrange_impact:.4f} m")
-
-    _OUTPUT_DIR.mkdir(exist_ok=True)
-
-    fig_traj = plot_trajectory(result)
-    fig_hist = plot_time_histories(result)
-    # Always save to files -- this may run in a non-interactive/headless
-    # context (e.g. no display), where plt.show() would either do nothing
-    # or raise. Saving PNGs guarantees usable artifacts either way.
-    fig_traj.savefig(_OUTPUT_DIR / "trajectory.png")
-    fig_hist.savefig(_OUTPUT_DIR / "time_histories.png")
-    print(f"Saved plots to {_OUTPUT_DIR / 'trajectory.png'} and {_OUTPUT_DIR / 'time_histories.png'}")
-
-    # Optional one-line CSV dump (architecture.md SS7 "Persistence") for
-    # diffing runs -- time, x, z, theta, omega on the same fine grid used
-    # above for the summary stats.
-    np.savetxt(
-        _OUTPUT_DIR / "trajectory.csv",
-        np.column_stack(
-            [t_grid, y_grid[X], y_grid[Z], y_grid[THETA], y_grid[OMEGA]]
-        ),
-        delimiter=",",
-        header="t,x,z,theta,omega",
-        comments="",
-    )
-    print(f"Saved {_OUTPUT_DIR / 'trajectory.csv'}")
+    report.print_run_summary(result, params, state0)
+    report.save_run_artifacts(result, params)
 
     # ------------------------------------------------------------------
     # Step 27: model comparison sweeps (architecture.md SS12). Additional
@@ -220,16 +84,10 @@ def main() -> None:
     # a predictable, small amount" -- same base scenario as the single run
     # above (aero.model="constant" here, so gravity is the only thing
     # varying). "linear" was removed at Phase 2.5 Step 34.
-    gravity_sweep = sweep(
-        params, "gravity.model", ("constant", "radial", "wgs84"), state0
-    )
-    _print_sweep_table("Gravity model comparison", "gravity.model", gravity_sweep)
-    fig_gravity = plot_trajectory_overlay(
-        {v: d["result"] for v, d in gravity_sweep.items()},
+    report.run_sweep(
+        params, "gravity.model", ("constant", "radial", "wgs84"), state0,
         title="Gravity model comparison",
     )
-    fig_gravity.savefig(_OUTPUT_DIR / "gravity_sweep.png")
-    print(f"Saved {_OUTPUT_DIR / 'gravity_sweep.png'}")
 
     # (b) ISA vs. a real sounding (station LKPR, data/soundings/example,
     # Step 17), where roadmap.md Step 27 expects the comparison to "show
@@ -255,21 +113,11 @@ def main() -> None:
             "soundings.case": "example",
         },
     )
-    atmo_sweep = sweep(atmo_base, "atmosphere.model", ("isa", "sounding"), state0)
-    _print_sweep_table(
-        "Atmosphere model comparison (station LKPR)", "atmosphere.model", atmo_sweep
+    report.run_sweep(
+        atmo_base, "atmosphere.model", ("isa", "sounding"), state0,
+        title="Atmosphere model comparison (station LKPR)",
+        plot_title="Atmosphere model comparison (LKPR)",
     )
-    fig_atmo = plot_trajectory_overlay(
-        {v: d["result"] for v, d in atmo_sweep.items()},
-        title="Atmosphere model comparison (LKPR)",
-    )
-    fig_atmo.savefig(_OUTPUT_DIR / "atmosphere_sweep.png")
-    print(f"Saved {_OUTPUT_DIR / 'atmosphere_sweep.png'}")
-
-    try:
-        plt.show()
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":
