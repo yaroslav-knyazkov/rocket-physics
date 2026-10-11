@@ -44,7 +44,9 @@
     ],
       {"step": 57, "name": "control-coefficient seam (structure only, identity by default)", "commit": "00d7219", "note": "sim/control.py gains _AERO_COEFF_CONTROLLERS/aero_coeff_delta, sim/aero.py's coefficients() calls through as the single choke point; only 'none' (identity) registered, no controller written; circular import resolved via existing project precedent (deferred import, same as flow.py/forces.py's sim.wind cycle). 2 new tests prove is-identity default and that a delta reaches all 4 consumers (force/moment/damping/CoP arm). One session-limit interruption during verification, resumed with no work lost. Verified independently: 249/249, trajectory.csv+stdout byte-identical (zero diff)."}
     ],
-    "next": "dispatch S58 to developer (run.py reduced to scenario definition only, summary/plot/CSV/sweep machinery moved to new sim/report.py)"
+      {"step": 58, "name": "run.py -> sim/report.py", "commit": "78a7e55", "note": "run.py now scenario-definition only; sim/report.py gets flight_summary/sweep/print_sweep_table/print_run_summary/save_run_artifacts/save_sweep_artifacts + a run_sweep(...) convenience wrapper. plt.show() dropped (was a known hang risk since Step 45). Step 55's deliberate aero.model='linearized' atmosphere-sweep override preserved despite the spec's own stale suggestion otherwise. Verified independently: 249/249, trajectory.csv byte-identical, stdout differs only by the now-absent plt.show() warning lines."}
+    ],
+    "next": "dispatch S59 to developer (sampled-data/zero-order-hold integration mode -- largest, riskiest step, unblocks B11/B12)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

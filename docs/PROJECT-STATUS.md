@@ -140,8 +140,16 @@ existing precedent (deferred import, same shape as `flow.py`/`forces.py`'s `sim.
 tests prove the default is genuinely `is`-identity and that a delta reaches all four consumers via
 closed-form checks. 249/249; `trajectory.csv`/stdout byte-identical (zero diff).
 
-**Next:** dispatch S58 to developer (`run.py` reduced to scenario definition only; summary/plot/CSV/
-sweep machinery moves to new `sim/report.py`).
+**S58 done (commit `78a7e55`), independently re-verified by the orchestrator.** `run.py` is now
+scenario-definition only; `sim/report.py` holds everything else (`flight_summary`/`sweep`/
+`print_sweep_table`/`print_run_summary`/`save_run_artifacts`/`save_sweep_artifacts` + a `run_sweep`
+convenience wrapper). `plt.show()` dropped (a known hang risk since Step 45). Step 55's deliberate
+`aero.model="linearized"` atmosphere-sweep override preserved with its reasoning intact, despite the
+architecture doc's own illustrative snippet suggesting otherwise. 249/249; `trajectory.csv`
+byte-identical; stdout differs only by the now-absent `plt.show()` warning lines.
+
+**Next:** dispatch S59 to developer (sampled-data/zero-order-hold integration mode — the largest,
+riskiest step in the pass, unblocking backlog B11/B12).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
