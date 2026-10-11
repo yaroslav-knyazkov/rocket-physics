@@ -250,16 +250,36 @@ covered above}
 \subsection{Aerodynamics}\label{sec:aero}
 \subsubsection{Force magnitudes}
 \begin{equation}
-    A_x = qSC_A(\alpha,M), \qquad A_z = qSC_N(\alpha,M),
+    A_x = qSC_x, \qquad A_z = qSC_z,
 \end{equation}
 \begin{equation} \label{eq:aero_magnitudes}
-    A_m = qSd_{ref}C_m(\alpha,M),
+    A_m = qSd_{ref}C_m,
 \end{equation}
 with $q$ the dynamic pressure, $S$ the reference area and $d_{ref}$ the reference length (in
 practice the body cross-section and its diameter) --- the same $S,d_{ref}$ that
 \autoref{sec:analysis} uses and the same $d_{ref}$ that forms the Reynolds number of
-\autoref{sec:reynolds_mach}. $C_A,C_N,C_m$ are the axial-force, normal-force and pitching-moment
-coefficients. $l_1=l_D-l_B$ is the axial distance from the centre of gravity $B$ to the
+\autoref{sec:reynolds_mach}. $C_x,C_z,C_m$ are the axial-force, normal-force and pitching-moment
+coefficients.
+
+These three equations are \emph{definitions}, not a model. They hold unchanged for every
+coefficient model of \autoref{sec:aero_coeffs}: the aerodynamic force is always a dynamic-pressure
+times reference-area times coefficient product, and there is no variant in which it is supplied
+directly as a force. Which arguments the coefficients actually depend on --- $(\alpha,M)$, $\alpha$
+alone, or nothing at all --- is a property of the selected model, not of these definitions, and is
+stated there. One pair $(S,d_{ref})$ per airframe is shared by all three models, which is what
+makes their coefficients comparable in the first place: a coefficient means nothing except relative
+to the $(S,d_{ref})$ it was normalised by. The same $d_{ref}$ also fixes the caliber static margin
+below, so a model-local reference length would silently change what the static margin means.
+
+\paragraph{Notation.} $C_x\equiv C_A$ and $C_z\equiv C_N$. The axial/normal names $C_A,C_N$ are the
+ones the wind-tunnel/CFD convention --- and hence the coefficient tables and slope inputs of
+\autoref{sec:aero_coeffs}, and the backlog items of \autoref{sec:backlog} --- are written in, and
+they are kept there; $C_x,C_z,C_m$ is the one body-axis triple used wherever all three appear
+together as a set, as in the definitions above. Same quantities, two spellings, and no renaming of
+either: this is the same device the document already uses for $c_z\equiv C_N$ in
+\autoref{sec:aero_linearization} and \autoref{sec:analysis_stability}.
+
+$l_1=l_D-l_B$ is the axial distance from the centre of gravity $B$ to the
 aerodynamic reference point $D$ of \autoref{sec:geometry}, positive with $D$ aft, so that
 $\vec{BD}=-l_1\hat{x}_r$ and the caliber static margin of \autoref{sec:analysis_stability} is
 $\mathrm{SM}=l_1/d_{ref}$.
@@ -272,42 +292,85 @@ with $\rho$ the local air density (\autoref{sec:density}) and $V$ the relative a
 and the angle of attack $\alpha$ that feeds the coefficients above are derived from the rocket's
 velocity relative to the surrounding air in \autoref{sec:relwind}.
 
-\subsubsection{Coefficients}
-$C_A,C_N,C_m$ and $l_1$ are not derived in this document from the airframe's shape: they are read
-from a database, populated once per airframe from wind-tunnel testing, CFD sweeps, or a
-semi-empirical panel-method tool, and interpolated at run time. In practice this means a
-rectangular table over $(M,\alpha)$: bracket and clamp $M$ at the grid edges (no extrapolation
-beyond the table's Mach range), interpolate linearly in $\alpha$ within each bracketing row, then
-blend the two rows linearly across the $M$ bracket. Lacking such a table, a constant/linear
-fallback is used instead:
-\begin{equation}
-    C_A = C_{A0}, \qquad C_N = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_1 = l_1^{(0)}.
+\subsubsection{Coefficients}\label{sec:aero_coeffs}
+$C_x,C_z,C_m$ and $l_1$ are not derived in this document from the airframe's shape --- they are
+supplied. Three interchangeable models supply them, selected per run, on the same footing as the
+magnitude/direction models of \autoref{sec:gravity} and the tiers of \autoref{sec:atmos_tiers} and
+\autoref{sec:wind}: no one of them is a ``fallback'' of another, and all three feed the identical
+definitions of the Force magnitudes subsection above.
+\begin{itemize}
+    \item \textbf{Constant} (the cheapest model): $C_x,C_z,C_m$ are fixed inputs and
+    $l_1=l_1^{(0)}$, independent of both $\alpha$ and $M$. Useful for first-cut sizing, and for
+    isolating one effect at a time in a comparison sweep --- freezing the aerodynamic coefficients
+    is the cleanest way to attribute a difference between two runs to the model actually under
+    study. Note what is \emph{not} frozen: the forces themselves still vary over the flight, since
+    the constant coefficients are multiplied by $q=\tfrac12\rho V^2$ like everybody else's, with
+    $\rho$ from \autoref{sec:density}. This model therefore reads the atmosphere exactly as the
+    other two do --- it is a crude aerodynamic model, not a prescribed force.
+    \item \textbf{Linearized}: a single linear slope in $\alpha$ about the zero-$\alpha$ condition,
+    with the moment arm still fixed,
+    \begin{equation} \label{eq:aero_linearized}
+        C_x = C_{A0}, \qquad C_z = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_1 = l_1^{(0)}.
+    \end{equation}
+    $M$-independent, and valid only for small $\alpha$ --- which an on-trajectory flight of a
+    statically stable airframe mostly is. Implementation note: $C_z,C_m$ are evaluated as
+    $C_{N\alpha}\sin\alpha$, $C_{m\alpha}\sin\alpha$ in code (identical to the formula above for
+    small $\alpha$, within $0.4\%$ at $8.6^\circ$) rather than the raw linear form. This is a
+    numerical-robustness fix, not a different physical model:
+    $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch cut ($u<0$, $w$ crossing
+    zero), which an unperturbed flight coasting tail-first through $V=0$ at apogee lands on
+    exactly, and the unbounded linear form turns that into a solver-breaking jump in the moment
+    every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is arguably
+    more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side force a
+    body of revolution has flying exactly tail-first by symmetry).
+    \item \textbf{Table} (the highest-fidelity model available here): $C_A,C_N,C_m$ and $l_1$ are
+    read from a database, populated once per airframe from wind-tunnel testing, CFD sweeps, or a
+    semi-empirical panel-method tool, and interpolated at run time. In practice this means a
+    rectangular table over $(M,\alpha)$: bracket and clamp $M$ at the grid edges (no extrapolation
+    beyond the table's Mach range), interpolate linearly in $\alpha$ within each bracketing row,
+    then blend the two rows linearly across the $M$ bracket. This is the only model in which $l_1$,
+    and hence the static margin of \autoref{sec:analysis_stability}, responds to the flight state
+    at all.
+\end{itemize}
+
+\paragraph{Pitch damping across the models.} The pitch-damping derivative $c_{m,q}$ ---
+\autoref{sec:analysis_dynamic}, which also owns its sign convention, positive $c_{m,q}$ being
+damping in this document's fixed sign of $A_m$, the deliberate flip from the textbook sign --- is a
+property of the airframe, not of how the static coefficients above happen to be supplied. It
+therefore applies under all three models. Constant and Linearized both take it as a single constant
+input; Table takes it from an optional $c_{m,q}$ column when the table carries one and falls back
+to that same constant input when it does not. It enters as an additive contribution to $C_m$
+itself, exactly as \autoref{sec:analysis_dynamic} writes it, so \autoref{eq:aero_magnitudes} needs
+no modification: whichever model supplied the static $C_m$, it gains the further term
+$\hat{q}\,c_{m,q}$, with $\hat{q}=\omega d_{ref}/(2V)$ the non-dimensional pitch rate.
+Implementation note, of the same kind as $\sin\alpha$ above: the resulting moment contribution is
+evaluated in the equivalent product form
+\begin{equation} \label{eq:pitch_damping_moment}
+    qSd_{ref}\,\hat{q}\,c_{m,q} = \tfrac14\rho VSd_{ref}^2\,\omega\,c_{m,q},
 \end{equation}
-Implementation note: the fallback $C_N,C_m$ are evaluated as $C_{N\alpha}\sin\alpha$,
-$C_{m\alpha}\sin\alpha$ in code (identical to the formula above for small $\alpha$, within $0.4\%$
-at $8.6^\circ$) rather than the raw linear form. This is a numerical-robustness fix, not a
-different physical model: $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch
-cut ($u<0$, $w$ crossing zero), which an unperturbed flight coasting tail-first through $V=0$ at
-apogee lands on exactly, and the unbounded linear form turns that into a solver-breaking jump in
-the moment every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is
-arguably more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side
-force a body of revolution has flying exactly tail-first by symmetry).
+which never forms $\hat{q}$ and so never divides by $V$ --- the same $V=0$ at apogee that the
+branch cut above is about would otherwise produce $0\cdot\infty$.
 
 The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
-relative-wind frame $\hat{u},\hat{n}$ of \autoref{sec:relwind} --- since $C_A,C_N$ are themselves
+relative-wind frame $\hat{u},\hat{n}$ of \autoref{sec:relwind} --- since $C_x,C_z$ are themselves
 body-axis (axial/normal) coefficients, the same convention the underlying wind-tunnel/CFD data is
-extracted in, and their $\alpha$-dependence is already carried by the table.
+extracted in, and whatever $\alpha$-dependence the selected model has is already carried by the
+coefficients themselves.
 
-What such a database has to cover: angle of attack $\alpha$ (nonlinear at high $\alpha$ once flow
+What the Table model's database has to cover --- equally, what any future build-up replacing it
+would have to reproduce: angle of attack $\alpha$ (nonlinear at high $\alpha$ once flow
 separates), Mach number $M$ (compressibility, transonic/supersonic drag rise), Reynolds number
 $Re$ (boundary-layer state, viscous/skin-friction contribution to $C_A$), and geometry (fin
 planform and cant, body-fin interference, surface finish) --- introducing exactly the $Re,M$ of
 \autoref{sec:reynolds_mach}.
-\todo{expand once the CFD/data-extraction pipeline that populates this database is defined; also
-depends on control-surface extension not covered above (airbrake, aileron, etc.); might want to
-include pitch rate (\autoref{sec:analysis_stability}'s $c_{m,q}$) and, for 3D, other stuff}
+\todo{expand once the CFD/data-extraction pipeline that populates this database is defined; a
+control surface (airbrake, aileron, etc.) has a defined point of entry --- a control law
+perturbing $C_x,C_z,C_m$ or $l_1$ (\autoref{sec:backlog}) --- but neither the surface's geometry
+nor any deflection law is written down here; pitch rate is covered above through $c_{m,q}$ as a
+constant or a table column, not as a function of $(\alpha,M)$ in its own right; and, for 3D, other
+stuff}
 
-\subsubsection{Linearization of coefficients}
+\subsubsection{Linearization of coefficients}\label{sec:aero_linearization}
 Coefficients can be linearised in $\alpha$ for the static-stability analysis of
 \autoref{sec:analysis_stability}:
 \begin{equation}
@@ -316,8 +379,15 @@ Coefficients can be linearised in $\alpha$ for the static-stability analysis of
 \begin{equation}
     c_m = c_{m,0} + \alpha c_{m,\alpha},
 \end{equation}
-where $c_z\equiv C_N$ and $c_m\equiv C_m$: the lowercase form is kept purely because that is the
-historical notation of that section, not a different quantity.
+where $c_z\equiv C_z\equiv C_N$ and $c_m\equiv C_m$ (and, in the drag polar below,
+$c_x\equiv C_x\equiv C_A$): the lowercase form is kept purely because that is the historical
+notation of that section, not a different quantity --- one more spelling of the same three
+coefficients, on top of the $C_x\equiv C_A$, $C_z\equiv C_N$ bridge of the Force magnitudes
+subsection. Note also that this linearisation and the \textbf{Linearized} model of
+\autoref{sec:aero_coeffs} are not the same statement: the former is an analysis device applied to
+whichever coefficients are in force, the latter is a choice of how to supply them ---
+\autoref{eq:aero_linearized} is exactly the two equations above with $c_{z,0}=c_{m,0}=0$, together
+with a constant $C_x=C_{A0}$ in place of any drag polar.
 \todo{what about $c_d$ in general? A closed analytic drag-polar form exists for lifting surfaces
 (airfoils, wings), induced drag growing with the square of the lift coefficient,}
 \begin{equation}
@@ -326,8 +396,8 @@ historical notation of that section, not a different quantity.
 with $e$ the Oswald efficiency factor and $\lambda$ the aspect ratio. That, however, is
 specifically an airfoil/wing result; what the equivalent closed form is for a body of revolution
 (the rocket's own fuselage, which is not a lifting surface) is not resolved here, which is exactly
-why the table-driven $C_A$ of \autoref{eq:aero_magnitudes} is used instead of a formula like this
-one.
+why $C_x$ is instead supplied by the models of \autoref{sec:aero_coeffs} --- tabulated, a single
+linear slope, or simply constant --- rather than by a formula like this one.
 
 \subsection{Atmosphere}\label{sec:atmosphere}
 Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the local

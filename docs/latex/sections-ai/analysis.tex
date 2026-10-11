@@ -273,8 +273,10 @@ with natural frequency and damping ratio
 \end{equation}
 valid only when $M_\alpha<0$ (statically stable); if it is not, the disturbance grows rather than
 oscillates, and $\omega_n,\zeta$ are not meaningful. This is the framework the dynamic-stability
-question needs; it is not yet quantitative, because $c_{m,q}$ is not supplied by
-\autoref{sec:aero}'s coefficient database or its fallback. Getting it requires either a measured
+question needs; it is not yet quantitative, because no \emph{value} of $c_{m,q}$ is available.
+\autoref{sec:aero} does carry it, under all three of its coefficient models (as a constant input,
+or as an optional table column), so there is nowhere left for it to be missing except the number
+itself. Getting that number requires either a measured
 value (forced-oscillation wind-tunnel testing, or an unsteady CFD run) or a full distributed-force
 derivation from the airframe's own geometry along the lines sketched above; neither is done here.
 \todo{needs a value or model for $c_{m,q}$ before this subsection is quantitative}

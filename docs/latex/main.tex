@@ -89,8 +89,11 @@ choice'' at a glance.
     inertia are \emph{not} held fixed: $m(t)$, $l_B(t)$ and $I(t)$ come from the propellant model
     of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held fixed is one
     step further out --- how the other two application points travel relative to a moving centre
-    of gravity. The CoG-to-$D$ arm $l_1=l_D-l_B$ responds to $(\alpha,M)$ through the coefficient
-    table (\autoref{sec:aero}) but not to CoG travel, and the CoG-to-$C$ thrust arm is a constant.
+    of gravity. The CoG-to-$D$ arm $l_1=l_D-l_B$ never responds to CoG travel, and how far it
+    responds to the flight state at all depends on the selected aerodynamic model
+    (\autoref{sec:aero}): under the table model it varies with $(\alpha,M)$, while the constant and
+    linearized models hold it fixed outright. The CoG-to-$C$ thrust arm is a constant under all
+    three.
     \item \textbf{Thrust axis: fixed cant, no commanded control.} The nozzle cant $\delta$
     (\autoref{eq:thrust_frame}) and the lateral offsets $u_B,u_C$ (\autoref{sec:geometry}) are all
     carried as constant inputs --- as-built manufacturing quantities to be swept, not functions of
@@ -142,9 +145,10 @@ tell a missing derivation from a missing input.
     continuous, memoryless proportional one, not a sampled-data controller with integral/derivative
     memory --- the latter needs a different integration strategy and is itself future work.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
-    tabulated or constant coefficients of \autoref{sec:aero} with a wing-body (Barrowman-style)
-    build-up. Conceptually: the nose, the body, and each fin each contribute their own normal-force
-    slope $C_{N\alpha,i}$ and their own centre-of-pressure location $X_i$ (a slender
+    tabulated, linearized or constant coefficients of \autoref{sec:aero} with a wing-body
+    (Barrowman-style) build-up. Conceptually: the nose, the body, and each fin each contribute
+    their own normal-force slope $C_{N\alpha,i}$ and their own centre-of-pressure location
+    $X_i$ (a slender
     nose/body contributes a small, often near-zero net slope away from the nose in the classical
     linear treatment, aside from any boat-tail correction; each fin's contribution uses a
     corrected 2D lift-curve slope, an interference factor between fin and body, and an
@@ -152,7 +156,10 @@ tell a missing derivation from a missing input.
     $C_{N\alpha}$-weighted average of the component locations,
     $X_{cp}=\sum_iC_{N\alpha,i}X_i/\sum_iC_{N\alpha,i}$ --- so that $l_1(\alpha,M)$ is
     \emph{computed} from the airframe rather than read from a table, and an air brake enters as a
-    switchable change to $C_A$ and to the CoP. The original Barrowman formulas are subsonic
+    switchable change to $C_A$ and to the CoP. That last point of entry is already fixed by the
+    structure of \autoref{sec:aero}: whatever a control surface does, it does by perturbing
+    $C_x,C_z,C_m$ or $l_1$, so what this item is waiting on is the airframe and the deflection law
+    --- not somewhere to put them. The original Barrowman formulas are subsonic
     linear-theory results and would need a Mach correction (Prandtl--Glauert or, in the linear
     supersonic regime, Busemann theory) to extend past low subsonic speed.
     \emph{Waiting on:} an actual airframe --- nose shape, body diameter/length and any boat-tail,
@@ -177,11 +184,12 @@ tell a missing derivation from a missing input.
     if either, is worth the added dependency --- not to be implemented before that research is
     done.
     \item \textbf{CFD/data-extraction pipeline for $C_A,C_N,C_m$.} \autoref{sec:aero} now states
-    plainly that these coefficients, and $l_1$, are sourced from a database (wind-tunnel testing,
-    CFD sweeps, or a semi-empirical panel-method tool) rather than derived in this document. What
-    remains open is the pipeline that actually populates that database for a specific airframe ---
-    the CFD run matrix or wind-tunnel campaign itself --- which is outside the scope of this
-    document.
+    plainly that these coefficients, and $l_1$, are supplied rather than derived in this document,
+    and that the highest-fidelity of its three ways of supplying them --- the table model --- reads
+    them from a database (wind-tunnel testing, CFD sweeps, or a semi-empirical panel-method tool).
+    What remains open is the pipeline that actually populates that database for a specific
+    airframe --- the CFD run matrix or wind-tunnel campaign itself --- which is outside the scope
+    of this document.
     \item Out-of-plane motion: crosswind weathercocking (\autoref{sec:wind}) and the lateral
     Coriolis deflection (\autoref{sec:noninertial}). Both are discarded by the same 2D closure and
     both are lifted by the same future work, a full 6DOF model --- not by anything that can be
