@@ -41,7 +41,7 @@ class Flow(NamedTuple):
     Re: float          # Reynolds number [-]
 
 
-def _wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
+def _wind_inertial(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     """Wind velocity in the inertial frame, (w_x, w_z) -- delegates to
     sim.wind.wind_inertial (architecture.md SS16, roadmap.md Step 21).
 
@@ -54,21 +54,32 @@ def _wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
 
     Kept as a function (not inlined at the call site) so flow_state itself
     never changes when the wind model changes.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is accepted
+    (default `None`) and threaded straight through to
+    `wind.wind_inertial` -- B11's future landing site; accepted and
+    ignored by `wind.wind_inertial` itself today.
     """
     from sim import wind
 
-    return wind.wind_inertial(t, y, p)
+    return wind.wind_inertial(t, y, p, hold)
 
 
-def flow_state(t: float, y: np.ndarray, p) -> Flow:
+def flow_state(t: float, y: np.ndarray, p, hold=None) -> Flow:
     """v_rel = to_body(v_i - v_w, theta); V = |v_rel|; alpha = atan2(w, u);
     u_hat, n_hat per main.tex SS"Relative wind and angle of attack".
 
     Degenerate case V = 0 (on the pad at t = 0): alpha = atan2(0, 0) = 0 in
     Python, no exception -- no guard needed (architecture.md SS15).
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. Threaded through to `_wind_inertial` only
+    (B11's future landing site; this function has no sampled channel of
+    its own).
     """
     v_i = np.array([y[VX], y[VZ]])
-    v_w = _wind_inertial(t, y, p)
+    v_w = _wind_inertial(t, y, p, hold)
     u, w = to_body(v_i - v_w, y[THETA])
 
     V = float(np.hypot(u, w))

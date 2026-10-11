@@ -66,7 +66,11 @@ def test_none_model_full_trajectory_matches_pre_wind_stub_bit_for_bit():
     r_new = run_sim(with_solver(p, t_max=30.0), s0)
 
     original = flow_mod._wind_inertial
-    flow_mod._wind_inertial = lambda t, y, p: np.zeros(2)
+    # Step 59 (architecture-28-rewrite.md SS28.8): `_wind_inertial` gained a
+    # trailing `hold=None` parameter, threaded by `flow_state`'s own call
+    # site -- this stub must accept it too, or `flow_state`'s positional
+    # call breaks regardless of the stub's return value.
+    flow_mod._wind_inertial = lambda t, y, p, hold=None: np.zeros(2)
     try:
         r_old = run_sim(with_solver(p, t_max=30.0), s0)
     finally:

@@ -193,7 +193,7 @@ def on_rail(y: np.ndarray, p) -> bool:
     return p.site.L_rail > 0.0 and rail_distance(y, p) < p.site.L_rail
 
 
-def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
+def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     """dy/dt for the state vector [x, z, vx, vz, theta, omega, m].
 
     Translation: `dx/dt = vx`, `dz/dt = vz`,
@@ -208,6 +208,15 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     from the two-lumped-mass model instead of the fixed `p.I` (see module
     docstring). Both are exactly `dm/dt = 0`, `I = p.I` when `p.m_d` is
     `None` (the default) -- bit-for-bit the pre-Step-36 behaviour.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site
+    (including every `solve_ivp`/RK45 call, which never constructs one) is
+    unaffected, bit-for-bit. When not `None`, `integrate.py`'s `_run_rk4`
+    holds it constant across all four RK4 stages of one substep (its own
+    docstring explains why that is what makes this a genuine zero-order
+    hold); here it is simply threaded down to every force/flow call that
+    may read it.
     """
     theta = y[THETA]
 
@@ -228,9 +237,9 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # may call through is itself frozen per seed via `lru_cache`, so
     # repeated calls with identical arguments are bit-identical), so this
     # is a pure call-count reduction, not a behaviour change.
-    flow = flow_state(t, y, p)
-    thrust = thrust_body(t, y, p)
-    aero_force = aero_force_body(t, y, p, flow)
+    flow = flow_state(t, y, p, hold)
+    thrust = thrust_body(t, y, p, hold)
+    aero_force = aero_force_body(t, y, p, flow, hold)
 
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
@@ -316,7 +325,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
     # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
     # both arrays are bitwise identical to the pre-Step-43 literals below.
-    l1_aero = aero.coefficients(t, y, p, flow).l1
+    l1_aero = aero.coefficients(t, y, p, flow, hold).l1
     aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
     aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
 
@@ -335,7 +344,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # way.
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
-    M_moment = aero_moment_y(t, y, p, flow)
+    M_moment = aero_moment_y(t, y, p, flow, hold)
     M_y = M_thrust + M_aero + M_moment
 
     dydt = np.zeros(7)
@@ -362,7 +371,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
         # (forces.parachute_drag_inertial) added directly to F_i -- NOT
         # routed through the already-computed a_i, so the Coriolis term
         # folded into a_i (Step 37) is included exactly once, not dropped.
-        F_chute = forces.parachute_drag_inertial(t, y, p)
+        F_chute = forces.parachute_drag_inertial(t, y, p, hold)
         a_chute = (F_i + F_chute) / m
         dydt[VX], dydt[VZ] = a_chute
         dydt[THETA] = 0.0

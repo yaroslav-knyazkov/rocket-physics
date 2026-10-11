@@ -132,7 +132,7 @@ def weight_inertial(t: float, s, p) -> np.ndarray:
     return m * gravity.g(t, s, p) * gravity.z_hat_g(t, s, p)
 
 
-def thrust_body(t: float, s, p) -> np.ndarray:
+def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     """T = T*(cos(delta)*x_hat_r + sin(delta)*z_hat_r) (main.tex SSForces
     eq:thrust_vector), body frame.
 
@@ -147,13 +147,18 @@ def thrust_body(t: float, s, p) -> np.ndarray:
     fixed nozzle cant, not a commanded gimbal -- there is no control law.
     `delta = 0.0` (the default) gives back `(thrust, 0.0)` bit-for-bit,
     since `np.cos(0.0) == 1.0` and `np.sin(0.0) == 0.0` exactly.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is accepted
+    (default `None`) for the same "thread the full RHS chain now" reason
+    as every other function in this module -- there is no registered
+    sampled-data thrust/gimbal channel yet, so it is unused today.
     """
     thrust = thrust_curve.thrust(t, s, p)
     delta = np.radians(p.lengths.misalign_deg)
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
-def aero_force_body(t: float, s, p, flow) -> np.ndarray:
+def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
     """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
     body frame, unconditionally -- the Phase 1 form, for every alpha, not
     just alpha = 0.
@@ -203,15 +208,23 @@ def aero_force_body(t: float, s, p, flow) -> np.ndarray:
     == 0.0` and `p.airbrake_S_max == 0.0` (also both defaults) are two
     further independent off switches -- any one alone makes `A_brake`
     exactly `0.0`, reproducing every prior step bit-for-bit.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. Passed through to `aero.coefficients` (so a
+    future sampled coefficient controller sees it) and to
+    `control.airbrake_deploy_fraction` (so a sampled run's airbrake term
+    is the zero-order-held value for the current tick, not a fresh
+    per-substep/per-stage evaluation of the continuous law).
     """
-    c = aero.coefficients(t, s, p, flow)
+    c = aero.coefficients(t, s, p, flow, hold)
     A_x = flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
-    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p)
+    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p, hold)
     return np.array([-(A_x + A_brake), -A_z])
 
 
-def aero_moment_y(t: float, s, p, flow) -> float:
+def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
     """A_m = -A_m*y_hat_r (main.tex SSMoments), scalar about y.
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
@@ -242,8 +255,13 @@ def aero_moment_y(t: float, s, p, flow) -> float:
     cut). `c_mq = 0.0` (the default) makes this term exactly `0.0` for
     every state, bit-for-bit pre-Step-44 -- same pattern as `A_e`/
     `thrust_misalign_deg`.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. Passed through to `aero.coefficients` only
+    (same reasoning as `aero_force_body`'s docstring).
     """
-    c = aero.coefficients(t, s, p, flow)
+    c = aero.coefficients(t, s, p, flow, hold)
     A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
     A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
     return -A_m
@@ -274,7 +292,7 @@ def parachute_deployed(t: float, y: np.ndarray, p) -> bool:
     return y[VZ] > 0.0
 
 
-def parachute_drag_inertial(t: float, s: np.ndarray, p) -> np.ndarray:
+def parachute_drag_inertial(t: float, s: np.ndarray, p, hold=None) -> np.ndarray:
     """F_chute_i, inertial frame, (0,0) whenever not deployed -- natively
     inertial like weight_inertial, since a round canopy's drag does not
     depend on body attitude (architecture.md SS27.2).
@@ -284,6 +302,12 @@ def parachute_drag_inertial(t: float, s: np.ndarray, p) -> np.ndarray:
     splitting the `|v|*v` product (rather than `(0.5*rho*V^2*Cd*S)*v_hat`)
     to avoid a `0/0` direction at `V = 0`, the same precedent as
     `aero_moment_y`'s division-free pitch-damping term above.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. Threaded through to `flow_state`/
+    `wind.wind_inertial` only (no recovery-model sampled channel is
+    registered today).
     """
     if not parachute_deployed(t, s, p):
         return np.zeros(2)
@@ -291,6 +315,6 @@ def parachute_drag_inertial(t: float, s: np.ndarray, p) -> np.ndarray:
     # own `_wind_inertial` (that module's docstring).
     from sim import wind
 
-    flow = flow_state(t, s, p)
-    v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p)
+    flow = flow_state(t, s, p, hold)
+    v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p, hold)
     return -0.5 * flow.air.rho * p.recovery.Cd * p.recovery.S * flow.V * v_rel_i

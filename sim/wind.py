@@ -407,12 +407,19 @@ def wind_horizontal_enu(t: float, y: np.ndarray, p) -> tuple[float, float]:
     return _MODELS[p.wind.model](t, y, p)
 
 
-def wind_inertial(t: float, y: np.ndarray, p) -> np.ndarray:
+def wind_inertial(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     """Wind velocity in F_0 as `(w_x, w_z)`, z DOWN-positive (architecture.md
     SS16). `w_z` is always `0.0` -- vertical wind (updrafts/downdrafts) is
     out of scope for every tier here. The cross-plane component from
     `wind_horizontal_enu` is computed and discarded, per the 2D-projection
     limitation documented above.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is accepted
+    (default `None`) but unused -- B11's future landing site (a turbulence
+    realization evaluated once per tick at the true instantaneous
+    airspeed, filter state carried in `hold`'s `prev`). No turbulence
+    change is made here; this is plumbing only, per this step's own scope
+    limit.
     """
     w_x, _w_cross = wind_horizontal_enu(t, y, p)
     return np.array([w_x, 0.0])

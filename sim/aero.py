@@ -330,7 +330,7 @@ _AERO_MODELS = {
 }
 
 
-def coefficients(t: float, y: np.ndarray, p, flow) -> AeroCoeffs:
+def coefficients(t: float, y: np.ndarray, p, flow, hold=None) -> AeroCoeffs:
     """The one public seam: all five aero coefficients at once, dispatched
     on `p.aero.model` (architecture-28-rewrite.md SS28.5.1) -- the same
     `_MODELS[key](...)` shape `gravity.py`/`wind.py` already use
@@ -352,6 +352,12 @@ def coefficients(t: float, y: np.ndarray, p, flow) -> AeroCoeffs:
     the full plug-in contract). `p.control.aero_coeff_model = "none"` (the
     default) makes this an identity pass-through, bit-for-bit every prior
     step -- `_no_aero_delta` returns `base` itself unchanged.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- passed straight through to
+    `control.aero_coeff_delta`, which is itself the single choke point for
+    any future sampled-data coefficient controller (see that function's
+    own docstring for why it is not forwarded any further yet).
     """
     base = _AERO_MODELS[p.aero.model](flow.alpha, flow.M, p)
     # Local import: circular-import avoidance -- sim.control imports
@@ -362,7 +368,7 @@ def coefficients(t: float, y: np.ndarray, p, flow) -> AeroCoeffs:
     # for the identical reason.
     from sim import control
 
-    return control.aero_coeff_delta(t, y, p, flow, base)
+    return control.aero_coeff_delta(t, y, p, flow, base, hold)
 
 
 # ----------------------------------------------------------------------

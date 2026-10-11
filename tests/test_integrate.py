@@ -6,6 +6,7 @@ philosophy -- no fixtures, no conftest.py, plain `assert` + `math.isclose`.
 import math
 
 import numpy as np
+import pytest
 
 from sim.integrate import _apogee_event, run_sim
 from sim.params import (
@@ -226,3 +227,106 @@ def test_tilted_sounding_run_bit_for_bit_under_parallel_both_integrators():
     assert r_rk4.t[-1] == pin["t_final"]
     for key, val in pin["events"].items():
         assert r_rk4.events[key] == val
+
+
+# ---------------------------------------------------------------------
+# Step 59 (Phase 2.11 rewrite pass; architecture-28-rewrite.md SS28.8):
+# the opt-in sampled-data/zero-order-hold mode's gate -- `run_sim`'s own
+# `ValueError`/dispatch behaviour. The hold mechanism itself (sim/
+# sampling.py) is tested in tests/test_sampling.py.
+# ---------------------------------------------------------------------
+
+
+def test_sample_rate_hz_zero_explicit_is_bit_for_bit_the_implicit_default():
+    """`p.solver.sample_rate_hz = 0.0` is the implicit default on every
+    `Solver()` already built throughout this suite -- this test exercises
+    the gate variable explicitly (`with_solver(..., sample_rate_hz=0.0)`)
+    on both integration paths and proves it is bit-for-bit identical to
+    never having set it at all: the off switch is a genuine no-op at
+    exactly zero, the same standard every other model-selection gate in
+    this project meets (`m_d is None`, `L_rail == 0.0`, `wind_model ==
+    "none"`)."""
+    p = _TILT_PARAMS
+
+    for method, dt in (("RK45", None), ("rk4", 1e-3)):
+        kw = {"method": method}
+        if dt is not None:
+            kw["dt"] = dt
+        p_implicit = with_solver(p, **kw)
+        p_explicit = with_solver(p, sample_rate_hz=0.0, **kw)
+
+        r_implicit = run_sim(p_implicit, _TILT_S0)
+        r_explicit = run_sim(p_explicit, _TILT_S0)
+
+        assert np.array_equal(r_implicit.y, r_explicit.y)
+        assert np.array_equal(r_implicit.t, r_explicit.t)
+        assert r_implicit.events == r_explicit.events
+
+
+def test_rk45_with_nonzero_sample_rate_raises_immediately():
+    """architecture-28-rewrite.md SS28.8.2 (decision D-11): an adaptive
+    method (the default `"RK45"`, or any other scipy method name) combined
+    with `p.solver.sample_rate_hz > 0.0` must raise `ValueError`
+    immediately -- adaptive stepping cannot honour a zero-order-hold
+    boundary. Checked before any integration is attempted (the default
+    `method="RK45"` here would otherwise run to completion)."""
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    with pytest.raises(ValueError):
+        run_sim(with_solver(p, sample_rate_hz=10.0), s0)
+
+
+def test_non_rk4_other_method_with_nonzero_sample_rate_also_raises():
+    """The gate checks `method != "rk4"`, not merely `method == "RK45"` --
+    any other scipy method name combined with a nonzero sample rate must
+    raise the same way."""
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    with pytest.raises(ValueError):
+        run_sim(with_solver(p, method="RK23", sample_rate_hz=10.0), s0)
+
+
+def test_non_integer_sample_ratio_raises_not_silently_rounds():
+    """architecture-28-rewrite.md SS28.8.2, point 3: `T_s/dt` must be an
+    exact integer multiple; a non-integer ratio must raise `ValueError`,
+    not silently round to the nearest integer number of substeps (which
+    would change the effective sample rate from the one configured
+    without telling the caller).
+
+    `dt=1e-3`, `sample_rate_hz=7.0` -> `T_s=1/7 s`, `T_s/dt ~= 142.857`,
+    not an integer.
+    """
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    with pytest.raises(ValueError):
+        run_sim(with_solver(p, method="rk4", dt=1e-3, sample_rate_hz=7.0), s0)
+
+
+def test_integer_sample_ratio_does_not_raise():
+    """The converse of the test above: a `T_s/dt` that genuinely is an
+    exact integer multiple (`dt=1e-3`, `sample_rate_hz=10.0` ->
+    `T_s/dt=100.0`) must run to completion without raising."""
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+    )
+    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+
+    r = run_sim(with_solver(p, method="rk4", dt=1e-3, sample_rate_hz=10.0), s0)
+    assert r.t[-1] > 0.0

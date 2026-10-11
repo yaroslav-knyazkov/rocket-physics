@@ -37,6 +37,25 @@ structural needs to change when one is written:
 - A future sampled-data mode (architecture-28-rewrite.md SS28.8, backlog
   B12) would also pass it `hold`, letting it be a stateful (PID)
   controller. Not added here -- that step's job, strictly later.
+
+Step 59 (architecture-28-rewrite.md SS28.8): the sampled-data/zero-order-
+hold mode itself. `airbrake_deploy_fraction` gains an optional `hold`
+parameter (default `None`, every pre-Step-59 call site unaffected) -- when
+a `sim.sampling.Hold` is passed and carries an `"airbrake"` channel value,
+that held value IS the deploy fraction for the whole current tick, and the
+live `_AIRBRAKE_CONTROLLERS` law below is not re-evaluated (this module's
+own "Consumption" contract, architecture-28-rewrite.md SS28.8.2). The
+channel function that produces the held value, `sample_airbrake`, is
+registered into `sim.sampling._CHANNELS` under the key `"airbrake"` -- it
+just wraps today's existing pure/memoryless law, nothing more: no
+controller is written here (`_proportional_airbrake`, above, is unchanged).
+`aero_coeff_delta` also gains an optional `hold` parameter for the same
+plumbing-completeness reason `sim/flow.py`'s/`sim/wind.py`'s do (accepted,
+not forwarded to `_AERO_COEFF_CONTROLLERS`'s variants -- no registered
+variant other than `"none"` exists yet, and threading it further would
+change the per-variant contract test_control.py's own locally-registered
+dummy variants already rely on; a future stateful coefficient controller
+can accept it from this function directly when one is written).
 """
 
 import numpy as np
@@ -103,9 +122,37 @@ _AIRBRAKE_CONTROLLERS = {
 }
 
 
-def airbrake_deploy_fraction(t: float, y: np.ndarray, p) -> float:
+def airbrake_deploy_fraction(t: float, y: np.ndarray, p, hold=None) -> float:
     """Airbrake deployment fraction, `[0.0, 1.0]` (architecture.md SS27.3),
     dispatching on `p.airbrake_model`.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. When `hold` is not `None` and already carries
+    an `"airbrake"` channel value (computed once at the current tick's
+    start by `sample_airbrake`, below), that held value is returned
+    directly -- a zero-order hold, not a fresh evaluation of the law below.
+    """
+    if hold is not None and "airbrake" in hold.values:
+        return hold.values["airbrake"]
+    return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+
+
+def sample_airbrake(t: float, y: np.ndarray, p, prev) -> float:
+    """The airbrake channel function registered into
+    `sim.sampling._CHANNELS` under `"airbrake"` (architecture-28-rewrite.md
+    SS28.8.2): evaluates today's existing pure, memoryless
+    `_AIRBRAKE_CONTROLLERS[p.control.airbrake_model]` law exactly once --
+    the same law `airbrake_deploy_fraction` calls on every un-sampled RHS
+    evaluation -- and returns the value to be held for the whole tick.
+
+    `prev` (this channel's own held value from the previous tick, or
+    `None` at the first tick, t=0) is accepted, per the channel signature
+    every registered channel must have, but unused here: today's only
+    registered airbrake law, `_proportional_airbrake`, is itself
+    memoryless and needs no previous value to compute its own next one. A
+    future stateful law (a fixed-rate PID, backlog B12) would read `prev`
+    instead of ignoring it -- that is B12's job, not this step's.
     """
     return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
 
@@ -138,11 +185,20 @@ _AERO_COEFF_CONTROLLERS = {
 }
 
 
-def aero_coeff_delta(t: float, y: np.ndarray, p, flow, base: AeroCoeffs) -> AeroCoeffs:
+def aero_coeff_delta(t: float, y: np.ndarray, p, flow, base: AeroCoeffs, hold=None) -> AeroCoeffs:
     """The control-coefficient seam's public entry point, dispatching on
     `p.control.aero_coeff_model` -- called from inside `aero.coefficients`
     (architecture-28-rewrite.md SS28.6), the single choke point after the
     base model and before any consumer. See this module's own docstring
     for how a future controller registers a new variant here.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is accepted
+    (default `None`) for the same "thread the seam everywhere now" reason
+    `sim/flow.py`'s/`sim/wind.py`'s functions do, but is not forwarded to
+    the dispatched variant below -- no registered variant other than
+    `"none"` exists yet, and today's variant functions (including
+    `tests/test_control.py`'s own locally-registered dummy ones) have the
+    5-argument `(t, y, p, flow, base)` shape; changing that contract is a
+    future stateful controller's job (B12), not this step's.
     """
     return _AERO_COEFF_CONTROLLERS[p.control.aero_coeff_model](t, y, p, flow, base)

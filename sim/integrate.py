@@ -46,8 +46,28 @@ Step 48 (Phase 2.10; architecture.md SS27.2): a non-terminal
 `dynamics.py`'s new parachute branch already handles the deployed/not-
 deployed transition smoothly inside the RHS; this event exists only so
 `Result.events` can report the deployment time.
+
+Step 59 (Phase 2.11 rewrite pass; architecture-28-rewrite.md SS28.8): an
+opt-in sampled-data/zero-order-hold mode, gated by `p.solver.sample_rate_hz
+> 0.0` (the project's standard unset-sentinel convention) and requiring
+`p.solver.method == "rk4"` -- `run_sim` raises `ValueError` immediately for
+any other method, since an adaptive solver cannot honour a hold boundary.
+`_run_rk4` gains an optional `sample_rate_hz` parameter (default `0.0`,
+every pre-Step-59 call site unaffected): when it is positive, a `Hold`
+(`sim/sampling.py`) is recomputed once at the start of every fixed-rate
+tick and held constant across every RK4 substep inside that tick, instead
+of `derivatives` being called with `hold=None` throughout (the unsampled,
+bit-for-bit-unchanged default). This is a single refactor of the existing
+while-loop, not a second event-detection implementation: the event
+crossings below (apogee/ground/burnout/rail-exit/parachute-deploy) are
+read from exactly the same code, whether or not sampling is active --
+only whether/when a fresh `Hold` is computed differs, via one small
+counter. `sim/sampling.py` is imported locally, only inside the
+`sample_rate_hz > 0.0` branch, so the default `RK45` path (and the
+`rk4` path with sampling off) never imports or touches it at all.
 """
 
+import math
 from typing import Any, NamedTuple, Optional
 
 import numpy as np
@@ -216,7 +236,7 @@ class _RK4Raw(NamedTuple):
     sol: _LinearInterpolant
 
 
-def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
+def _run_rk4(p, s0: State, t_max: float, dt: float, sample_rate_hz: float = 0.0) -> Result:
     """Fixed-step classical RK4 (roadmap.md Step 8, architecture.md SS1/SS8).
 
     Standard update:
@@ -236,6 +256,32 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     documented limitation of this path (architecture.md SS8's decision
     table): it is a cross-check on `dynamics.py`, not a replacement for
     RK45.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `sample_rate_hz` (default
+    `0.0`, off) adds an opt-in zero-order-hold mode on top of the same
+    fixed-step loop, rather than a second implementation of it:
+
+        for each tick k:                     # period T_s = 1/sample_rate_hz
+            hold = sampling.sample(t_k, y_k, p, prev=hold)
+            for each of n_sub = T_s/dt substeps:
+                y <- RK4(derivatives, t, y, p, hold)   # hold constant all 4 stages
+                ... the same apogee/ground/burnout/rail/parachute crossing
+                    detection below, unchanged ...
+
+    Implemented here as a single counter, `substep_in_tick`, that resets to
+    0 (triggering a fresh `sampling.sample(...)` call) exactly every
+    `n_sub` passes through the loop below -- not by nesting a second loop,
+    so the event-detection code is written exactly once, serving both the
+    sampled and the un-sampled paths. `n_sub = T_s/dt` must be an exact
+    integer multiple (checked below with a tolerance tight enough to catch
+    any genuine mismatch while tolerating ordinary floating-point roundoff
+    in the division itself); a non-integer ratio raises rather than
+    silently rounding, because silently rounding would change the
+    effective sample rate from the one configured. `sample_rate_hz = 0.0`
+    (the default) never imports `sim.sampling`, never constructs a `Hold`,
+    and calls `derivatives(t, y, p, None)` throughout -- bit-for-bit
+    identical to every pre-Step-59 call (`hold=None` is the default
+    `derivatives` already had to honour for the RK45 path).
     """
     y0 = np.array(s0, dtype=float)
 
@@ -248,15 +294,51 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
     t_rail_exit = None
     t_parachute_deploy = None
 
+    sampling_on = sample_rate_hz > 0.0
+    if sampling_on:
+        # Local import (module docstring): the default RK45 path, and the
+        # un-sampled rk4 path, must never import/touch sim.sampling at all.
+        from sim import sampling
+
+        T_s = 1.0 / sample_rate_hz
+        n_sub_f = T_s / dt
+        n_sub = round(n_sub_f)
+        if not math.isclose(T_s, n_sub * dt, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError(
+                f"p.solver.sample_rate_hz={sample_rate_hz} gives a sample "
+                f"period T_s={T_s}s that is not an exact integer multiple "
+                f"of p.solver.dt={dt}s (T_s/dt={n_sub_f}): the sampled-data "
+                "mode requires every tick to span a whole number of RK4 "
+                "substeps, or the effective sample rate would silently "
+                "differ from the one configured (architecture-28-rewrite.md "
+                "SS28.8.2, point 3)."
+            )
+    else:
+        n_sub = None
+
     t = 0.0
     y = y0
+    hold = None
+    substep_in_tick = 0  # 0 on entry forces a fresh sample on the very first substep
     while t < t_max:
+        if sampling_on and substep_in_tick == 0:
+            # Sampled at the tick's own start, (t, y) -- the causally
+            # correct flight-computer model (architecture-28-rewrite.md
+            # SS28.8.2, point 2): measure, compute, hold until the next tick.
+            hold = sampling.sample(t, y, p, prev=hold)
+
         dt_step = min(dt, t_max - t)
 
-        k1 = derivatives(t, y, p)
-        k2 = derivatives(t + dt_step / 2, y + dt_step / 2 * k1, p)
-        k3 = derivatives(t + dt_step / 2, y + dt_step / 2 * k2, p)
-        k4 = derivatives(t + dt_step, y + dt_step * k3, p)
+        # `hold` is held constant across all four stages of this one
+        # substep (architecture-28-rewrite.md SS28.8.2, point 1) -- inside
+        # a substep the RHS is again a smooth function of (t, y), so RK4's
+        # order is preserved, and the hold discontinuity lands exactly on
+        # a step boundary, never inside one. `hold is None` throughout
+        # whenever sampling is off, reproducing every pre-Step-59 call.
+        k1 = derivatives(t, y, p, hold)
+        k2 = derivatives(t + dt_step / 2, y + dt_step / 2 * k1, p, hold)
+        k3 = derivatives(t + dt_step / 2, y + dt_step / 2 * k2, p, hold)
+        k4 = derivatives(t + dt_step, y + dt_step * k3, p, hold)
         y_next = y + dt_step / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         t_next = t + dt_step
 
@@ -320,6 +402,9 @@ def _run_rk4(p, s0: State, t_max: float, dt: float) -> Result:
         ys.append(y_next)
         t, y = t_next, y_next
 
+        if sampling_on:
+            substep_in_tick = (substep_in_tick + 1) % n_sub
+
     t_arr = np.array(ts)
     y_arr = np.array(ys).T  # shape (6, N), matches solve_ivp's sol.y
 
@@ -350,15 +435,34 @@ def run_sim(p, s0: State) -> Result:
     `p.solver.dt` is only used in that path and ignored otherwise
     (roadmap.md Step 8). Every other `method` value (the default `"RK45"`,
     or any other scipy method name) is unchanged from before Step 8.
+
+    Step 59 (architecture-28-rewrite.md SS28.8, decision D-11):
+    `p.solver.sample_rate_hz > 0.0` opts into the sampled-data/zero-order-
+    hold mode (`sim/sampling.py`), and REQUIRES `p.solver.method == "rk4"`
+    -- an adaptive method cannot honour a hold boundary, so any other
+    `method` with a nonzero `sample_rate_hz` raises `ValueError`
+    immediately, before any integration is attempted. `sample_rate_hz =
+    0.0` (the default) is the off switch on both integration paths,
+    bit-for-bit: this check cannot fire, and `_run_rk4` never imports
+    `sim.sampling` or constructs a `Hold`.
     """
     method = p.solver.method
     t_max = p.solver.t_max
     rtol = p.solver.rtol
     atol = p.solver.atol
     dt = p.solver.dt
+    sample_rate_hz = p.solver.sample_rate_hz
+
+    if sample_rate_hz > 0.0 and method != "rk4":
+        raise ValueError(
+            f"p.solver.sample_rate_hz={sample_rate_hz} requires "
+            f"p.solver.method=='rk4' (got method={method!r}): an adaptive "
+            "integrator cannot honour a zero-order-hold boundary "
+            "(architecture-28-rewrite.md SS28.8.2)."
+        )
 
     if method == "rk4":
-        return _run_rk4(p, s0, t_max, dt)
+        return _run_rk4(p, s0, t_max, dt, sample_rate_hz)
 
     y0 = np.array(s0, dtype=float)
 
