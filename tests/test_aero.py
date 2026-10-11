@@ -528,3 +528,50 @@ def test_unknown_aero_model_raises_keyerror_not_valueerror():
         assert False, "expected KeyError for an unknown aero.model string"
     except KeyError:
         pass
+
+
+# ----------------------------------------------------------------------
+# Step 57 (architecture-28-rewrite.md SS28.6): the control-coefficient
+# seam, applied inside `coefficients` itself. No controller is written
+# here -- see tests/test_control.py for the test-only dummy variant that
+# proves a delta reaches the four downstream consumers; this module only
+# proves the default ("none") is the identity.
+# ----------------------------------------------------------------------
+
+
+def test_coefficients_is_identity_for_the_default_control_model():
+    """`p.control.aero_coeff_model` defaults to `"none"`, and
+    `control._no_aero_delta` returns `base` unchanged -- not a
+    reconstructed copy. `aero.coefficients(...)` must therefore return
+    the *same object* the base model itself produced: `is`-identity, the
+    stronger-than-equality check architecture-28-rewrite.md SS28.6 calls
+    out as legitimate here specifically because this one variant is a
+    pass-through, not a computation that merely happens to produce an
+    equal value.
+
+    `_AERO_MODELS["linearized"]` is monkeypatched (save original,
+    substitute, restore in `finally` -- same precedent as
+    tests/test_wind.py's `flow_mod._wind_inertial` swap) to return one
+    fixed sentinel `AeroCoeffs` object, so this isolates the control
+    hook's own pass-through behaviour from whatever the base model
+    actually computes: two independent calls to even a perfectly pure
+    base-model function would return two separate (merely equal, not
+    identical) `AeroCoeffs` instances, which `is` would wrongly fail.
+    """
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.1, C_N_alpha=2.0, C_m_alpha=-0.3, c_mq=1.5),
+    )
+    s = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.05)
+    y = np.array(s)
+    t = 0.5
+    flow = flow_state(t, y, p)
+
+    sentinel = aero.AeroCoeffs(C_x=0.1, C_z=0.2, C_m=0.3, C_mq=0.4, l1=0.5)
+    original = aero._AERO_MODELS["linearized"]
+    aero._AERO_MODELS["linearized"] = lambda alpha, M, p: sentinel
+    try:
+        assert aero.coefficients(t, y, p, flow) is sentinel
+    finally:
+        aero._AERO_MODELS["linearized"] = original

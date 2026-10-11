@@ -11,11 +11,45 @@ Direction/guidance control is Phase-3 scope (SS27.3) -- this module's shape
 (a dict dispatch keyed on a Params string, one pure function per variant) is
 the base the user asked for; a guidance controller adds a second dict here
 when Phase 3 needs one, not before.
+
+Step 57 (architecture-28-rewrite.md SS28.6): a second, structurally
+identical dispatch dict, `_AERO_COEFF_CONTROLLERS`/`aero_coeff_delta`, lets
+a future controller perturb the airframe's own aero coefficients (`C_x`/
+`C_z`/`C_m`/`C_mq`/the CoP arm `l1`) instead of (or in addition to) the
+Step-49 airbrake's separate additive drag area. `sim.aero.coefficients`
+is the single choke point that calls through to it, after the base model
+and before any consumer (forces.py's axial/normal force, its pitching
+moment and damping term, dynamics.py's CoP moment arm) -- see that
+function's docstring. Structure only: today's only registered variant is
+`"none"`, the identity. How a future controller plugs in, so nothing
+structural needs to change when one is written:
+
+- Write `_my_law(t, y, p, flow, base) -> AeroCoeffs`, returning
+  `base._replace(C_x=base.C_x + dC_x, C_m=..., l1=...)` -- `NamedTuple.
+  _replace` makes "perturb two of five, pass the rest through" the
+  default, cheapest thing to write.
+- Register it in `_AERO_COEFF_CONTROLLERS` under a new
+  `p.control.aero_coeff_model` string.
+- It receives `flow` (so `V`, `M`, `q`, `rho`, `Re`, `alpha` are available
+  without recomputing anything and without re-entering `aero`), the full
+  state `y`, and `t` -- exactly the same inputs `_proportional_airbrake`
+  above already gets, plus `flow` and `base`.
+- A future sampled-data mode (architecture-28-rewrite.md SS28.8, backlog
+  B12) would also pass it `hold`, letting it be a stateful (PID)
+  controller. Not added here -- that step's job, strictly later.
 """
 
 import numpy as np
 
 from sim import gravity, thrust_curve
+# `AeroCoeffs` is needed only for this module's own type hints (the Step 57
+# seam below), never called into at import time -- safe to import at module
+# level here. The opposite direction (sim.aero calling into this module)
+# defers its own `from sim import control` to inside the function that
+# needs it, breaking the cycle -- same precedent as sim/flow.py's
+# `_wind_inertial` / sim/forces.py's `parachute_drag_inertial` deferring
+# their own `from sim import wind` for the same reason.
+from sim.aero import AeroCoeffs
 from sim.state import VZ
 
 
@@ -74,3 +108,41 @@ def airbrake_deploy_fraction(t: float, y: np.ndarray, p) -> float:
     dispatching on `p.airbrake_model`.
     """
     return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+
+
+# ----------------------------------------------------------------------
+# Step 57 (architecture-28-rewrite.md SS28.6): the control-coefficient
+# seam -- structure only, identity by default. No controller is written
+# here; see this module's own docstring for the full plug-in contract.
+# ----------------------------------------------------------------------
+
+
+def _no_aero_delta(t: float, y: np.ndarray, p, flow, base: AeroCoeffs) -> AeroCoeffs:
+    """Variant `"none"` (the default): returns `base` unchanged -- the
+    identity, bit-for-bit every prior step. Returns the same object (not a
+    reconstructed copy), so `aero.coefficients(...) is <the base model's
+    own returned bundle>` holds under this variant -- a legitimate,
+    stronger-than-equality check precisely because this one variant is a
+    pass-through, not a computation that happens to produce an equal value.
+    """
+    return base
+
+
+# Module-private dispatch dict (architecture.md SS12), same pattern as
+# `_AIRBRAKE_CONTROLLERS` above and wind.py's `_TURBULENCE_MODELS`: the
+# public seam is `aero_coeff_delta`; callers never learn variants exist.
+# Unknown strings raise KeyError at the first call -- no input validation
+# (SS7).
+_AERO_COEFF_CONTROLLERS = {
+    "none": _no_aero_delta,
+}
+
+
+def aero_coeff_delta(t: float, y: np.ndarray, p, flow, base: AeroCoeffs) -> AeroCoeffs:
+    """The control-coefficient seam's public entry point, dispatching on
+    `p.control.aero_coeff_model` -- called from inside `aero.coefficients`
+    (architecture-28-rewrite.md SS28.6), the single choke point after the
+    base model and before any consumer. See this module's own docstring
+    for how a future controller registers a new variant here.
+    """
+    return _AERO_COEFF_CONTROLLERS[p.control.aero_coeff_model](t, y, p, flow, base)

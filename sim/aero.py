@@ -339,13 +339,30 @@ def coefficients(t: float, y: np.ndarray, p, flow) -> AeroCoeffs:
     every other model-selection dict (no input validation, architecture.md
     SS12/SS20) -- matching `gravity_model="linear"`'s removal at Step 34.
 
-    `t`/`y` are accepted but unused here today -- they exist for Step 57's
-    control-coefficient hook (architecture-28-rewrite.md SS28.6), which is
-    NOT implemented yet (`control.aero_coeff_delta` does not exist). This
-    function returns the base model's bundle directly until that step
-    lands.
+    Step 57 (architecture-28-rewrite.md SS28.6): after the base model is
+    computed, `control.aero_coeff_delta(t, y, p, flow, base)` is called
+    through, letting a controller (airbrake coefficient modulation,
+    eventually guidance) override or perturb `C_x`/`C_z`/`C_m`/`l1` as a
+    function of vehicle state -- this is the single choke point, so every
+    downstream consumer (forces.py's axial force, normal force, static
+    moment and damping term, and dynamics.py's CoP moment arm) sees one
+    consistent, controlled coefficient set, rather than needing the
+    perturbation applied at each of those call sites separately (the exact
+    leak Step 55/F2 closed -- see `sim/control.py`'s module docstring for
+    the full plug-in contract). `p.control.aero_coeff_model = "none"` (the
+    default) makes this an identity pass-through, bit-for-bit every prior
+    step -- `_no_aero_delta` returns `base` itself unchanged.
     """
-    return _AERO_MODELS[p.aero.model](flow.alpha, flow.M, p)
+    base = _AERO_MODELS[p.aero.model](flow.alpha, flow.M, p)
+    # Local import: circular-import avoidance -- sim.control imports
+    # AeroCoeffs (this module) at module level for its own type hints, so
+    # this module must not import sim.control at module-load time. Same
+    # precedent as sim/flow.py's `_wind_inertial` / sim/forces.py's
+    # `parachute_drag_inertial` deferring their own `from sim import wind`
+    # for the identical reason.
+    from sim import control
+
+    return control.aero_coeff_delta(t, y, p, flow, base)
 
 
 # ----------------------------------------------------------------------
