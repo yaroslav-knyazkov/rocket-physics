@@ -34,7 +34,9 @@
     ],
       {"step": 52, "name": "Params composition, part 3 -- delete the transitional flat shim", "commit": "6d14b7a", "note": "Params.flat/_FLAT_TO_GROUP/~50 flat @property aliases removed; Params back to a plain auto-generated-__init__ dataclass. Proof the S50/S51 migration was complete: zero test edits needed, zero stdout diff at all (not just trajectory.csv/repr line -- the entire stdout, byte-identical). Verified independently: 245/245."}
     ],
-    "next": "dispatch S53 to developer (Solver group wired into run_sim(p, s0), no more kwargs)"
+      {"step": 53, "name": "Solver group wired into run_sim(p, s0), no more kwargs", "commit": "b1f6c2e", "note": "strict run_sim(p,s0) per D-10; all 67 call sites migrated (28 mechanical, 39 via params.with_solver(...)); corrected test_result_params_is_p_on_both_integrator_paths to assert against p_rk4 not stale p, exercising D-10's actual guarantee; run.py sweep()'s dead **run_kwargs removed. Verified independently: 245/245, run.py stdout+trajectory.csv byte-identical (zero diff)."}
+    ],
+    "next": "dispatch S54 to architect (LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared S/d_ref -- must land before S55)"
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",

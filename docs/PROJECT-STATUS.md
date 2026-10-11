@@ -86,7 +86,15 @@ auto-generated-`__init__` dataclass again. Proof the S50/S51 migration was compl
 needed, and `run.py`'s entire stdout came back byte-identical (not just `trajectory.csv`/the repr
 line as at S50→S51 — this time nothing at all differs, since this step changes neither). 245/245.
 
-**Next:** dispatch S53 to developer (`Solver` group wired into `run_sim(p, s0)`, no more kwargs).
+**S53 done (commit `b1f6c2e`), independently re-verified by the orchestrator.** `run_sim` is now
+strictly `run_sim(p, s0)` — all 67 call sites migrated (28 mechanical, 39 via `params.with_solver(p,
+...)`); `test_result_params_is_p_on_both_integrator_paths` corrected to assert against the
+`with_solver(...)`-built object, not the stale original `p`, exercising D-10's actual guarantee
+instead of a now-meaningless one. 245/245; `run.py`'s stdout and `trajectory.csv` came back
+completely byte-identical (zero diff), same as Step 52 — this step changes no physics.
+
+**Next:** dispatch S54 to architect (LaTeX notation pass — three aero models, `C_x`/`C_z`/`C_m`,
+shared `S`/`d_ref` — must land before S55's aero rewrite).
 
 ## Current stage
 **Phase 2 COMPLETE** (all 19 mandatory steps, see below). **Phase 2.5 (Steps 33-37) COMPLETE**,
