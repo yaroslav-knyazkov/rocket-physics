@@ -216,8 +216,21 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # model), so computing them once and reusing them for both the force
     # sum and the moment halves the model evaluations per RHS call.
     # Behaviour-preserving -- identical numbers to calling them twice.
+    #
+    # Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow_state`
+    # itself is now computed exactly once here and threaded down into
+    # `aero_force_body`/`aero_moment_y` (and the `l1_aero` lookup below,
+    # which already reused this same `flow` before this step) instead of
+    # each of the three call sites independently recomputing an identical
+    # `Flow` bundle -- 3 atmosphere/wind evaluations per RHS call collapse
+    # to 1. `flow_state` is a pure, deterministic function of `(t, y, p)`
+    # alone (sim/flow.py's docstring; the Dryden turbulence realization it
+    # may call through is itself frozen per seed via `lru_cache`, so
+    # repeated calls with identical arguments are bit-identical), so this
+    # is a pure call-count reduction, not a behaviour change.
+    flow = flow_state(t, y, p)
     thrust = thrust_body(t, y, p)
-    aero_force = aero_force_body(t, y, p)
+    aero_force = aero_force_body(t, y, p, flow)
 
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
@@ -272,12 +285,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # longer necessarily the constant `p.l1` -- it comes from the table
     # when `p.aero.model == "table"`, falling back to the constant
     # `p.lengths.l1` under "constant"/"linearized" otherwise (bit-for-bit
-    # the line this replaces). This is the one seam through which a
-    # table-driven CoP location reaches the moment equation without
-    # otherwise restructuring this function -- an extra `flow_state`
-    # call, matching the existing (already-not-cached, per
-    # architecture.md SS21) `aero_moment_y` call below, which recomputes
-    # `flow_state` a second time on its own.
+    # the line this replaces).
     #
     # Step 55 (architecture-28-rewrite.md SS28.5, closing F2's leak): `l1`
     # now comes out of the same `aero.coefficients(...)` bundle every
@@ -286,6 +294,11 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # different model drives the force/moment, which was possible before
     # this step (the two selectors, `aero_model` and `aero_table`, could
     # disagree).
+    #
+    # Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow` is
+    # the single `flow_state(t, y, p)` computed once above and reused here
+    # (and by `aero_force_body`/`aero_moment_y` below) -- this call site no
+    # longer recomputes it a second time.
     #
     # `aB` deliberately keeps the constant `p.l1` (not the dynamic CoP
     # location): B is the thrust exit point, a fixed mechanical point on
@@ -303,7 +316,6 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
     # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
     # both arrays are bitwise identical to the pre-Step-43 literals below.
-    flow = flow_state(t, y, p)
     l1_aero = aero.coefficients(t, y, p, flow).l1
     aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
     aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
@@ -323,7 +335,7 @@ def derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     # way.
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
-    M_moment = aero_moment_y(t, y, p)
+    M_moment = aero_moment_y(t, y, p, flow)
     M_y = M_thrust + M_aero + M_moment
 
     dydt = np.zeros(7)

@@ -115,8 +115,9 @@ def _buggy_derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
     identical to `dynamics.derivatives`.
     """
     theta = y[THETA]
+    flow = flow_state(t, y, p)
     thrust = thrust_body(t, y, p)
-    aero_force = aero_force_body(t, y, p)
+    aero_force = aero_force_body(t, y, p, flow)
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
     a_i = F_i / p.weight.m
@@ -126,7 +127,7 @@ def _buggy_derivatives(t: float, y: np.ndarray, p) -> np.ndarray:
 
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
-    M_moment = aero_moment_y(t, y, p)
+    M_moment = aero_moment_y(t, y, p, flow)
     M_y = M_thrust + M_aero + M_moment
 
     # Step 36: state is now 7-long (`m` appended, sim/state.py) -- this
@@ -763,7 +764,8 @@ def test_pitch_damping_default_is_exactly_zero_shift():
         aero=Aero(model="linearized", S=0.005, d_ref=0.08, C_A0=0.05, C_N_alpha=2.0, C_m_alpha=0.3),
     )
 
-    assert aero_moment_y(0.5, y, p) == aero_moment_y(0.5, y, p_no_damping_field)
+    flow = flow_state(0.5, y, p)
+    assert aero_moment_y(0.5, y, p, flow) == aero_moment_y(0.5, y, p_no_damping_field, flow)
     assert np.array_equal(derivatives(0.5, y, p), derivatives(0.5, y, p_no_damping_field))
 
 
@@ -786,7 +788,7 @@ def test_pitch_damping_shifts_A_m_by_closed_form():
     flow = flow_state(t, y, p_zero)
     expected_A_m_shift = 0.25 * flow.air.rho * flow.V * p_zero.aero.S * p_zero.aero.d_ref**2 * y[OMEGA] * p_damped.aero.c_mq
 
-    shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
+    shift = aero_moment_y(t, y, p_damped, flow) - aero_moment_y(t, y, p_zero, flow)
     assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
 
 
@@ -803,11 +805,13 @@ def test_pitch_damping_shift_is_exactly_zero_at_omega_zero_and_at_V_zero():
 
     s_omega_zero = State(x=0.0, z=-500.0, vx=50.0, vz=-20.0, theta=1.2, omega=0.0)
     y_omega_zero = np.array(s_omega_zero)
-    assert aero_moment_y(0.5, y_omega_zero, p_damped) == aero_moment_y(0.5, y_omega_zero, p_zero)
+    flow_omega_zero = flow_state(0.5, y_omega_zero, p_zero)
+    assert aero_moment_y(0.5, y_omega_zero, p_damped, flow_omega_zero) == aero_moment_y(0.5, y_omega_zero, p_zero, flow_omega_zero)
 
     s_V_zero = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.3)
     y_V_zero = np.array(s_V_zero)
-    assert aero_moment_y(0.0, y_V_zero, p_damped) == aero_moment_y(0.0, y_V_zero, p_zero)
+    flow_V_zero = flow_state(0.0, y_V_zero, p_zero)
+    assert aero_moment_y(0.0, y_V_zero, p_damped, flow_V_zero) == aero_moment_y(0.0, y_V_zero, p_zero, flow_V_zero)
 
 
 def test_pitch_damping_no_nan_at_denormal_V():
@@ -824,8 +828,9 @@ def test_pitch_damping_no_nan_at_denormal_V():
     s = State(x=0.0, z=0.0, vx=1e-300, vz=0.0, theta=math.pi / 2, omega=0.3)
     y = np.array(s)
 
-    assert flow_state(0.0, y, p).V > 0.0  # confirms V is denormal, not literally 0
-    A_m = aero_moment_y(0.0, y, p)
+    flow = flow_state(0.0, y, p)
+    assert flow.V > 0.0  # confirms V is denormal, not literally 0
+    A_m = aero_moment_y(0.0, y, p, flow)
     assert np.isfinite(A_m)
 
     dydt = derivatives(0.0, y, p)
@@ -848,8 +853,10 @@ def test_pitch_damping_shift_is_linear_and_odd_in_omega():
     y_pos = np.array(s_pos)
     y_neg = np.array(s_neg)
 
-    shift_pos = aero_moment_y(t, y_pos, p_damped) - aero_moment_y(t, y_pos, p_zero)
-    shift_neg = aero_moment_y(t, y_neg, p_damped) - aero_moment_y(t, y_neg, p_zero)
+    flow_pos = flow_state(t, y_pos, p_zero)
+    flow_neg = flow_state(t, y_neg, p_zero)
+    shift_pos = aero_moment_y(t, y_pos, p_damped, flow_pos) - aero_moment_y(t, y_pos, p_zero, flow_pos)
+    shift_neg = aero_moment_y(t, y_neg, p_damped, flow_neg) - aero_moment_y(t, y_neg, p_zero, flow_neg)
 
     assert math.isclose(shift_pos, -shift_neg, rel_tol=1e-12)
 
@@ -878,8 +885,9 @@ def test_pitch_damping_shift_is_independent_of_alpha():
 
     for s in (s_alpha0, s_alpha_nonzero):
         y = np.array(s)
-        shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
-        expected_A_m_shift = 0.25 * flow_state(t, y, p_zero).air.rho * flow_state(t, y, p_zero).V \
+        flow = flow_state(t, y, p_zero)
+        shift = aero_moment_y(t, y, p_damped, flow) - aero_moment_y(t, y, p_zero, flow)
+        expected_A_m_shift = 0.25 * flow.air.rho * flow.V \
             * p_zero.aero.S * p_zero.aero.d_ref**2 * y[OMEGA] * p_damped.aero.c_mq
         assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
 
@@ -914,7 +922,7 @@ def test_pitch_damping_now_applies_under_constant_regime_too():
     )
     assert not math.isclose(expected_A_m_shift, 0.0, abs_tol=1e-15)  # sanity: the shift is genuinely nonzero
 
-    shift = aero_moment_y(t, y, p_damped) - aero_moment_y(t, y, p_zero)
+    shift = aero_moment_y(t, y, p_damped, flow) - aero_moment_y(t, y, p_zero, flow)
     assert math.isclose(shift, -expected_A_m_shift, rel_tol=1e-12)
 
     dydt_zero = derivatives(t, y, p_zero)

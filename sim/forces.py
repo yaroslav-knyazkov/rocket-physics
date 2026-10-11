@@ -153,10 +153,20 @@ def thrust_body(t: float, s, p) -> np.ndarray:
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
-def aero_force_body(t: float, s, p) -> np.ndarray:
+def aero_force_body(t: float, s, p, flow) -> np.ndarray:
     """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
     body frame, unconditionally -- the Phase 1 form, for every alpha, not
     just alpha = 0.
+
+    Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow` is now
+    a required parameter -- the caller's own `flow_state(t, s, p)` result --
+    instead of this function recomputing it internally. `flow_state` is a
+    pure, deterministic function of `(t, s, p)` alone (sim/flow.py; the
+    Dryden turbulence realization it may call through is itself frozen per
+    seed via `lru_cache`, so repeated calls with identical arguments return
+    bit-identical results), so this is a pure call-count reduction -- the
+    RHS now runs the atmosphere/wind models once per evaluation instead of
+    redundantly recomputing the identical `Flow` bundle a second time here.
 
     `A_x`, `A_z` are body-axis (axial/normal) coefficients: `flow.alpha`
     (from the actual relative wind, sim/flow.py) already drives `C_A(alpha,
@@ -194,7 +204,6 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     further independent off switches -- any one alone makes `A_brake`
     exactly `0.0`, reproducing every prior step bit-for-bit.
     """
-    flow = flow_state(t, s, p)
     c = aero.coefficients(t, s, p, flow)
     A_x = flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
@@ -202,11 +211,15 @@ def aero_force_body(t: float, s, p) -> np.ndarray:
     return np.array([-(A_x + A_brake), -A_z])
 
 
-def aero_moment_y(t: float, s, p) -> float:
+def aero_moment_y(t: float, s, p, flow) -> float:
     """A_m = -A_m*y_hat_r (main.tex SSMoments), scalar about y.
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
     until Step 6. Exposed now so that step just calls it.
+
+    Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow` is now
+    a required parameter, the caller's own `flow_state(t, s, p)` result --
+    see `aero_force_body`'s docstring for why reusing it is bit-for-bit.
 
     Step 55 (architecture-28-rewrite.md SS28.5): `C_m`/`C_mq` come from the
     single `aero.coefficients(t, s, p, flow)` bundle, dispatched on
@@ -230,7 +243,6 @@ def aero_moment_y(t: float, s, p) -> float:
     every state, bit-for-bit pre-Step-44 -- same pattern as `A_e`/
     `thrust_misalign_deg`.
     """
-    flow = flow_state(t, s, p)
     c = aero.coefficients(t, s, p, flow)
     A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
     A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq

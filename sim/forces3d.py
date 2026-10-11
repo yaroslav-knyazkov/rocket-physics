@@ -75,6 +75,7 @@ import numpy as np
 
 from sim import forces as forces2d
 from sim import quaternion
+from sim.flow import flow_state
 from sim.state3d import OMEGA, Q, R, V
 
 
@@ -106,6 +107,17 @@ def thrust_body_3d(t: float, s: np.ndarray, p) -> np.ndarray:
 
 def aero_force_body_3d(t: float, s: np.ndarray, p) -> np.ndarray:
     """A_body, body frame, 3-vector -- `sim.forces.aero_force_body`'s 2D
-    `(-A_x, -A_z)` embedded with a zero y-component (module docstring)."""
-    Ax, Az = forces2d.aero_force_body(t, _s2d(s), p)
+    `(-A_x, -A_z)` embedded with a zero y-component (module docstring).
+
+    Step 56 (architecture-28-rewrite.md SS28.11): `aero_force_body` now
+    requires its caller's own `flow_state(t, s, p)` result instead of
+    computing it internally (closing F8) -- this adapter computes it once,
+    on the same disposable 2D-compatible state view `_s2d(s)` it already
+    builds for the force call itself, and passes it through. Purely
+    mechanical signature-compatibility follow-through, not new 3D physics
+    (Step 30's rotational EOM, which would add a 3D `aero_moment` call
+    here, remains out of scope)."""
+    s2d = _s2d(s)
+    flow = flow_state(t, s2d, p)
+    Ax, Az = forces2d.aero_force_body(t, s2d, p, flow)
     return np.array([Ax, 0.0, Az])
