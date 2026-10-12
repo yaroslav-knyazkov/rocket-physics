@@ -16,21 +16,40 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
-## Phase 2.12 — motor-selection app (new, 2026-10-12), Step 30 still paused, unchanged by it
+## Phase 2.12 — motor-selection app — COMPLETE (2026-10-13), Step 30 still paused, unchanged by it
 
-**Step 61 done and independently verified (commit below); Step 62 not yet dispatched.** New
-`apps/motor_selection/compare_motors.py` (App 3): sweeps a baseline rocket across a list of
-`motor_curve` files, ranks by apogee, reports max/avg velocity, max acceleration, burnout/apogee/
-impact time, downrange and max-Q per motor over an ascent-only measurement window. 4 new synthetic
-`data/motors/*.csv` fixtures (small/medium_punchy/medium_long/large), including a deliberate
-equal-impulse pair (169.2 vs 169.54 N·s) that demonstrates the tool's actual point — a punchy short
-burn reaches 409.6 m vs a long slow burn's 360.8 m at (almost) the same total impulse, because real
-dynamic-pressure-scaled drag punishes time spent fighting gravity more than it punishes peak thrust.
-15 new pinned-value tests in `tests/test_motor_selection.py` (260 → 279, all green); zero `sim/` files
-touched. One finding surfaced, not fixed (out of scope for this step, recorded as **Backlog B17**): a
-`motor_curve=""` entry under the demo's actual constant-aero baseline drives `solve_ivp` to fail after
-an unconstrained tail-first high-speed free-fall — a `sim/`-level numerical-stability gap in the
-spirit of the already-recorded Step-55/F5 finding, not an `apps/` bug.
+**Both steps (S61–S62) done, each independently verified by the orchestrator, not taken on any
+agent's self-report alone** — commits `06dcffd` (S61) and the S62 commit immediately below this
+section's own update. New `apps/motor_selection/compare_motors.py` (App 3): sweeps a baseline rocket
+across a list of `motor_curve` files, ranks by apogee, reports max/avg velocity, max acceleration,
+burnout/apogee/impact time, downrange and max-Q per motor over an ascent-only measurement window. 4
+new synthetic `data/motors/*.csv` fixtures (small/medium_punchy/medium_long/large), including a
+deliberate equal-impulse pair (169.2 vs 169.54 N·s) that demonstrates the tool's actual point — a
+punchy short burn reaches 409.6 m vs a long slow burn's 360.8 m at (almost) the same total impulse,
+because real dynamic-pressure-scaled drag punishes time spent fighting gravity more than it punishes
+peak thrust. 15 new pinned-value tests in `tests/test_motor_selection.py` (S61: 260 → 279, all green);
+zero `sim/` files touched. One finding surfaced, not fixed (out of scope for S61, recorded as
+**Backlog B17**): a `motor_curve=""` entry under the demo's actual constant-aero baseline drives
+`solve_ivp` to fail after an unconstrained tail-first high-speed free-fall — a `sim/`-level
+numerical-stability gap in the spirit of the already-recorded Step-55/F5 finding, not an `apps/` bug.
+
+**S62 — per-motor dry-rocket configuration** (the "smaller motor, smaller casing" ask): `MotorEntry`
+gains an `overrides: dict[str, Any]` field (default empty, so every S61 entry is bit-for-bit
+unchanged), merged into one `sim.params.replace` call alongside `thrust.motor_curve` — needed **zero**
+`sim/` changes, since `replace` already accepted arbitrary multi-key dotted paths. `thrust.motor_curve`
+is reserved: an override that also sets it raises `ValueError` pre-flight (one selector, one place —
+the same lesson as the `aero_model`/`aero_table` defect from Phase 2.11). New
+`apps/motor_selection/motors.py`: a commented Python literal (`MOTORS: list[MotorEntry]`) per the
+user-approved D-23 — the small motor gets a lighter/38 mm-body casing (0.9 kg), the large motor a
+heavier/98 mm-body one (2.4 kg), the two equal-impulse H-class motors deliberately left override-free
+so their comparison still isolates burn-profile effects. 10 new tests (279 → 289, all green); zero
+`sim/` files touched. Verified independently: small motor's own lighter rocket apogees at 69.6 m (vs
+18.6 m on the shared un-overridden baseline); large motor's own heavier rocket apogees at 543.9 m (vs
+996.8 m on the shared baseline — its own extra mass outweighs the thrust advantage in this
+configuration, a genuine trade-off result, not a bug).
+
+**Next: Step 30 (3D rotational EOM) remains the next queued item**, still waiting on the user's review
+of `docs/latex/research/3d_equations_of_motion.md`.
 
 User request (2026-10-12): a standalone app,
 separate from `sim/` ("optimizers shouldn't be built into simulation but a separate thing that uses
@@ -69,8 +88,8 @@ synthetic 1.5 kg/75 mm demo baseline rocket, not a reuse of `run.py`'s 0.5 kg to
   path override dict, built via `sim.params.replace`'s existing multi-key support. Depends on S61
   (edits its module); not parallelizable with it.
 
-**Next: dispatch developer for S61** per `architecture-29-motor-selection.md` §29.2–§29.6 (spec slice
-only — §29.7–§29.8 is S62's job, dispatched after S61 is independently verified).
+Backlog **B17** (not fixed, out of scope): the `sim/`-level `solve_ivp` numerical-stability gap noted
+above under S61.
 
 ## Phase 2.11 rewrite pass — COMPLETE (2026-10-10), Step 30 still paused, unchanged by it
 

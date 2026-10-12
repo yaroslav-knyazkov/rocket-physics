@@ -12,9 +12,9 @@ post-processes each `Result`, and prints/saves a table ranked by apogee. It
 adds no new physics and changes nothing under `sim/`. It is the third such
 tool in the repo and the second under `apps/`.
 
-Design: `docs/architecture-29-motor-selection.md` SS29.2-SS29.6 (SS29.7/
-SS29.8, the per-motor configuration schema, is Step 62 -- not implemented
-here).
+Design: `docs/architecture-29-motor-selection.md` SS29.2-SS29.6 for the
+sweep mechanics (Step 61); SS29.7/SS29.8 for the per-motor configuration
+schema below (Step 62).
 
 ### Scope -- what this first version deliberately does NOT do
 
@@ -42,8 +42,28 @@ here).
 - **No airbrake, recovery or rail work.** All three already exist in
   `sim/` and are reachable purely by configuring the baseline `Params`;
   none is touched, designed or re-specced here.
-- **No per-motor configuration (dry-rocket overrides).** That is Step 62
-  (SS29.7/SS29.8); `MotorEntry` here carries only `name`/`motor_curve`.
+
+### Step 62 -- per-motor configuration (dry-rocket overrides)
+
+`MotorEntry` carries a third field, `overrides: dict[str, Any]` -- an
+**open** dict of dotted `sim.params.replace` paths (e.g. `{"weight.m":
+0.9, "aero.S": 0.00114}`), applied on top of `baseline` for that motor
+only (SS29.7). This needed **no change to `sim/params.py`**: `replace`
+already accepts an arbitrary number of dotted keys spanning arbitrary
+groups in a single call (F1), so `build_params` just merges
+`{"thrust.motor_curve": entry.motor_curve}` with `entry.overrides` into
+one `replace()` call. The motor-curve key is reserved: `build_params`
+raises `ValueError` if `entry.overrides` also sets `"thrust.motor_curve"`
+-- one selector, one place, the same "two uncoordinated selectors for one
+thing" defect this repo has already been bitten by (`aero_model` vs
+`aero_table`, Phase 2.11). `overrides` defaults to an empty dict (safe for
+a frozen dataclass via `default_factory`, not a shared mutable default),
+so every Step 61 entry/test/demo scenario that does not specify it is
+bit-for-bit unchanged. The actual per-motor configuration data (which
+motor gets which overrides) lives in `apps/motor_selection/motors.py`
+(SS29.8, D-23: a Python literal, not CSV/JSON/YAML -- `None` is a
+meaningful override value, the key set is open and per-entry sparse, and
+every number here is commented with *why*).
 
 Run with `python -m apps.motor_selection.compare_motors` from the repo
 root -- `apps/` has no `__init__.py` anywhere (an implicit namespace
@@ -57,7 +77,7 @@ import csv
 import dataclasses
 import math
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -83,12 +103,19 @@ _BURN_GRID_N = 2000
 class MotorEntry:
     """One candidate motor, as configured by the caller.
 
-    Step 62 adds a third field, `overrides: dict[str, Any]`, for per-motor
-    dry-rocket parameter overrides; not present yet.
+    `overrides` (Step 62, SS29.7) is an open dict of dotted `Params` paths
+    applied on top of the baseline for this motor only -- e.g. `{"weight.m":
+    0.9, "aero.S": 0.00114}` for a smaller motor's smaller, lighter casing.
+    Defaults to an empty dict via `default_factory` (not a shared mutable
+    default, and safe on a `frozen=True` dataclass) so every entry that
+    does not need one is unaffected. `"thrust.motor_curve"` is reserved --
+    it is always set from `motor_curve` above, never from `overrides` (see
+    `build_params`).
     """
 
     name: str          # label for the table / legend / CSV; free text
     motor_curve: str   # file under data/motors/, e.g. "synthetic_large.csv"
+    overrides: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -123,9 +150,26 @@ class MotorRun:
 
 
 def build_params(entry: MotorEntry, baseline: Params) -> Params:
-    """One `Params` per motor: swap in `entry.motor_curve`, everything else
-    from `baseline` unchanged."""
-    return params_replace(baseline, {"thrust.motor_curve": entry.motor_curve})
+    """One `Params` per motor: swap in `entry.motor_curve`, apply
+    `entry.overrides` (Step 62, SS29.7) on top, everything else from
+    `baseline` unchanged -- one `sim.params.replace` call, since `replace`
+    already accepts an arbitrary number of dotted keys across arbitrary
+    groups (F1).
+
+    `"thrust.motor_curve"` is reserved for `entry.motor_curve`: if
+    `entry.overrides` also sets it, that is two uncoordinated selectors for
+    the same field, so this raises `ValueError` rather than silently
+    letting one win.
+    """
+    if "thrust.motor_curve" in entry.overrides:
+        raise ValueError(
+            f"MotorEntry {entry.name!r}: 'thrust.motor_curve' must not "
+            "appear in overrides -- it is already set from entry.motor_curve "
+            f"({entry.motor_curve!r}); one selector, one place."
+        )
+    return params_replace(
+        baseline, {"thrust.motor_curve": entry.motor_curve, **entry.overrides}
+    )
 
 
 def _assert_derivatives_reconstructible(p: Params) -> None:
@@ -337,17 +381,25 @@ def print_motor_table(runs: list[MotorRun]) -> None:
     )
 
 
+def _format_overrides(overrides: dict[str, Any]) -> str:
+    """`;`-joined `path=value` string (Step 62), so the CSV records exactly
+    what dry-rocket configuration each row flew with, traceably, without a
+    second file (F13). Empty dict -> empty string."""
+    return ";".join(f"{k}={v}" for k, v in overrides.items())
+
+
 def save_motor_csv(runs: list[MotorRun], path: Path) -> None:
     """One row per motor in ranked order, all twelve stats columns
     (including `max_accel` in m/s^2, which the printed table omits in
-    favour of g) plus the motor-curve filename, so the CSV is
-    self-describing on its own (F13)."""
+    favour of g) plus the motor-curve filename and the `;`-joined
+    per-motor override string (Step 62), so the CSV is self-describing on
+    its own (F13)."""
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
             [
-                "rank", "name", "motor_curve", "impulse_Ns", "apogee_m", "apogee_t_s",
-                "v_max_ms", "v_avg_ms", "a_max_ms2", "a_max_g", "burnout_t_s",
+                "rank", "name", "motor_curve", "overrides", "impulse_Ns", "apogee_m",
+                "apogee_t_s", "v_max_ms", "v_avg_ms", "a_max_ms2", "a_max_g", "burnout_t_s",
                 "max_q_Pa", "impact_t_s", "downrange_m",
             ]
         )
@@ -355,7 +407,8 @@ def save_motor_csv(runs: list[MotorRun], path: Path) -> None:
             s = r.stats
             writer.writerow(
                 [
-                    rank, r.entry.name, r.entry.motor_curve, s.total_impulse, s.apogee_altitude,
+                    rank, r.entry.name, r.entry.motor_curve,
+                    _format_overrides(r.entry.overrides), s.total_impulse, s.apogee_altitude,
                     s.apogee_time, s.max_velocity, s.avg_velocity, s.max_accel, s.max_accel_g,
                     s.burnout_time, s.max_q, s.impact_time, s.downrange_impact,
                 ]
@@ -414,10 +467,16 @@ def _demo_entries() -> list[MotorEntry]:
 
 
 def main() -> None:
+    """Runs the configured `apps.motor_selection.motors.MOTORS` set (Step
+    62) -- the per-motor dry-rocket overrides, not the override-free Step
+    61 `_demo_entries()` above (which stays, unused by `main`, purely so
+    the existing Step-61 tests that import it keep working bit-for-bit)."""
+    from apps.motor_selection.motors import MOTORS
+
     baseline = _demo_baseline()
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
-    runs = compare_motors(_demo_entries(), baseline, s0)
+    runs = compare_motors(MOTORS, baseline, s0)
     print_motor_table(runs)
 
     _OUTPUT_DIR.mkdir(exist_ok=True)

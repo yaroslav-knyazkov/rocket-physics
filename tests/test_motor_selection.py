@@ -26,6 +26,7 @@ from apps.motor_selection.compare_motors import (
     evaluate_motor,
     flight_stats,
 )
+from apps.motor_selection.motors import MOTORS
 from sim.integrate import Result, run_sim
 from sim.params import Lengths, Params, Weight, replace as params_replace, with_solver
 from sim.state import State, X
@@ -309,6 +310,211 @@ def test_flight_stats_also_rejects_sample_rate_hz_directly():
         flight_stats(result, p)
 
 
+# ----------------------------------------------------------------------
+# Step 62: per-motor configuration (dry-rocket overrides), SS29.7/SS29.8
+# ----------------------------------------------------------------------
+
+
+def test_overrides_change_exactly_the_named_fields():
+    """An entry with `{"weight.m": 0.9, "aero.S": 0.00114}` must change
+    exactly those two fields and leave every other field -- including the
+    rest of `Weight` and `Aero` -- equal to the baseline's (the design
+    doc's SS29.9 Step-62 check, generalised from Step 61's single-key
+    version above)."""
+    baseline = _demo_baseline()
+    entry = MotorEntry(
+        name="small",
+        motor_curve="synthetic_small.csv",
+        overrides={"weight.m": 0.9, "aero.S": 0.00114},
+    )
+    p = build_params(entry, baseline)
+
+    assert p.thrust.motor_curve == "synthetic_small.csv"
+    assert p.weight.m == 0.9
+    assert p.aero.S == 0.00114
+    # Every other field of the changed groups is untouched.
+    assert p.weight.I == baseline.weight.I
+    assert p.weight.m_d == baseline.weight.m_d
+    assert p.aero.d_ref == baseline.aero.d_ref
+    assert p.aero.l_ref == baseline.aero.l_ref
+    assert p.aero.C_x == baseline.aero.C_x
+    assert p.aero.C_z == baseline.aero.C_z
+    assert p.aero.C_m == baseline.aero.C_m
+    # Every untouched group/field is equal to the baseline's.
+    for f in dataclasses.fields(Params):
+        if f.name in ("thrust", "weight", "aero"):
+            continue
+        assert getattr(p, f.name) == getattr(baseline, f.name), f.name
+
+
+def test_overrides_actually_change_the_simulated_outcome():
+    """Not just "accepted" -- the override must change the flown physics:
+    a lighter, smaller-frontal-area small-motor rocket must fly to a
+    measurably different apogee than the same motor on the unmodified
+    baseline airframe."""
+    baseline = _demo_baseline()
+    no_override = evaluate_motor(
+        MotorEntry(name="small_baseline", motor_curve="synthetic_small.csv"), baseline, _s0()
+    )
+    with_override = evaluate_motor(
+        MotorEntry(
+            name="small_light",
+            motor_curve="synthetic_small.csv",
+            overrides={"weight.m": 0.9, "aero.S": 0.00114},
+        ),
+        baseline,
+        _s0(),
+    )
+    assert not math.isclose(
+        no_override.stats.apogee_altitude, with_override.stats.apogee_altitude, rel_tol=0.01
+    )
+    assert no_override.params.weight.m == baseline.weight.m
+    assert with_override.params.weight.m == 0.9
+
+
+def test_motor_curve_in_overrides_raises_value_error():
+    """`thrust.motor_curve` is reserved for `entry.motor_curve` -- one
+    selector, one place. An entry that also sets it via `overrides` is a
+    config error, caught by `build_params` itself, before any `replace`
+    ambiguity could arise."""
+    baseline = _demo_baseline()
+    entry = MotorEntry(
+        name="conflicting",
+        motor_curve="synthetic_small.csv",
+        overrides={"thrust.motor_curve": "synthetic_large.csv"},
+    )
+    with pytest.raises(ValueError, match="thrust.motor_curve"):
+        build_params(entry, baseline)
+
+
+def test_motor_curve_conflict_raises_before_any_integration(monkeypatch):
+    """The pre-flight validation pass (`compare_motors`) must surface the
+    reserved-key conflict before `run_sim` is ever called, the same
+    discipline as the `sample_rate_hz` guard above."""
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called once build_params raises")
+
+    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+
+    baseline = _demo_baseline()
+    entries = [
+        MotorEntry(name="ok", motor_curve="synthetic_small.csv"),
+        MotorEntry(
+            name="bad",
+            motor_curve="synthetic_small.csv",
+            overrides={"thrust.motor_curve": "synthetic_large.csv"},
+        ),
+    ]
+    with pytest.raises(ValueError, match="thrust.motor_curve"):
+        compare_motors(entries, baseline, _s0())
+
+
+def test_typo_group_raises_attribute_error_before_any_integration(monkeypatch):
+    """A typo'd group name (`"wieght.m"`) is an unknown attribute of
+    `Params`, so `sim.params.replace` raises `AttributeError` -- and the
+    pre-flight pass in `compare_motors` must surface it before `run_sim`
+    runs for any entry."""
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called once replace raises")
+
+    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+
+    baseline = _demo_baseline()
+    entry = MotorEntry(
+        name="typo_group", motor_curve="synthetic_small.csv", overrides={"wieght.m": 1.0}
+    )
+    with pytest.raises(AttributeError):
+        build_params(entry, baseline)
+    with pytest.raises(AttributeError):
+        compare_motors([entry], baseline, _s0())
+
+
+def test_typo_field_raises_type_error_before_any_integration(monkeypatch):
+    """A typo'd field name within a real group (`"weight.mass"`) is an
+    unexpected keyword argument to `dataclasses.replace`, so
+    `sim.params.replace` raises `TypeError` -- again before `run_sim`."""
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called once replace raises")
+
+    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+
+    baseline = _demo_baseline()
+    entry = MotorEntry(
+        name="typo_field", motor_curve="synthetic_small.csv", overrides={"weight.mass": 1.0}
+    )
+    with pytest.raises(TypeError):
+        build_params(entry, baseline)
+    with pytest.raises(TypeError):
+        compare_motors([entry], baseline, _s0())
+
+
+def test_no_overrides_default_reproduces_step61_bit_for_bit():
+    """`MotorEntry` constructed with no `overrides` argument at all (the
+    default, `default_factory=dict`) must produce `Params`/stats
+    bit-for-bit identical to Step 61's own single-key `build_params` call
+    -- the SS29.9 "bit-for-bit gate" for every existing Step-61 entry."""
+    baseline = _demo_baseline()
+    for legacy_entry in _demo_entries():
+        assert legacy_entry.overrides == {}
+        p_new = build_params(legacy_entry, baseline)
+        p_legacy = params_replace(baseline, {"thrust.motor_curve": legacy_entry.motor_curve})
+        assert p_new == p_legacy
+
+        run_new = evaluate_motor(legacy_entry, baseline, _s0())
+        run_legacy_result = run_sim(p_legacy, _s0())
+        run_legacy_stats = flight_stats(run_legacy_result, p_legacy)
+        assert run_new.stats == run_legacy_stats
+
+
+def test_motors_module_equal_impulse_pair_stays_override_free():
+    """The two H-class entries in `apps.motor_selection.motors.MOTORS`
+    must stay override-free on purpose (SS29.7), so the equal-impulse-pair
+    comparison still isolates burn-profile effects on an identical
+    airframe."""
+    h_class = [m for m in MOTORS if "H " in m.name or m.name.startswith("H")]
+    assert len(h_class) == 2
+    for m in h_class:
+        assert m.overrides == {}
+
+
+def test_motors_module_small_and_large_get_distinct_casings():
+    """SS29.7's "smaller motor, smaller casing": the small-motor entry's
+    overridden mass/frontal-area must be lighter/smaller than the
+    large-motor entry's, and both must differ from each other and from the
+    override-free baseline."""
+    by_name = {m.name: m for m in MOTORS}
+    small = next(m for m in MOTORS if "small" in m.name.lower())
+    large = next(m for m in MOTORS if "large" in m.name.lower())
+    assert small.overrides["weight.m"] < large.overrides["weight.m"]
+    assert small.overrides["aero.S"] < large.overrides["aero.S"]
+
+
+def test_compare_motors_end_to_end_with_mixed_overrides():
+    """Full pipeline, `apps.motor_selection.motors.MOTORS` (a mix of
+    overridden and override-free entries), end to end through
+    `compare_motors`: every entry produces a run, ranked by apogee, and the
+    overridden entries' `Params` actually carry their overrides through to
+    the row that was simulated."""
+    baseline = _demo_baseline()
+    runs = compare_motors(MOTORS, baseline, _s0())
+
+    assert len(runs) == len(MOTORS)
+    apogees = [r.stats.apogee_altitude for r in runs]
+    assert all(a is not None for a in apogees)
+    assert all(apogees[i] >= apogees[i + 1] for i in range(len(apogees) - 1))
+
+    by_name = {r.entry.name: r for r in runs}
+    small_run = next(r for r in runs if "small" in r.entry.name.lower())
+    large_run = next(r for r in runs if "large" in r.entry.name.lower())
+    assert small_run.params.weight.m == small_run.entry.overrides["weight.m"]
+    assert large_run.params.weight.m == large_run.entry.overrides["weight.m"]
+    assert small_run.params.weight.m != baseline.weight.m
+    assert large_run.params.weight.m != baseline.weight.m
+
+
 if __name__ == "__main__":
     test_build_params_no_overrides_preserves_every_other_field()
     test_closed_form_acceleration_near_ignition_peak()
@@ -320,4 +526,11 @@ if __name__ == "__main__":
     test_equal_impulse_pair_has_different_apogees()
     test_flight_stats_degenerate_apogee_is_none()
     test_motor_curve_empty_does_not_crash_and_ranks_last()
+    test_overrides_change_exactly_the_named_fields()
+    test_overrides_actually_change_the_simulated_outcome()
+    test_motor_curve_in_overrides_raises_value_error()
+    test_no_overrides_default_reproduces_step61_bit_for_bit()
+    test_motors_module_equal_impulse_pair_stays_override_free()
+    test_motors_module_small_and_large_get_distinct_casings()
+    test_compare_motors_end_to_end_with_mixed_overrides()
     print("All tests passed!")
