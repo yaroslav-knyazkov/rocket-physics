@@ -18,7 +18,21 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 
 ## Phase 2.12 — motor-selection app (new, 2026-10-12), Step 30 still paused, unchanged by it
 
-**Design approved, implementation not yet started.** User request (2026-10-12): a standalone app,
+**Step 61 done and independently verified (commit below); Step 62 not yet dispatched.** New
+`apps/motor_selection/compare_motors.py` (App 3): sweeps a baseline rocket across a list of
+`motor_curve` files, ranks by apogee, reports max/avg velocity, max acceleration, burnout/apogee/
+impact time, downrange and max-Q per motor over an ascent-only measurement window. 4 new synthetic
+`data/motors/*.csv` fixtures (small/medium_punchy/medium_long/large), including a deliberate
+equal-impulse pair (169.2 vs 169.54 N·s) that demonstrates the tool's actual point — a punchy short
+burn reaches 409.6 m vs a long slow burn's 360.8 m at (almost) the same total impulse, because real
+dynamic-pressure-scaled drag punishes time spent fighting gravity more than it punishes peak thrust.
+15 new pinned-value tests in `tests/test_motor_selection.py` (260 → 279, all green); zero `sim/` files
+touched. One finding surfaced, not fixed (out of scope for this step, recorded as **Backlog B17**): a
+`motor_curve=""` entry under the demo's actual constant-aero baseline drives `solve_ivp` to fail after
+an unconstrained tail-first high-speed free-fall — a `sim/`-level numerical-stability gap in the
+spirit of the already-recorded Step-55/F5 finding, not an `apps/` bug.
+
+User request (2026-10-12): a standalone app,
 separate from `sim/` ("optimizers shouldn't be built into simulation but a separate thing that uses
 simulation"), that sweeps a list of motor thrust curves against one fixed rocket/launch condition,
 ranks by highest apogee, and reports a fuller flight-stat bundle per motor (max/avg velocity, max

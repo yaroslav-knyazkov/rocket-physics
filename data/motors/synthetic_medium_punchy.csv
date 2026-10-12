@@ -1,0 +1,18 @@
+# Synthetic motor curve -- medium class, punchy/short burn profile
+# (Class H). Synthetic-but-plausible placeholder data (not measured).
+# Forms an equal-impulse pair with synthetic_medium_long.csv (within
+# 0.2%, deliberately close but not bit-equal): the point of the pair is
+# that total impulse alone does not set apogee once real dynamic-
+# pressure-scaled drag is in the model (docs/architecture-29-motor-
+# selection.md SS29.5) -- this one delivers its impulse in 1.30 s.
+# Class: H
+# total impulse: 169.2 N*s (exact trapezoidal integral of the rows below)
+# average thrust: 130.2 N
+# burn time: 1.30 s
+# peak thrust: 220 N
+# Format: t_s,thrust_N
+0.0,0.0
+0.04,220.0
+0.10,140.0
+1.10,140.0
+1.30,0.0

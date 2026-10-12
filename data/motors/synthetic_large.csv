@@ -1,0 +1,14 @@
+# Synthetic motor curve -- large class (Class I). Synthetic-but-plausible
+# placeholder data (not measured), same spirit as placeholder.csv and
+# data/aero/example.csv.
+# Class: I
+# total impulse: 338.0 N*s (exact trapezoidal integral of the rows below)
+# average thrust: 164.9 N
+# burn time: 2.05 s
+# peak thrust: 420 N
+# Format: t_s,thrust_N
+0.0,0.0
+0.05,420.0
+0.12,170.0
+1.80,170.0
+2.05,0.0

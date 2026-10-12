@@ -1970,6 +1970,18 @@ mechanically a nested loop over the same `evaluate_motor` seam, but the output i
 than a ranked list and the question is a different one, so it is a separate tool, not a flag on this
 one. `architecture-29-motor-selection.md` §29.12.
 
+### B17 — `aero_model="constant"` numerical stability under a frozen-attitude high-speed descent  *(found by Step 61)*
+Step 61's own test suite deliberately exercises a `motor_curve=""` (too-weak-to-fly) entry — but
+under the demo baseline's actual aero model (`C_x=0.5` constant, `C_z=C_m=0.0`, so attitude never
+rotates to track the relative wind) rather than the test's inert-aero workaround, that same entry
+drives `solve_ivp` to fail (`status=-1`, "step size too small") after an unconstrained tail-first
+free-fall pushes `z` to roughly −22,755 m before giving up. This is a `sim/`-level finding, not an
+`apps/motor_selection/` bug — consistent in spirit with the Step-55/F5 runaway-descent finding already
+on record (a vehicle with no restoring moment falls tail-first, and once drag is correctly
+`q`-scaled it can accelerate rather than oppose an unbounded high-speed fall). Not fixed here —
+`sim/` was out of scope for Step 61. A future `sim/` pass should look at whether the `"constant"`
+model (or `solve_ivp`'s own step-size floor) needs a guard for this regime.
+
 ---
 
 ## Dependency summary
@@ -2011,6 +2023,8 @@ Backlog (unscheduled): B3 EGM gravity · B6 crosswind
                        B12 sampled-data/PID control (new at 49) · B13 ISA extrapolation robustness (found at 48)
                        B14 real .eng motor data · B15 per-motor mass metadata
                        B16 motor × environment sweeps  (all three new at the §29 design)
+                       B17 "constant" aero numerical stability under a frozen-attitude high-speed
+                       descent  (found at Step 61, in the spirit of the Step-55/F5 finding)
                        B11 and B12 both UNBLOCKED at 59 (the integration mode exists; neither the
                        turbulence model nor the PID law is written — the work is now the model/law)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40

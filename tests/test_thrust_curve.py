@@ -66,6 +66,38 @@ def test_thrust_curve_total_impulse():
     assert math.isclose(total_impulse, 162.75, rel_tol=1e-9)
 
 
+def test_synthetic_small_total_impulse():
+    """Roadmap Step 61 check (architecture-29-motor-selection.md SS29.5):
+    the trapezoidal integral of data/motors/synthetic_small.csv equals its
+    stated total impulse, 39.75 N*s (Class E)."""
+    times, thrusts = _load_motor_curve("synthetic_small.csv")
+    assert math.isclose(np.trapezoid(thrusts, times), 39.75, rel_tol=1e-9)
+
+
+def test_synthetic_medium_punchy_total_impulse():
+    """Roadmap Step 61 check: data/motors/synthetic_medium_punchy.csv's
+    stated total impulse, 169.2 N*s (Class H) -- the short-burn half of
+    the equal-impulse pair."""
+    times, thrusts = _load_motor_curve("synthetic_medium_punchy.csv")
+    assert math.isclose(np.trapezoid(thrusts, times), 169.2, rel_tol=1e-9)
+
+
+def test_synthetic_medium_long_total_impulse():
+    """Roadmap Step 61 check: data/motors/synthetic_medium_long.csv's
+    stated total impulse, 169.54 N*s (Class H) -- within 0.2% of
+    synthetic_medium_punchy.csv's impulse, deliberately close but not
+    bit-equal (see that fixture's header comment)."""
+    times, thrusts = _load_motor_curve("synthetic_medium_long.csv")
+    assert math.isclose(np.trapezoid(thrusts, times), 169.54, rel_tol=1e-9)
+
+
+def test_synthetic_large_total_impulse():
+    """Roadmap Step 61 check: data/motors/synthetic_large.csv's stated
+    total impulse, 338.0 N*s (Class I)."""
+    times, thrusts = _load_motor_curve("synthetic_large.csv")
+    assert math.isclose(np.trapezoid(thrusts, times), 338.0, rel_tol=1e-9)
+
+
 def test_thrust_zero_when_no_curve():
     """Test that thrust returns zero when no curve is specified."""
     p = Params(
@@ -200,6 +232,10 @@ if __name__ == "__main__":
     test_load_motor_curve()
     test_thrust_curve_shape()
     test_thrust_curve_total_impulse()
+    test_synthetic_small_total_impulse()
+    test_synthetic_medium_punchy_total_impulse()
+    test_synthetic_medium_long_total_impulse()
+    test_synthetic_large_total_impulse()
     test_thrust_zero_when_no_curve()
     test_thrust_interpolation()
     test_pressure_correction_inert_at_default_A_e()

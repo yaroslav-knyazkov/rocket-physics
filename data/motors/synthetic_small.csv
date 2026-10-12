@@ -1,0 +1,15 @@
+# Synthetic motor curve -- small class (Class E). Synthetic-but-plausible
+# placeholder data (not measured), same spirit as placeholder.csv and
+# data/aero/example.csv. Short ignition spike, brief settle, flat sustain,
+# tail-off to zero at burnout.
+# Class: E
+# total impulse: 39.75 N*s (exact trapezoidal integral of the rows below)
+# average thrust: 28.4 N
+# burn time: 1.40 s
+# peak thrust: 60 N
+# Format: t_s,thrust_N
+0.0,0.0
+0.05,60.0
+0.10,30.0
+1.20,30.0
+1.40,0.0
