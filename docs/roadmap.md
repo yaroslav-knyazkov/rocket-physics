@@ -37,12 +37,18 @@ three-way `constant`/`linearized`/`table` dispatch, one `flow_state` per RHS cal
 control-coefficient seam, the `run.py`/`sim/report.py` split, and an opt-in sampled-data/zero-order-
 hold integration mode that unblocks Backlog B11/B12 — **DONE and committed, still 2D**, with exactly
 one deliberately non-bit-for-bit step (55, the bug fix itself). Design: `architecture-28-rewrite.md`.
+Phase 2.12 (Steps 61-62) is the first phase that adds **no physics at all**: a separate consumer app,
+`apps/motor_selection/` ("App 3"), that sweeps a list of motors through the existing simulator and
+ranks the trajectories by apogee, then gains a per-motor configuration methodology (each motor entry
+also carrying dry-rocket-parameter overrides) — **designed, not yet approved, no code written**.
+Design: `architecture-29-motor-selection.md`.
 Phase 3 (Steps 28-32,
 renumbered from 18-22) extends to 6-DOF using **quaternions** (Euler angles are singular at pitch
 ±90°, a rocket's nominal attitude) — **not worked on yet**. Launch rail and recovery are moved to
 **Backlog / later**. Architecture reference: `architecture.md` §1-§10 (Phase 1), §11-§22
 (Phase 2, **with Phase 2.5 resolutions inline**), §23 (Phase 2.6), §24 (Phase 2.7), §25
-(Phase 2.8), §26 (Phase 2.9), §27 (Phase 2.10), §28 → `architecture-28-rewrite.md` (Phase 2.11).
+(Phase 2.8), §26 (Phase 2.9), §27 (Phase 2.10), §28 → `architecture-28-rewrite.md` (Phase 2.11),
+§29 → `architecture-29-motor-selection.md` (Phase 2.12).
 Physics
 reference: `latex/main.tex` plus `latex/sections-ai/{rocket-2d,analysis,models}.tex` (the section
 files moved from `latex/sections/` — earlier citations mean the same content at the new path).
@@ -1619,6 +1625,106 @@ project's history after Step 46. Dependency chain and the seventeen decision for
 
 ---
 
+## Phase 2.12 — Motor-selection app (consumer app, no `sim/` physics) — DESIGNED, NOT APPROVED
+
+Requested by the user on 2026-10-12: "I need an app … that I can input different motors and it gives
+me the trajectories (i.e. sweep over thrust curves with result of highest apogee (for now only this
+study variable), but give the list of other parameters like max./avg. velocity, max. acceleration,
+etc. for a single defined conditions. When it's working add configuration methodology (i.e. for each
+motor I can also select dry rocket parameters (for smaller motors the casing is smaller))" — and, in
+the same message, "make it as a separate thing; that also concerns optimizers; they shouldn't be
+built in into simulation but as a separate thing that uses simulation."
+
+So this phase adds **no physics and touches no `sim/` file**. It is a third consumer tool —
+`apps/motor_selection/`, "App 3" — on the `apps/cfd_conditions/select_conditions.py` ("App 2")
+precedent: import `sim/` as a library, post-process `Result`s, add nothing to the simulator. Design:
+`docs/architecture-29-motor-selection.md` (pointed to from `architecture.md` §29); ten decision forks
+D-18 … D-27 in §29.10 are for the user, not settled by the design. Step numbers continue the sequence
+(last used: Step 60); Phase 3 keeps its reserved 28-32 block.
+
+Two load-bearing design facts, both verified by reading the code rather than assumed: (1)
+`sim/params.py`'s `replace(p, {...})` already accepts arbitrarily many dotted-path keys in one call,
+so Step 62's per-motor override schema needs **no change to `sim/params.py`** (§29.2 F1); (2) every
+velocity/acceleration/dynamic-pressure extremum is taken over the **ascent window** (launch →
+apogee), not the whole flight, because Step 55 already recorded that this project's own scenarios can
+put max speed during *descent* (frozen attitude, real axial drag accelerating a tail-first fall) —
+§29.4.1, Step 55's entry above.
+
+**The user's airbrake request from the same message needs no work and no step:** it already exists,
+in exactly the requested `C_dA_total = C_dA_rocket + C_dA_airbrake` form (additive under a shared
+`q`, off by default), in `sim/forces.py`'s `aero_force_body` — Step 49, committed,
+`architecture.md` §27.3. Recorded here so the request is traceable to its existing implementation
+rather than re-opened later.
+
+### Step 61 — Motor-selection sweep app (App 3) + synthetic motor fixtures — not started
+- **Files:** new `apps/motor_selection/compare_motors.py`; new
+  `data/motors/{synthetic_small,synthetic_medium_punchy,synthetic_medium_long,synthetic_large}.csv`;
+  new `tests/test_motor_selection.py` plus one impulse-pin per fixture appended to
+  `tests/test_thrust_curve.py` (decision **D-25**). **No `sim/` file, no `run.py`, no existing
+  `data/` file.**
+- **Spec:** `architecture-29-motor-selection.md` §29.2 (the findings this rests on), §29.3 (layout,
+  objects, functions, guards), §29.4 (the stats bundle — implement literally), §29.5 (fixtures and
+  the demo baseline), §29.6 (outputs). Nothing outside §29.2-§29.6 is needed.
+- **Do:** four synthetic thrust curves in `placeholder.csv`'s format, each header stating a total
+  impulse that is the exact trapezoidal integral of its rows (39.75 / 169.2 / 169.54 / 338.0 N·s —
+  two of them an equal-impulse pair with contrasting burn profiles, which is what shows that impulse
+  alone does not set apogee). Then `MotorEntry`/`MotorStats`/`MotorRun`, `build_params`,
+  `flight_stats`, `evaluate_motor` (the one pure objective-function seam a future optimizer app would
+  import), `compare_motors` (ranked by apogee descending, `None`-apogee last), `print_motor_table`
+  (plain fixed-width, `print_sweep_table` style), `save_motor_csv`, `save_overlay` (reusing
+  `sim.plotting.plot_trajectory_overlay` unchanged), `main()`. Max acceleration comes from
+  re-evaluating `dynamics.derivatives` on the sampling grid (exact RHS, not a finite difference —
+  **D-20**); average velocity is a `np.trapezoid` time-average over the ascent (**D-22**); the grid is
+  the house 2000-point ascent grid unioned with a 2000-point refinement over the burn, so a ~50 ms
+  ignition spike is not under-sampled. Two guards: reject `p.solver.sample_rate_hz != 0.0` (a
+  post-hoc `derivatives` call cannot reconstruct the per-tick zero-order hold, so the number would
+  not be the acceleration that flew), and build every entry's `Params` **before** the first
+  integration so a typo'd override fails in a millisecond rather than after six runs.
+- **Check:** full suite green, count unchanged apart from the step's own new tests (no existing test
+  globs `data/motors/`; the one motor test loads `placeholder.csv` by name). Each fixture's
+  `np.trapezoid` equals its stated impulse. The step's most load-bearing assertion is closed-form:
+  just after ignition, where `V ≈ 0` and drag ≈ 0, the computed acceleration magnitude equals
+  `T(t)/m - g0` — that is what proves the `derivatives`-re-evaluation path has the right indices,
+  frame and units. Plus a loose finite-difference cross-check of the same peak; the ordering
+  invariants (non-increasing apogee, `None` last, `0 < avg <= max` velocity,
+  `burnout < apogee < impact`); `build_params` with no overrides leaves every other `Params` field
+  equal to the baseline's; a `motor_curve=""` entry reports `nan`s and ranks last instead of
+  crashing; `sample_rate_hz = 1000.0` raises before `run_sim`. Finally
+  `python -m apps.motor_selection.compare_motors` from the repo root prints the ranked table and
+  writes `output/motor_selection.csv` + `output/motor_selection_overlay.png` — **the actual table
+  goes in the step report; this design pins no apogee values** (any number here would be a
+  prediction, not a verified fact).
+- **Commit:** "Step 61 (Phase 2.12): motor-selection sweep app (App 3) + synthetic motor fixtures"
+
+### Step 62 — Per-motor configuration methodology (dry-rocket overrides) — not started
+- **Files:** `apps/motor_selection/compare_motors.py` (one new dataclass field, one guard, one
+  `build_params` line, one CSV column); new `apps/motor_selection/motors.py`;
+  `tests/test_motor_selection.py`. **No `sim/` file.**
+- **Spec:** `architecture-29-motor-selection.md` §29.7 (schema, demo config, the variable-mass option,
+  the bit-for-bit gate), §29.8 (why the config is a Python literal — decision **D-23**); §29.3 for
+  the function signatures.
+- **Do:** `MotorEntry` gains `overrides: dict[str, Any] = field(default_factory=dict)` — an **open**
+  dict of dotted `Params` paths, not an enumerated whitelist — and `build_params` becomes the single
+  multi-key `params.replace(baseline, {"thrust.motor_curve": …, **entry.overrides})` call. Raise
+  `ValueError` if `"thrust.motor_curve"` appears in `overrides`: one selector, one place — this repo
+  has already been bitten by "two uncoordinated selectors for the same thing" (`aero_model` vs
+  `aero_table`, the defect half of Phase 2.11 exists for). The demo config moves into
+  `apps/motor_selection/motors.py` as a commented Python literal (D-23: `None` is a meaningful value
+  here, the key set is sparse and heterogeneous, and every number in this repo is justified in a
+  comment next to it — CSV and JSON can do neither; YAML would be a new dependency). The two
+  H-class entries stay override-free **on purpose**, so the equal-impulse pair still isolates burn
+  profile. The CSV gains an `overrides` column as a `;`-joined `path=value` string, for traceability.
+- **Check:** the primary check is a **bit-for-bit gate** — Step 61's own demo config, run under Step
+  62's code, must produce a byte-identical printed table and CSV (every `overrides` empty, the new
+  field defaulted). Then: an entry with `{"weight.m": 0.9, "aero.S": 0.00114}` changes exactly those
+  two fields and leaves every other field, including the rest of `Weight` and `Aero`, equal to the
+  baseline's; `overrides={"thrust.motor_curve": …}` raises `ValueError`; a typo'd group raises
+  `AttributeError` and a typo'd field raises `TypeError`, both from `replace` and both **before any
+  integration**. Full suite green; the configured table goes in the step report.
+- **Commit:** "Step 62 (Phase 2.12): per-motor configuration methodology (dry-rocket overrides)"
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -1838,6 +1944,32 @@ integration strategy — a fixed-step integrator for the whole flight, or an out
 restarts `solve_ivp` at each sample tick. Revisit alongside B11; same root cause, same size of
 change.
 
+### B14 — Real motor data: `.eng`/RASP import and a motor database  *(opened by the §29 design)*
+`data/motors/` holds synthetic curves only (`placeholder.csv` plus Step 61's four fixtures), so App 3
+demonstrates the tool rather than answering the question about *actual* motors. ThrustCurve.org
+publishes `.eng` files — a header line carrying diameter, length, delay set, propellant mass and
+total mass, then `t F` pairs — so a ~40-line converter into this project's existing two-column CSV
+format, in the spirit of `tools/fetch_sounding.py` (hand-run, writes the canonical format, no new
+dependency), is the whole job. The header's propellant/total-mass fields are also exactly the data
+**B15** needs. Design notes: `architecture-29-motor-selection.md` §29.12.
+
+### B15 — Per-motor mass/geometry metadata, and the variable-mass model per motor  *(opened by the §29 design)*
+Step 62's override schema can switch Step 36's variable-mass model on per motor with five more keys
+(`weight.m_d`, `l_d`, `l_p`, `I_d`, `I_sp`) and **zero** new code — but doing it honestly needs
+per-motor propellant mass and `I_sp`, which a two-column thrust curve does not carry. So this is a
+*data-format* decision (sidecar CSV under `data/motors/`, extra `#`-comment keys in the curve file,
+or B14's `.eng` header), deliberately not invented before there is real data to put in it. Until
+then App 3 flies every motor at a constant launch mass, which is conservative on apogee but not
+uniformly so across a motor set — a named limitation, `architecture-29-motor-selection.md` §29.11
+risk 6.
+
+### B16 — Two-dimensional sweeps (motor × environment)  *(opened by the §29 design)*
+App 3 sweeps motors under **one** fixed condition set (the user's own "for a single defined
+conditions"). Motor against wind speed/direction, launch angle, site elevation or rail length is
+mechanically a nested loop over the same `evaluate_motor` seam, but the output is a matrix rather
+than a ranked list and the question is a different one, so it is a separate tool, not a flag on this
+one. `architecture-29-motor-selection.md` §29.12.
+
 ---
 
 ## Dependency summary
@@ -1867,12 +1999,18 @@ change.
                         └→ 55 → 56 → 57 → 59 → 60              (54 is doc-only and parallel, but
       54 ──────────────→ 55                                     must land before 55; 59 needs 53+57)
                                      ↓
+                           61 → 62                           Phase 2.12: motor-selection app
+                                                               (consumer app, no sim/ — designed,
+                                                                not approved; 62 needs 61 only)
+                                     ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
 Backlog (unscheduled): B3 EGM gravity · B6 crosswind
                        B7 vertical wind (no fitting theory found) · B9 a real c_mq value
                        B10 turbulence on wind tiers 2/3 · B11 state-coupled turbulence  (both new at 46)
                        B12 sampled-data/PID control (new at 49) · B13 ISA extrapolation robustness (found at 48)
+                       B14 real .eng motor data · B15 per-motor mass metadata
+                       B16 motor × environment sweeps  (all three new at the §29 design)
                        B11 and B12 both UNBLOCKED at 59 (the integration mode exists; neither the
                        turbulence model nor the PID law is written — the work is now the model/law)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40
@@ -1915,6 +2053,14 @@ document does not contradict the code being written against it. **58** needs onl
 53 (for the `Solver` group that holds `sample_rate_hz`) and 57 (for the hook argument to exist).
 **60** closes the pass. Full ticket list and the seventeen decision forks: `architecture-28-rewrite.md`
 §28.11 / §28.12.
+
+Phase 2.12 is the loosest-coupled work in the project so far: **61** depends on nothing already
+written (it only *reads* `sim/`'s public API — `run_sim`, `params.replace`, `dynamics.derivatives`,
+`flow_state`, `thrust_curve.thrust`, `gravity.altitude_agl`, `plotting.plot_trajectory_overlay`) and
+creates only new files, so it is the first step that is genuinely parallel-safe against any `sim/`
+work. **62** needs 61 and only 61, and edits 61's own module, so the two are strictly sequential
+with respect to each other. Tickets and the ten decision forks D-18 … D-27:
+`architecture-29-motor-selection.md` §29.9 / §29.10.
 
 Steps in `[brackets]` are optional or gated. Step 21 (analytic wind) depends only on Step 13 and
 may be pulled forward. **Blocked or gated steps:**

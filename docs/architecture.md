@@ -4369,3 +4369,33 @@ becomes false (every aero model is dynamic-pressure-scaled after §28.5), and §
 field list is superseded by §28.3. §12 was corrected at Step 55 (its own one-line addendum, not a
 rewrite). §18's flat field list is a larger rewrite, out of Step 55's scope, and still not
 edited — it describes the pre-S50 flat `Params`, now historical.
+
+---
+
+## 29. Phase 2.12 — motor-selection app (Steps 61-62) — *lives in a separate file*
+
+**→ `docs/architecture-29-motor-selection.md`** (proposal, not yet approved; no code written).
+
+Same split as §28, for the same reason: content there, navigation here.
+
+§29 designs the app the user asked for on 2026-10-12 — feed in a list of motors, get the
+trajectories back ranked by **apogee**, with a per-motor stats bundle richer than
+`sim.report.flight_summary`'s four fields (max/avg velocity, max acceleration, burnout time, max-Q,
+delivered impulse, impact time, downrange). It is a **separate consumer app**,
+`apps/motor_selection/` ("App 3"), on the `apps/cfd_conditions/select_conditions.py` precedent: it
+imports `sim/` as a library, adds no physics and changes **nothing** under `sim/` — the user's own
+instruction ("make it as a separate thing; that also concerns optimizers"). Two steps: (61) the
+sweep plus four synthetic motor-curve fixtures under `data/motors/`; (62) the per-motor
+configuration methodology — each motor entry also carrying dry-rocket-parameter overrides (smaller
+motor, smaller casing), which needs **no change to `sim/params.py`** because its dotted-path
+`replace(p, {...})` already accepts arbitrarily many keys per call (§29.2 F1). The load-bearing
+convention is the **ascent-only measurement window** for every extremum (§29.4.1), grounded in Step
+55's recorded finding that this project's own scenarios can put max speed during *descent*. Tickets
+are §29.9, the ten open decision forks §29.10 (numbered D-18 … D-27, continuing §28's D-1 … D-17),
+and three proposed backlog items (B14 real `.eng` motor data, B15 per-motor mass metadata, B16
+two-dimensional sweeps) §29.12.
+
+**Not covered, deliberately:** the airbrake. The user's same message asked for airbrake capability as
+`C_dA_total = C_dA_rocket + C_dA_airbrake`; that already exists, in exactly that additive-under-a-
+shared-`q` form and off by default, in `sim/forces.py`'s `aero_force_body` (§27.3, Step 49). §29
+designs no airbrake change.

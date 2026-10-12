@@ -16,6 +16,48 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
+## Phase 2.12 — motor-selection app (new, 2026-10-12), Step 30 still paused, unchanged by it
+
+**Design approved, implementation not yet started.** User request (2026-10-12): a standalone app,
+separate from `sim/` ("optimizers shouldn't be built into simulation but a separate thing that uses
+simulation"), that sweeps a list of motor thrust curves against one fixed rocket/launch condition,
+ranks by highest apogee, and reports a fuller flight-stat bundle per motor (max/avg velocity, max
+acceleration, burnout/apogee/impact time, downrange, max-Q) than `sim/report.py`'s existing
+`flight_summary` gives (apogee alt/time, max-Q, impact time only). Once that works, extend it so each
+motor entry can also carry its own dry-rocket parameter overrides (smaller motors → smaller/lighter
+casing) — leverages `sim.params.replace`'s existing multi-dotted-path support, confirmed to need no
+`sim/` change at all.
+
+**Same request also asked to implement airbrake-as-additive-`C_dA`** (`C_dA_total = C_dA_rocket +
+C_dA_airbrake`). Confirmed by the orchestrator reading `sim/forces.py`/`sim/control.py` directly: this
+already exists, already committed (**Step 49**, pre-Phase-2.11) — `A_brake =
+q*Cd_brake*S_max*deploy_fraction`, additive into the axial force alongside `q*S*C_x`, bit-for-bit off
+by default (`airbrake_S_max=0.0`). The user's own stated next step ("later it's gonna go as one
+combined C_dA") is already anticipated in `sim/control.py`'s own docstring (the Step-57
+`aero_coeff_delta`/`C_x` seam). **No new work for this** — confirmed done, not re-implemented.
+
+Architect design: `docs/architecture-29-motor-selection.md` (`architecture.md` §29 pointer);
+`roadmap.md` Phase 2.12, Steps 61–62; backlog **B14/B15/B16** added. Full decision log in
+`status.json`'s `phase2_12_motor_selection` block — 9 decisions total, 3 put to the user
+(measurement window = ascent-only for extrema; max-acceleration meaning = inertial `|dv/dt|`; Step
+62's config format = a Python literal, not JSON/CSV/YAML), 6 accepted on the architect's
+recommendation without escalation (stats computed locally in the new app, not `sim/`; acceleration via
+re-evaluating `sim.dynamics.derivatives` on the grid, not finite-differencing; avg velocity = trapezoid
+of `|v|`; `apps/motor_selection/compare_motors.py` naming; ship `tests/test_motor_selection.py`;
+synthetic 1.5 kg/75 mm demo baseline rocket, not a reuse of `run.py`'s 0.5 kg toy).
+
+**Plan — Steps 61–62, one commit each:**
+- S61 — `apps/motor_selection/compare_motors.py` (new): baseline `Params` × a list of `motor_curve`
+  files, one `run_sim` per motor, ranked-by-apogee table with the ascent-window stat bundle above;
+  2–3 new synthetic `data/motors/*.csv` fixtures (today there is only `placeholder.csv`);
+  `tests/test_motor_selection.py` with pinned-value checks. No `sim/` file touched.
+- S62 — per-motor dry-rocket override config: `list[MotorEntry]`, each `motor_curve` + an open dotted-
+  path override dict, built via `sim.params.replace`'s existing multi-key support. Depends on S61
+  (edits its module); not parallelizable with it.
+
+**Next: dispatch developer for S61** per `architecture-29-motor-selection.md` §29.2–§29.6 (spec slice
+only — §29.7–§29.8 is S62's job, dispatched after S61 is independently verified).
+
 ## Phase 2.11 rewrite pass — COMPLETE (2026-10-10), Step 30 still paused, unchanged by it
 
 **All 10 steps (S50–S60) done, each independently re-verified by the orchestrator, not taken on any

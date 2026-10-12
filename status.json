@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.11-rewrite-COMPLETE-phase3-step30-resuming",
+  "current_stage": "phase2.12-motor-selection-app-S61-in-progress",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -53,6 +53,27 @@
     "status": "COMPLETE -- all 10 steps (S50-S60) done, each independently verified and committed",
     "completed_date": "2026-10-11",
     "next": "Step 30 (3D rotational EOM) resumes, exactly where paused -- waiting on the user's review of docs/latex/research/3d_equations_of_motion.md"
+  },
+  "phase2_12_motor_selection": {
+    "requested": "2026-10-12, user: a standalone app (separate from sim/, 'optimizers shouldn't be built into simulation') that sweeps different motors and reports highest-apogee + a full flight-stat list for one fixed condition; once working, extend so each motor can also carry its own dry-rocket parameter overrides (smaller motors -> smaller casing).",
+    "airbrake_finding": "Same user message also asked to 'implement airbrake capability as change in C_dA (C_dA_total = C_dA_rocket + C_dA_airbrake)'. Orchestrator confirmed by reading sim/forces.py/sim/control.py directly: this already exists, already committed (Step 49, pre-Phase-2.11), and already matches the request exactly (A_brake = q*Cd_brake*S_max*deploy_fraction, additive into A_x alongside q*S*C_x, bit-for-bit off by default). The user's own stated future direction ('later it's gonna go as one combined C_dA') is already anticipated in sim/control.py's own docstring (routing through the Step-57 aero_coeff_delta/C_x seam). No new work dispatched for this -- confirmed as already done, not re-implemented.",
+    "design_doc": "docs/architecture-29-motor-selection.md (architecture.md SS29 pointer); roadmap.md Phase 2.12, Steps 61-62",
+    "approved": true,
+    "approved_date": "2026-10-12",
+    "decisions_log": [
+      {"id": "D-18", "choice": "all per-motor stats computed locally inside the new app, sim/report.py untouched", "by": "architect's recommendation, accepted by orchestrator as the literal reading of the user's own 'separate thing' instruction -- not escalated to the user"},
+      {"id": "D-19", "choice": "ascent-only window for velocity/acceleration/max-Q extrema; whole-flight for impact time/downrange", "by": "user, selected 'Ascent-only extrema (Recommended)'"},
+      {"id": "D-20", "choice": "max acceleration computed by re-evaluating sim.dynamics.derivatives on the sampling grid, not a finite-difference of velocity", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
+      {"id": "D-21", "choice": "max acceleration = inertial |dv/dt| (gravity included), not sensed/load-factor", "by": "user, selected 'Inertial |dv/dt| (Recommended)'"},
+      {"id": "D-22", "choice": "avg velocity = trapezoid-integrated |v| over the ascent window", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
+      {"id": "D-23", "choice": "Step 62's per-motor override config is a Python literal in apps/motor_selection/motors.py, not JSON/CSV/YAML", "by": "user, selected 'Python literal (Recommended)'"},
+      {"id": "D-24", "choice": "apps/motor_selection/compare_motors.py naming, mirroring apps/cfd_conditions/select_conditions.py", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
+      {"id": "D-25", "choice": "Step 61 ships tests/test_motor_selection.py with pinned-value checks, departing from App 2's untested precedent", "by": "architect's recommendation, accepted by orchestrator, not escalated -- matches this project's standing 'pin every number' discipline"},
+      {"id": "D-26", "choice": "demo baseline rocket for compare_motors.py's main(): a synthetic 1.5kg/75mm vehicle, not a reuse of run.py's 0.5kg toy (which would push the largest fixture motor past Mach 2 under a model that can't stand behind that)", "by": "architect's recommendation, accepted by orchestrator, not escalated"}
+    ],
+    "plan": "Step 61: apps/motor_selection/compare_motors.py (basic sweep -- baseline rocket x list of motor_curve files, ranked-by-apogee table with the full ascent-window stat bundle), 2-3 new synthetic data/motors/*.csv fixtures, tests/test_motor_selection.py. Step 62: per-motor dry-rocket override config (list[MotorEntry] with motor_curve + a dotted-path Params override dict per entry, via sim.params.replace's existing multi-key support -- confirmed needs no sim/ change). One commit each, full regression suite after each, per architecture-29-motor-selection.md SS29.2-29.8.",
+    "status": "design approved, Step 61 not yet dispatched to developer",
+    "next": "Dispatch developer for Step 61 per architecture-29-motor-selection.md SS29.2-29.6 (spec slice only, not SS29.7-29.8 which is Step 62's job)."
   },
   "phase2_7_steps41_42_recovery_note": {
     "date": "2026-09-28",
