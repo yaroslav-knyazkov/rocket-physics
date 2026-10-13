@@ -16,7 +16,45 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
-## Phase 2.13 — Apps 4-5, shared app layer, reusable configs, git-flow — DESIGN APPROVED (2026-10-13), implementation starting
+## Phase 2.13 — Apps 4-5, shared app layer, reusable configs, git-flow — COMPLETE (2026-10-13)
+
+**All 7 steps done, each independently verified by the orchestrator (full test suite re-run,
+`git diff`/`git status` review, direct execution, byte-identical-output re-checks via git-stash
+round-trips where the gate called for it) before committing — never taken on a developer's
+self-report alone:**
+
+- Step 63 `932c285` — `configs/` package (`Config`/`Variant`, explicit registry, three seed
+  configs). 306/306 tests.
+- Step 64 `fd68de6` — `apps/common/` (shared `flight_stats`/`artifacts`/`cli`), promoted verbatim
+  out of App 3. Byte-identical App-3 output confirmed. 307/307 tests.
+- Step 65 `1b3c785` — airbrake deployment triggers in `sim/control.py` (the phase's only `sim/`
+  change, D-36-revised, user-approved). F17 equivalence re-verified directly (3.8e-8 m agreement).
+  314/314 tests.
+- Step 66 `e211073` — App 4, airbrake `C_dA`/deploy-time sizing against the real solver, replacing
+  the `temp/` MATLAB prototype. Round-trip pin re-verified directly (1.2e-8 m² agreement). 331/331.
+- Step 67 `9fddb2a` — App 5 mode (b), the weight-vs-aero trade surface + exchange rate. Interrupted
+  once by a session usage-limit reset mid-task; resumed the same agent from its on-disk files per
+  standing policy rather than restarting. 121/121 grid points flew, exchange rate -3.7 to -33.8
+  mm²/g across the grid, 39.04 s wall-clock (orchestrator's own re-run). 342/342 tests.
+  **Final test count: 353/353.**
+- Step 68 `0b37876` — App 5 mode (a), named-configuration comparison. The load-bearing mode(a)/
+  mode(b) cross-check agreed to ~0.1-0.3% relative — the two App-5 modes do not disagree where
+  they overlap. 349/349 tests.
+- Step 69 `5f72f44` — migrated `run.py`/App 2/App 3 onto `configs/`, bit-for-bit. All three
+  migrated entry points byte-identical pre/post (independently re-captured via git-stash
+  round-trip, not just trusted). Two remaining root wrappers added
+  (`run_motor_sweep.py`/`run_cfd_conditions.py`) — all "five run files" the user asked for are now
+  `ls`-visible at the repo root. 353/353 tests.
+
+**Headline capability delivered**: airbrake `C_dA` sizing (and deploy-time sizing) against the
+real solver with three selectable deployment triggers; a weight-vs-aero trade surface *and* a
+named-configuration comparison tool; a shared, reusable, git-history-tracked `configs/` package
+usable by every app; five `ls`-visible run files at the repo root; git-flow branching adopted
+(`develop` + `feature/phase2.13-apps-and-configs`, 9 commits on the feature branch including the
+design commit, not yet merged — awaiting the user's go-ahead to land).
+
+Full decision log (D-28 through D-42, D-36-revised parts 1-3): `status.json`'s
+`phase2_13_apps_configs.decisions_log`. Design doc: `docs/architecture-30-apps-4-5-and-configs.md`.
 
 Requested by the user on 2026-10-13, mirroring their own Notion "To Do" list reorganized 2026-10-10
 ("single simulation / motor sweep / air brake parameters determination / cfd input parameters

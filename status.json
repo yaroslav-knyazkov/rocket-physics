@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.13-apps-4-5-configs-design-approved-implementation-starting",
+  "current_stage": "phase2.13-COMPLETE-phase3-step30-resuming",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -811,8 +811,17 @@
     "convention": "feature/<slug> off develop, merged --no-ff back into develop; develop -> master at phase closeouts",
     "this_phase_branch": "feature/phase2.13-apps-and-configs",
     "commits": [
-      "25a512c (git-flow adoption: develop branch + .gitignore temp/)"
-    ]
+      "25a512c (git-flow adoption: develop branch + .gitignore temp/)",
+      "9d5bd40 (Phase 2.13 design, on feature/phase2.13-apps-and-configs)",
+      "932c285 (Step 63)",
+      "fd68de6 (Step 64)",
+      "1b3c785 (Step 65)",
+      "e211073 (Step 66)",
+      "9fddb2a (Step 67)",
+      "0b37876 (Step 68)",
+      "5f72f44 (Step 69)"
+    ],
+    "phase_2_13_status": "all 7 steps committed on feature/phase2.13-apps-and-configs, not yet merged to develop/master -- awaiting user go-ahead to land"
   },
   "phase2_13_apps_configs": {
     "requested": "2026-10-13, user: 5 'run files' total (3 already existed: run.py, apps/motor_selection 'App 3', apps/cfd_conditions 'App 2'); new work is App 4 (airbrake C_dA sizing, modernizing two temp/ MATLAB scratch files the user pointed at) and App 5 (weight-vs-aero trade-off tool, two possible modes left to architect's judgment); also requested a shared config-reuse system across apps, and adoption of git-flow branching.",
@@ -892,7 +901,52 @@
       }
     ],
     "plan": "Steps 63 (configs/ package), 64 (apps/common/ promotion), 65 (sim/control.py airbrake triggers -- D-36-gated, the phase's only sim/ step), 66 (App 4: airbrake C_dA sizing), 67 (App 5 mode b: trade surface), 68 (App 5 mode a: named-config comparison), 69 (migrate run.py/App2/App3 onto configs/, bit-for-bit). Steps 63/64/67 are parallel-safe against each other and against 65; only 66 blocks on 65. Implemented sequentially per this project's standing one-step-one-commit-full-regression rule.",
-    "steps_done": [],
-    "status": "DESIGN APPROVED, implementation starting"
+    "steps_done": [
+      {
+        "step": 63,
+        "name": "configs/ -- shared configuration package",
+        "commit": "932c285",
+        "note": "Config/Variant dataclasses, explicit registry (CONFIGS/names()/get()), three seed configs (toy_05kg, demo_75mm, demo_75mm_airbrake). Exact-equality pins against run.py's literal and compare_motors._demo_baseline() independently re-checked by orchestrator. 306/306 tests (289+17 new)."
+      },
+      {
+        "step": 64,
+        "name": "apps/common/ -- shared flight-stats, artifact and CLI layer",
+        "commit": "fd68de6",
+        "note": "FlightStats/flight_stats/_assert_derivatives_reconstructible promoted verbatim out of App 3; compare_motors.py re-exports MotorStats = FlightStats. apps/common/artifacts.py (OUTPUT_DIR/ensure_dir), apps/common/cli.py (--config/--list-configs). Byte-identical App-3 output re-verified by orchestrator via git-stash round-trip. 307/307 tests."
+      },
+      {
+        "step": 65,
+        "name": "airbrake deployment triggers (after_burnout | after_time | after_apogee)",
+        "commit": "1b3c785",
+        "note": "The phase's only sim/ change (D-36-revised, user-approved). Control gains airbrake_trigger/airbrake_deploy_time (2 defaulted fields); sim/control.py gains three trigger predicates, _AIRBRAKE_TRIGGERS dispatch, airbrake_triggered seam, a 'full' deployment law -- same pattern as forces.parachute_deployed. _proportional_airbrake untouched. F17 equivalence re-verified by orchestrator directly (3.8e-8 m agreement). git diff --stat confirmed exactly 2 sim/ files, +2 lines in params.py. 314/314 tests."
+      },
+      {
+        "step": 66,
+        "name": "App 4 -- airbrake C_dA determination against the real solver",
+        "commit": "e211073",
+        "note": "Replaces temp/AB_01.m + AB_01_sim.m MATLAB prototype with brentq root-find against the real solve_ivp simulator (D-34/D-35/D-37). Solves for C_dA_airbrake or deploy_time; refuses to solve under after_apogee (F19, flat objective) with evaluate_airbrake as the report-only path. apps/airbrake_sizing/{solve_cda.py,targets.py}, run_airbrake.py. Round-trip pin re-verified by orchestrator directly (1.2e-8 m^2 agreement); zero sim/ diff confirmed. 331/331 tests (314+17)."
+      },
+      {
+        "step": 67,
+        "name": "App 5 mode (b) -- weight-vs-aero trade surface and exchange rate",
+        "commit": "9fddb2a",
+        "note": "TradeAxes/TradeSurface (bilinear apogee_at, np.gradient-based exchange_rate). C_dA swept via aero.C_x at fixed aero.S (F9). weight.I/lengths.* held fixed on mass axis (B22). Surface recomputed on demand, not persisted (D-40). apps/weight_aero_tradeoff/{trade_surface.py,scenarios.py}, run_trade.py. Interrupted once by a session usage-limit reset mid-task; resumed the same agent from its on-disk files per standing auto-resume policy, not restarted. Orchestrator independently re-ran CLI end-to-end (121/121 flew, exchange rate -3.7 to -33.8 mm^2/g across the grid, 39.04s). 342/342 tests (331+11)."
+      },
+      {
+        "step": 68,
+        "name": "App 5 mode (a) -- named-configuration comparison",
+        "commit": "0b37876",
+        "note": "ConfigRun/evaluate_config/compare_configs mirror compare_motors.py's ranked comparison shape. --config NAME compares a baseline against scenarios.SCENARIOS variants; --config a,b,c (2+ names) compares registry configs directly, bypassing SCENARIOS -- the case that justifies the mode existing (candidates differing by more than a weight/C_dA delta). Load-bearing mode(a)/mode(b) cross-check (must agree where they overlap) passed at ~0.1-0.3% relative agreement, re-verified by orchestrator running both CLI forms directly. 349/349 tests (342+7)."
+      },
+      {
+        "step": 69,
+        "name": "migrate run.py and Apps 2-3 onto configs/ (bit-for-bit)",
+        "commit": "5f72f44",
+        "note": "run.py and App 2 now source their scenario from configs.get('toy_05kg'); App 3's _demo_baseline() is a one-line re-export of configs.get('demo_75mm').params, main() also sources s0 from the same Config. Two remaining root wrappers added (run_motor_sweep.py, run_cfd_conditions.py) -- all five run files now ls-visible at the repo root. Byte-identical output for all three migrated entry points independently re-verified by orchestrator via git-stash round-trip (empty diffs, stdout+CSV, all three). All five entry points run cleanly from this checkout. 353/353 tests (349+4). Phase 2.13 complete."
+      }
+    ],
+    "status": "COMPLETE -- all 7 steps (63-69) done, each independently verified and committed",
+    "completed_date": "2026-10-13",
+    "next": "Phase 2.13 complete on branch feature/phase2.13-apps-and-configs (7 commits on top of the design commit 9d5bd40, plus the git-flow adoption commit 25a512c on develop). Final test count 353/353, zero sim/ regressions across the whole phase except the one explicitly approved sim/control.py change (Step 65). Awaiting user go-ahead to land (merge feature branch -> develop -> master) per git-flow. Step 30 (3D rotational EOM) remains the next queued item after that, still waiting on the user's own review of docs/latex/research/3d_equations_of_motion.md."
   }
 }

@@ -1725,7 +1725,7 @@ rather than re-opened later.
 
 ---
 
-## Phase 2.13 — Apps 4-5, the shared app layer, reusable configs — DESIGNED, PARTLY APPROVED (D-36 open)
+## Phase 2.13 — Apps 4-5, the shared app layer, reusable configs — COMPLETE (Steps 63-69 done, commits `932c285`/`fd68de6`/`1b3c785`/`e211073`/`9fddb2a`/`0b37876`/`5f72f44`)
 
 Requested by the user on 2026-10-13: "I want to have 5 run files. 1st simple simulation, 2nd motor
 sweep, 3rd air brakes parameter determination (the goal is to determine C_dA of airbrakes …; smn like
@@ -1803,7 +1803,7 @@ scenario** (`Params` + initial `State` + provenance) reusable by every tool incl
 `list[MotorEntry]`) applied onto whichever config the app is pointed at. `apps/motor_selection/
 motors.py` therefore **does not move** — it is App 3's own study list and belongs where it is.
 
-### Step 63 — `configs/` — the shared configuration package — not started
+### Step 63 — `configs/` — the shared configuration package — done, commit `932c285`
 - **Files:** new `configs/{__init__.py,schema.py,toy_05kg.py,demo_75mm.py,demo_75mm_airbrake.py}`;
   new `tests/test_configs.py`. **No `sim/` file, no `apps/` file, no `run.py`.**
 - **Spec:** `architecture-30-apps-4-5-and-configs.md` §30.4 in full, plus §30.8's `test_configs.py`
@@ -1833,7 +1833,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   `import configs`. Full suite green, count up by this step's tests only.
 - **Commit:** "Step 63 (Phase 2.13): configs/ -- reusable named scenario configurations"
 
-### Step 64 — `apps/common/` — promote the shared app layer out of App 3 — not started
+### Step 64 — `apps/common/` — promote the shared app layer out of App 3 — done, commit `fd68de6`
 - **Files:** new `apps/common/{flight_stats.py,artifacts.py,cli.py}`;
   `apps/motor_selection/compare_motors.py` (imports, the `MotorStats` alias, the local `_OUTPUT_DIR`).
   **`tests/test_motor_selection.py` must not be edited. No `sim/` file.**
@@ -1857,7 +1857,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   a second dataclass. No app other than App 3 imports `apps.common` yet, by design.
 - **Commit:** "Step 64 (Phase 2.13): apps/common/ -- shared flight-stats, artifact and CLI layer"
 
-### Step 65 — Airbrake deployment triggers in `sim/control.py` — not started, **D-36-gated (the phase's only `sim/` step)**
+### Step 65 — Airbrake deployment triggers in `sim/control.py` — done, commit `1b3c785` (the phase's only `sim/` step)
 - **Files:** `sim/params.py` (**+2 defaulted fields** on `Control`, nothing else); `sim/control.py`
   (**+~35 lines**); `tests/test_control.py` (append). **`_proportional_airbrake` is NOT edited. No
   other `sim/` file, no `apps/` file, no `run.py`.**
@@ -1896,7 +1896,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   lines in `sim/params.py`.
 - **Commit:** "Step 65 (Phase 2.13): airbrake deployment triggers (after_burnout | after_time | after_apogee)"
 
-### Step 66 — App 4: airbrake `C_dA` determination against the real solver — not started
+### Step 66 — App 4: airbrake `C_dA` determination against the real solver — done, commit `e211073`
 - **Files:** new `apps/airbrake_sizing/{solve_cda.py,targets.py}`; new `run_airbrake.py`; new
   `tests/test_airbrake_sizing.py`. **No `sim/` file, no other app.**
 - **Needs:** Steps 63, 64 and **65** (the trigger dispatch). Parallel-safe against Step 67.
@@ -1956,7 +1956,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   **by this step** (Step 65 owns the whole `sim/` diff for the phase).
 - **Commit:** "Step 66 (Phase 2.13): App 4 -- airbrake C_dA determination against the real solver"
 
-### Step 67 — App 5 mode (b): the weight-vs-aero trade surface — not started
+### Step 67 — App 5 mode (b): the weight-vs-aero trade surface — done, commit `9fddb2a`
 - **Files:** new `apps/weight_aero_tradeoff/{trade_surface.py,scenarios.py}`; new `run_trade.py`; new
   `tests/test_weight_aero_tradeoff.py`. **No `sim/` file, no other app.** Needs Steps 63 and 64 only
   — independent of Step 65, since App 5 never touches the airbrake — and parallel-safe against
@@ -1993,7 +1993,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   the step report (F10's ~1.86 mm²/g and ~5.8 s are the expected **order of magnitude, not a pin**).
 - **Commit:** "Step 67 (Phase 2.13): App 5 mode (b) -- weight-vs-aero trade surface and exchange rate"
 
-### Step 68 — App 5 mode (a): named-configuration comparison — not started
+### Step 68 — App 5 mode (a): named-configuration comparison — done, commit `0b37876`
 - **Files:** new `apps/weight_aero_tradeoff/compare_configs.py`;
   `apps/weight_aero_tradeoff/scenarios.py` (append `SCENARIOS`); `run_trade.py` (the `--mode`
   branch); `tests/test_weight_aero_tradeoff.py` (append). **No `sim/` file, no other app.** Not
@@ -2018,7 +2018,7 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
   must not disagree where they overlap.
 - **Commit:** "Step 68 (Phase 2.13): App 5 mode (a) -- named-configuration comparison"
 
-### Step 69 — Migrate `run.py` and Apps 2-3 onto `configs/` (bit-for-bit) — not started (**D-32 approved**)
+### Step 69 — Migrate `run.py` and Apps 2-3 onto `configs/` (bit-for-bit) — done, commit `5f72f44` (**D-32 approved**)
 - **Files:** `run.py`; `apps/cfd_conditions/select_conditions.py`;
   `apps/motor_selection/compare_motors.py` (`_demo_baseline` becomes a one-line re-export of
   `configs.demo_75mm.CONFIG`); new `run_motor_sweep.py`, `run_cfd_conditions.py`;
