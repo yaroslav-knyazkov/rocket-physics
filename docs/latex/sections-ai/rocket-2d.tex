@@ -114,3 +114,12 @@ centre of gravity $B$ itself travels as $l_B(t)$. Reinterpreting $\mathcal{F}_0$
 rather than inertial adds one further translational term to \autoref{eq:eom_trans} and nothing at
 all to \autoref{eq:eom_rot} (\autoref{sec:noninertial}). \autoref{sec:analysis} expands these two
 equations by hand.
+
+These two equations describe \emph{free} flight, which is all of a flight except its two
+mechanically constrained phases. While the rocket is still on the launch rail
+(\autoref{sec:rail}) and while it hangs under a deployed recovery canopy (\autoref{sec:recovery}),
+the attitude state is frozen, $\dot\theta=\ddot\theta=0$, and \autoref{eq:eom_trans} is modified
+--- projected onto the rail direction in the first case, given one additional inertial-frame force
+in the second. Both are written up with the models rather than here, because each needs its own
+constraint or force model to be stated first; the equations above are what they modify, and what
+they revert to.

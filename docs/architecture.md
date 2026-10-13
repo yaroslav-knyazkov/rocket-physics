@@ -2960,6 +2960,12 @@ grep of it). Note the mismatch flagged in §26.14: `latex/sections-ai/models.tex
 still documents the Step-21 placeholder. **Resolved 2026-10-02** — the user nominated this §26
 (plus the research note) as the interim physics reference, with `models.tex` to be brought in line
 later by the user's own edit. A developer must still not edit `models.tex` to paper over the gap.
+**Closed 2026-10-13** (Phase 2.14 LaTeX sync pass, at the user's own request): `models.tex` §Wind
+now carries a `Turbulence` paragraph transcribing this §26 — the mean profile keeps the `Analytic`
+paragraph, the fluctuation is its own paragraph, and the three contradicted statements (the
+placeholder sum, the non-negativity clamp, `σ = 0` as the off switch) are gone. The standing rule
+is unchanged for implementers: the LaTeX is still the user's document and still wins, and a
+developer still does not edit it to paper over a gap.
 
 ### 26.1 What is being replaced, and why the Step-21 mechanism was a placeholder
 
@@ -3596,7 +3602,9 @@ Promoted to the backlog as **B11** (state-coupled turbulence) rather than deferr
 - **No LaTeX edit by the developer.** `latex/sections-ai/models.tex` §Wind > Analytic documents the
   Step-21 placeholder and needs updating, but `main.tex` and its sections are the **user's**
   document and the source of truth (working rule 1). See §26.14 — this is an input to be resolved
-  with the user, not a file for the implementer to rewrite.
+  with the user, not a file for the implementer to rewrite. (The update itself landed 2026-10-13 in
+  the Phase 2.14 LaTeX sync pass, requested by the user; §26's preamble records it. This bullet's
+  rule still stands as written for any future step.)
 - **No `float | np.ndarray` vectorisation promise.** Unlike `altitude_agl` (§25), the turbulence
   functions are scalar-only: `max(h, 0.0)` and the `k.sum()` renormalisation are both scalar-shaped,
   and nothing plots or post-processes turbulence over a `(6, N)` history. If that is ever wanted it
@@ -3954,6 +3962,13 @@ document; `main.tex` and its section files are the **user's** document. So this 
 
 No longer listed as blocking in the roadmap's blocked-steps table against Step 46 (the entry is kept,
 struck through, for the record).
+
+**Closed 2026-10-13.** The deferred `models.tex` edit was made in the Phase 2.14 LaTeX sync pass, on
+the user's own request to write up everything implemented but undocumented. `§Wind` now reads: an
+`Analytic` paragraph for the mean profile alone, then a `Turbulence` paragraph carrying this
+section's scale-length/intensity bands, both PSDs, the renormalised random-phase synthesis, the
+along/cross composition with the clamp's removal stated, and §26.9's reference-airspeed limitation
+with a backlog pointer. The line numbers quoted above are therefore historical.
 
 ---
 

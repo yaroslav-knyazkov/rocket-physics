@@ -101,23 +101,31 @@ choice'' at a glance.
     unchanged. A \emph{commanded} deflection --- a gimbal and the control law driving it, the
     only pitch authority a rocket has off the rail --- is deliberately not modelled yet
     (\autoref{sec:backlog}).
-    \item \textbf{Launch rail and recovery, now modelled, still simplified.} A launch rail of
-    length $L_{rail}$ constrains translation to one fixed direction and holds $\theta$ fixed until
-    the rocket clears it (no rail friction); a recovery canopy, once deployed (at apogee or a
-    timer), replaces the aerodynamic force with a drag term opposing the inertial relative-wind
-    vector directly and likewise holds $\theta$ fixed, rather than modelling the canopy's own
-    opening transient or the body's pendulum swing underneath it. A feedback-controlled air brake
-    (a special case of the wing-body air brake described in \autoref{sec:backlog}, but
-    standing alone as a switchable extra drag area rather than derived from an airframe) can
-    additionally modulate drag during the unpowered coast to target a commanded apogee. Two distinct
-    things were simplified here, and only one of them still is. The control \emph{law} that is
-    actually implemented is continuous and memoryless --- a proportional law re-evaluated afresh from
-    the current flight state at every solver call, with no integral or derivative term and no notion
-    of a previous sample. The \emph{integration}, however, no longer rules out a law with memory: the
-    solver carries an opt-in fixed-rate, zero-order-hold mode in which a sampled quantity is
-    evaluated once per sample tick and held constant until the next, so that a value surviving from
-    one tick to the next is well defined. A controller with memory is therefore expressible but
-    unwritten --- what is missing is the law, not somewhere to run it (\autoref{sec:backlog}).
+    \item \textbf{Launch rail, recovery and air brake: modelled, still simplified.} A launch rail
+    of length $L_{rail}$ constrains translation to one fixed direction and freezes $\theta$ until
+    the rocket clears it, with no friction and no tip-off (\autoref{sec:rail}); a recovery canopy,
+    once deployed at apogee or on a timer, adds a drag force opposing the inertial relative-wind
+    vector and likewise freezes $\theta$, modelling neither its own opening transient nor the
+    body's pendulum swing underneath it (\autoref{sec:recovery}); and an air brake modulates axial
+    drag during the unpowered coast, as a switchable extra drag area standing alone rather than a
+    surface derived from an airframe --- the wing-body treatment of \autoref{sec:backlog} ---
+    affecting $A_x$ only, neither the normal force nor the centre of pressure
+    (\autoref{sec:airbrake}). Of the two things simplified in that control loop, only one still is.
+    The \emph{law} is continuous and memoryless, re-evaluated afresh from the current flight state
+    at every solver call, with no integral or derivative term and no notion of a previous sample
+    (\autoref{sec:airbrake_law}). The \emph{integration} no longer rules out a law with memory: an
+    opt-in fixed-rate, zero-order-hold mode (\autoref{sec:sampled}) evaluates a sampled quantity
+    once per tick and holds it until the next, so that a value surviving from one tick to the next
+    is well defined. A controller with memory is therefore expressible but unwritten --- what is
+    missing is the law, not somewhere to run it (\autoref{sec:backlog}).
+    \item \textbf{Turbulence: a real spectrum, driven at a fixed reference airspeed.} The wind
+    fluctuation about the mean profile is the MIL-spec Dryden spectrum, realised as a frozen
+    random-phase sum (\autoref{sec:wind} > Turbulence) --- with turbulence off by default, so every
+    result produced without it is reproduced unchanged. Two simplifications ride with it, both
+    deliberate: the spectrum is driven by a \emph{fixed} reference airspeed rather than the
+    rocket's own, which fixes where the spectrum's knee sits in frequency while leaving the
+    delivered intensity exact (\autoref{sec:backlog}); and there is no vertical component, for the
+    same reason the mean profile has none.
 \end{itemize}
 
 \newpage
@@ -146,11 +154,15 @@ tell a missing derivation from a missing input.
     guidance objective (pitch programme? gravity turn? impact point?), actuator rate and deflection
     limits, a sensor model to close the loop on, and the 3D model itself. A \emph{different} control
     loop --- drag modulation via a feedback-controlled air brake, targeting a commanded apogee
-    during unpowered coast --- is already implemented and stays 2D-only (\autoref{sec:assumptions}):
+    during unpowered coast --- is already implemented and stays 2D-only (\autoref{sec:airbrake}):
     it needs no out-of-plane freedom, only an additional switchable drag term. Its control law is a
     continuous, memoryless proportional one, not a sampled-data controller with integral/derivative
-    memory --- the different integration strategy such a controller needs now exists, as an opt-in
-    solver mode, but the law itself is still future work (see the sampled-data item below).
+    memory --- the different integration strategy such a controller needs now exists
+    (\autoref{sec:sampled}), but the law itself is still future work (see the sampled-data item
+    below). Two smaller gaps in the same loop belong here rather than there: the brake has no
+    retraction condition and no deployment-rate limit (\autoref{sec:airbrake_trigger}), and it
+    perturbs $A_x$ alone, leaving $A_z$, $A_m$ and $l_1$ untouched --- which the wing-body item
+    below is what would fix properly.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated, linearized or constant coefficients of \autoref{sec:aero} with a wing-body
     (Barrowman-style) build-up. Conceptually: the nose, the body, and each fin each contribute
@@ -166,7 +178,10 @@ tell a missing derivation from a missing input.
     switchable change to $C_A$ and to the CoP. That last point of entry is already fixed by the
     structure of \autoref{sec:aero}: whatever a control surface does, it does by perturbing
     $C_x,C_z,C_m$ or $l_1$, so what this item is waiting on is the airframe and the deflection law
-    --- not somewhere to put them. The original Barrowman formulas are subsonic
+    --- not somewhere to put them. The air brake of \autoref{sec:airbrake} is that entry point
+    exercised \emph{without} an airframe behind it: a bare drag area added to $A_x$, which is
+    precisely why it needs none of the build-up above and why it cannot say anything about the
+    normal force or the centre of pressure. The original Barrowman formulas are subsonic
     linear-theory results and would need a Mach correction (Prandtl--Glauert or, in the linear
     supersonic regime, Busemann theory) to extend past low subsonic speed.
     \emph{Waiting on:} an actual airframe --- nose shape, body diameter/length and any boat-tail,
@@ -202,23 +217,28 @@ tell a missing derivation from a missing input.
     both are lifted by the same future work, a full 6DOF model --- not by anything that can be
     done inside this document.
     \item A sampled-data control \emph{law} --- one with integral/derivative memory, running on the
-    fixed-rate, zero-order-hold loop --- for the air brake described in \autoref{sec:assumptions},
-    or for any future controller. The integration strategy this needs is \emph{no longer} missing: a
-    fixed-rate, zero-order-hold mode is available as an opt-in alternative to the adaptive-step
-    scheme this document otherwise assumes, holding each sampled quantity constant across a tick so
-    that a controller may legitimately carry state from one sample to the next. This item has
-    therefore gone from blocked to merely unwritten. \emph{Waiting on:} the law itself --- which
-    signal it acts on, its gains, and the saturation/anti-windup treatment of its integral term ---
-    none of which this document fixes. Two properties of the sampled mode are worth stating with it,
-    because neither is a defect to be corrected later: a run in that mode is a \emph{different}
-    dynamical system from the continuously-evaluated one rather than a more accurate solution of the
-    same one, so the two are not to be compared as though one refined the other; and the fixed-step
-    integration it requires is substantially more expensive than the adaptive scheme, which is why
-    it is opt-in rather than the default. The present proportional law
-    (\autoref{sec:assumptions}) remains re-evaluated fresh at every call, and needs none of this.
-    \item A refined launch-rail model with friction, and a recovery model with the canopy's own
-    opening transient and pendulum swing under the risers, rather than the current instantaneous-
-    deployment, frozen-attitude treatment (\autoref{sec:assumptions}).
+    fixed-rate, zero-order-hold loop --- for the air brake of \autoref{sec:airbrake}, or for any
+    future controller. The integration strategy this needs is \emph{no longer} missing
+    (\autoref{sec:sampled}, which also states the two properties of a sampled run that are not
+    defects to be corrected: it is a different dynamical system rather than a refinement of the
+    continuous one, and it is substantially more expensive). This item has therefore gone from
+    blocked to merely unwritten. \emph{Waiting on:} the law itself --- which signal it acts on, its
+    gains, and the saturation/anti-windup treatment of its integral term --- none of which this
+    document fixes. The present proportional law (\autoref{sec:airbrake_law}) remains re-evaluated
+    fresh at every call, and needs none of this.
+    \item \textbf{State-coupled turbulence.} The Dryden spectrum of \autoref{sec:wind} >
+    Turbulence is driven by a fixed reference airspeed, not by the rocket's own instantaneous one
+    --- the gold-standard formulation, a filter driven by the true airspeed and carrying its own
+    internal state, is the one a flight-test comparison would want. This has the same root cause as
+    the item above and is unblocked by the same mechanism: a filter state is exactly the recursive
+    per-tick quantity \autoref{eq:zoh} carries. \emph{Waiting on:} the filter's own discretisation,
+    and a decision on whether drawing noise per tick turns the flight into a stochastic
+    differential equation whose results then depend on the sample rate itself --- a genuine
+    modelling question, not an implementation detail.
+    \item A refined launch-rail model with friction and a tip-off transient as the last button
+    leaves the rail (\autoref{sec:rail}), and a recovery model with the canopy's own opening
+    transient, inflation shock and pendulum swing under the risers, rather than the current
+    instantaneous-deployment, frozen-attitude treatment (\autoref{sec:recovery}).
 \end{itemize}
 
 \end{document}

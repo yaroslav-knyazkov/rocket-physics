@@ -13,6 +13,17 @@ $p_{amb}$ from \autoref{sec:atmosphere}, and \autoref{sec:aero} needs $\rho$ and
 \autoref{sec:atmosphere} and $\alpha$ from \autoref{sec:relwind}); every such symbol is
 cross-referenced at the point of use.
 
+Four further subsections close the section, and they are a different kind of thing: they do not
+supply one of \autoref{sec:forces}'s force symbols, they \emph{modify} the equations those symbols
+feed. The launch rail (\autoref{sec:rail}) and the recovery canopy (\autoref{sec:recovery}) are
+the two mechanically constrained phases of a flight, in which the attitude state is frozen and the
+translational equation is projected or supplemented; the air brake (\autoref{sec:airbrake}) is the
+one feedback-controlled actuator in this document, entering as an additive axial drag term; and
+\autoref{sec:sampled} is not a model at all but an interchangeable \emph{mode of evaluating} every
+model above --- a fixed-rate, zero-order-hold alternative to the continuous re-evaluation the rest
+of this document assumes. All four are off by default, and with their defaults in place every
+equation of this section reads exactly as it does above.
+
 \subsection{Gravity}\label{sec:gravity}
 Interchangeable models for the gravitational acceleration magnitude $g$ and direction $\hat{z}_g$
 used in $\vec{W}=mg\hat{z}_g$ (\autoref{sec:forces}). Magnitude and direction are chosen
@@ -365,10 +376,13 @@ planform and cant, body-fin interference, surface finish) --- introducing exactl
 \autoref{sec:reynolds_mach}.
 \todo{expand once the CFD/data-extraction pipeline that populates this database is defined; a
 control surface (airbrake, aileron, etc.) has a defined point of entry --- a control law
-perturbing $C_x,C_z,C_m$ or $l_1$ (\autoref{sec:backlog}) --- but neither the surface's geometry
-nor any deflection law is written down here; pitch rate is covered above through $c_{m,q}$ as a
-constant or a table column, not as a function of $(\alpha,M)$ in its own right; and, for 3D, other
-stuff}
+perturbing $C_x,C_z,C_m$ or $l_1$ (\autoref{sec:backlog}) --- and the implementation carries that
+entry point as an identity-by-default seam, with no non-identity variant registered, but neither
+the surface's geometry nor any deflection law is written down here; the one control surface that
+\emph{is} modelled, the air brake of \autoref{sec:airbrake}, deliberately does not use it, entering
+instead as a separate additive drag area that leaves $C_x,C_z,C_m,l_1$ untouched; pitch rate is
+covered above through $c_{m,q}$ as a constant or a table column, not as a function of $(\alpha,M)$
+in its own right; and, for 3D, other stuff}
 
 \subsubsection{Linearization of coefficients}\label{sec:aero_linearization}
 Coefficients can be linearised in $\alpha$ for the static-stability analysis of
@@ -486,6 +500,17 @@ The $N$ profiles are combined, weighted by inverse squared distance, into one pr
 then interpolated in altitude exactly as the sounding tier. A single station reduces every
 $\hat{w}_i$ to 1 and reproduces the sounding tier exactly.
 
+Inverse-distance weighting is the default horizontal combination, and is chosen for being defined
+\emph{everywhere} --- including far outside the polygon the stations span, which a rocket's ground
+track routinely leaves --- for reproducing a station's own profile at that station, for working
+with one or two stations as happily as with $N$, and for never oscillating. $\varepsilon$ (a few
+hundred metres) removes the singularity at zero distance. One alternative is available in its
+place, a thin-plate-spline radial basis function over the same tangent-plane station coordinates,
+smoother when there are many well-spread stations; it can overshoot between them, and it needs at
+least three non-collinear stations, so it is offered as an alternative rather than a replacement.
+Methods defined only inside the convex hull of the stations are deliberately not offered at all:
+they return nothing at exactly the downrange distances this document cares about.
+
 \subsubsection{Density}\label{sec:density}
 Water vapour is lighter than dry air --- $M_v=18.02$ against $M_d=28.96\,\mathrm{g/mol}$ --- so at
 a given pressure and temperature, replacing some of the air with vapour makes the mixture
@@ -524,8 +549,10 @@ This form is accurate to better than $0.4\%$ over $-40$ to $+50\,^\circ\mathrm{C
 every dewpoint a sounding reports. The factor of 100 converting hPa to Pa before forming $e/p$ is
 the one easy mistake here.
 
-\paragraph{Scope: measured tiers only.} The correction applies to the \textbf{sounding} and
-\textbf{field} tiers, and \emph{not} to ISA. That is not an omission: the International Standard
+\paragraph{Scope: measured tiers only.} The correction is an opt-in switch, off by default --- a
+run that does not ask for it gets dry air, $\rho=p/(R_dT)$, exactly as before this subsection
+existed. When it is on, it applies to the \textbf{sounding} and \textbf{field} tiers, and
+\emph{not} to ISA. That is not an omission: the International Standard
 Atmosphere is defined as dry air of fixed composition, and its pressure column is computed on that
 basis --- injecting moisture into it would give a profile that is neither the standard nor a
 measurement, the same argument that keeps $g_{isa}=9.80665$ inside the ISA regardless of which
@@ -581,23 +608,122 @@ with $w_x$ the downrange (along-plane) component feeding $\vec{v}_w$ and $w_z=0$
 modelled). $w_y$, the cross-plane component, is computed and discarded: crosswind weathercocking
 needs the out-of-plane freedom only a full 6DOF model has.
 
-\paragraph{Analytic.} Power-law shear, constant direction, and optional deterministic gusts:
-\begin{equation}
-    W(h) = W_{ref}\left(\max(h,h_{ref})/h_{ref}\right)^{n}, \qquad \psi = \psi_0, \qquad
-    \Delta W(t) = \sigma\sum_i w_i\sin(\omega_it+\varphi_i).
+\paragraph{Analytic.} Power-law shear and constant direction:
+\begin{equation} \label{eq:wind_shear}
+    W(h) = W_{ref}\left(\max(h,h_{ref})/h_{ref}\right)^{n}, \qquad \psi = \psi_0.
 \end{equation}
 $h$ is altitude above the local ground, $n\approx1/7$ the shear exponent (the classic open-terrain
 value; smoother terrain is lower, rougher/urban/forested terrain higher, up to $\sim0.4$), valid
 within the atmospheric surface/boundary layer only --- roughly the lowest few hundred metres to
-1--2\,km depending on stability, above which the sounding tiers below should be used instead.
-$\Delta W(t)$ is added to $W(h)$ before the projection above, then clamped non-negative, since $W$
-is a speed. The $\{\omega_i,\varphi_i,w_i\}$ are drawn once and frozen --- the adaptive solver
-samples the right-hand side at arbitrary, repeated and rejected times, so a fresh random draw per
-call would make $\Delta W$ a non-function of $t$. $\sigma=0$ disables gusts entirely.
+1--2\,km depending on stability, above which the sounding tiers below should be used instead. This
+is the \emph{mean} profile only; the fluctuation about it is a separate, independently selected
+model, below.
 
 \paragraph{Sounding / field.} The same measured $(u,v)$ profiles and interpolation as
 \autoref{sec:atmosphere}, projected through the formula above; never interpolated as $(W,\psi)$,
 since direction wraps at $360^\circ$.
+
+\paragraph{Turbulence.} A fluctuation added to the analytic tier's mean profile, selected
+independently of it. Two variants: \textbf{none} (the default --- exactly zero perturbation, not
+merely a small one) and \textbf{Dryden}, the MIL-F-8785C/MIL-HDBK-1797 horizontal turbulence
+spectrum. It is a tier-1 feature only: the measured tiers carry whatever variability their own
+profiles contain and nothing synthetic is added on top of them, since a sounding is already a
+measurement of the real field rather than a model of its mean.
+
+Scale length and intensity come from the spec's low-altitude formulas, which are written in feet
+--- so $h_{ft}=h/0.3048$ is formed once, with $h$ the AGL altitude clamped at zero, and the band
+logic stays in feet (a foot-valued threshold has an exact decimal value in feet and not in metres):
+\begin{equation} \label{eq:dryden_scales}
+    L_u = L_v = \frac{h_{ft}}{\left(0.177+0.000823\,h_{ft}\right)^{1.2}}\ \mathrm{[ft]}, \qquad
+    \sigma_u = \sigma_v = \frac{0.1\,W_{20}}{\left(0.177+0.000823\,h_{ft}\right)^{0.4}},
+\end{equation}
+with $W_{20}$ the same mean profile \autoref{eq:wind_shear} evaluated at $20\,\mathrm{ft}$ --- one
+expression for the mean wind, so a run cannot have two of them. $\sigma$ needs no unit conversion
+(the formula is linear in $W_{20}$ and the bracket is dimensionless); $L$ does, on the way out.
+Three bands:
+\begin{center}
+\begin{tabular}{l l l l}
+Band & Condition & $L_u=L_v$ & $\sigma_u=\sigma_v$ \\
+low        & $h_{ft}\leq1000$      & \autoref{eq:dryden_scales} & \autoref{eq:dryden_scales} \\
+transition & $1000<h_{ft}<2000$    & linear, $1000\to1750\,\mathrm{ft}$ & linear, $0.1W_{20}\to\sigma_{high}$ \\
+isotropic  & $h_{ft}\geq2000$      & $1750\,\mathrm{ft}$ & $\sigma_{high}$ (an input) \\
+\end{tabular}
+\end{center}
+The low formula is exact at its own upper edge (the bracket is exactly $1$ at
+$h_{ft}=1000$), so the transition band is continuous at both ends by construction. That band is an
+implementor's fill, not a spec formula: the spec defines the low-altitude regime below
+$1000\,\mathrm{ft}$ and the isotropic regime above $2000\,\mathrm{ft}$ and leaves the gap
+undefined, and what is interpolated across it is the two \emph{parameters} $(L,\sigma)$ --- the gap
+is a gap in the parameters, and the amplitudes below go as $\sqrt{\Phi}$, so interpolating them
+instead would not even give the same answer. $L$ and $\sigma$ are continuous with a slope kink at
+each boundary, the same kind of kink the ISA's piecewise lapse rates already put in $T(h)$ and
+hence in the aerodynamic force; it is not smoothed, since no source specifies a smoothing.
+
+The one-sided temporal power spectral densities are
+\begin{gather}
+    \Phi_u(\omega) = \sigma_u^2\,\frac{2L_u}{\pi V_{ref}}\,\frac{1}{1+\left(L_u\omega/V_{ref}\right)^2}
+        \label{eq:dryden_psd_u} \\
+    \Phi_v(\omega) = \sigma_v^2\,\frac{L_v}{\pi V_{ref}}\,
+        \frac{1+3\left(L_v\omega/V_{ref}\right)^2}{\left[1+\left(L_v\omega/V_{ref}\right)^2\right]^2}
+        \label{eq:dryden_psd_v}
+\end{gather}
+both normalised so that $\int_0^\infty\Phi\,\mathrm{d}\omega=\sigma^2$ exactly. They are realised
+as a frozen random-phase sum over a log-spaced frequency grid $\{\omega_i\}$ with bin widths
+$\{\Delta\omega_i\}$ (periods from $600\,\mathrm{s}$, longer than any flight, down to
+$0.2\,\mathrm{s}$, which the break frequency $V_{ref}/L_u$ demands just off the pad):
+\begin{equation} \label{eq:dryden_synthesis}
+    k_i = \Phi(\omega_i)\Delta\omega_i, \qquad
+    w_i = \sqrt{\frac{2k_i}{\sum_jk_j}}, \qquad
+    u(t) = \sigma_u\sum_i w_i\sin(\omega_it+\varphi_i),
+\end{equation}
+and likewise for $v(t)$ with its own independent phases. The textbook amplitude is
+$\sqrt{2\Phi_i\Delta\omega_i}$; the normalisation by $\sum_jk_j$ rescales it so that $\sum_iw_i^2=2$
+and hence $\mathrm{Var}[u]=\sigma_u^2$ \emph{exactly}, for any band and any grid, instead of the
+$81$--$98\%$ of it a finite band captures. That keeps $\sigma$ --- the quantity the spec actually
+specifies --- as the physical knob, and leaves the band endpoints as pure numerics. The
+$\{\omega_i\}$ are a deterministic grid and the phases $\{\varphi_i\}$ are drawn once per seed and
+frozen, for the reason the next paragraph gives.
+
+The two components are, by construction, \emph{along} the mean wind ($u$) and horizontally
+\emph{across} it ($v$), so they compose with the flight-plane projection above rather than being
+added to $W$ as scalars. With $\hat{e}_u$ the unit vector along the mean flow, $\hat{e}_v$ it
+rotated by $+90^\circ$ in the horizontal plane, and $\hat{y}_0$ the cross-plane axis of
+\autoref{sec:noninertial} (to the right of downrange),
+\begin{equation} \label{eq:dryden_composition}
+    \hat{e}_u = -\cos(\psi-\chi)\,\hat{x}_0 - \sin(\psi-\chi)\,\hat{y}_0, \qquad
+    \hat{e}_v = \sin(\psi-\chi)\,\hat{x}_0 - \cos(\psi-\chi)\,\hat{y}_0,
+\end{equation}
+\begin{equation} \label{eq:dryden_wind}
+    (w_x,w_y) = (W+u)\,\hat{e}_u + v\,\hat{e}_v,
+\end{equation}
+which reduces to the mean-only projection above exactly when $u=v=0$. Note what this does
+\emph{not} do: there is no non-negativity clamp on $W+u$. Perturbing a vector along $\hat{e}_u$
+makes a negative $W+u$ the correct statement that the gust has reversed the local flow, where
+clamping a perturbed \emph{speed} would silently flip the direction instead. And note what it
+cannot do yet: $v$ is the only thing in this document that can turn the wind vector at all, and
+the 2D closure discards $w_y$ (\autoref{sec:assumptions}), so $v$ has no effect on any trajectory
+this model integrates --- it is carried because it is half of what makes ``Dryden'' an honest
+label, and because the 6DOF work of \autoref{sec:backlog} picks it up unchanged.
+
+Two deliberate limitations, both named rather than hidden. First, $V_{ref}$ is a \emph{fixed input},
+not the rocket's own relative airspeed $V$ of \autoref{sec:relwind}: Dryden's temporal spectra
+describe what a vehicle flying at a constant airspeed through a frozen turbulence field measures,
+and this rocket's airspeed spans zero on the pad to supersonic at burnout. Driving the spectrum
+with the instantaneous airspeed is incompatible with the determinism the adaptive solver needs ---
+the airspeed at time $t$ is part of what the solver is still solving for, and it re-evaluates the
+right-hand side at arbitrary, repeated and rejected times, so a quantity that is not a function of
+$(t,\vec{y})$ alone destroys its step-size control and its reproducibility. The damage is bounded
+and worth stating precisely: after the renormalisation in \autoref{eq:dryden_synthesis} the
+prefactors cancel, so $V_{ref}$ and $L$ enter only through the ratio $L/V_{ref}$ --- a time, the
+eddy-crossing period. $V_{ref}$ therefore has \emph{no} effect on the delivered intensity, only on
+where the spectrum's knee sits in frequency, i.e.\ whether the rocket meets 30-second swells or
+one-second buffets. The practical rule: set it to the airspeed over the part of the flight whose
+turbulence matters to the question being asked. Lifting this needs the sampled evaluation mode of
+\autoref{sec:sampled} and a filter formulation to run on it (\autoref{sec:backlog}). Second, there
+is no vertical component ($w$), for the same reason \autoref{sec:wind} > Vertical wind gives for
+the mean profile. At $h=0$ the low formula gives $L=0$ and the spectrum collapses to zero energy
+while $\sigma$ stays finite; the perturbation is taken as exactly zero there, which is the right
+limit --- at the surface there is no eddy left to resolve.
 
 \paragraph{Vertical wind.} All tiers above return horizontal wind only ($w_z=0$);
 updrafts/downdrafts are not modelled. Two standard families exist in the literature for deriving a
@@ -815,3 +941,248 @@ convergence, so $\Omega_y$ drifts by $O(\Omega\,x/R_e)$, i.e.\ a relative $3\tim
 retained Coriolis acceleration at $x=10\,\mathrm{km}$ and $3\times10^{-4}$ at $100\,\mathrm{km}$
 --- five orders of magnitude smaller than the gravity-direction term the same $x/R_e$ produces,
 because the Coriolis term is itself $10^{-3}$ of gravity to begin with.
+
+\subsection{Launch rail}\label{sec:rail}
+While the rocket is still on the launch rail it can slide along the rail and do nothing else: the
+rail buttons mechanically react every force component transverse to the rail and prevent rotation.
+This is a \emph{kinematic constraint} on the force sum of \autoref{sec:eom}, not a new force ---
+nothing is added to $\sum\vec{F}$, the already-assembled acceleration is projected.
+
+The rail direction is fixed for the whole flight, and is the direction the nose initially points.
+With $\theta_{rail}$ the rail's elevation above the horizontal --- an as-built property of the pad,
+carried as a constant input on the same footing as $\delta,u_B,u_C$ (\autoref{sec:geometry}), and
+meant to be set consistently with the initial $\theta$, though nothing enforces that ---
+\begin{equation} \label{eq:rail_direction}
+    \hat{e}_{rail} = \cos\theta_{rail}\,\hat{x}_0 - \sin\theta_{rail}\,\hat{z}_0,
+\end{equation}
+which is \autoref{eq:body_axes_in_ground}'s $\hat{x}_r$ evaluated at $\theta=\theta_{rail}$ and
+then frozen. The distance travelled along the rail, from a launch point at the origin, is the
+projection of the position state onto it,
+\begin{equation} \label{eq:rail_distance}
+    s_{rail}(x,z) = \left(x\hat{x}_0+z\hat{z}_0\right)\cdot\hat{e}_{rail}
+        = x\cos\theta_{rail}-z\sin\theta_{rail},
+\end{equation}
+which is $0$ at $t=0$ and grows as the rocket slides. The rocket is on the rail while
+$s_{rail}<L_{rail}$, and there the equations of motion of \autoref{sec:eom} are replaced by
+\begin{gather}
+    \vec{\ddot{x}} = \left[\left(\frac{\sum\vec{F}}{m}
+        + \vec{a}_{Coriolis}^{\,2D}\right)\cdot\hat{e}_{rail}\right]\hat{e}_{rail}
+        \label{eq:rail_constraint} \\
+    \dot\theta = 0, \qquad \ddot\theta = 0 \label{eq:rail_attitude}
+\end{gather}
+with $\sum\vec{F}$ exactly the sum of \autoref{eq:eom_trans} and $\vec{a}_{Coriolis}^{\,2D}$ the
+term of \autoref{eq:coriolis_2d} if it is enabled. The ordering matters and is deliberate: the
+constraint reacts the \emph{same} total acceleration every other model in this document produces,
+including the gravity direction of \autoref{sec:gravity} and the frame correction of
+\autoref{sec:noninertial}, not a partial one. The pitching moment of \autoref{eq:eom_rot} is still
+perfectly well defined during this phase --- it is simply reacted by the rail rather than allowed
+to act, which is what \autoref{eq:rail_attitude} says.
+
+$L_{rail}=0$ is the default and the off switch: $s_{rail}=0$ at $t=0$, so the rocket is never on
+the rail, and every result produced without a rail is reproduced unchanged. Past rail exit
+($s_{rail}\geq L_{rail}$) \autoref{sec:eom} applies again, unmodified, with no transition term of
+any kind. The physically interesting output of this model is the speed $|\vec{v}|$ at that instant
+--- rail-exit speed is what decides whether the wind of \autoref{sec:wind} can tip the airframe
+before it has the airspeed to weathercock, and it is the reason launch rails exist at all
+(\autoref{sec:analysis_misaligned}, whose $\alpha_{trim}\propto T/q$ blows up at exactly the
+$q\to0$ the pad sits at).
+
+Three things are deliberately simplified: there is no rail friction (low-friction buttons over a
+short travel), no rail flex, and no tip-off --- the transverse and rotational degrees of freedom
+are removed completely and restored instantaneously at $s_{rail}=L_{rail}$, rather than released
+one button at a time (\autoref{sec:backlog}).
+
+\subsection{Recovery}\label{sec:recovery}
+The second mechanically constrained phase, and --- usefully --- the same mechanism as the first:
+once a recovery canopy is deployed the attitude state is frozen exactly as in
+\autoref{eq:rail_attitude}, $\dot\theta=\ddot\theta=0$, and only the translational equation
+changes. Freezing is a choice, made in preference to an artificial damping term: a damping constant
+would need a time constant no source in this document fixes, where freezing needs nothing beyond
+the deployment condition itself, and ``the canopy holds the body in a fixed hang attitude'' is no
+less physical a description than a made-up damping rate would be.
+
+\paragraph{Deployment.} A function of the state being integrated, not of a detected event ---
+either a timer, $t\geq t_{dep}$, or apogee, taken as $\dot{z}>0$ (the rocket is descending, since
+$z$ is positive \emph{down}). The second one deserves its caveat stated: ``has apogee happened''
+is reconstructed from the state, because the right-hand side is evaluated before any event of the
+solve is finalised and cannot consult one, so a pre-apogee transient in $\dot{z}$ --- which an
+unstable trajectory can produce --- would arm deployment early. Not guarded against; recorded.
+
+\paragraph{Force.} The canopy's drag is computed directly in $\mathcal{F}_0$, the same standing as
+weight (\autoref{sec:forces}) and unlike every aerodynamic force of \autoref{sec:aero}:
+\begin{equation} \label{eq:chute_force}
+    \vec{F}_c = -\tfrac12\rho\,C_{D,c}S_c\,V\,\vec{v}_{rel},
+\end{equation}
+with $\vec{v}_{rel}=\vec{v}-\vec{v}_w$ and $V=|\vec{v}_{rel}|$ from \autoref{sec:relwind}, $S_c$
+the canopy reference area and $C_{D,c}$ its drag coefficient. Three properties of this equation are
+the whole content of the model, and each is a decision rather than a convenience:
+\begin{itemize}
+    \item It is \emph{natively inertial}, and it is \emph{not} routed through the body
+    axial/normal decomposition of \autoref{sec:aero}. A round canopy is axisymmetric and its drag
+    opposes the relative-wind \emph{vector}, not the body's nose direction --- which, under canopy,
+    is frozen at whatever attitude deployment happened to leave it. Routing it through
+    $\hat{x}_r$ would make the descent rate depend on that attitude, which is not how a parachute
+    behaves. $C_{D,c}$ is therefore a drag coefficient on $\hat{v}_{rel}$ and specifically
+    \emph{not} the axial $C_A$ of \autoref{sec:aero}: it belongs to a different force, in a
+    different frame, with a different reference area.
+    \item It is \emph{added to}, not substituted for, the airframe's own forces. Weight, any
+    residual thrust and the body-axis aerodynamic force of \autoref{sec:aero} all continue to act
+    exactly as \autoref{eq:eom_trans} has them; $\vec{F}_c$ is one more term in that sum. (The
+    airframe's own force is small next to a deployed canopy's, but it is not switched off, and the
+    frozen $\theta$ is what it is evaluated at.)
+    \item It is written as $|\vec{v}_{rel}|\,\vec{v}_{rel}$ rather than the algebraically identical
+    $\tfrac12\rho V^2C_{D,c}S_c\,\hat{v}_{rel}$, so that it has no $0/0$ direction at $V=0$ --- the
+    same device, for the same reason, as \autoref{eq:pitch_damping_moment}.
+\end{itemize}
+The quantity worth checking a run against is the terminal descent speed, where $\vec{F}_c$ balances
+weight:
+\begin{equation} \label{eq:chute_terminal}
+    V_{term} = \sqrt{\frac{2mg}{\rho\,C_{D,c}S_c}},
+\end{equation}
+approached rather than attained, and only to within the variation of $\rho$
+(\autoref{sec:density}) over the altitude the convergence takes --- $\rho$ is not a constant, so
+this is a limit to within that, not an exact figure to pin.
+
+$S_c=0$ is the default, and so is ``no recovery model'' --- either alone leaves this subsection
+inert and reproduces every result produced without it. What is deliberately simplified: inflation
+is instantaneous and total, with no opening transient, no inflation shock and no reefing stage; and
+there is no pendulum swing of the body under the risers, which the frozen attitude replaces
+outright (\autoref{sec:backlog}).
+
+\subsection{Air brake}\label{sec:airbrake}
+The one feedback-controlled actuator modelled in this document: a switchable extra drag area,
+rigidly mounted to the body, used to modulate drag during the unpowered coast. It is a special case
+of the wing-body air brake of \autoref{sec:backlog} --- but standing alone, as an area and a drag
+coefficient of its own, rather than derived from an airframe, which is exactly why it can be
+modelled here while that item cannot.
+
+It enters as one additive axial term, so that the $A_x$ of \autoref{sec:aero} becomes
+$A_x+A_{brake}$ with
+\begin{equation} \label{eq:airbrake_force}
+    A_{brake} = q\,C_{D,b}\,S_b\,f_b, \qquad f_b\in[0,1],
+\end{equation}
+where $S_b$ is the exposed area at full deployment, $C_{D,b}$ its drag coefficient, and $f_b$ the
+deployment fraction --- i.e.\ a linear fraction-to-area model, $S(f_b)=f_bS_b$, the simplest one
+that needs no geometry beyond those two numbers. The term is routed along $\hat{x}_r$, unlike the
+canopy of \autoref{sec:recovery} and for the opposite physical reason: a brake rigidly mounted to
+the body is shaped to add axial drag whatever the pitch, where a free-swinging canopy follows the
+relative wind. The deliberate simplification here is that it contributes to $A_x$ \emph{only}: it
+adds nothing to $A_z$ or $A_m$ and does not move $l_1$, so a real brake's effect on the normal
+force and on the centre of pressure is outside this model (\autoref{sec:aero}'s own note on where
+such a perturbation would enter; \autoref{sec:backlog}). $S_b=0$ is the default, as is the ``never
+deploys'' law below --- either alone makes \autoref{eq:airbrake_force} exactly zero.
+
+Two orthogonal choices set $f_b$: a \emph{law}, which decides how far open the brake is, and a
+\emph{trigger}, which decides from when it is allowed to open at all.
+
+\subsubsection{Deployment law}\label{sec:airbrake_law}
+Three interchangeable variants, on the same footing as the model choices of \autoref{sec:gravity}
+or \autoref{sec:aero_coeffs}:
+\begin{itemize}
+    \item \textbf{None} (the default): $f_b\equiv0$. The brake never deploys, and every result
+    produced without one is reproduced unchanged.
+    \item \textbf{Proportional}: pure P control on \emph{predicted} apogee,
+    \begin{equation} \label{eq:airbrake_p}
+        f_b = \mathrm{clip}\!\left(k_p\left(\hat{h}_a-h_{tgt}\right),\,0,\,1\right), \qquad
+        \hat{h}_a = h + \frac{\dot{z}^2}{2g},
+    \end{equation}
+    with $h_{tgt}$ the commanded apogee and $k_p$ the gain. $\hat{h}_a$ is the standard estimator
+    --- the altitude the rocket would reach if drag vanished at this instant ($\dot{z}^2$ because
+    the sign is squared away; $g$ from \autoref{sec:gravity}) --- and is deliberately an
+    \emph{upper} bound: it ignores all further drag, including the brake's own, which is precisely
+    the quantity being decided. The error is positive when the rocket is predicted to overshoot, so
+    more brake is commanded; the clip is one-sided in effect as well as in form, since a brake
+    cannot retract past stowed and cannot open past fully open. The law is additionally gated to
+    the unpowered-ascent window, returning $0$ whenever $T(t)>0$ (still under power) or
+    $\dot{z}\geq0$ (already past apogee) --- that window is the law's own and is \emph{not} the
+    trigger of \autoref{sec:airbrake_trigger}, which it does not read.
+    \item \textbf{Full}: $f_b=1$ from the trigger instant onward and $0$ before it --- a constant
+    area, opened once. This is the variant a sizing study solves against: with $f_b$ a step, a
+    target apogee fixes either the product $C_{D,b}S_b$ or the deployment time, one unknown against
+    one equation, which the proportional law's closed loop does not offer.
+\end{itemize}
+Every law here is \emph{memoryless}: it is re-evaluated afresh from the current state at every
+evaluation of the right-hand side, with no integral or derivative term and no notion of a previous
+sample. That is forced by the same determinism requirement as the frozen turbulence phases of
+\autoref{sec:wind} > Turbulence --- the solver evaluates the right-hand side at arbitrary, repeated
+and rejected times, so a law carrying state across calls is not a function of $(t,\vec{y})$ at all.
+A law \emph{with} memory is expressible in the sampled mode of \autoref{sec:sampled}; none is
+written (\autoref{sec:backlog}).
+
+\subsubsection{Deployment trigger}\label{sec:airbrake_trigger}
+Which condition arms the brake, chosen independently of the law above. Three variants, each a pure
+\emph{onset} latch --- once its condition is true it stays armed for the rest of the flight:
+\begin{itemize}
+    \item \textbf{After burnout} (the default): $T(t)\leq0$, the negation of the proportional law's
+    own powered-flight gate, true from burnout (the falling zero-crossing of the thrust curve,
+    \autoref{sec:thrust}) onward.
+    \item \textbf{After time}: $t\geq t_{brake}$, with $t_{brake}=0$ --- the default --- meaning
+    deployed from $t=0$, the same reading the recovery timer of \autoref{sec:recovery} gives its
+    own zero.
+    \item \textbf{After apogee}: $\dot{z}>0$, the same descending-state predicate as the canopy's
+    apogee trigger, and carrying the same caveat for the same reason: it is a state predicate and
+    never the apogee event, so a pre-apogee transient in $\dot{z}$ would arm it early.
+\end{itemize}
+Only the \textbf{full} law actually reads the trigger; \textbf{none} is indifferent to it and
+\textbf{proportional} uses its own hardcoded window instead, so selecting a trigger changes nothing
+under those two. What no trigger expresses is \emph{retraction}: there is no condition under which
+an armed brake closes again, and no deployment-rate limit between $f_b=0$ and $f_b=1$ --- a real
+actuator has both, and both are future work (\autoref{sec:backlog}).
+
+\subsection{Sampled-data evaluation (zero-order hold)}\label{sec:sampled}
+This last subsection is not a model for any symbol of \autoref{sec:rocket2d}. It is an
+interchangeable \emph{mode of evaluating} the models above, and it is the only thing in this
+document that changes \emph{when} a quantity is computed rather than \emph{what} it is.
+
+The default mode is the one the rest of this document assumes: every model is a pure function of
+$(t,\vec{y})$, re-evaluated at every evaluation of the right-hand side, which an adaptive-step
+solver performs at arbitrary, repeated and sometimes later-rejected times. That is a correct
+property of an adaptive solver and a real restriction on what can be modelled: nothing of the form
+``this value, computed once, then held constant until the next tick'' --- a flight computer's
+measure--compute--hold cycle, an integral term that needs its own previous sample, a filter with
+internal state --- is expressible in it at all. This mode exists to make such a quantity
+expressible, and does only that.
+
+With a sample rate $f_s>0$ and period $T_s=1/f_s$, define the tick times $t_k=kT_s$. At each tick,
+every registered \emph{channel} --- a named sampled quantity --- is evaluated once, at that tick's
+own state, and held:
+\begin{equation} \label{eq:zoh}
+    c(t) = c_k \equiv c\!\left(t_k,\vec{y}(t_k);\,c_{k-1}\right), \qquad t\in[t_k,t_{k+1}).
+\end{equation}
+The argument worth noticing is the last one: a channel receives \emph{its own} previous held value,
+$c_{k-1}$ (undefined at the first tick), rather than the whole previous state of the hold. That is
+what makes a channel recursive, and therefore what makes an integral accumulator, a rate limiter's
+previous command, or a discrete filter's internal state expressible at all --- each of them is
+exactly a function of the form \autoref{eq:zoh}. One channel exists today, the deployment fraction
+$f_b$ of \autoref{sec:airbrake_law}; its present laws are memoryless and ignore $c_{k-1}$, so the
+mode currently changes only \emph{how often} $f_b$ is computed, not what it computes.
+
+Three requirements come with \autoref{eq:zoh}, and each is a consequence rather than a preference:
+\begin{enumerate}
+    \item \textbf{Fixed-step integration, with $T_s$ an exact integer multiple of the step.} An
+    adaptive step cannot honour a hold boundary, so this mode requires the fixed-step scheme, and
+    $T_s/\Delta t$ must be an integer so that every hold boundary falls exactly on a step boundary.
+    A non-integer ratio is rejected rather than rounded, since rounding it would silently change
+    the sample rate from the configured one.
+    \item \textbf{The hold is constant across every stage of a substep.} Inside a tick the
+    right-hand side is then again a smooth function of $(t,\vec{y})$, so the integrator's order is
+    preserved; every discontinuity introduced by \autoref{eq:zoh} lands on a step boundary and
+    never inside one. This is what makes the mode a true zero-order hold and not an approximation
+    of one.
+    \item \textbf{The sample is taken at the tick's start}, $(t_k,\vec{y}(t_k))$ --- the causally
+    correct order for a flight computer: measure, compute, apply until the next tick.
+\end{enumerate}
+
+Two properties of a sampled run should be stated plainly, because neither is a defect awaiting
+correction. First, such a run is a \emph{different dynamical system} from the continuously
+evaluated one, not a more accurate solution of the same one: the two are not to be compared as
+though one refined the other, and the comparison that does mean something is ``this actuator at
+this sample rate'' against ``an ideal continuous actuator''. Second, it is substantially more
+expensive --- small fixed steps for the whole flight, against the adaptive scheme's far smaller
+step count --- which is why it is opt-in rather than the default. $f_s=0$ is that default, and with
+it the mode is structurally absent rather than merely inert.
+
+What this mode supplies is the place to run a controller with memory, and nothing else: no such
+controller, and no state-coupled turbulence model, is written here --- both remain future work
+(\autoref{sec:backlog}), and both are now waiting only on their own formulation rather than on
+somewhere to run it.
