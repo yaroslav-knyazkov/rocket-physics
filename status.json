@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.14-COMPLETE-phase3-step30-resuming",
+  "current_stage": "phase2.15-in-progress-step71",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -989,5 +989,74 @@
     "status": "complete, merged into develop (commit 3206e32)",
     "completed_date": "2026-10-13",
     "risk": "No LaTeX toolchain in this environment -- user must compile docs/latex/main.tex locally before treating as final"
+  },
+  "phase2_15_config_separation": {
+    "requested": "2026-10-14, right after the user started filling in configs/_TEMPLATE_my_rocket.py on usage/my-rocket: \"start developing config separation between rocket, atmosphere, launch site.\"",
+    "branch": "feature/config-separation (off develop)",
+    "design_doc": "docs/architecture-31-config-separation.md",
+    "approved": true,
+    "approved_date": "2026-10-14",
+    "decisions_log": [
+      {
+        "id": "D-45",
+        "choice": "zero caller edits; configs.get() unchanged, get_scenario() added",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-46",
+        "choice": "recovery/control live in the Rocket piece, not a fourth axis",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-47",
+        "choice": "gravity/solver/g0 stay plain Scenario fields, no fourth registry",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-48",
+        "choice": "one Weather piece bundles atmosphere+soundings+wind",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-49",
+        "choice": "one-owner invariant (no merge logic)",
+        "by": "near-forced by the code, relayed not separately decided"
+      },
+      {
+        "id": "D-50",
+        "choice": "eager, import-time assembly",
+        "by": "near-forced by tests/test_configs.py's identity pin, relayed not separately decided"
+      },
+      {
+        "id": "D-51",
+        "choice": "s0 derived from site.rail_angle_deg when not given explicitly",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-52",
+        "choice": "four subpackages configs/{rockets,sites,weather,scenarios}/",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-53",
+        "choice": "Rocket/LaunchSite/Weather/Scenario naming, folder configs/weather/",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-54",
+        "choice": "ad-hoc --rocket/--site/--weather CLI deferred to its own later step",
+        "by": "user, recommended option"
+      },
+      {
+        "id": "D-55",
+        "choice": "split all three existing seeds into real pieces now",
+        "by": "user, recommended option"
+      }
+    ],
+    "amendment": "2026-10-14, found while ticketing: D-45's 'zero test edits' and D-55's seed-move cannot both hold literally -- tests/test_configs.py:206 imports configs.demo_75mm by module path. Gate restated: no test file edited except that one line's two occurrences of the string configs.demo_75mm -> configs.scenarios.demo_75mm, in Step 73 only. Mechanical consequence of git mv, not a relaxation. Flagged to the user transparently, not silently narrowed.",
+    "steps": "Steps 71-74, strictly sequential, full tickets in architecture-31 SS31.12",
+    "no_sim_step": true,
+    "no_latex_pass": true,
+    "status": "design approved, implementation in progress"
   }
 }

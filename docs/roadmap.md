@@ -2092,6 +2092,108 @@ as Step 54 ("LaTeX notation pass ... doc-only, no code", commit `3373b06`).
 
 ---
 
+## Phase 2.15 — configs/ separation: rocket / launch site / weather — APPROVED, Steps 71-74 ticketed
+
+Requested by the user on 2026-10-14, right after starting to fill in their own vehicle config on
+`usage/my-rocket`: "start developing config separation between rocket, atmosphere, launch site."
+Today a `configs/<name>.py` module is one bundled `Config` carrying a whole `Params` tree (§30.4),
+so flying the same vehicle from two sites, or the same site under two different atmospheres,
+means copy-paste or a `.derive()` override chain whose overrides silently become the real source
+of truth for the numbers they touch.
+
+Design: `docs/architecture-31-config-separation.md` (`architecture.md` §31 pointer). Eleven
+decision forks, **D-45 … D-55**, continuing §30.10's numbering (D-43/D-44 used by Phase 2.14). All
+eleven landed on the architect's recommended option, via `AskUserQuestion`, 2026-10-14:
+
+- **D-45** zero caller edits — `configs.get(name)` keeps returning today's exact `Config`; a new
+  `get_scenario(name)` added alongside for provenance.
+- **D-46** `recovery`/`control` (parachute/airbrake hardware) live in the **Rocket** piece, not a
+  fourth axis.
+- **D-47** `gravity`/`solver`/`g0` stay plain fields on `Scenario`, no fourth registry.
+- **D-48** one **Weather** piece bundles `atmosphere`+`soundings`+`wind` (one real sounding
+  measures all three).
+- **D-49**/**D-50** (near-forced by the code, relayed not separately decided): the one-owner
+  invariant (exactly one piece owns each `Params` group, no merge logic) and eager, import-time
+  assembly (forced by `tests/test_configs.py`'s `CONFIGS[name] is mod.CONFIG` identity pin).
+- **D-51** `s0` is derived from `site.rail_angle_deg` when not given explicitly — turns the user's
+  own template comment ("nothing cross-checks them for you") into a structural guarantee; provably
+  free for all three seeds (`math.radians(90.0) == math.pi / 2` exactly).
+- **D-52** four subpackages: `configs/{rockets,sites,weather,scenarios}/`, each with its own
+  explicit-tuple registry (same three rules §30.4 already established).
+- **D-53** naming: `Rocket`/`LaunchSite`/`Weather`/`Scenario`, folder `configs/weather/` (avoids a
+  name collision with `sim.params.Atmosphere`; honest that selecting a weather piece also selects
+  its wind).
+- **D-54** an ad-hoc `--rocket`/`--site`/`--weather` composition CLI is real value but explicitly
+  **deferred to its own later step** — kept out of this migration so its "zero caller edits" gate
+  stays clean.
+- **D-55** split all three existing seeds (`toy_05kg`, `demo_75mm`, `demo_75mm_airbrake`) into real
+  pieces now, so the new assembly path is exercised by the only configs with provable
+  exact-equality tests, not first tested by the user's own unpinned vehicle.
+
+**Amendment found while ticketing (2026-10-14):** D-45's "zero test edits" and D-55's "seeds move
+into `configs/scenarios/`" cannot both hold literally — `tests/test_configs.py:206` imports
+`configs.demo_75mm` **by module path** (a fresh-interpreter circular-import check), and that path
+moves. The gate is restated precisely: no test file is edited except that one line's two
+occurrences of the string `configs.demo_75mm` → `configs.scenarios.demo_75mm` — no assertion, no
+helper, no pinned literal changes anywhere. A mechanical consequence of `git mv`, not a relaxation;
+three rejected alternatives (leaving seeds flat, a re-export shim, deleting the test) are recorded
+in architecture-31 §31.6.
+
+**No `sim/` file touched by any step in this phase** (unlike Phase 2.13's Step 65) — this phase has
+no `sim/` step at all. No new physics, so no `docs/latex/` pass (unlike Phase 2.14).
+
+Four strictly sequential steps (each is a switch-over or builds directly on the previous one — none
+is `parallel_safe`), full tickets in `docs/architecture-31-config-separation.md` §31.12:
+
+### Step 71 — `configs/schema.py`: the four piece types and `assemble()`
+`Rocket`/`LaunchSite`/`Weather`/`Scenario` + the one-owner `assemble()` function, appended to
+`configs/schema.py` (`Config`/`Variant` untouched). New `tests/test_config_pieces.py` pins the
+structural one-owner test (`assemble`'s keyword set == `dataclasses.fields(Params)`, so a future
+13th `Params` group fails loudly instead of silently defaulting), the override-before-`s0`
+ordering rule, and the `math.radians(90.0) == math.pi/2` derivation. `configs.names()` still prints
+today's three names — nothing is wired up yet, by design.
+
+### Step 72 — the four subpackages, their registries, and the four TEMPLATE modules
+`configs/{rockets,sites,weather,scenarios}/__init__.py`, each a ~20-line copy of the existing
+registry shape; the two argument-free "pin the defaults" pieces (`sites/origin_msl.py` =
+`LaunchSite(site=Site())`, `weather/isa_dry_calm.py` = `Weather()`); and, per the user's explicit
+request, one blank `_TEMPLATE_*.py` per piece type (`_TEMPLATE_rocket.py`, `_TEMPLATE_site.py`,
+`_TEMPLATE_weather.py`, `_TEMPLATE_scenario.py`) — every field commented, never added to any
+`_MODULES` tuple, must still import cleanly. `configs/__init__.py` **not edited** in this step;
+`configs/scenarios/__init__.py` ships with `_MODULES = ()` for exactly one commit, deliberately
+inert.
+
+### Step 73 — the switch-over: seeds split into pieces, `configs.get` delegates to scenarios
+**The gate step.** `git mv` the two vehicles into `configs/rockets/`, `demo_75mm_airbrake` into
+`configs/scenarios/`; new `configs/scenarios/{toy_05kg,demo_75mm}.py`; `configs/__init__.py`
+rewritten to delegate `CONFIGS`/`names()`/`get()` to the scenario registry and add
+`get_scenario(name)`. The four existing exact-equality pins in `tests/test_configs.py` (two per
+seed, params + `s0`) must stay green **unedited** — the proof that `assemble` reproduces every
+implicit default and the derived `s0` bit-for-bit. All five entry points re-run from a clean
+checkout; App 3's table/CSV re-verified byte-identical (the Step-64/69 gate, re-run because this
+step is what could break it). **Do not "fix" `demo_75mm`'s `thrust.motor_curve` from
+`"placeholder.csv"` to `"synthetic_large.csv"`** during the move — the exact-equality pin against
+`_demo_baseline()` depends on the judgment call Step 63 already made.
+
+### Step 74 — one worked mix-and-match demo, and the "how do I add mine" guide
+One synthetic site (`highland_1500m`, `h0_m=1500.0`, tilted 85° rail) + one weather piece
+(`breezy_isa`, analytic wind only — deliberately not a sounding case, to avoid demonstrating the
+sounding/site mispairing hazard §31.10 flags) + one scenario (`demo_75mm_highland`) pairing both
+with the **existing, unmodified** `configs/rockets/demo_75mm.py`. The check *is* the user's
+original request reduced to one assertion:
+`get("demo_75mm_highland").params.weight == get("demo_75mm").params.weight` (and `lengths`/
+`thrust`/`aero`) — one vehicle, two sites, zero duplication. `configs/__init__.py`'s docstring
+becomes the "how do I add my own" guide. `--list-configs` prints four names afterward — an
+intended, user-visible change.
+
+**Not in this ticket set, deliberately:** the ad-hoc composition CLI (D-54, its own later step);
+tracker/roadmap/`status.json` updates (orchestrator's); any `docs/latex/` pass (no new physics);
+the user's own `configs/_TEMPLATE_my_rocket.py` on `usage/my-rocket` (untouched by any ticket —
+§31.5's flat-module guarantee plus §31.8's registrability test are what keep it working once this
+lands; confirm against the actual file before closing the phase).
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
