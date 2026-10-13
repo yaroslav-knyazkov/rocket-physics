@@ -75,10 +75,10 @@ from __future__ import annotations
 
 import csv
 import dataclasses
-import math
 from pathlib import Path
 from typing import Any, Optional
 
+import configs
 from apps.common.artifacts import OUTPUT_DIR
 from apps.common.flight_stats import (
     FlightStats,
@@ -86,7 +86,7 @@ from apps.common.flight_stats import (
     flight_stats,
 )
 from sim.integrate import Result, run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
+from sim.params import Params
 from sim.params import replace as params_replace
 from sim.plotting import plot_trajectory_overlay
 from sim.state import State
@@ -284,27 +284,15 @@ def save_overlay(runs: list[MotorRun], path: Path) -> None:
 
 
 def _demo_baseline() -> Params:
-    """The architect's own synthetic 1.5 kg / 75 mm vehicle. Deliberately
-    NOT run.py's 0.5 kg toy scenario: 338 N*s (the largest new fixture) on
-    0.5 kg gives an ideal delta-v of ~676 m/s (~Mach 2), where a constant
-    C_x = 0.5 is not a defensible aerodynamic model and the ISA
-    extrapolation ceiling starts to matter. 1.5 kg keeps every fixture
-    subsonic (largest motor: ideal delta-v ~225 m/s before gravity/drag
-    losses, <~ Mach 0.7) while still leaving the smallest motor just barely
-    flyable -- itself informative. `C_z = C_m = 0.0` makes this a vertical,
-    attitude-frozen 1-D shot, the same simplification run.py and App 2
-    already carry, appropriate for a motor comparison (one variable at a
-    time) and, per SS29.4.1/F5, the reason the ascent window is mandatory.
+    """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 69
+    (roadmap.md; `docs/architecture-30-apps-4-5-and-configs.md` SS30.4): a
+    one-line re-export of `configs.get("demo_75mm").params`, kept under
+    this name only because `tests/test_motor_selection.py` imports it
+    unedited (F11). The full provenance/rationale for these numbers now
+    lives once, in `configs/demo_75mm.py`'s own docstring -- the single
+    source of truth this function used to duplicate.
     """
-    return Params(
-        weight=Weight(m=1.5, I=0.08),                 # launch mass, mass model OFF (m_d=None)
-        lengths=Lengths(l1=0.3, l2=0.4),
-        thrust=Thrust(motor_curve="placeholder.csv"),  # replaced per entry; never read as-is
-        aero=Aero(
-            S=0.00442, d_ref=0.075, l_ref=0.75,        # 75 mm body: S = pi*d^2/4 = 0.004418 m^2
-            C_x=0.5, C_z=0.0, C_m=0.0,
-        ),
-    )
+    return configs.get("demo_75mm").params
 
 
 def _demo_entries() -> list[MotorEntry]:
@@ -324,8 +312,13 @@ def main() -> None:
     the existing Step-61 tests that import it keep working bit-for-bit)."""
     from apps.motor_selection.motors import MOTORS
 
-    baseline = _demo_baseline()
-    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    # Step 69: baseline + s0 both sourced from configs/demo_75mm.py (the
+    # same Config _demo_baseline() above re-exports .params from), so the
+    # demo vehicle's initial state stops being a second, separately
+    # maintained literal.
+    cfg = configs.get("demo_75mm")
+    baseline = cfg.params
+    s0 = cfg.s0
 
     runs = compare_motors(MOTORS, baseline, s0)
     print_motor_table(runs)

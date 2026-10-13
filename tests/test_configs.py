@@ -208,3 +208,47 @@ def test_import_configs_demo_75mm_first_has_no_circular_import():
 
 def test_import_configs_package_first_has_no_circular_import():
     _run_fresh_interpreter("import configs\nprint(configs.names())\n")
+
+
+# ----------------------------------------------------------------------
+# Step 69 migration: the three former in-place literals are now
+# registry lookups, not just numerically equal to one (SS30.3/SS30.4).
+# `run.py` is a script (importing it would trigger `main()`'s side
+# effects -- plots, CSVs, stdout), so these are source-level checks:
+# the call site itself must read `configs.get(...)`, and the old
+# Params/State literal must actually be gone, not merely byte-equal to
+# one still sitting in the file.
+# ----------------------------------------------------------------------
+
+_RUN_PY = (_PROJECT_ROOT / "run.py").read_text()
+_SELECT_CONDITIONS_PY = (
+    _PROJECT_ROOT / "apps" / "cfd_conditions" / "select_conditions.py"
+).read_text()
+_COMPARE_MOTORS_PY = (
+    _PROJECT_ROOT / "apps" / "motor_selection" / "compare_motors.py"
+).read_text()
+
+
+def test_run_py_sources_its_scenario_from_configs_get_toy_05kg():
+    assert 'configs.get("toy_05kg")' in _RUN_PY
+    # The former in-place literal is gone, not just duplicated.
+    assert "Weight(" not in _RUN_PY
+    assert "math.pi / 2" not in _RUN_PY
+
+
+def test_select_conditions_py_sources_its_scenario_from_configs_get_toy_05kg():
+    assert 'configs.get("toy_05kg")' in _SELECT_CONDITIONS_PY
+    assert "Weight(" not in _SELECT_CONDITIONS_PY
+    assert "math.pi / 2" not in _SELECT_CONDITIONS_PY
+
+
+def test_demo_baseline_is_a_one_line_reexport_of_configs_get_demo_75mm():
+    assert 'return configs.get("demo_75mm").params' in _COMPARE_MOTORS_PY
+    # The former in-place literal (its own Weight/Lengths/Thrust/Aero
+    # construction) is gone from this module entirely now.
+    assert "Weight(m=1.5" not in _COMPARE_MOTORS_PY
+
+
+def test_compare_motors_main_also_sources_s0_from_configs_get_demo_75mm():
+    assert 'configs.get("demo_75mm")' in _COMPARE_MOTORS_PY
+    assert "math.pi / 2" not in _COMPARE_MOTORS_PY

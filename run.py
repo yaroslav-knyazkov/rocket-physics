@@ -23,48 +23,30 @@ The summary printing, plot building, PNG/CSV saving and sweep machinery
 (`flight_summary`, `sweep`, `print_sweep_table`, `print_run_summary`,
 `save_run_artifacts`, `save_sweep_artifacts`, `run_sweep`) all moved to
 `sim/report.py`, the orchestration layer above `sim/plotting.py`.
-"""
 
-import math
+Step 69 (architecture-30-apps-4-5-and-configs.md SS30.3): this is entry
+point 1 of 5 -- the other four live under `apps/`, reached either via
+their own `python -m apps....` invocation or their root wrapper
+(`run_motor_sweep.py`, `run_airbrake.py`, `run_cfd_conditions.py`,
+`run_trade.py`).
+"""
 
 from sim import report
 from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.params import replace as params_replace
-from sim.state import State
+
+import configs
 
 
 def main() -> None:
-    # Placeholder values, small-model-rocket scale (unchanged from Step 1).
-    params = Params(
-        weight=Weight(
-            m=0.5,      # 0.5 kg dry+propellant mass
-            I=0.05,     # kg*m^2, rough estimate for a small rocket
-        ),
-        lengths=Lengths(
-            l1=0.3,     # m, CoP -> CoG distance
-            l2=0.4,     # m, CoP -> thrust point distance
-        ),
-        thrust=Thrust(motor_curve="placeholder.csv"),  # Step 14: real (time, thrust) curve
-        aero=Aero(
-            # Step 55 (architecture-28-rewrite.md SS28.5.4): "constant"'s
-            # C_x/C_z/C_m are true, q-scaled coefficients now, not raw
-            # Newton/Newton-metre placeholders -- S/d_ref are therefore
-            # required for any nonzero force/moment to result at all
-            # (pre-Step-55, C_x=0.5 alone meant "0.5 N of drag for the
-            # whole flight", which was never physical). Values match the
-            # atmosphere-sweep scenario further down in this same file.
-            S=0.005,    # m^2, reference area
-            d_ref=0.08,  # m, reference length (moment arm + Reynolds number)
-            C_x=0.5,    # axial-force coefficient [-]
-            C_z=0.0,    # normal-force coefficient [-]
-            C_m=0.0,    # pitching-moment coefficient [-]
-        ),
-    )
-
-    # At rest on the pad, pointing straight up (theta = pi/2, nose-up
-    # from horizontal), z = 0 at the launch point.
-    state0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    # Step 69: sourced from configs/toy_05kg.py (byte-equal to this
+    # module's own historical in-place literal, pinned by
+    # tests/test_configs.py since Step 63) instead of an inline Params/
+    # State construction -- same scenario, single source of truth now
+    # shared with App 2 (apps/cfd_conditions/select_conditions.py).
+    cfg = configs.get("toy_05kg")
+    params = cfg.params
+    state0 = cfg.s0
 
     result = run_sim(params, state0)
 
@@ -80,10 +62,11 @@ def main() -> None:
     # (a) The three gravity models, at this scenario's own apogee scale
     # (substantially lower since Step 55 gave "constant" real, q-scaled
     # drag instead of a near-inert 0.5 N placeholder -- see the Aero(...)
-    # comment above), where roadmap.md Step 27 expects them to differ "by
-    # a predictable, small amount" -- same base scenario as the single run
-    # above (aero.model="constant" here, so gravity is the only thing
-    # varying). "linear" was removed at Phase 2.5 Step 34.
+    # comment in configs/toy_05kg.py, Step 69), where roadmap.md Step 27
+    # expects them to differ "by a predictable, small amount" -- same base
+    # scenario as the single run above (aero.model="constant" here, so
+    # gravity is the only thing varying). "linear" was removed at Phase 2.5
+    # Step 34.
     report.run_sweep(
         params, "gravity.model", ("constant", "radial", "wgs84"), state0,
         title="Gravity model comparison",

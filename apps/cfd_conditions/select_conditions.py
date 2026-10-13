@@ -86,10 +86,10 @@ from pathlib import Path
 
 import numpy as np
 
+import configs
 from sim.flow import flow_state
 from sim.integrate import Result, run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
-from sim.state import State
+from sim.params import Params
 
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
 
@@ -195,23 +195,14 @@ def save_conditions_csv(conditions: list[WeightedCondition], path: Path) -> None
 
 
 def main() -> None:
-    # Mirrors run.py's own placeholder scenario (small-model-rocket scale) so
-    # this first version's output is directly comparable to what run.py
-    # already prints -- not "the" rocket, a placeholder until real Params
-    # are supplied for an actual design.
-    params = Params(
-        weight=Weight(m=0.5, I=0.05),
-        lengths=Lengths(l1=0.3, l2=0.4),
-        thrust=Thrust(motor_curve="placeholder.csv"),
-        # Step 55 (architecture-28-rewrite.md SS28.5.4, F10): "constant"'s
-        # C_x/C_z/C_m are true, q-scaled coefficients now, not raw
-        # Newton/Newton-metre placeholders -- S/d_ref are required for any
-        # nonzero force/moment to result at all. Same small-model-rocket
-        # values as run.py's own placeholder scenario, which this module's
-        # own docstring already says it mirrors.
-        aero=Aero(S=0.005, d_ref=0.08, C_x=0.5, C_z=0.0, C_m=0.0),
-    )
-    state0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    # Step 69: sourced from configs/toy_05kg.py (byte-equal to this
+    # module's own historical in-place literal, pinned by
+    # tests/test_configs.py since Step 63) instead of an inline Params/
+    # State construction -- the same small-model-rocket placeholder
+    # scenario run.py uses, now a single source of truth shared with it.
+    cfg = configs.get("toy_05kg")
+    params = cfg.params
+    state0 = cfg.s0
     result = run_sim(params, state0)
 
     conditions = select_cfd_conditions(result, params, n_points=10)
