@@ -2049,7 +2049,7 @@ Requested by the user on 2026-10-13, right after Phase 2.13 landed on `develop`:
 is in the app now and not written in latex and please do that." Doc-only, no code — same category
 as Step 54 ("LaTeX notation pass ... doc-only, no code", commit `3373b06`).
 
-### Step 70 — LaTeX sync: four new `models.tex` subsections + Dryden turbulence catch-up — done, commit TBD
+### Step 70 — LaTeX sync: four new `models.tex` subsections + Dryden turbulence catch-up — done, commit `9412fa8`
 - **Files:** `docs/latex/sections-ai/models.tex` (+401/-27), `docs/latex/main.tex` (+58/-38),
   `docs/latex/sections-ai/rocket-2d.tex` (+9), `docs/architecture.md` (+17/-1, dated closing notes
   only). Doc-only, **no code**.
@@ -2092,7 +2092,7 @@ as Step 54 ("LaTeX notation pass ... doc-only, no code", commit `3373b06`).
 
 ---
 
-## Phase 2.15 — configs/ separation: rocket / launch site / weather — APPROVED, Steps 71-74 ticketed
+## Phase 2.15 — configs/ separation: rocket / launch site / weather — COMPLETE (Steps 71-74 done, commits `68eb029`/`7a28ff1`/`0edb923`/`e47c08d`)
 
 Requested by the user on 2026-10-14, right after starting to fill in their own vehicle config on
 `usage/my-rocket`: "start developing config separation between rocket, atmosphere, launch site."
@@ -2145,7 +2145,7 @@ no `sim/` step at all. No new physics, so no `docs/latex/` pass (unlike Phase 2.
 Four strictly sequential steps (each is a switch-over or builds directly on the previous one — none
 is `parallel_safe`), full tickets in `docs/architecture-31-config-separation.md` §31.12:
 
-### Step 71 — `configs/schema.py`: the four piece types and `assemble()`
+### Step 71 — `configs/schema.py`: the four piece types and `assemble()` — done, commit `68eb029`
 `Rocket`/`LaunchSite`/`Weather`/`Scenario` + the one-owner `assemble()` function, appended to
 `configs/schema.py` (`Config`/`Variant` untouched). New `tests/test_config_pieces.py` pins the
 structural one-owner test (`assemble`'s keyword set == `dataclasses.fields(Params)`, so a future
@@ -2153,7 +2153,7 @@ structural one-owner test (`assemble`'s keyword set == `dataclasses.fields(Param
 ordering rule, and the `math.radians(90.0) == math.pi/2` derivation. `configs.names()` still prints
 today's three names — nothing is wired up yet, by design.
 
-### Step 72 — the four subpackages, their registries, and the four TEMPLATE modules
+### Step 72 — the four subpackages, their registries, and the four TEMPLATE modules — done, commit `7a28ff1`
 `configs/{rockets,sites,weather,scenarios}/__init__.py`, each a ~20-line copy of the existing
 registry shape; the two argument-free "pin the defaults" pieces (`sites/origin_msl.py` =
 `LaunchSite(site=Site())`, `weather/isa_dry_calm.py` = `Weather()`); and, per the user's explicit
@@ -2163,7 +2163,7 @@ request, one blank `_TEMPLATE_*.py` per piece type (`_TEMPLATE_rocket.py`, `_TEM
 `configs/scenarios/__init__.py` ships with `_MODULES = ()` for exactly one commit, deliberately
 inert.
 
-### Step 73 — the switch-over: seeds split into pieces, `configs.get` delegates to scenarios
+### Step 73 — the switch-over: seeds split into pieces, `configs.get` delegates to scenarios — done, commit `0edb923`
 **The gate step.** `git mv` the two vehicles into `configs/rockets/`, `demo_75mm_airbrake` into
 `configs/scenarios/`; new `configs/scenarios/{toy_05kg,demo_75mm}.py`; `configs/__init__.py`
 rewritten to delegate `CONFIGS`/`names()`/`get()` to the scenario registry and add
@@ -2175,7 +2175,7 @@ step is what could break it). **Do not "fix" `demo_75mm`'s `thrust.motor_curve` 
 `"placeholder.csv"` to `"synthetic_large.csv"`** during the move — the exact-equality pin against
 `_demo_baseline()` depends on the judgment call Step 63 already made.
 
-### Step 74 — one worked mix-and-match demo, and the "how do I add mine" guide
+### Step 74 — one worked mix-and-match demo, and the "how do I add mine" guide — done, commit `e47c08d`
 One synthetic site (`highland_1500m`, `h0_m=1500.0`, tilted 85° rail) + one weather piece
 (`breezy_isa`, analytic wind only — deliberately not a sounding case, to avoid demonstrating the
 sounding/site mispairing hazard §31.10 flags) + one scenario (`demo_75mm_highland`) pairing both
@@ -2191,6 +2191,21 @@ tracker/roadmap/`status.json` updates (orchestrator's); any `docs/latex/` pass (
 the user's own `configs/_TEMPLATE_my_rocket.py` on `usage/my-rocket` (untouched by any ticket —
 §31.5's flat-module guarantee plus §31.8's registrability test are what keep it working once this
 lands; confirm against the actual file before closing the phase).
+
+**Phase closed out 2026-10-14. Final test count: 403/403** (363 after Step 71, 386 after Step 72,
+398 after Step 73, 403 after Step 74 — each independently re-verified by the orchestrator, not
+taken on a developer's self-report alone). Two real conflicts surfaced during implementation, both
+of the same "mechanical fallout, not a relaxation" class as the D-45/D-55 amendment: Step 73's
+`tests/test_configs.py:206` module-path edit (already anticipated in the design); and, found by two
+different developer agents at Steps 73 and 74, a `tests/test_config_registries.py` assertion that
+hardcoded the exact scenario-name set — fixed at Step 73 as a retargeted pin, then **loosened to a
+subset check at Step 74** once it broke a second time for the same reason, so it does not need
+editing again as more scenarios are added. `configs/_TEMPLATE_my_rocket.py` on `usage/my-rocket`
+was not touched by any step, by design — its flat-`Config` shape registers unchanged under the new
+scheme per §31.5/§31.8 #7, generically proven by `tests/test_config_migration.py`'s flat-module
+test; the user's own literal file was not re-fetched to this branch to check it line-by-line, since
+it never leaves `usage/my-rocket` and this phase's branch never touches `configs/__init__.py`'s
+registration contract beyond what that test already covers.
 
 ---
 

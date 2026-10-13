@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.15-in-progress-step71",
+  "current_stage": "phase2.15-COMPLETE-awaiting-merge-approval",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -992,7 +992,7 @@
   },
   "phase2_15_config_separation": {
     "requested": "2026-10-14, right after the user started filling in configs/_TEMPLATE_my_rocket.py on usage/my-rocket: \"start developing config separation between rocket, atmosphere, launch site.\"",
-    "branch": "feature/config-separation (off develop)",
+    "branch": "feature/config-separation (off develop) -- implementation complete, not yet merged",
     "design_doc": "docs/architecture-31-config-separation.md",
     "approved": true,
     "approved_date": "2026-10-14",
@@ -1057,6 +1057,39 @@
     "steps": "Steps 71-74, strictly sequential, full tickets in architecture-31 SS31.12",
     "no_sim_step": true,
     "no_latex_pass": true,
-    "status": "design approved, implementation in progress"
+    "status": "complete",
+    "completed_date": "2026-10-14",
+    "steps_done": [
+      {
+        "step": 71,
+        "name": "configs/schema.py -- the four piece types and assemble()",
+        "commit": "68eb029",
+        "tests": "363/363"
+      },
+      {
+        "step": 72,
+        "name": "the four subpackages, their registries, and the four TEMPLATE modules",
+        "commit": "7a28ff1",
+        "tests": "386/386"
+      },
+      {
+        "step": 73,
+        "name": "the switch-over -- seeds split into pieces, configs.get delegates to scenarios",
+        "commit": "0edb923",
+        "tests": "398/398"
+      },
+      {
+        "step": 74,
+        "name": "demo_75mm_highland -- one rocket, two sites, zero duplication",
+        "commit": "e47c08d",
+        "tests": "403/403"
+      }
+    ],
+    "final_test_count": "403/403",
+    "conflicts_found_and_resolved": [
+      "Step 73: tests/test_configs.py:206 imported configs.demo_75mm by module path -- the one permitted test edit, anticipated in the design (SS31.6 amendment).",
+      "Step 73 and again Step 74: tests/test_config_registries.py's scenario-registry test hardcoded an exact name set and broke twice as the registry legitimately grew (first the three seeds at Step 73, then demo_75mm_highland at Step 74) -- fixed at Step 73 as a retargeted pin, then loosened to a subset check at Step 74 so it survives future additions without further edits."
+    ],
+    "usage_branch_note": "configs/_TEMPLATE_my_rocket.py on usage/my-rocket was not touched by any step. Its flat-Config shape registers unchanged under the new scheme per SS31.5/SS31.8 #7, generically proven by tests/test_config_migration.py's flat-module test (not re-verified against the literal file itself, since usage/my-rocket has not merged Phase 2.15 and the guarantee is structural, not file-specific)."
   }
 }

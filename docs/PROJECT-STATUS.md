@@ -16,6 +16,49 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
+## Phase 2.15 — configs/ separation: rocket / launch site / weather — COMPLETE (2026-10-14)
+
+Requested by the user right after starting to fill in their own vehicle config on `usage/my-rocket`:
+"start developing config separation between rocket, atmosphere, launch site." Design doc
+`docs/architecture-31-config-separation.md`, eleven decision forks (D-45 through D-55), all
+approved by the user via `AskUserQuestion` on the architect's recommended option. Four strictly
+sequential steps on `feature/config-separation` (off `develop`), each independently re-verified by
+the orchestrator (full suite re-run, diff-boundary check, direct behavioral checks — never taken on
+a developer's self-report alone) before committing:
+
+- Step 71 `68eb029` — `configs/schema.py` gains `Rocket`/`LaunchSite`/`Weather`/`Scenario` + the
+  one-owner `assemble()` function. `Config`/`Variant` untouched; nothing wired up yet by design.
+  363/363 tests.
+- Step 72 `7a28ff1` — the four subpackages (`configs/{rockets,sites,weather,scenarios}/`), each with
+  its own explicit-tuple registry, plus (per the user's explicit request) one blank `_TEMPLATE_*.py`
+  and one filled-in default piece per type (`origin_msl`, `isa_dry_calm`). 386/386 tests.
+  Fixed one stray path comment during review (`apps/airbrake_control` → `apps/airbrake_sizing`).
+- Step 73 `0edb923` — **the gate step**: the three seed configs migrated into real pieces,
+  `configs/__init__.py` rewritten to delegate to `configs.scenarios`. The four pre-existing
+  exact-equality pins stayed green unedited; App 3's stdout/CSV re-verified byte-identical against a
+  pre-step capture (diffed personally, not just trusted); all five entry points re-run personally.
+  One real conflict surfaced and resolved: a Step-72 test whose own docstring predicted this exact
+  step would invalidate it. 398/398 tests.
+- Step 74 `e47c08d` — `demo_75mm_highland`: one synthetic high-altitude site + one analytic-wind
+  weather piece, paired with the **existing, unmodified** `demo_75mm` rocket — the phase's own goal
+  reduced to one assertion (`demo_75mm_highland`'s vehicle groups equal `demo_75mm`'s exactly, zero
+  duplication). `s0.theta` derives `math.radians(85.0)` from the tilted rail — the first scenario in
+  the project where that derivation does real work. The same hardcoded-name-set conflict recurred
+  once more (same test, broken again by the new scenario); this time loosened to a subset check so
+  it survives future additions instead of needing re-patching every time. **Final test count:
+  403/403.**
+
+**Headline capability delivered**: `configs/` is now a composable rocket / launch-site / weather
+system — one vehicle can be flown from any registered site under any registered weather with zero
+duplicated numbers — with full backward compatibility (`configs.get(name)` unchanged for every
+existing caller, zero caller edits across the whole codebase). No `sim/` changes, no `apps/`
+changes, no `run*.py` changes this phase. `configs/_TEMPLATE_my_rocket.py` on `usage/my-rocket`
+(the user's own in-progress real-vehicle config) was not touched by any step and keeps registering
+unchanged under the new scheme, per the design's flat-module guarantee.
+
+Full decision log (D-45 through D-55): `status.json`'s `phase2_15_config_separation.decisions_log`.
+Design doc: `docs/architecture-31-config-separation.md`.
+
 ## Phase 2.14 — LaTeX sync pass — COMPLETE (2026-10-13)
 
 Requested by the user right after Phase 2.13 landed on `develop`: "please check what is in the app
