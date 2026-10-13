@@ -808,7 +808,7 @@
     "adopted": "2026-10-13, per explicit user instruction",
     "trunk": "master (unchanged, stable)",
     "integration_branch": "develop (new, branched off master)",
-    "convention": "feature/<slug> off develop, merged --no-ff back into develop; develop -> master at phase closeouts",
+    "convention": "feature/<slug> off develop, merged --no-ff back into develop; develop -> master at phase closeouts (fast-forward, since master only ever receives already-merged develop history); usage/<name> branches off master for real vehicle configs + real results (configs/<name>.py data, not engine code), isolated from develop's in-progress work -- pull master into a usage branch deliberately (git merge master) when a new phase lands there, never merge develop directly into a usage branch",
     "this_phase_branch": null,
     "commits": [
       "25a512c (git-flow adoption: develop branch + .gitignore temp/)",
@@ -825,7 +825,11 @@
       "3206e32 (merge feature/phase2.14-latex-sync -> develop, --no-ff)"
     ],
     "phase_2_13_status": "merged into develop 2026-10-13 (--no-ff, commit 05d0aaa, 32 files changed, no conflicts); feature branch deleted post-merge; master deliberately left untouched per user's own choice (develop only, not also master)",
-    "phase_2_14_status": "merged into develop 2026-10-13 (--no-ff, commit 3206e32, 7 files changed, no conflicts); feature branch deleted post-merge; master deliberately left untouched"
+    "phase_2_14_status": "merged into develop 2026-10-13 (--no-ff, commit 3206e32, 7 files changed, no conflicts); feature branch deleted post-merge; master deliberately left untouched",
+    "master_caught_up": "2026-10-13: master fast-forwarded to develop's tip (commit 7167c45), bringing Phase 2.13 (apps/configs) and Phase 2.14 (LaTeX sync) onto master -- needed because the user wants to start using App 4 (airbrake sizing) for real results, and neither configs/ nor apps/airbrake_sizing/ existed on master before this. User-confirmed via AskUserQuestion (this specifically reopened the earlier 'develop only, not master' choice from the Phase 2.13 closeout).",
+    "usage_branches": {
+      "usage/my-rocket": "created off master (commit 7167c45), commit 13491ac adds an unregistered blank configs/_TEMPLATE_my_rocket.py stub awaiting the user's real vehicle numbers (mass, lengths, aero area, motor curve file). Not yet registered in configs/__init__.py."
+    }
   },
   "phase2_13_apps_configs": {
     "requested": "2026-10-13, user: 5 'run files' total (3 already existed: run.py, apps/motor_selection 'App 3', apps/cfd_conditions 'App 2'); new work is App 4 (airbrake C_dA sizing, modernizing two temp/ MATLAB scratch files the user pointed at) and App 5 (weight-vs-aero trade-off tool, two possible modes left to architect's judgment); also requested a shared config-reuse system across apps, and adoption of git-flow branching.",
