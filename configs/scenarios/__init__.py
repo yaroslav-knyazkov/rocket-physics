@@ -1,13 +1,10 @@
 """configs/scenarios/ -- the scenario registry (Step 72,
 docs/architecture-31-config-separation.md SS31.5).
 
-This is what `configs.get()` will delegate to, starting at Step 73 --
-not yet: `configs/__init__.py` is unchanged in this step and does not
-import this package. `_MODULES = ()` here is **deliberate, for exactly
-this one commit, and not an oversight**: nothing delegates to this
-registry yet, so there is nothing to register against. Step 73 moves
-the three seed configs under this package and is what first fills
-`_MODULES` in.
+This is what `configs.get()` delegates to, as of Step 73
+(`docs/architecture-31-config-separation.md` SS31.7): `toy_05kg`,
+`demo_75mm` and `demo_75mm_airbrake` moved under this package and are
+what first fill `_MODULES` in.
 
 Same registry shape as `configs/__init__.py`, which this package is
 modelled on directly: an explicit `_MODULES` tuple (never directory
@@ -25,8 +22,9 @@ convention as every other registry in this project.
 """
 
 from configs.schema import Config
+from configs.scenarios import demo_75mm, demo_75mm_airbrake, toy_05kg
 
-_MODULES: tuple = ()
+_MODULES = (toy_05kg, demo_75mm, demo_75mm_airbrake)
 
 SCENARIOS: dict[str, Config] = {m.CONFIG.name: m.CONFIG for m in _MODULES}
 

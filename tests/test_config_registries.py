@@ -86,13 +86,20 @@ def test_get_unknown_name_raises_keyerror_listing_every_name(pkg_name):
         assert name in message
 
 
-def test_scenarios_registry_is_deliberately_empty_this_step():
-    """SS31.5: `configs.scenarios._MODULES = ()` for exactly this one
-    commit -- nothing delegates to it until Step 73. The registry
-    machinery still works correctly against the empty tuple."""
-    assert configs.scenarios._MODULES == ()
-    assert configs.scenarios.SCENARIOS == {}
-    assert configs.scenarios.names() == []
+def test_scenarios_registry_is_populated_by_step_73():
+    """SS31.5: `configs.scenarios._MODULES = ()` was deliberate for
+    exactly one commit (Step 72) -- its own docstring at the time said
+    plainly that "Step 73 moves the three seed configs under this
+    package and is what first fills `_MODULES` in." This test's
+    predecessor (`test_scenarios_registry_is_deliberately_empty_this_step`)
+    pinned the Step-72 state; this one pins what replaces it, so the
+    registry's behaviour stays covered across the step boundary instead
+    of silently losing coverage. `configs.scenarios.get("anything")`
+    still raises `KeyError` for an unregistered name -- registry
+    machinery, not scenario content, is what this test is about."""
+    assert configs.scenarios._MODULES != ()
+    assert configs.scenarios.SCENARIOS != {}
+    assert set(configs.scenarios.names()) == {"toy_05kg", "demo_75mm", "demo_75mm_airbrake"}
     with pytest.raises(KeyError):
         configs.scenarios.get("anything")
 

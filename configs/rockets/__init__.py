@@ -15,16 +15,17 @@ the bottom of the import DAG (SS31.5): `configs/__init__` ->
 `configs.scenarios` -> `configs.{rockets, sites, weather}` ->
 `configs.schema` -> `sim.*`, with no edge back up.
 
-As of this step (Step 72) `_MODULES` is empty: `toy_05kg` and
-`demo_75mm` move here at Step 73, which is also what first populates
-`names()`. `configs.rockets._TEMPLATE_rocket` imports cleanly (SS31.8
-#6) but is deliberately never in `_MODULES` -- see that module's
-docstring.
+`toy_05kg` and `demo_75mm` moved here at Step 73
+(`docs/architecture-31-config-separation.md` SS31.7), which is also what
+first populates `names()`. `configs.rockets._TEMPLATE_rocket` imports
+cleanly (SS31.8 #6) but is deliberately never in `_MODULES` -- see that
+module's docstring.
 """
 
+from configs.rockets import demo_75mm, toy_05kg
 from configs.schema import Rocket
 
-_MODULES: tuple = ()
+_MODULES = (toy_05kg, demo_75mm)
 
 ROCKETS: dict[str, Rocket] = {m.ROCKET.name: m.ROCKET for m in _MODULES}
 
