@@ -4,7 +4,9 @@ docs/architecture-31-config-separation.md SS31.5).
 This is what `configs.get()` delegates to, as of Step 73
 (`docs/architecture-31-config-separation.md` SS31.7): `toy_05kg`,
 `demo_75mm` and `demo_75mm_airbrake` moved under this package and are
-what first fill `_MODULES` in.
+what first fill `_MODULES` in. `demo_75mm_highland` -- the
+one-rocket-two-sites mix-and-match demo -- was added at Step 74
+(SS31.12).
 
 Same registry shape as `configs/__init__.py`, which this package is
 modelled on directly: an explicit `_MODULES` tuple (never directory
@@ -22,9 +24,14 @@ convention as every other registry in this project.
 """
 
 from configs.schema import Config
-from configs.scenarios import demo_75mm, demo_75mm_airbrake, toy_05kg
+from configs.scenarios import (
+    demo_75mm,
+    demo_75mm_airbrake,
+    demo_75mm_highland,
+    toy_05kg,
+)
 
-_MODULES = (toy_05kg, demo_75mm, demo_75mm_airbrake)
+_MODULES = (toy_05kg, demo_75mm, demo_75mm_airbrake, demo_75mm_highland)
 
 SCENARIOS: dict[str, Config] = {m.CONFIG.name: m.CONFIG for m in _MODULES}
 

@@ -15,6 +15,7 @@ already in the suite (SS31.8 #8), and every registered scenario still
 flying (SS31.8 #5).
 """
 
+import math
 import types
 
 import pytest
@@ -154,3 +155,40 @@ def test_every_registered_scenario_flies(name):
     cfg = configs.get(name)
     result = run_sim(cfg.params, cfg.s0)
     assert result.events["apogee"] is not None
+
+
+# ----------------------------------------------------------------------
+# Step 74 (SS31.12): demo_75mm_highland -- the same rocket piece flown
+# from a different site, in different weather. Note:
+# `test_every_registered_scenario_flies` above is parametrised over
+# `configs.names()`, so it already picks up `demo_75mm_highland` with no
+# edit to that test -- its parametrised case count rises by one (four
+# registered scenarios instead of three), which is expected, not an
+# anomaly (SS31.12's own Check list says so explicitly).
+# ----------------------------------------------------------------------
+
+
+def test_demo_75mm_highland_rocket_groups_equal_demo_75mm():
+    """The proof that one vehicle now serves two sites with zero
+    duplication -- the user's original request reduced to one
+    assertion (SS31.12)."""
+    highland = configs.get("demo_75mm_highland")
+    baseline = configs.get("demo_75mm")
+    assert highland.params.weight == baseline.params.weight
+    assert highland.params.lengths == baseline.params.lengths
+    assert highland.params.thrust == baseline.params.thrust
+    assert highland.params.aero == baseline.params.aero
+
+
+def test_demo_75mm_highland_s0_theta_derives_from_the_tilted_rail():
+    """D-51a's derivation doing real work for the first time: every
+    other registered scenario's rail sits at the `Site` default
+    (90.0 deg, reproducing `math.pi / 2` exactly, SS31.2 F6);
+    `highland_1500m`'s rail is tilted to 85.0 deg."""
+    assert configs.get("demo_75mm_highland").s0.theta == math.radians(85.0)
+
+
+def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
+    cfg = configs.get("demo_75mm_highland")
+    assert cfg.params.site.h0_m == 1500.0
+    assert cfg.params.wind.model == "analytic"

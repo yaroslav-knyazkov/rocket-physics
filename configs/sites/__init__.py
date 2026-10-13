@@ -12,17 +12,19 @@ Piece modules do `from configs.schema import LaunchSite`, never
 DAG -- see `configs/rockets/__init__.py`'s docstring for the full
 chain).
 
-`origin_msl` is the only registered site as of this step --
-"lat 0, lon 0, sea level, no rail", honest that it is a placeholder,
-not a field anyone actually flies from (SS31.7). `configs.sites.
-_TEMPLATE_site` imports cleanly (SS31.8 #6) but is deliberately never
-in `_MODULES` -- see that module's docstring.
+`origin_msl` -- "lat 0, lon 0, sea level, no rail", honest that it is
+a placeholder, not a field anyone actually flies from (SS31.7) --
+and `highland_1500m`, a synthetic 1500 m MSL site with an 85 deg rail
+tilt added at Step 74 (SS31.12), are the two registered sites as of
+this step. `configs.sites._TEMPLATE_site` imports cleanly (SS31.8 #6)
+but is deliberately never in `_MODULES` -- see that module's
+docstring.
 """
 
 from configs.schema import LaunchSite
-from configs.sites import origin_msl
+from configs.sites import highland_1500m, origin_msl
 
-_MODULES = (origin_msl,)
+_MODULES = (origin_msl, highland_1500m)
 
 SITES: dict[str, LaunchSite] = {m.SITE.name: m.SITE for m in _MODULES}
 

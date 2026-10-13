@@ -19,16 +19,17 @@ Piece modules do `from configs.schema import Weather`, never
 `configs.scenarios` or the `configs` package itself (SS31.5's import
 DAG).
 
-`isa_dry_calm` is the only registered weather as of this step -- ISA,
-dry air, no wind, no sounding case (SS31.7). `configs.weather.
-_TEMPLATE_weather` imports cleanly (SS31.8 #6) but is deliberately
-never in `_MODULES` -- see that module's docstring.
+`isa_dry_calm` -- ISA, dry air, no wind, no sounding case (SS31.7) --
+and `breezy_isa`, ISA air plus a steady analytic wind added at Step 74
+(SS31.12), are the two registered weather pieces as of this step.
+`configs.weather._TEMPLATE_weather` imports cleanly (SS31.8 #6) but is
+deliberately never in `_MODULES` -- see that module's docstring.
 """
 
 from configs.schema import Weather
-from configs.weather import isa_dry_calm
+from configs.weather import breezy_isa, isa_dry_calm
 
-_MODULES = (isa_dry_calm,)
+_MODULES = (isa_dry_calm, breezy_isa)
 
 WEATHER: dict[str, Weather] = {m.WEATHER.name: m.WEATHER for m in _MODULES}
 

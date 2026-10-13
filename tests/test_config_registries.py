@@ -96,10 +96,16 @@ def test_scenarios_registry_is_populated_by_step_73():
     registry's behaviour stays covered across the step boundary instead
     of silently losing coverage. `configs.scenarios.get("anything")`
     still raises `KeyError` for an unregistered name -- registry
-    machinery, not scenario content, is what this test is about."""
+    machinery, not scenario content, is what this test is about, so it
+    checks "at least the three Step-73 seeds are present" rather than
+    pinning an exact set -- Step 74 (and any future scenario this
+    project adds) grows this registry without this test needing an
+    edit every time, which the first version of this test did not
+    survive (it pinned an exact three-name set and broke the moment
+    Step 74 added a fourth)."""
     assert configs.scenarios._MODULES != ()
     assert configs.scenarios.SCENARIOS != {}
-    assert set(configs.scenarios.names()) == {"toy_05kg", "demo_75mm", "demo_75mm_airbrake"}
+    assert {"toy_05kg", "demo_75mm", "demo_75mm_airbrake"} <= set(configs.scenarios.names())
     with pytest.raises(KeyError):
         configs.scenarios.get("anything")
 

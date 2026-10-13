@@ -1,7 +1,9 @@
 """configs/ -- the shared configuration package (Step 63, roadmap.md,
 `docs/architecture-30-apps-4-5-and-configs.md` SS30.3/SS30.4; rewritten
 to delegate to `configs.scenarios` at Step 73,
-`docs/architecture-31-config-separation.md` SS31.6/SS31.7).
+`docs/architecture-31-config-separation.md` SS31.6/SS31.7; this
+docstring turned into the package's "how do I add my own" guide at
+Step 74, SS31.12).
 
 `get(name)` resolves a **scenario** name -- a named combination of a
 rocket, a launch site and a day's weather (`configs.schema.Scenario`,
@@ -34,6 +36,15 @@ register" instructions. Registration is the only place a name is bound:
 `CONFIGS` is keyed off each module's `CONFIG.name`, not the module's
 filename, so a name/filename mismatch is possible in principle --
 `tests/test_configs.py` pins that it cannot happen silently.
+
+`configs/scenarios/demo_75mm_highland.py` is one worked example of the
+whole point of this package: the **same, unmodified**
+`configs/rockets/demo_75mm.py` rocket piece, flown from a different
+site (`configs/sites/highland_1500m.py`, 1500 m MSL, a tilted rail) in
+different weather (`configs/weather/breezy_isa.py`, a steady analytic
+wind) -- one vehicle, two sites, zero duplication. Reading those three
+modules side by side is the fastest way to see what "start under the
+matching subpackage" buys you in practice.
 """
 
 from configs import rockets, scenarios, sites, weather
