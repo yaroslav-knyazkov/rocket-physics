@@ -5,7 +5,7 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.13-COMPLETE-phase3-step30-resuming",
+  "current_stage": "phase2.14-COMPLETE-phase3-step30-resuming",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
@@ -809,7 +809,7 @@
     "trunk": "master (unchanged, stable)",
     "integration_branch": "develop (new, branched off master)",
     "convention": "feature/<slug> off develop, merged --no-ff back into develop; develop -> master at phase closeouts",
-    "this_phase_branch": "feature/phase2.13-apps-and-configs",
+    "this_phase_branch": "feature/phase2.14-latex-sync",
     "commits": [
       "25a512c (git-flow adoption: develop branch + .gitignore temp/)",
       "9d5bd40 (Phase 2.13 design, on feature/phase2.13-apps-and-configs)",
@@ -819,9 +819,11 @@
       "e211073 (Step 66)",
       "9fddb2a (Step 67)",
       "0b37876 (Step 68)",
-      "5f72f44 (Step 69)"
+      "5f72f44 (Step 69)",
+      "05d0aaa (merge feature/phase2.13-apps-and-configs -> develop, --no-ff)",
+      "(pending) Step 70 (Phase 2.14): LaTeX sync pass"
     ],
-    "phase_2_13_status": "all 7 steps committed on feature/phase2.13-apps-and-configs, not yet merged to develop/master -- awaiting user go-ahead to land"
+    "phase_2_13_status": "merged into develop 2026-10-13 (--no-ff, commit 05d0aaa, 32 files changed, no conflicts); feature branch deleted post-merge; master deliberately left untouched per user's own choice (develop only, not also master)"
   },
   "phase2_13_apps_configs": {
     "requested": "2026-10-13, user: 5 'run files' total (3 already existed: run.py, apps/motor_selection 'App 3', apps/cfd_conditions 'App 2'); new work is App 4 (airbrake C_dA sizing, modernizing two temp/ MATLAB scratch files the user pointed at) and App 5 (weight-vs-aero trade-off tool, two possible modes left to architect's judgment); also requested a shared config-reuse system across apps, and adoption of git-flow branching.",
@@ -948,5 +950,38 @@
     "status": "COMPLETE -- all 7 steps (63-69) done, each independently verified and committed",
     "completed_date": "2026-10-13",
     "next": "Phase 2.13 complete on branch feature/phase2.13-apps-and-configs (7 commits on top of the design commit 9d5bd40, plus the git-flow adoption commit 25a512c on develop). Final test count 353/353, zero sim/ regressions across the whole phase except the one explicitly approved sim/control.py change (Step 65). Awaiting user go-ahead to land (merge feature branch -> develop -> master) per git-flow. Step 30 (3D rotational EOM) remains the next queued item after that, still waiting on the user's own review of docs/latex/research/3d_equations_of_motion.md."
+  },
+  "phase2_14_latex_sync": {
+    "requested": "2026-10-13, right after Phase 2.13 merged to develop: \"please check what is in the app now and not written in latex and please do that.\"",
+    "branch": "feature/phase2.14-latex-sync (off develop)",
+    "scope": "doc-only, no code -- same category as Step 54",
+    "gaps_found_and_written": [
+      "Launch rail constraint (sim/dynamics.py on_rail/rail_distance/_e_rail) -> models.tex sec:rail",
+      "Recovery/parachute model (sim/forces.py parachute_deployed/parachute_drag_inertial) -> models.tex sec:recovery -- also corrects a factual error (old prose said the canopy 'replaces' the aero force; it actually adds to it)",
+      "Airbrake deployment law (sim/control.py _proportional_airbrake etc.) -> models.tex sec:airbrake_law",
+      "Airbrake deployment triggers, Step 65 (sim/control.py _AIRBRAKE_TRIGGERS, the newest and previously most-undocumented gap) -> models.tex sec:airbrake_trigger",
+      "Sampled-data / zero-order-hold mode, Step 59 (sim/sampling.py) -> models.tex sec:sampled",
+      "Dryden turbulence (sim/wind.py, Step 46) -- models.tex still documented the superseded Step-21 placeholder -- rewritten into a real Turbulence paragraph under sec:wind"
+    ],
+    "gap_found_not_written": "3D scaffold (quaternion.py/state3d.py/dynamics3d.py/forces3d.py) has no LaTeX mention at all -- correctly left alone (structural decision tied to the still-paused Step 30, not a transcription)",
+    "gap_flagged_optional": "No standalone Numerical integration section (adaptive-vs-fixed-step, tolerances, the five reported events) -- flagged, not acted on, no urgency",
+    "decisions_log": [
+      {
+        "id": "D-43",
+        "question": "Keep the architect's Dryden turbulence write-up in models.tex (ground architecture.md had twice reserved for the user's own edit) or revert it?",
+        "choice": "Keep it as written",
+        "by": "user, recommended option, via AskUserQuestion"
+      },
+      {
+        "id": "D-44",
+        "question": "Promote the 3D scaffold (quaternion.py/state3d.py/dynamics3d.py/forces3d.py) into main.tex now, or leave it out?",
+        "choice": "Leave it out for now",
+        "by": "user, recommended option, via AskUserQuestion"
+      }
+    ],
+    "verification": "Orchestrator independently re-ran the structural label/ref/brace/$-parity check from scratch across all four touched .tex files (79 labels/0 duplicates, 268 refs/61 targets/0 dangling, balanced braces, even $ parity) -- matched the architect's self-report exactly. Content spot-checked directly against sim/control.py, sim/forces.py, sim/dynamics.py.",
+    "status": "complete, step committed, not yet merged to develop -- awaiting user go-ahead to land",
+    "completed_date": "2026-10-13",
+    "risk": "No LaTeX toolchain in this environment -- user must compile docs/latex/main.tex locally before treating as final"
   }
 }

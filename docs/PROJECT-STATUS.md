@@ -16,6 +16,38 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
+## Phase 2.14 — LaTeX sync pass — COMPLETE (2026-10-13)
+
+Requested by the user right after Phase 2.13 landed on `develop`: "please check what is in the app
+now and not written in latex and please do that." Doc-only, one step (Step 70), on
+`feature/phase2.14-latex-sync` off `develop`.
+
+The architect audited `sim/` against `docs/latex/` and wrote up four real, implemented mechanisms
+that previously had no proper LaTeX section (only a one-paragraph mention in `main.tex`'s
+assumptions/backlog) — new `models.tex` subsections for the **launch rail** (`sec:rail`), the
+**recovery/parachute** model (`sec:recovery`, which also corrects a real factual error: the old
+prose said the canopy "replaces" the aerodynamic force, it actually adds to it), the **air brake**
+(`sec:airbrake`, split into its deployment **law** and, newest and previously most-undocumented,
+Step 65's three deployment **triggers** — `after_burnout`/`after_time`/`after_apogee`), and the
+**sampled-data/zero-order-hold** integration mode (`sec:sampled`, Step 59). `main.tex`'s
+assumptions/backlog bullets were redirected to point at these instead of carrying the only
+description.
+
+Beyond the literal ask, the audit also found `models.tex` §Wind > Analytic was still documenting
+the *superseded* Step-21 turbulence placeholder (three statements false in code since Step 46) —
+`architecture.md` had twice reserved that specific edit for the user's own voice. Surfaced
+transparently via `AskUserQuestion` rather than decided quietly: **user confirmed keep the
+write-up** (recommended option). A second gap — a real Phase-3 scaffold
+(`quaternion.py`/`state3d.py`/`dynamics3d.py`/`forces3d.py`) with no LaTeX mention at all — was
+correctly *not* written (a structural decision tied to the still-paused Step 30, not a
+transcription) and also surfaced: **user confirmed leave it out for now** (recommended option).
+
+Orchestrator independently re-verified before committing: re-ran the architect's structural
+label/`\ref`/brace/`$`-parity check from scratch (79 labels/0 duplicates, 268 refs/61 targets/0
+dangling, matched exactly) and read every new paragraph against the actual `sim/control.py`/
+`sim/forces.py`/`sim/dynamics.py` source. **No LaTeX toolchain in this environment — the user still
+needs to compile `docs/latex/main.tex` locally before treating this as final.**
+
 ## Phase 2.13 — Apps 4-5, shared app layer, reusable configs, git-flow — COMPLETE (2026-10-13)
 
 **All 7 steps done, each independently verified by the orchestrator (full test suite re-run,
@@ -51,7 +83,9 @@ real solver with three selectable deployment triggers; a weight-vs-aero trade su
 named-configuration comparison tool; a shared, reusable, git-history-tracked `configs/` package
 usable by every app; five `ls`-visible run files at the repo root; git-flow branching adopted
 (`develop` + `feature/phase2.13-apps-and-configs`, 9 commits on the feature branch including the
-design commit, not yet merged — awaiting the user's go-ahead to land).
+design commit). **Merged into `develop` 2026-10-13** (`--no-ff`, commit `05d0aaa`, 32 files changed,
+no conflicts; feature branch deleted post-merge). `master` deliberately left untouched, per the
+user's own choice at the time (merge to `develop` only, not also to `master`).
 
 Full decision log (D-28 through D-42, D-36-revised parts 1-3): `status.json`'s
 `phase2_13_apps_configs.decisions_log`. Design doc: `docs/architecture-30-apps-4-5-and-configs.md`.

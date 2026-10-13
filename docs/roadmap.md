@@ -1111,8 +1111,12 @@ makes the LaTeX the source of truth and it is the user's document, so this neede
 before implementation: **the user nominated the research note + `architecture.md` §26 as the interim
 physics reference**, with `models.tex` §Wind > Analytic to be brought in line later (the user's own
 edit, not a developer's). **Implemented and committed on that basis** (Step 46 below) — the mismatch
-with `models.tex` was not resolved by editing it (`architecture.md` §26.14), and still stands as the
-user's own follow-up.
+with `models.tex` was not resolved by editing it (`architecture.md` §26.14), and still stood as the
+user's own follow-up **until Phase 2.14 Step 70 (2026-10-13)**, where the user explicitly confirmed
+(via `AskUserQuestion`, on the orchestrator's own flag that this ground was reserved) that the
+architect's write-up of the real Dryden spectrum into `models.tex` §Wind > Turbulence could stand —
+see Phase 2.14 below. The standing rule itself (a developer must not silently paper over this gap)
+is unchanged for any future mismatch of this kind.
 
 ### Step 46 — Dryden turbulence spectrum for tier-1 gusts (replacing the Step-21 placeholder)
 - **Files:** `sim/params.py`, `sim/wind.py`, `tests/test_wind.py`
@@ -2039,6 +2043,55 @@ motors.py` therefore **does not move** — it is App 3's own study list and belo
 
 ---
 
+## Phase 2.14 — LaTeX sync pass: rail, recovery, air brake, sampled mode, Dryden catch-up — COMPLETE (Step 70 done)
+
+Requested by the user on 2026-10-13, right after Phase 2.13 landed on `develop`: "please check what
+is in the app now and not written in latex and please do that." Doc-only, no code — same category
+as Step 54 ("LaTeX notation pass ... doc-only, no code", commit `3373b06`).
+
+### Step 70 — LaTeX sync: four new `models.tex` subsections + Dryden turbulence catch-up — done, commit TBD
+- **Files:** `docs/latex/sections-ai/models.tex` (+401/-27), `docs/latex/main.tex` (+58/-38),
+  `docs/latex/sections-ai/rocket-2d.tex` (+9), `docs/architecture.md` (+17/-1, dated closing notes
+  only). Doc-only, **no code**.
+- **Spec:** orchestrator's own audit (sim/dynamics.py's rail machinery, sim/forces.py's parachute
+  functions, sim/control.py's airbrake law + Step 65's trigger dispatch, sim/sampling.py's ZOH
+  mode) cross-checked against `architecture.md` §27.1-27.3 and `architecture-28-rewrite.md` §28.8.
+- **Do:** four new `models.tex` subsections appended after §Non-inertial corrections — `sec:rail`
+  (the kinematic constraint, `eq:rail_direction`/`eq:rail_distance`/`eq:rail_constraint`/
+  `eq:rail_attitude`), `sec:recovery` (the added-to, not substituted-for, inertial drag force,
+  `eq:chute_force`/`eq:chute_terminal` — corrects a real factual error in the old `main.tex` prose,
+  which said the canopy "replaces" the aero force), `sec:airbrake` with `sec:airbrake_law`
+  (none/proportional/full, `eq:airbrake_force`/`eq:airbrake_p`) and `sec:airbrake_trigger` (the
+  three Step-65 triggers — `after_burnout`/`after_time`/`after_apogee` — the newest and previously
+  most-undocumented gap: only one sentence in `main.tex` mentioned them before this step), and
+  `sec:sampled` (the Step-59 zero-order-hold evaluation mode, `eq:zoh`, its three requirements and
+  the "different dynamical system, not a refinement" caveat). `main.tex`'s assumptions/backlog
+  bullets redirected to point at the new sections instead of carrying the only description.
+  `rocket-2d.tex` gets one short pointer paragraph at the EOM. Beyond the ticket: the architect's
+  own audit found `models.tex` §Wind > Analytic was still documenting the *superseded* Step-21
+  placeholder sine-sum (three statements false in code: the clamp was removed at Step 46, the
+  intensity knob isn't `σ=0`, the perturbation isn't a plain sum added to `W(h)`) — flagged to the
+  orchestrator as touching ground `architecture.md` §26.10/§26.14 had reserved for the user's own
+  edit, surfaced via `AskUserQuestion`, **user confirmed keep it** (recommended option). A real
+  Phase-3 scaffold gap (`quaternion.py`/`state3d.py`/`dynamics3d.py`/`forces3d.py`, no LaTeX
+  mention at all) was found and correctly *not* written — promoting it is a structural decision
+  tied to the still-paused Step 30, not a transcription; also surfaced via `AskUserQuestion`,
+  **user confirmed leave it out for now** (recommended option). A third, lower-stakes gap (no
+  §Numerical integration section — adaptive-vs-fixed-step, tolerances, the five reported events)
+  was flagged but not acted on; optional future step.
+- **Check:** structural only, independently re-run by the orchestrator (not just taken on the
+  architect's self-report) — a from-scratch Python label/`\ref`/`\autoref`/brace/`$`-parity script
+  across all four touched `.tex` files: 79 labels, 0 duplicates; 268 `\ref`/`\autoref` uses, 61
+  distinct targets, 0 dangling; brace depth 0 and even `$` parity in every file — numbers matched
+  the architect's own report exactly. Content spot-checked against the actual `sim/control.py`/
+  `sim/forces.py`/`sim/dynamics.py` source directly, not just the architect's prose. **No LaTeX
+  toolchain in this environment — compile `main.tex` locally before treating as final**, the
+  standing caveat on every doc pass.
+- **Commit:** "Step 70 (Phase 2.14): LaTeX sync -- rail/recovery/airbrake/sampled-mode write-up,
+  Dryden turbulence doc catch-up (doc-only, no code)"
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended
@@ -2474,7 +2527,7 @@ may be pulled forward. **Blocked or gated steps:**
 | 42 | Step 41 (needs `gravity.curvature_radius` and the `"elliptical"` value) |
 | 44 | the `c_mq` **sign** question — `architecture.md` §24.4 resolves it (`c_mq > 0` is damping here) and proposes the `analysis.tex` correction; agree it before the tests are written |
 | 45 | Steps 41 and 42 (consumes `curvature_radius` and `ground_depth` unchanged). The reported-altitude scope call is **settled**: the user chose the curved reading everywhere, so `run.py`/`plotting.py` are in scope (`architecture.md` §25.5) while every event *trigger* stays exactly as it is |
-| 46 | ~~`latex/sections-ai/models.tex` §Wind > Analytic (lines ~514-526) still documents the Step-21 placeholder~~ — **resolved 2026-10-02**: the user nominated `latex/research/dryden_turbulence_model.md` + `architecture.md` §26 as the interim physics reference, `models.tex` to be brought in line later by the user. Not blocked. The four design forks are **settled** (research note §5): fixed reference airspeed, user-set high-altitude `σ`, horizontal `u`/`v` only. Carried as a *named* uncertainty, not a blocker: the `L_v` factor-of-two convention (§26.14 risk 1), locked by a break-frequency test so a correction would be a one-line change and a loud test failure |
+| 46 | ~~`latex/sections-ai/models.tex` §Wind > Analytic (lines ~514-526) still documents the Step-21 placeholder~~ — **resolved 2026-10-02** (interim reference nominated) and **closed 2026-10-13** (Phase 2.14 Step 70: `models.tex` §Wind > Turbulence now documents the real Dryden spectrum, user-confirmed). The four design forks are **settled** (research note §5): fixed reference airspeed, user-set high-altitude `σ`, horizontal `u`/`v` only. Carried as a *named* uncertainty, not a blocker: the `L_v` factor-of-two convention (§26.14 risk 1), locked by a break-frequency test so a correction would be a one-line change and a loud test failure |
 
 Steps 38 and 39 are **not blocked**: both derivations now exist
 (`latex/sections/models.tex` §Gravity > Direction, `latex/sections/analysis.tex` §With thrust,
