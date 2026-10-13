@@ -5,21 +5,53 @@
     "architect",
     "developer"
   ],
-  "current_stage": "phase2.12-motor-selection-app-COMPLETE-phase3-step30-resuming",
+  "current_stage": "phase2.13-apps-4-5-configs-design-approved-implementation-starting",
   "phase2_11_rewrite": {
     "requested": "2026-10-10, user: fix bugs, rewrite Params/aero/run.py/latex before resuming Step 30",
     "design_doc": "docs/architecture-28-rewrite.md (architecture.md SS28 pointer)",
     "approved": true,
     "approved_date": "2026-10-10",
     "decisions_log": [
-      {"id": "params-shape", "choice": "nested sub-dataclasses (Weight/Thrust/Lengths/Aero/Solver + 7 architect-proposed groups), not flat-grouped", "by": "user"},
-      {"id": "misalignment-placement", "choice": "Lengths group (lengths.misalign_deg), not Thrust", "by": "user"},
-      {"id": "aero-model-scope", "choice": "three-way dispatch: constant | linearized | table (reuses existing data/aero/*.csv format), not a from-scratch unification", "by": "user"},
-      {"id": "bug-scope", "choice": "backlog B3/B6/B7/B9/B10 stay deferred (need data/theory/3D); B11+B12 (sampled-data integration) IS in scope this pass", "by": "user"},
-      {"id": "D-2-migration-strategy", "choice": "3 commits + transitional shim (S50 sim/ -> S51 tests/run.py/apps -> S52 delete shim), not one big commit", "by": "user"},
-      {"id": "D-4-area-symbol", "choice": "shared Aero.S for all 3 models, NOT a new field named 'A' as literally requested -- avoids reintroducing a symbol collision (A = nose-tip point, A_x/A_z/A_m, vec(A_f)) a prior doc pass removed", "by": "user, on architect's recommendation against the literal request"},
-      {"id": "D-10-run_sim-signature", "choice": "strict run_sim(p, s0), no override kwargs -- Result.params becomes the single source of truth for how a run was integrated", "by": "user"},
-      {"id": "D-1,3,5,6,7,8,9,11,12,13,14,15,16,17", "choice": "architect's stated recommendation accepted for all 13, per user's blanket approval", "by": "user"}
+      {
+        "id": "params-shape",
+        "choice": "nested sub-dataclasses (Weight/Thrust/Lengths/Aero/Solver + 7 architect-proposed groups), not flat-grouped",
+        "by": "user"
+      },
+      {
+        "id": "misalignment-placement",
+        "choice": "Lengths group (lengths.misalign_deg), not Thrust",
+        "by": "user"
+      },
+      {
+        "id": "aero-model-scope",
+        "choice": "three-way dispatch: constant | linearized | table (reuses existing data/aero/*.csv format), not a from-scratch unification",
+        "by": "user"
+      },
+      {
+        "id": "bug-scope",
+        "choice": "backlog B3/B6/B7/B9/B10 stay deferred (need data/theory/3D); B11+B12 (sampled-data integration) IS in scope this pass",
+        "by": "user"
+      },
+      {
+        "id": "D-2-migration-strategy",
+        "choice": "3 commits + transitional shim (S50 sim/ -> S51 tests/run.py/apps -> S52 delete shim), not one big commit",
+        "by": "user"
+      },
+      {
+        "id": "D-4-area-symbol",
+        "choice": "shared Aero.S for all 3 models, NOT a new field named 'A' as literally requested -- avoids reintroducing a symbol collision (A = nose-tip point, A_x/A_z/A_m, vec(A_f)) a prior doc pass removed",
+        "by": "user, on architect's recommendation against the literal request"
+      },
+      {
+        "id": "D-10-run_sim-signature",
+        "choice": "strict run_sim(p, s0), no override kwargs -- Result.params becomes the single source of truth for how a run was integrated",
+        "by": "user"
+      },
+      {
+        "id": "D-1,3,5,6,7,8,9,11,12,13,14,15,16,17",
+        "choice": "architect's stated recommendation accepted for all 13, per user's blanket approval",
+        "by": "user"
+      }
     ],
     "plan": "Steps 50-60 (Phase 2.11), one commit each: S50-52 Params migration (sim/, then tests/run.py/apps/, then delete shim), S53 Solver group, S54 LaTeX notation pass (architect, before S55), S55 aero three-way dispatch (the one deliberately non-bit-for-bit step), S56 single flow_state/RHS call, S57 control-coefficient seam (structure only), S58 run.py->sim/report.py, S59 sampled-data/ZOH integrator (unblocks B11/B12, largest/riskiest step), S60 tracker/latex close-out (architect).",
     "housekeeping_done": [
@@ -28,17 +60,73 @@
       ".gitignore: docs/latex build artifacts, commit e460b61"
     ],
     "steps_done": [
-      {"step": 50, "name": "Params composition, part 1 -- groups + sim/ migration", "commit": "2120ed1", "note": "12 group dataclasses per SS28.3; pure rename (A_x/A_z/A_m -> Aero.C_x/C_z/C_m, same un-scaled-by-q semantics, fixed at S55 not here); transitional Params.flat shim + hand-written __init__ keeps tests/run.py/apps/ working unmodified (mechanical Params( -> Params.flat( substitution only). Verified independently by orchestrator: 245/245 both sides, trajectory.csv byte-identical, stdout identical except the necessarily-changed Params repr line."},
-      {"step": 51, "name": "Params composition, part 2 -- tests/run.py/apps/ migrated to native nested API", "commit": "beaf99b", "note": "164 Params.flat(...) constructions + ~104 replace() calls migrated to native nested form; scope grew mid-step (correctly) to also cover bare flat-attribute reads inside test bodies (p.m, p.R_e, p.gravity_model, d[\"params\"].gravity_model, etc.) -- orchestrator's own dispatch had underspecified this, developer flagged rather than guessed. One session-limit interruption, resumed with no work lost. Verified independently twice: 245/245 both rounds, trajectory.csv byte-identical, AST-based scan (not text grep) confirms zero residual bare flat-attribute reads outside sim/."},
-      {"step": 52, "name": "Params composition, part 3 -- delete the transitional flat shim", "commit": "6d14b7a", "note": "Params.flat/_FLAT_TO_GROUP/~50 flat @property aliases removed; Params back to a plain auto-generated-__init__ dataclass. Proof the S50/S51 migration was complete: zero test edits needed, zero stdout diff at all (not just trajectory.csv/repr line -- the entire stdout, byte-identical). Verified independently: 245/245."},
-      {"step": 53, "name": "Solver group wired into run_sim(p, s0), no more kwargs", "commit": "b1f6c2e", "note": "strict run_sim(p,s0) per D-10; all 67 call sites migrated (28 mechanical, 39 via params.with_solver(...)); corrected test_result_params_is_p_on_both_integrator_paths to assert against p_rk4 not stale p, exercising D-10's actual guarantee; run.py sweep()'s dead **run_kwargs removed. Verified independently: 245/245, run.py stdout+trajectory.csv byte-identical (zero diff)."},
-      {"step": 54, "name": "LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared S/d_ref (doc-only)", "commit": "3373b06", "note": "models.tex restated around Constant/Linearized/Table as three equally-first-class models; Constant now explicitly documented as q-scaled (reads the atmosphere like the other two); C_x=C_A/C_z=C_N bridge added; c_mq documented as applying under all three models; two collateral corrections flagged and made (analysis.tex's c_mq paragraph, main.tex's CFD-pipeline bullet). Verified independently: exactly 4 docs/latex files touched, 57 labels/0 duplicates, 186 refs/48 targets/0 dangling, brace+environment balance clean (from-scratch script, not just self-report). No LaTeX toolchain here -- structural check only, compile locally before final."},
-      {"step": 55, "name": "aero three-way dispatch -- the bug fix", "commit": "8b8a343", "note": "the actual fix: 'constant' aero model is now q-scaled (AeroCoeffs bundle + _AERO_MODELS dispatch dict in sim/aero.py; forces.py's if/elif blocks removed; dynamics.py's F2 cop_l1 leak closed). 'linearized' bit-for-bit old 'coefficients'. Deliberately non-bit-for-bit (2nd time in project history, after Step 46): run.py apogee drops from ~4.6km to ~666.5m since C_x=0.5 now produces real drag. Developer found 4 more blast-radius sites than the architect's original estimate (test_control.py's _LAUNCH_AERO + 3 others), re-pinned all correctly. Verified independently: 247/247, run.py output matches exactly, dispatch/bundle/closed-form test/architecture.md diff all reviewed against spec line-by-line.", "finding_not_fixed": "run.py's committed scenario has C_m=0.0 (no restoring moment), so theta stays frozen nose-up through a tail-first post-apogee descent; axial drag (alpha-independent) now accelerates that fall instead of opposing it, producing max speed (414.7 m/s) during descent rather than ascent. Pre-existing scenario-design simplification, only now consequential because the force is real. Explicitly out of S55's scope to fix (would mean changing scenario physics, e.g. nonzero C_m or a recovery model) -- flagged to the user, not silently left."},
-      {"step": 56, "name": "one flow_state per RHS call", "commit": "2720c82", "note": "dynamics.derivatives computes flow_state once, threads it into aero_force_body/aero_moment_y (now require a flow param); forces3d.py's 2D-compat adapter updated to match. Pure plumbing, strictly bit-for-bit -- flow_state confirmed genuinely pure (Dryden turbulence RNG is lru_cache'd per seed, consumed once per seed for process lifetime). ~44% faster per RHS call measured (83.55us->47.01us), full suite itself ~198s vs ~320s. Verified independently: 247/247, trajectory.csv+stdout byte-identical (zero diff)."},
-      {"step": 57, "name": "control-coefficient seam (structure only, identity by default)", "commit": "00d7219", "note": "sim/control.py gains _AERO_COEFF_CONTROLLERS/aero_coeff_delta, sim/aero.py's coefficients() calls through as the single choke point; only 'none' (identity) registered, no controller written; circular import resolved via existing project precedent (deferred import, same as flow.py/forces.py's sim.wind cycle). 2 new tests prove is-identity default and that a delta reaches all 4 consumers (force/moment/damping/CoP arm). One session-limit interruption during verification, resumed with no work lost. Verified independently: 249/249, trajectory.csv+stdout byte-identical (zero diff)."},
-      {"step": 58, "name": "run.py -> sim/report.py", "commit": "78a7e55", "note": "run.py now scenario-definition only; sim/report.py gets flight_summary/sweep/print_sweep_table/print_run_summary/save_run_artifacts/save_sweep_artifacts + a run_sweep(...) convenience wrapper. plt.show() dropped (was a known hang risk since Step 45). Step 55's deliberate aero.model='linearized' atmosphere-sweep override preserved despite the spec's own stale suggestion otherwise. Verified independently: 249/249, trajectory.csv byte-identical, stdout differs only by the now-absent plt.show() warning lines."},
-      {"step": 59, "name": "sampled-data/zero-order-hold integration mode -- unblocks B11/B12", "commit": "37f0b68", "note": "largest/riskiest step in the pass. _run_rk4 refactored (not copied) with a substep_in_tick counter triggering sim.sampling.sample(...) once per fixed-rate tick, hold constant across all 4 RK4 stages per substep. New sim/sampling.py (Hold NamedTuple + _CHANNELS dispatch registry). hold=None threaded through the full RHS chain, every pre-Step-59 call site unaffected. Gated by solver.sample_rate_hz>0.0 + requires method='rk4' (raises otherwise); non-integer T_s/dt raises. 11 new tests incl. the critical prev-threaded-once-per-tick proof. Measured ~74x slower than RK45 (ZOH overhead itself ~1%, rest is inherent fixed-step cost). Verified independently with unusual rigor given the risk: 260/260, bit-for-bit confirmed, core driver/sampling.py/control.py hold-consumption all read line-by-line against spec, the load-bearing prev-threading test read in full."},
-      {"step": 60, "name": "tracker/roadmap/LaTeX close-out -- Phase 2.11 complete", "commit": "50e1b6f", "note": "roadmap.md gains ## Phase 2.11 section; PROJECT-STATUS.md's Step-27 sweep tables re-pinned against a real run.py capture; B11/B12 marked unblocked-by-S59/law-not-written; main.tex's 2 deferred edits (items 8-9) + 1 collateral correction applied. Verified independently: 260/260 (sanity), run.py output byte-matched against the re-pinned record, from-scratch LaTeX structural check (57/0/187/48/0, clean braces+envs) matches architect's figures exactly."}
+      {
+        "step": 50,
+        "name": "Params composition, part 1 -- groups + sim/ migration",
+        "commit": "2120ed1",
+        "note": "12 group dataclasses per SS28.3; pure rename (A_x/A_z/A_m -> Aero.C_x/C_z/C_m, same un-scaled-by-q semantics, fixed at S55 not here); transitional Params.flat shim + hand-written __init__ keeps tests/run.py/apps/ working unmodified (mechanical Params( -> Params.flat( substitution only). Verified independently by orchestrator: 245/245 both sides, trajectory.csv byte-identical, stdout identical except the necessarily-changed Params repr line."
+      },
+      {
+        "step": 51,
+        "name": "Params composition, part 2 -- tests/run.py/apps/ migrated to native nested API",
+        "commit": "beaf99b",
+        "note": "164 Params.flat(...) constructions + ~104 replace() calls migrated to native nested form; scope grew mid-step (correctly) to also cover bare flat-attribute reads inside test bodies (p.m, p.R_e, p.gravity_model, d[\"params\"].gravity_model, etc.) -- orchestrator's own dispatch had underspecified this, developer flagged rather than guessed. One session-limit interruption, resumed with no work lost. Verified independently twice: 245/245 both rounds, trajectory.csv byte-identical, AST-based scan (not text grep) confirms zero residual bare flat-attribute reads outside sim/."
+      },
+      {
+        "step": 52,
+        "name": "Params composition, part 3 -- delete the transitional flat shim",
+        "commit": "6d14b7a",
+        "note": "Params.flat/_FLAT_TO_GROUP/~50 flat @property aliases removed; Params back to a plain auto-generated-__init__ dataclass. Proof the S50/S51 migration was complete: zero test edits needed, zero stdout diff at all (not just trajectory.csv/repr line -- the entire stdout, byte-identical). Verified independently: 245/245."
+      },
+      {
+        "step": 53,
+        "name": "Solver group wired into run_sim(p, s0), no more kwargs",
+        "commit": "b1f6c2e",
+        "note": "strict run_sim(p,s0) per D-10; all 67 call sites migrated (28 mechanical, 39 via params.with_solver(...)); corrected test_result_params_is_p_on_both_integrator_paths to assert against p_rk4 not stale p, exercising D-10's actual guarantee; run.py sweep()'s dead **run_kwargs removed. Verified independently: 245/245, run.py stdout+trajectory.csv byte-identical (zero diff)."
+      },
+      {
+        "step": 54,
+        "name": "LaTeX notation pass -- three aero models, C_x/C_z/C_m, shared S/d_ref (doc-only)",
+        "commit": "3373b06",
+        "note": "models.tex restated around Constant/Linearized/Table as three equally-first-class models; Constant now explicitly documented as q-scaled (reads the atmosphere like the other two); C_x=C_A/C_z=C_N bridge added; c_mq documented as applying under all three models; two collateral corrections flagged and made (analysis.tex's c_mq paragraph, main.tex's CFD-pipeline bullet). Verified independently: exactly 4 docs/latex files touched, 57 labels/0 duplicates, 186 refs/48 targets/0 dangling, brace+environment balance clean (from-scratch script, not just self-report). No LaTeX toolchain here -- structural check only, compile locally before final."
+      },
+      {
+        "step": 55,
+        "name": "aero three-way dispatch -- the bug fix",
+        "commit": "8b8a343",
+        "note": "the actual fix: 'constant' aero model is now q-scaled (AeroCoeffs bundle + _AERO_MODELS dispatch dict in sim/aero.py; forces.py's if/elif blocks removed; dynamics.py's F2 cop_l1 leak closed). 'linearized' bit-for-bit old 'coefficients'. Deliberately non-bit-for-bit (2nd time in project history, after Step 46): run.py apogee drops from ~4.6km to ~666.5m since C_x=0.5 now produces real drag. Developer found 4 more blast-radius sites than the architect's original estimate (test_control.py's _LAUNCH_AERO + 3 others), re-pinned all correctly. Verified independently: 247/247, run.py output matches exactly, dispatch/bundle/closed-form test/architecture.md diff all reviewed against spec line-by-line.",
+        "finding_not_fixed": "run.py's committed scenario has C_m=0.0 (no restoring moment), so theta stays frozen nose-up through a tail-first post-apogee descent; axial drag (alpha-independent) now accelerates that fall instead of opposing it, producing max speed (414.7 m/s) during descent rather than ascent. Pre-existing scenario-design simplification, only now consequential because the force is real. Explicitly out of S55's scope to fix (would mean changing scenario physics, e.g. nonzero C_m or a recovery model) -- flagged to the user, not silently left."
+      },
+      {
+        "step": 56,
+        "name": "one flow_state per RHS call",
+        "commit": "2720c82",
+        "note": "dynamics.derivatives computes flow_state once, threads it into aero_force_body/aero_moment_y (now require a flow param); forces3d.py's 2D-compat adapter updated to match. Pure plumbing, strictly bit-for-bit -- flow_state confirmed genuinely pure (Dryden turbulence RNG is lru_cache'd per seed, consumed once per seed for process lifetime). ~44% faster per RHS call measured (83.55us->47.01us), full suite itself ~198s vs ~320s. Verified independently: 247/247, trajectory.csv+stdout byte-identical (zero diff)."
+      },
+      {
+        "step": 57,
+        "name": "control-coefficient seam (structure only, identity by default)",
+        "commit": "00d7219",
+        "note": "sim/control.py gains _AERO_COEFF_CONTROLLERS/aero_coeff_delta, sim/aero.py's coefficients() calls through as the single choke point; only 'none' (identity) registered, no controller written; circular import resolved via existing project precedent (deferred import, same as flow.py/forces.py's sim.wind cycle). 2 new tests prove is-identity default and that a delta reaches all 4 consumers (force/moment/damping/CoP arm). One session-limit interruption during verification, resumed with no work lost. Verified independently: 249/249, trajectory.csv+stdout byte-identical (zero diff)."
+      },
+      {
+        "step": 58,
+        "name": "run.py -> sim/report.py",
+        "commit": "78a7e55",
+        "note": "run.py now scenario-definition only; sim/report.py gets flight_summary/sweep/print_sweep_table/print_run_summary/save_run_artifacts/save_sweep_artifacts + a run_sweep(...) convenience wrapper. plt.show() dropped (was a known hang risk since Step 45). Step 55's deliberate aero.model='linearized' atmosphere-sweep override preserved despite the spec's own stale suggestion otherwise. Verified independently: 249/249, trajectory.csv byte-identical, stdout differs only by the now-absent plt.show() warning lines."
+      },
+      {
+        "step": 59,
+        "name": "sampled-data/zero-order-hold integration mode -- unblocks B11/B12",
+        "commit": "37f0b68",
+        "note": "largest/riskiest step in the pass. _run_rk4 refactored (not copied) with a substep_in_tick counter triggering sim.sampling.sample(...) once per fixed-rate tick, hold constant across all 4 RK4 stages per substep. New sim/sampling.py (Hold NamedTuple + _CHANNELS dispatch registry). hold=None threaded through the full RHS chain, every pre-Step-59 call site unaffected. Gated by solver.sample_rate_hz>0.0 + requires method='rk4' (raises otherwise); non-integer T_s/dt raises. 11 new tests incl. the critical prev-threaded-once-per-tick proof. Measured ~74x slower than RK45 (ZOH overhead itself ~1%, rest is inherent fixed-step cost). Verified independently with unusual rigor given the risk: 260/260, bit-for-bit confirmed, core driver/sampling.py/control.py hold-consumption all read line-by-line against spec, the load-bearing prev-threading test read in full."
+      },
+      {
+        "step": 60,
+        "name": "tracker/roadmap/LaTeX close-out -- Phase 2.11 complete",
+        "commit": "50e1b6f",
+        "note": "roadmap.md gains ## Phase 2.11 section; PROJECT-STATUS.md's Step-27 sweep tables re-pinned against a real run.py capture; B11/B12 marked unblocked-by-S59/law-not-written; main.tex's 2 deferred edits (items 8-9) + 1 collateral correction applied. Verified independently: 260/260 (sanity), run.py output byte-matched against the re-pinned record, from-scratch LaTeX structural check (57/0/187/48/0, clean braces+envs) matches architect's figures exactly."
+      }
     ],
     "status": "COMPLETE -- all 10 steps (S50-S60) done, each independently verified and committed",
     "completed_date": "2026-10-11",
@@ -51,20 +139,67 @@
     "approved": true,
     "approved_date": "2026-10-12",
     "decisions_log": [
-      {"id": "D-18", "choice": "all per-motor stats computed locally inside the new app, sim/report.py untouched", "by": "architect's recommendation, accepted by orchestrator as the literal reading of the user's own 'separate thing' instruction -- not escalated to the user"},
-      {"id": "D-19", "choice": "ascent-only window for velocity/acceleration/max-Q extrema; whole-flight for impact time/downrange", "by": "user, selected 'Ascent-only extrema (Recommended)'"},
-      {"id": "D-20", "choice": "max acceleration computed by re-evaluating sim.dynamics.derivatives on the sampling grid, not a finite-difference of velocity", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
-      {"id": "D-21", "choice": "max acceleration = inertial |dv/dt| (gravity included), not sensed/load-factor", "by": "user, selected 'Inertial |dv/dt| (Recommended)'"},
-      {"id": "D-22", "choice": "avg velocity = trapezoid-integrated |v| over the ascent window", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
-      {"id": "D-23", "choice": "Step 62's per-motor override config is a Python literal in apps/motor_selection/motors.py, not JSON/CSV/YAML", "by": "user, selected 'Python literal (Recommended)'"},
-      {"id": "D-24", "choice": "apps/motor_selection/compare_motors.py naming, mirroring apps/cfd_conditions/select_conditions.py", "by": "architect's recommendation, accepted by orchestrator, not escalated"},
-      {"id": "D-25", "choice": "Step 61 ships tests/test_motor_selection.py with pinned-value checks, departing from App 2's untested precedent", "by": "architect's recommendation, accepted by orchestrator, not escalated -- matches this project's standing 'pin every number' discipline"},
-      {"id": "D-26", "choice": "demo baseline rocket for compare_motors.py's main(): a synthetic 1.5kg/75mm vehicle, not a reuse of run.py's 0.5kg toy (which would push the largest fixture motor past Mach 2 under a model that can't stand behind that)", "by": "architect's recommendation, accepted by orchestrator, not escalated"}
+      {
+        "id": "D-18",
+        "choice": "all per-motor stats computed locally inside the new app, sim/report.py untouched",
+        "by": "architect's recommendation, accepted by orchestrator as the literal reading of the user's own 'separate thing' instruction -- not escalated to the user"
+      },
+      {
+        "id": "D-19",
+        "choice": "ascent-only window for velocity/acceleration/max-Q extrema; whole-flight for impact time/downrange",
+        "by": "user, selected 'Ascent-only extrema (Recommended)'"
+      },
+      {
+        "id": "D-20",
+        "choice": "max acceleration computed by re-evaluating sim.dynamics.derivatives on the sampling grid, not a finite-difference of velocity",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-21",
+        "choice": "max acceleration = inertial |dv/dt| (gravity included), not sensed/load-factor",
+        "by": "user, selected 'Inertial |dv/dt| (Recommended)'"
+      },
+      {
+        "id": "D-22",
+        "choice": "avg velocity = trapezoid-integrated |v| over the ascent window",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-23",
+        "choice": "Step 62's per-motor override config is a Python literal in apps/motor_selection/motors.py, not JSON/CSV/YAML",
+        "by": "user, selected 'Python literal (Recommended)'"
+      },
+      {
+        "id": "D-24",
+        "choice": "apps/motor_selection/compare_motors.py naming, mirroring apps/cfd_conditions/select_conditions.py",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-25",
+        "choice": "Step 61 ships tests/test_motor_selection.py with pinned-value checks, departing from App 2's untested precedent",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated -- matches this project's standing 'pin every number' discipline"
+      },
+      {
+        "id": "D-26",
+        "choice": "demo baseline rocket for compare_motors.py's main(): a synthetic 1.5kg/75mm vehicle, not a reuse of run.py's 0.5kg toy (which would push the largest fixture motor past Mach 2 under a model that can't stand behind that)",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      }
     ],
     "plan": "Step 61: apps/motor_selection/compare_motors.py (basic sweep -- baseline rocket x list of motor_curve files, ranked-by-apogee table with the full ascent-window stat bundle), 2-3 new synthetic data/motors/*.csv fixtures, tests/test_motor_selection.py. Step 62: per-motor dry-rocket override config (list[MotorEntry] with motor_curve + a dotted-path Params override dict per entry, via sim.params.replace's existing multi-key support -- confirmed needs no sim/ change). One commit each, full regression suite after each, per architecture-29-motor-selection.md SS29.2-29.8.",
     "steps_done": [
-      {"step": 61, "name": "apps/motor_selection/compare_motors.py -- basic motor sweep app", "commit": "06dcffd", "note": "New apps/motor_selection/compare_motors.py (MotorEntry/MotorStats/MotorRun, build_params, flight_stats, evaluate_motor, compare_motors, print_motor_table, save_motor_csv, save_overlay, main) per SS29.2-29.6; zero sim/ changes. 4 new synthetic data/motors/*.csv fixtures (small/medium_punchy/medium_long/large, impulses 39.75/169.2/169.54/338.0 Ns) plus a matching impulse-pin test each in tests/test_thrust_curve.py. tests/test_motor_selection.py: 15 new tests, pinned-value discipline (closed-form near-ignition acceleration vs dynamics.derivatives re-evaluation, independent FD cross-check, exact total-impulse-vs-nominal agreement, build_params field-preservation, explicit unit test of the SS29.4.6 None-apogee branch, ordering invariants, the equal-impulse-pair apogee-divergence proof, the sample_rate_hz guard firing before run_sim is called). Two judgment calls, both reviewed and accepted: (1) the sample_rate_hz guard fires before run_sim in evaluate_motor/compare_motors (not only inside flight_stats after a wasted integration), matching the roadmap Check's literal text; (2) downrange_impact's fallback reads a full-flight [0,t_end] grid, not the ascent-window grid the SS29.4.5 pseudocode loosely reused. Verified independently by orchestrator: 260->279 tests, all green; git status confirms zero sim/ files touched; ran python -m apps.motor_selection.compare_motors directly -- apogee ranking tracks total impulse as expected, and the deliberate equal-impulse pair (169.2 vs 169.54 Ns) diverges meaningfully (409.6m vs 360.8m), demonstrating the tool's actual physical point; reviewed compare_motors.py and test_motor_selection.py line-by-line against the spec.", "finding_not_fixed": "recorded as roadmap.md Backlog B17: a motor_curve=\"\" entry under the demo baseline's actual aero model (C_x=0.5, frozen attitude) drives solve_ivp to fail (step-size-too-small) after an unconstrained tail-first free-fall to ~-22755m -- a sim/-level numerical-stability gap in the constant aero model under a frozen-attitude high-speed descent, in the spirit of the already-recorded Step-55/F5 finding. Out of scope for Step 61 (sim/ untouched); the test suite's own motor_curve=\"\" case uses an inert-aero baseline instead to sidestep it, documented in the test's own docstring."},
-      {"step": 62, "name": "per-motor dry-rocket override config", "commit": "e40e885", "note": "MotorEntry gains overrides: dict[str, Any] (default_factory=dict, safe on a frozen dataclass); build_params merges {\"thrust.motor_curve\": entry.motor_curve, **entry.overrides} into one sim.params.replace call -- needed zero sim/ changes, confirmed (replace already supports arbitrary multi-key dotted paths). thrust.motor_curve is reserved: an override that sets it raises ValueError pre-flight (one selector, one place -- same lesson as the aero_model/aero_table defect from Phase 2.11). New apps/motor_selection/motors.py: MOTORS list[MotorEntry], a commented Python literal per D-23 -- small motor gets a lighter/smaller-casing override set (0.9kg, 38mm body), large motor a heavier/larger one (2.4kg, 98mm body), the two equal-impulse H-class entries deliberately left override-free so their comparison isolates burn-profile effects. main() switched to use MOTORS; Step 61's override-free _demo_entries()/_demo_baseline() kept unchanged (existing tests still import them). save_motor_csv gained an overrides column. 10 new tests in tests/test_motor_selection.py (279->289): overrides change exactly the named fields and nothing else; overrides measurably change simulated apogee; the motor_curve conflict raises ValueError both from build_params directly and from compare_motors's pre-flight pass; typo'd group/field raise AttributeError/TypeError pre-flight; every Step-61 entry reproduces bit-for-bit identical Params/stats under the new build_params. Verified independently by orchestrator: 289/289 green, git diff confirms zero sim/ changes, compare_motors.py diff and motors.py reviewed line-by-line against spec, app run directly -- small motor's own lighter/smaller-diameter rocket apogees at 69.6m (vs 18.6m on the shared un-overridden baseline), large motor's own heavier/bigger rocket apogees at 543.9m (vs 996.8m on the shared baseline, since its own extra mass outweighs the thrust advantage in this configuration -- a genuine, informative trade-off result, not a bug), CSV output carries the new overrides column correctly."}
+      {
+        "step": 61,
+        "name": "apps/motor_selection/compare_motors.py -- basic motor sweep app",
+        "commit": "06dcffd",
+        "note": "New apps/motor_selection/compare_motors.py (MotorEntry/MotorStats/MotorRun, build_params, flight_stats, evaluate_motor, compare_motors, print_motor_table, save_motor_csv, save_overlay, main) per SS29.2-29.6; zero sim/ changes. 4 new synthetic data/motors/*.csv fixtures (small/medium_punchy/medium_long/large, impulses 39.75/169.2/169.54/338.0 Ns) plus a matching impulse-pin test each in tests/test_thrust_curve.py. tests/test_motor_selection.py: 15 new tests, pinned-value discipline (closed-form near-ignition acceleration vs dynamics.derivatives re-evaluation, independent FD cross-check, exact total-impulse-vs-nominal agreement, build_params field-preservation, explicit unit test of the SS29.4.6 None-apogee branch, ordering invariants, the equal-impulse-pair apogee-divergence proof, the sample_rate_hz guard firing before run_sim is called). Two judgment calls, both reviewed and accepted: (1) the sample_rate_hz guard fires before run_sim in evaluate_motor/compare_motors (not only inside flight_stats after a wasted integration), matching the roadmap Check's literal text; (2) downrange_impact's fallback reads a full-flight [0,t_end] grid, not the ascent-window grid the SS29.4.5 pseudocode loosely reused. Verified independently by orchestrator: 260->279 tests, all green; git status confirms zero sim/ files touched; ran python -m apps.motor_selection.compare_motors directly -- apogee ranking tracks total impulse as expected, and the deliberate equal-impulse pair (169.2 vs 169.54 Ns) diverges meaningfully (409.6m vs 360.8m), demonstrating the tool's actual physical point; reviewed compare_motors.py and test_motor_selection.py line-by-line against the spec.",
+        "finding_not_fixed": "recorded as roadmap.md Backlog B17: a motor_curve=\"\" entry under the demo baseline's actual aero model (C_x=0.5, frozen attitude) drives solve_ivp to fail (step-size-too-small) after an unconstrained tail-first free-fall to ~-22755m -- a sim/-level numerical-stability gap in the constant aero model under a frozen-attitude high-speed descent, in the spirit of the already-recorded Step-55/F5 finding. Out of scope for Step 61 (sim/ untouched); the test suite's own motor_curve=\"\" case uses an inert-aero baseline instead to sidestep it, documented in the test's own docstring."
+      },
+      {
+        "step": 62,
+        "name": "per-motor dry-rocket override config",
+        "commit": "e40e885",
+        "note": "MotorEntry gains overrides: dict[str, Any] (default_factory=dict, safe on a frozen dataclass); build_params merges {\"thrust.motor_curve\": entry.motor_curve, **entry.overrides} into one sim.params.replace call -- needed zero sim/ changes, confirmed (replace already supports arbitrary multi-key dotted paths). thrust.motor_curve is reserved: an override that sets it raises ValueError pre-flight (one selector, one place -- same lesson as the aero_model/aero_table defect from Phase 2.11). New apps/motor_selection/motors.py: MOTORS list[MotorEntry], a commented Python literal per D-23 -- small motor gets a lighter/smaller-casing override set (0.9kg, 38mm body), large motor a heavier/larger one (2.4kg, 98mm body), the two equal-impulse H-class entries deliberately left override-free so their comparison isolates burn-profile effects. main() switched to use MOTORS; Step 61's override-free _demo_entries()/_demo_baseline() kept unchanged (existing tests still import them). save_motor_csv gained an overrides column. 10 new tests in tests/test_motor_selection.py (279->289): overrides change exactly the named fields and nothing else; overrides measurably change simulated apogee; the motor_curve conflict raises ValueError both from build_params directly and from compare_motors's pre-flight pass; typo'd group/field raise AttributeError/TypeError pre-flight; every Step-61 entry reproduces bit-for-bit identical Params/stats under the new build_params. Verified independently by orchestrator: 289/289 green, git diff confirms zero sim/ changes, compare_motors.py diff and motors.py reviewed line-by-line against spec, app run directly -- small motor's own lighter/smaller-diameter rocket apogees at 69.6m (vs 18.6m on the shared un-overridden baseline), large motor's own heavier/bigger rocket apogees at 543.9m (vs 996.8m on the shared baseline, since its own extra mass outweighs the thrust advantage in this configuration -- a genuine, informative trade-off result, not a bug), CSV output carries the new overrides column correctly."
+      }
     ],
     "status": "COMPLETE -- both steps (S61-S62) done, each independently verified and committed",
     "completed_date": "2026-10-13",
@@ -668,5 +803,96 @@
       "next": "Waiting on the user's review of docs/latex/research/3d_equations_of_motion.md before Step 30 implementation proceeds."
     },
     "verification": "Every step's full diff independently reviewed by the orchestrator against its spec before being accepted. Full pytest suite independently re-run by the orchestrator after every step: 243/243 (Step 28), 245/245 (Step 29)."
+  },
+  "git_flow": {
+    "adopted": "2026-10-13, per explicit user instruction",
+    "trunk": "master (unchanged, stable)",
+    "integration_branch": "develop (new, branched off master)",
+    "convention": "feature/<slug> off develop, merged --no-ff back into develop; develop -> master at phase closeouts",
+    "this_phase_branch": "feature/phase2.13-apps-and-configs",
+    "commits": [
+      "25a512c (git-flow adoption: develop branch + .gitignore temp/)"
+    ]
+  },
+  "phase2_13_apps_configs": {
+    "requested": "2026-10-13, user: 5 'run files' total (3 already existed: run.py, apps/motor_selection 'App 3', apps/cfd_conditions 'App 2'); new work is App 4 (airbrake C_dA sizing, modernizing two temp/ MATLAB scratch files the user pointed at) and App 5 (weight-vs-aero trade-off tool, two possible modes left to architect's judgment); also requested a shared config-reuse system across apps, and adoption of git-flow branching.",
+    "design_doc": "docs/architecture-30-apps-4-5-and-configs.md (architecture.md SS30 pointer); roadmap.md Phase 2.13, Steps 63-69",
+    "approved": true,
+    "approved_date": "2026-10-13",
+    "decisions_log": [
+      {
+        "id": "D-28",
+        "choice": "shared ascent-window stats bundle promoted to apps/common/flight_stats.py; App 3 re-exports MotorStats = FlightStats, zero test edits",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-29",
+        "choice": "four thin root wrappers (run_motor_sweep.py, run_airbrake.py, run_cfd_conditions.py, run_trade.py) alongside unchanged run.py",
+        "by": "user, selected 'Four thin root wrappers (Recommended)'"
+      },
+      {
+        "id": "D-30/D-31",
+        "choice": "configs/ package, Python-literal modules (same convention as Step 62's motors.py, D-23); two shapes, Config (full params+s0 baseline) and Variant (named override dict, generalizing MotorEntry.overrides)",
+        "by": "user, selected 'configs/ package, Python literals (Recommended)'"
+      },
+      {
+        "id": "D-32",
+        "choice": "run.py / App 2 / App 3's demo baseline migrate onto configs/ behind a bit-for-bit output-equality gate (Step 69); apps/motor_selection/motors.py stays put",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-33",
+        "choice": "--config NAME / --list-configs CLI via apps/common/cli.py on the new apps/wrappers",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-34",
+        "choice": "App 4 solves for the scalar C_dA_airbrake (not S_max/Cd jointly -- the sim only ever uses the product, so solving both is ill-posed); airbrake_Cd is a fixed design input, S_max is back-computed and reported",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-35",
+        "choice": "App 4 search method: scipy.optimize.brentq root-find on apogee(C_dA) - target (exploits measured strict monotonicity); minimize_scalar/fminbnd-style squared-residual search available as a method= fallback",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-36-revised",
+        "choice": "Part 1: small isolated sim/ change (sim/params.py +2 defaulted Control fields, sim/control.py +~35 lines: trigger dispatch dict for after_burnout/after_time/after_apogee + one 'full open' law, same shape as sim/forces.py's existing parachute_deployed timer/apogee triggers; bit-for-bit safe by construction, _proportional_airbrake itself untouched; the phase's only sim/ step, Step 65). Part 2: after-apogee trigger IS implemented, but App 4 detects the flat objective (apogee flat to 2.4mm across the whole C_dA range once apogee-gated) and refuses to solve, with a clear explanation naming backlog B17/B23 as the root cause (frozen-attitude tail-first descent is nonphysical in this simulator today). Part 3: App 4 also solves for deploy time at a fixed known C_dA (apogee measured monotone in deploy time too; same brentq seam, ~10 extra lines).",
+        "by": "user, directly answered all three parts (not just accepting an architect recommendation) -- initial user answer to the original D-36 question ('for airbrake there are three laws u should implement... after burnout, after specified time, after apogee. yes no sim file touched') contained a real tension the architect confirmed by reading sim/control.py and by measurement; orchestrator sent it back to the architect rather than silently resolving it, then re-asked the user with the concrete finding; user chose the small-sim/-change path for Part 1, refuse-to-solve for Part 2, and yes-support-both-solve-targets for Part 3"
+      },
+      {
+        "id": "D-37",
+        "choice": "App 4 runs the full launch-to-apogee flight per solver iterate, not a mid-flight-state-injected reduction matching the MATLAB precedent literally (measured faithful and simpler; restart-from-burnout optimization recorded as backlog B21)",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-38",
+        "choice": "App 5 builds both modes: weight-vs-aero trade surface (mode b) first, then named-configuration comparison (mode a) second, reusing the new Config/Variant system",
+        "by": "user, selected 'Both: surface first, then comparison (Recommended)'"
+      },
+      {
+        "id": "D-39",
+        "choice": "trade surface axes: C_dA swept via aero.C_x at fixed aero.S (measured: apogee is an exact function of the product S*C_x) x weight.m",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-40",
+        "choice": "surface recomputed on demand (CSV + contour PNG under gitignored output/, apogee_at()/exchange_rate() query API), not committed as a data/ input",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-41",
+        "choice": "pinned tests per new step (round-trip / monotonicity / axis-invariance checks), same standing as every other step in this project",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      },
+      {
+        "id": "D-42",
+        "choice": "app naming: apps/airbrake_sizing/solve_cda.py, apps/weight_aero_tradeoff/{trade_surface,compare_configs}.py",
+        "by": "architect's recommendation, accepted by orchestrator, not escalated"
+      }
+    ],
+    "plan": "Steps 63 (configs/ package), 64 (apps/common/ promotion), 65 (sim/control.py airbrake triggers -- D-36-gated, the phase's only sim/ step), 66 (App 4: airbrake C_dA sizing), 67 (App 5 mode b: trade surface), 68 (App 5 mode a: named-config comparison), 69 (migrate run.py/App2/App3 onto configs/, bit-for-bit). Steps 63/64/67 are parallel-safe against each other and against 65; only 66 blocks on 65. Implemented sequentially per this project's standing one-step-one-commit-full-regression rule.",
+    "steps_done": [],
+    "status": "DESIGN APPROVED, implementation starting"
   }
 }

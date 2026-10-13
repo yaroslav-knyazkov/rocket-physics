@@ -1625,7 +1625,7 @@ project's history after Step 46. Dependency chain and the seventeen decision for
 
 ---
 
-## Phase 2.12 — Motor-selection app (consumer app, no `sim/` physics) — DESIGNED, NOT APPROVED
+## Phase 2.12 — Motor-selection app (consumer app, no `sim/` physics) — COMPLETE (Steps 61-62 done, commits `06dcffd`/`e40e885`)
 
 Requested by the user on 2026-10-12: "I need an app … that I can input different motors and it gives
 me the trajectories (i.e. sweep over thrust curves with result of highest apogee (for now only this
@@ -1656,7 +1656,7 @@ in exactly the requested `C_dA_total = C_dA_rocket + C_dA_airbrake` form (additi
 `architecture.md` §27.3. Recorded here so the request is traceable to its existing implementation
 rather than re-opened later.
 
-### Step 61 — Motor-selection sweep app (App 3) + synthetic motor fixtures — not started
+### Step 61 — Motor-selection sweep app (App 3) + synthetic motor fixtures — done, commit `06dcffd`
 - **Files:** new `apps/motor_selection/compare_motors.py`; new
   `data/motors/{synthetic_small,synthetic_medium_punchy,synthetic_medium_long,synthetic_large}.csv`;
   new `tests/test_motor_selection.py` plus one impulse-pin per fixture appended to
@@ -1696,7 +1696,7 @@ rather than re-opened later.
   prediction, not a verified fact).
 - **Commit:** "Step 61 (Phase 2.12): motor-selection sweep app (App 3) + synthetic motor fixtures"
 
-### Step 62 — Per-motor configuration methodology (dry-rocket overrides) — not started
+### Step 62 — Per-motor configuration methodology (dry-rocket overrides) — done, commit `e40e885`
 - **Files:** `apps/motor_selection/compare_motors.py` (one new dataclass field, one guard, one
   `build_params` line, one CSV column); new `apps/motor_selection/motors.py`;
   `tests/test_motor_selection.py`. **No `sim/` file.**
@@ -1722,6 +1722,320 @@ rather than re-opened later.
   `AttributeError` and a typo'd field raises `TypeError`, both from `replace` and both **before any
   integration**. Full suite green; the configured table goes in the step report.
 - **Commit:** "Step 62 (Phase 2.12): per-motor configuration methodology (dry-rocket overrides)"
+
+---
+
+## Phase 2.13 — Apps 4-5, the shared app layer, reusable configs — DESIGNED, PARTLY APPROVED (D-36 open)
+
+Requested by the user on 2026-10-13: "I want to have 5 run files. 1st simple simulation, 2nd motor
+sweep, 3rd air brakes parameter determination (the goal is to determine C_dA of airbrakes …; smn like
+this but this time I have proper solver), 4th cfd input parameter determination (the weight function
+you did before), 5th cfd optimization (weight vs aero; … idk if there should be a 2 (or more) input
+scenarios where one can compare the performance of configurations or if we should precompute changes
+in drag vs weight, plot it and get surface which can be used for every component; decide but there
+probably can be implemented both). where do you store the non-simulation algorithms? /apps? also it
+would be nice to be able to create configs and reuse them across multiple apps (and many configs to
+track history + use different for different apps)."
+
+Two of the five already exist and are untouched: the user's **"2nd"** is App 3
+(`apps/motor_selection/`, Steps 61-62) and their **"4th"** is App 2 (`apps/cfd_conditions/`). Their
+**"1st"** is `run.py`, which stays at the repo root — it is the scenario flown once with the house
+reporting, a different kind of thing from the `apps/` studies, and it has never carried an "App N"
+label. **The internal "App N" numbering is not the user's 1-5 list order:** App 2 = CFD conditions,
+App 3 = motor selection, **App 4 = airbrake sizing (new)**, **App 5 = weight-vs-aero trade (new)**.
+So the genuinely new work is the user's "3rd" and "5th" items plus the cross-cutting config system.
+
+Design: `docs/architecture-30-apps-4-5-and-configs.md` (pointed to from `architecture.md` §30);
+fifteen decision forks **D-28 … D-42** in §30.10. Step numbers continue the sequence (last used:
+Step 62); Phase 3 keeps its reserved 28-32 block.
+
+**Decision state, 2026-10-13.** The user approved **D-29** (four thin root wrappers,
+`run_motor_sweep.py` / `run_airbrake.py` / `run_cfd_conditions.py` / `run_trade.py`, with `run.py`
+unchanged), **D-30/D-31** (the `configs/` package of Python literals, `Config` + `Variant`) and with
+them **D-32** (migrate `run.py`/App 2/App 3's demo baseline behind the bit-for-bit gate;
+`apps/motor_selection/motors.py` stays put), and **D-38** (both App 5 modes, surface first). They
+also asked for **three airbrake deployment laws — "after burnout, after specified time, after
+apogee" — and in the same breath for "no sim file touched"**, which reopened **D-36**: those two
+requirements cannot both hold. Reading and measurement (§30.2 F15-F19) confirm that "after burnout"
+is free through `Params`, but "after a specified time" is unreachable (`t` enters
+`_proportional_airbrake` only through `thrust_curve.thrust`, and `Params.control` has no time field)
+and "after apogee" is structurally impossible (`y[VZ] >= 0.0 → return 0.0` is in the law's body);
+Step 59's `hold`/sampling path is not an escape hatch either, since it recomputes the same law once
+per tick behind a module-private registry. **So this phase now contains exactly one `sim/` step,
+Step 65, and it is D-36-gated:** +2 defaulted `Control` fields and ~35 lines in `sim/control.py` for
+a trigger dispatch dict, copying the shape `sim/forces.py`'s `parachute_deployed` already uses for
+the parachute's `timer`/`apogee` triggers. Everything else in the phase remains a **pure consumer**
+on the App-2/App-3 rule, with no new dependency and **no `docs/latex/` pass** — this phase adds no
+physics, so `main.tex` has nothing to record.
+
+Seven load-bearing design facts, all **measured against this tree** rather than assumed (§30.2
+F5-F19, numbers cached there so nobody re-runs them): (1) a *held-fully-open* airbrake needs no
+`sim/` change — a saturated proportional law gives a deploy fraction of exactly `1.0` from burnout to
+apogee and exactly `0.0` outside it, matching a clean `"after_burnout"` law to ~1e-7 m, and
+`sim/control.py`'s existing gate already *is* the physically right deployment window; (2) apogee is
+strictly monotone decreasing in `C_dA_airbrake` over the
+MATLAB precedent's full `[0, 10]` bounds, so App 4 is a bracketed `brentq` **root-find** (17 runs,
+1.2 s, 1.4e-4 m residual) and not the precedent's squared-residual minimization — and bracketing
+*proves* reachability, turning "no brake setting can reach your target" into a diagnostic instead of
+a plausible-looking converged bound; (3) a mid-flight restart with the motor curve left in place
+**re-ignites the motor at `t = 0`** (1954.7 m instead of 996.8 m), which is why App 4 runs
+launch→apogee; (4) apogee is a function of the **product** `aero.S * aero.C_x` to the last printed
+digit, which licenses App 5's one-dimensional drag axis — provided it is swept via `aero.C_x` at
+fixed `aero.S`, since `S` also scales the normal force and the pitching moment; (5) one `run_sim` is
+~47-91 ms, so App 5's 121-point trade surface costs 5.75 s and its measured exchange rate at the demo
+vehicle is **1 g of added mass ≈ 1.86 mm² of `C_dA`** — the number the whole app exists to produce;
+(6) a **"deploy after a specified time"** trigger spans a genuinely larger design space than
+"after burnout" and is monotone in *both* variables (apogee 387.8 m at `t_deploy = 0` rising to
+987.9 m at `t_deploy = 10 s`, and still strictly decreasing in `C_dA` at fixed `t_deploy`), so it
+supports two well-posed 1-D solves — for the brake area, and for the deployment instant
+("my brake is this big, when do I pop it?"); (7) a **post-apogee** brake leaves the apogee **flat to
+2.4e-3 m across `C_dA ∈ [0, 10]` m²**, i.e. pure solver noise against 779 m of signal for the same
+sweep after burnout — it is *exactly* insensitive by construction, so App 4 must refuse to solve
+under that trigger rather than return a number; and the descent it would otherwise be judged on is
+nonphysical here (impact at **5285 m/s** with a 0.01 m² brake, no ground event at all for
+`C_dA ≥ 0.1 m²`, because the axial aero force acts along the **body** axis while a `C_z = C_m = 0`
+vehicle keeps a frozen nose-up attitude through a tail-first fall — backlog **B17**, now with
+**B23** recording the blocked descent objective).
+
+The convention this phase establishes, stated once: **`configs/<name>.py` is a complete runnable
+scenario** (`Params` + initial `State` + provenance) reusable by every tool including `run.py`, while
+**`apps/<app>/<study>.py` is that one study's list of deltas** (`list[Variant]`, or App 3's existing
+`list[MotorEntry]`) applied onto whichever config the app is pointed at. `apps/motor_selection/
+motors.py` therefore **does not move** — it is App 3's own study list and belongs where it is.
+
+### Step 63 — `configs/` — the shared configuration package — not started
+- **Files:** new `configs/{__init__.py,schema.py,toy_05kg.py,demo_75mm.py,demo_75mm_airbrake.py}`;
+  new `tests/test_configs.py`. **No `sim/` file, no `apps/` file, no `run.py`.**
+- **Spec:** `architecture-30-apps-4-5-and-configs.md` §30.4 in full, plus §30.8's `test_configs.py`
+  block and §30.3's directory tree for placement. Nothing else.
+- **Do:** `Config` (name, `params`, `s0`, `notes`, `derive`, `with_variant`) and `Variant` (name,
+  `overrides`, `notes`, `apply`) in `schema.py` — both frozen dataclasses, `derive` going through
+  `sim.params.replace`'s existing multi-key dotted-path call (§29 F1, no `sim/` change). The registry
+  **is** the package API: `configs/__init__.py` holds an **explicit** module tuple (not directory
+  auto-discovery — a half-finished draft must not break every app's import, and "who uses this
+  config" must stay greppable), `CONFIGS`, `names()`, and a `get()` whose `KeyError` lists every
+  available name. Three seed configs; `toy_05kg` and `demo_75mm` are copied **number-for-number**
+  (with their existing justifying comments) from `run.py`'s literal and
+  `compare_motors._demo_baseline()`, which is what makes Step 69 a provable no-op. Config modules
+  import `from configs.schema import Config`, **never** `from configs import Config` — the package
+  `__init__` imports them, so reaching back into the partially-initialised package namespace would be
+  a circular import. Format is a commented Python literal: not a new decision, it is **D-23**,
+  already user-approved at Step 62, for reasons that apply verbatim (`None` is meaningful, the key
+  set is open and sparse, every number is justified in a comment, no parser for this project to own).
+- **Check:** the two **exact-equality pins** are the primary checks — `get("toy_05kg").params` equals
+  `run.py`'s literal and `get("demo_75mm").params` equals `_demo_baseline()`, by dataclass equality,
+  `s0` included. Then: every registry key equals its module basename; `get("nope")`'s message
+  contains every name; `derive` changes exactly the named fields and leaves every other field of
+  every group equal (the `replace` no-silent-reset property), inherits `s0` unless overridden, and
+  does not mutate the original; `Variant.apply == Config.with_variant` with the composed name; every
+  registered config actually flies (`run_sim` returns an apogee event); and no circular import —
+  `import configs.demo_75mm` works as the first import in a fresh interpreter, and so does
+  `import configs`. Full suite green, count up by this step's tests only.
+- **Commit:** "Step 63 (Phase 2.13): configs/ -- reusable named scenario configurations"
+
+### Step 64 — `apps/common/` — promote the shared app layer out of App 3 — not started
+- **Files:** new `apps/common/{flight_stats.py,artifacts.py,cli.py}`;
+  `apps/motor_selection/compare_motors.py` (imports, the `MotorStats` alias, the local `_OUTPUT_DIR`).
+  **`tests/test_motor_selection.py` must not be edited. No `sim/` file.**
+- **Spec:** §30.5 in full; §30.2 **F11** (exactly which names the existing tests import, and why a
+  re-export is what keeps them green — the suite imports `flight_stats` from `compare_motors` and
+  never names `MotorStats` at all); §30.8's Step 64 gate; decision **D-28**.
+- **Do:** move `MotorStats` (renamed `FlightStats`, fields and docstrings unchanged), `flight_stats`,
+  `_assert_derivatives_reconstructible` and the two grid constants into `apps/common/flight_stats.py`
+  **verbatim**, and re-export from `compare_motors` with `MotorStats = FlightStats` so nothing
+  downstream moves. `artifacts.py`: the `OUTPUT_DIR` both existing apps hand-roll, defined once, plus
+  `ensure_dir`. `cli.py`: `add_config_arg`/`resolve_config` implementing `--config NAME` and
+  `--list-configs` against the Step-63 registry (~30 lines of argparse, no subcommand framework; Apps
+  2 and 3 do **not** get a CLI in this phase). Record in `flight_stats.py`'s docstring that the
+  ascent-window and `derivatives`-re-evaluation conventions are D-19…D-22, decided at Phase 2.12, and
+  that this file is their one home now. The rule for what may live here: two or more apps need it
+  **and** it computes something — printing, table columns and plot styling stay per app.
+- **Check:** **the gate is bit-for-bit, not new coverage** — 289/289 green with **zero test-file
+  edits**, and App 3's printed table plus `output/motor_selection.csv` byte-identical to a pre-step
+  run (capture both, diff them, paste the empty diff into the step report). One new test that
+  `compare_motors.MotorStats is apps.common.flight_stats.FlightStats`, so the alias cannot drift into
+  a second dataclass. No app other than App 3 imports `apps.common` yet, by design.
+- **Commit:** "Step 64 (Phase 2.13): apps/common/ -- shared flight-stats, artifact and CLI layer"
+
+### Step 65 — Airbrake deployment triggers in `sim/control.py` — not started, **D-36-gated (the phase's only `sim/` step)**
+- **Files:** `sim/params.py` (**+2 defaulted fields** on `Control`, nothing else); `sim/control.py`
+  (**+~35 lines**); `tests/test_control.py` (append). **`_proportional_airbrake` is NOT edited. No
+  other `sim/` file, no `apps/` file, no `run.py`.**
+- **Spec:** `architecture-30-apps-4-5-and-configs.md` §30.6.1 in full (the code shape, the field
+  names, the line-count estimate, the bit-for-bit argument); §30.2 **F15-F19** (why this step exists
+  and what each trigger is measured to do); §30.8's `test_control.py` block. The pattern to copy is
+  `sim/forces.py:280-292` (`parachute_deployed`), which already implements the parachute's
+  `timer`/`apogee` triggers in exactly this shape. Decision **D-36-revised**.
+- **Do:** `Control` gains `airbrake_trigger: str = "after_burnout"` (`after_burnout | after_time |
+  after_apogee`) and `airbrake_deploy_time: float = 0.0`, both commented in `params.py`'s house
+  style and mirroring `Recovery.trigger`/`Recovery.deploy_time`. `sim/control.py` gains three pure
+  trigger predicates (`thrust(t,y,p) <= 0.0`; `t >= p.control.airbrake_deploy_time`;
+  `y[VZ] > 0.0`), the module-private `_AIRBRAKE_TRIGGERS` dispatch dict (architecture.md §12's
+  convention — unknown strings raise `KeyError` at the first call, no input validation), the
+  `airbrake_triggered(t, y, p)` seam, and a `"full"` deployment law returning `1.0`/`0.0` from the
+  trigger instant — registered as a **third** `_AIRBRAKE_CONTROLLERS` entry beside the untouched
+  `"none"`/`"proportional"`. A trigger dict rather than three more controller entries because the
+  trigger is **orthogonal** to the deployment law; that also leaves the seam through which
+  `"proportional"` could later be gated on a chosen trigger (deliberately **not** done here — see
+  §30.12's rejected options). The module docstring records: each trigger is a pure *onset* latch with
+  no retraction (B19); `after_apogee` uses the `y[VZ] > 0.0` state predicate, never the apogee
+  *event*, for `parachute_deployed`'s own reason (the RHS runs before any event is finalised) and
+  with its same documented caveat (a pre-apogee `v_z` transient would arm it early); and
+  `airbrake_deploy_time = 0.0` under `"after_time"` means "deployed from `t = 0`", the same semantics
+  `Recovery.deploy_time = 0.0` already carries.
+- **Check:** **the gate is bit-for-bit** — 289/289 green with **no existing test edited**; if any
+  existing test needs a change, the step is wrong (every new field is defaulted, every new dispatch
+  entry is unreachable unless named, `"proportional"` is untouched). Then: `Control()` defaults to
+  `airbrake_trigger == "after_burnout"` / `airbrake_deploy_time == 0.0`; one predicate test per
+  trigger on hand-built state vectors (`after_burnout` false under thrust and true after;
+  `after_time` false for `t < deploy_time`, true at/after; `after_apogee` false for `vz < 0`, false
+  at exactly `vz == 0.0` — the pad case — and true for `vz > 0`); `_full_airbrake` returns only
+  `0.0` or `1.0`; an unknown trigger raises `KeyError`; and the F17 equivalence — `"full"` +
+  `after_burnout` reproduces the saturated-proportional apogee to ~1e-6 m (a solver-tolerance claim,
+  asserted loosely, not an identity). `git diff --stat` must show exactly two `sim/` files and `+2`
+  lines in `sim/params.py`.
+- **Commit:** "Step 65 (Phase 2.13): airbrake deployment triggers (after_burnout | after_time | after_apogee)"
+
+### Step 66 — App 4: airbrake `C_dA` determination against the real solver — not started
+- **Files:** new `apps/airbrake_sizing/{solve_cda.py,targets.py}`; new `run_airbrake.py`; new
+  `tests/test_airbrake_sizing.py`. **No `sim/` file, no other app.**
+- **Needs:** Steps 63, 64 and **65** (the trigger dispatch). Parallel-safe against Step 67.
+- **Spec:** §30.6 in full **including §30.6.1** (the three triggers and the per-trigger solver
+  semantics table); §30.2 **F1-F8** and **F15-F19** (F5/F17's override dict, F6/F7's measured
+  monotonicity and cost, F18's second solve direction, F19's refusal); §30.8's
+  `test_airbrake_sizing.py` block; §30.3 for the wrapper. Decisions **D-34** (what scalar), **D-35**
+  (method), **D-36-revised** (triggers), **D-37** (launch-to-apogee).
+- **Do:** `AirbrakeSpec` (target apogee; the **trigger** and its `deploy_time_s`; `solve_for`
+  = `"cda" | "deploy_time" | "none"`; brake `Cd`; `C_dA` bounds defaulting to the precedent's
+  `[0, 10]` as a **user input, not a constant**; tolerance) and `AirbrakeSolution` (the solved
+  `C_dA_airbrake`, the implied `S_max = C_dA/Cd`, `C_dA_rocket`/`C_dA_total`, achieved vs target,
+  the trigger that flew and its instant, `reachable`, `converged`, run count, both envelope apogees,
+  the `Params`/`Result`/`FlightStats` at the solution, and both envelope `Result`s for the overlay).
+  `brake_overrides` is the **single** place the override dict is built — under Step 65 it is the
+  plain `"full"` + trigger + time + `Cd` + `S_max` dict with no gain to explain (and the single thing
+  a future combined-`C_dA` refactor touches). `apogee_for_cda` and `apogee_for_deploy_time` are the
+  two objective-function seams, the role `evaluate_motor` plays in App 3. One `_solve_scalar` helper
+  implements §30.6's five steps — **refuse up front under `after_apogee`** (F19: the objective is
+  flat by construction, there is nothing to solve), run both bounds (2 runs, free diagnostics),
+  **diagnose a flat objective and an unbracketed target separately** and report either loudly
+  instead of returning a plausible-looking bound, `brentq`, one final run, full stats — with
+  `solve_airbrake` dispatching on `spec.solve_for` and `evaluate_airbrake` serving the report-only
+  path. The mirror solve (`solve_for="deploy_time"`) reuses the same helper with the inequality
+  reversed, because apogee is monotone **increasing** in `t_deploy` (F18). `C_dA_rocket` is reported as `None`
+  unless `aero.model == "constant"` (under `"linearized"`/`"table"` the airframe's own `C_dA` is
+  Mach/alpha-dependent and no single number is honest — the brake's stays exactly constant either
+  way, so the answer is still well-defined); the app **owns** `control.airbrake_*` entirely and says
+  so when it overrides a config that already carried a solution. Artifacts: a printed report in the
+  §30.6 shape (including the trigger line and, for the two refusal paths, §30.6's exact diagnostic
+  wording), `output/airbrake_sizing.csv`, and `output/airbrake_sizing_overlay.png` via
+  `sim.plotting.plot_trajectory_overlay({"brake stowed": …, "solved C_dA": …, "brake fully open": …})`
+  — the MATLAB precedent's altitude/velocity plot plus both envelopes, in one line, zero `sim/`
+  change in *this* step. `targets.py` holds the named `SPECS` dict of §30.6 (a target apogee is a
+  mission requirement, not a vehicle property, which is why it is a study input and not a config
+  field).
+- **Check:** the **round-trip pin** is the primary check and needs no external truth: pick a `C_dA*`,
+  run it, take its apogee as the target, solve — the solver must return `C_dA*` to a stated tolerance
+  (this catches a wrong override key, a sign error or a units error immediately). Then: strict
+  monotonicity of `apogee_for_cda` across the bounds **and** strictly increasing
+  `apogee_for_deploy_time` (F18), each with its own round-trip; the **`after_apogee` refusal** —
+  `solve_airbrake` raises `ValueError` naming the flat-objective reason *without* running a search,
+  and `evaluate_airbrake` under that trigger returns the brake-stowed apogee to within 1e-2 m for
+  **any** `C_dA` (F19's measured independence, asserted as the property it is); the
+  **flat-objective detector** firing with the *other* message for an `after_time` spec whose
+  `deploy_time` is past the brake-closed apogee; `brake_overrides` +
+  `control.airbrake_deploy_fraction` exactly `0.0` before and exactly `1.0` after the trigger
+  instant, for each of the three triggers; `S_max == C_dA/cd_brake` for a non-unity
+  `cd_brake`, and two `(Cd, S_max)` pairs with equal product give the same apogee (F1's product-only
+  property); an unreachable target above the brake-closed apogee gives `reachable is False` and a
+  clamped bound with no exception, and likewise below the fully-open apogee; a config that never
+  leaves the pad raises `ValueError` naming the config; `sample_rate_hz = 1000.0` raises **before**
+  the first `run_sim`. Finally the app runs end to end against `demo_75mm_airbrake` for each of the
+  four named specs (the burnout solve, the timer solve, the mirror `solve_for="deploy_time"` solve and
+  the report-only post-apogee one) and writes both artifacts — **the actual numbers go in the step
+  report; this design pins no apogee values** — and `git status` shows **zero** `sim/` files touched
+  **by this step** (Step 65 owns the whole `sim/` diff for the phase).
+- **Commit:** "Step 66 (Phase 2.13): App 4 -- airbrake C_dA determination against the real solver"
+
+### Step 67 — App 5 mode (b): the weight-vs-aero trade surface — not started
+- **Files:** new `apps/weight_aero_tradeoff/{trade_surface.py,scenarios.py}`; new `run_trade.py`; new
+  `tests/test_weight_aero_tradeoff.py`. **No `sim/` file, no other app.** Needs Steps 63 and 64 only
+  — independent of Step 65, since App 5 never touches the airbrake — and parallel-safe against
+  Step 66 (disjoint new directories).
+- **Spec:** §30.7.1 in full; §30.2 **F9-F10** and **F13**; §30.8's surface block; §30.3 for the
+  wrapper. Decisions **D-38** (both modes, surface first), **D-39** (axes), **D-40** (not persisted).
+- **Do:** `TradeAxes`/`TradeSurface` with `apogee_at` (bilinear, exact at nodes), `gradients`
+  (`np.gradient` on the computed grid — **no extra simulator runs**, sound because F10 measured the
+  grid smooth and monotone in both directions) and `exchange_rate(cda, m)` = `-(dA/dC_dA)/(dA/dm)`,
+  the implicit-function slope of an iso-apogee contour; `build_surface`, `print_surface_table`,
+  `print_exchange_rates`, `save_surface_csv` (long format: `m_kg, cda_m2, apogee_m` — joinable and
+  plottable in anything), `save_contour_plot` (filled iso-apogee contours, `C_dA` on x, mass on y,
+  baseline marked — **app-local matplotlib**, because `sim/plotting.py`'s contract is `Result →
+  Figure` and a surface is not a `Result`), `main`. The `C_dA` axis is swept via **`aero.C_x` at
+  fixed `aero.S`** and F9's reason goes in the docstring, not just the code: apogee depends on the
+  product `S*C_x` exactly, but `S` *also* scales the normal force and the pitching moment, so
+  sweeping `S` would move three things at once. Exchange rates are printed in design units (mm² of
+  `C_dA` per gram, and g per cm²) alongside both raw sensitivities, **at several grid points, not
+  one** — the rate is local and the surface is visibly nonlinear. `nan` grid points (a flight with no
+  apogee event) propagate through `np.gradient` and are **counted** in the printed output, not
+  silently dropped. `weight.I` is held fixed on the mass axis — exact for the attitude-frozen demo
+  scenario, an approximation otherwise; printed with the surface and recorded as **B22**.
+  `scenarios.py` carries the default grid literal (F10's measured box, 11×11 ≈ 5.8 s) with its
+  justification.
+- **Check:** the **exact `S*C_x` invariance** (two configs with the same product give the same apogee
+  bit-for-bit — the fact the 1-D drag axis stands on) and **node-exact interpolation**
+  (`apogee_at(grid point)` reproduces the stored value exactly — the classic off-by-one-axis bug) are
+  the primary checks. Then: `apogee.shape == (len(mass_values), len(cda_values))`, monotone
+  decreasing along both axes; `exchange_rate` is negative and agrees to ~10 % with
+  `-(dA/dC_dA)/(dA/dm)` computed from two **independent** direct finite-difference `run_sim` pairs
+  (this is what proves the axis order and the gradient units); a deliberately unflyable mass row
+  propagates as `nan` and is counted. `python run_trade.py --mode surface` prints the table and the
+  exchange rates and writes CSV + PNG; the baseline exchange rate and the 121-run wall-clock go in
+  the step report (F10's ~1.86 mm²/g and ~5.8 s are the expected **order of magnitude, not a pin**).
+- **Commit:** "Step 67 (Phase 2.13): App 5 mode (b) -- weight-vs-aero trade surface and exchange rate"
+
+### Step 68 — App 5 mode (a): named-configuration comparison — not started
+- **Files:** new `apps/weight_aero_tradeoff/compare_configs.py`;
+  `apps/weight_aero_tradeoff/scenarios.py` (append `SCENARIOS`); `run_trade.py` (the `--mode`
+  branch); `tests/test_weight_aero_tradeoff.py` (append). **No `sim/` file, no other app.** Not
+  parallel-safe with Step 67 (shares the app directory, `scenarios.py` and the wrapper).
+- **Spec:** §30.7.2 in full; §30.8's mode-(a) bullets; `apps/motor_selection/compare_motors.py`
+  lines 320-416 as the shape to mirror.
+- **Do:** `ConfigRun` (config, `Result`, `FlightStats`, plus the two columns that make this a *trade*
+  table rather than a generic one: `mass_kg` and `cda_axial = S*C_x`, the latter `None` unless
+  `aero.model == "constant"`); `evaluate_config` (the objective-function seam), `compare_configs`
+  (ranked by apogee descending, `None` apogee last — App 3's rule), `print_comparison_table`,
+  `save_comparison_csv`, `save_overlay` (`plot_trajectory_overlay`, F13), `main`. Inputs are
+  `SCENARIOS: list[Variant]` in `scenarios.py` applied to the `--config` baseline, each entry's
+  `notes` recording where its numbers came from (a CFD run, a measurement, a guess); `--config a,b,c`
+  also accepts full registry names, which is the case that justifies this mode existing at all —
+  two candidates that differ in their aero *model*/table, motor, geometry or site are **not** two
+  points on Step 67's surface and only a side-by-side run can compare them.
+- **Check:** ranking non-increasing with `None` last; `cda_axial is None` under `aero.model="table"`;
+  a `Variant` changes exactly its named fields. `python run_trade.py --mode compare` prints the ranked
+  table and writes both artifacts; the table goes in the step report. One cross-check line in the
+  report: for two scenarios differing **only** in `(m, C_dA)` and lying inside Step 67's grid box,
+  mode (a)'s apogees agree with `TradeSurface.apogee_at` to interpolation accuracy — the two modes
+  must not disagree where they overlap.
+- **Commit:** "Step 68 (Phase 2.13): App 5 mode (a) -- named-configuration comparison"
+
+### Step 69 — Migrate `run.py` and Apps 2-3 onto `configs/` (bit-for-bit) — not started (**D-32 approved**)
+- **Files:** `run.py`; `apps/cfd_conditions/select_conditions.py`;
+  `apps/motor_selection/compare_motors.py` (`_demo_baseline` becomes a one-line re-export of
+  `configs.demo_75mm.CONFIG`); new `run_motor_sweep.py`, `run_cfd_conditions.py`;
+  `tests/test_configs.py` (append). **No `sim/` file.**
+- **Spec:** §30.4's seed-config table (the byte-equality requirement), §30.3 (the five run files and
+  the wrapper shape), decisions **D-29**, **D-32**.
+- **Do:** replace the three in-place `Params`/`State` literals with `configs.get(...)` lookups so the
+  demo baseline stops existing twice — keeping `_demo_entries()` and `MOTORS` exactly where they are
+  (study input, not vehicle config). Add the two remaining root wrappers (~6 lines each: a docstring
+  naming which of the five it is, the `--config` call, `main()`), and one docstring line to `run.py`
+  saying it is the first of the five and that the other four live under `apps/`. `run.py` is not
+  renamed, not moved and **not** turned into a dispatcher.
+- **Check:** **the gate is bit-for-bit** — `run.py`'s printed summary, both of its sweep tables and
+  `output/trajectory.csv`; App 2's printed condition table and `output/cfd_conditions.csv`; App 3's
+  table and `output/motor_selection.csv` — all byte-identical to a pre-step run. 289+ green with no
+  edits to `tests/test_motor_selection.py`. All five entry points run from a clean checkout.
+- **Commit:** "Step 69 (Phase 2.13): migrate run.py and Apps 2-3 onto configs/ (bit-for-bit)"
 
 ---
 
@@ -1982,6 +2296,67 @@ on record (a vehicle with no restoring moment falls tail-first, and once drag is
 `sim/` was out of scope for Step 61. A future `sim/` pass should look at whether the `"constant"`
 model (or `solve_ivp`'s own step-size floor) needs a guard for this regime.
 
+### B18 — Higher-dimensional trade studies (motor × mass × `C_dA`, or target × vehicle)  *(opened by the §30 design)*
+App 5's trade surface is two-dimensional because that is what plots, and because a 121-point grid is
+5.75 s (§30.2 F10). A third axis is mechanically a nested loop over the same `build_surface` seam,
+but the output stops being a contour plot and becomes a table or a slice viewer — a different
+question with a different artifact, so it is a separate tool, exactly as **B16** concluded for App 3.
+`architecture-30-apps-4-5-and-configs.md` §30.12.
+
+### B19 — Airbrake deployment beyond a pure onset latch  *(opened by the §30 design)*
+Step 65 (if D-36-revised is approved) gives three *onset* triggers — `after_burnout`, `after_time`,
+`after_apogee` — and a fully-open/stowed latch, which is the user's own "for now only as change in
+`C_dA`" scope. Everything past that is here: retraction and a second condition per trigger, an
+actuator rate limit, a partial-deployment *schedule* (ramp to a fraction rather than a latch), an
+altitude trigger, a `C_dA(M)` dependence, re-gating the existing `"proportional"` law on the same
+trigger dispatch (three lines, and even bit-for-bit under the default trigger — deliberately **not**
+done in Step 65, whose whole value is a provably zero blast radius), and the user's own stated
+direction of folding the brake into one combined `C_dA` through the Step-57 `aero_coeff_delta` seam.
+Only two places are ever touched by any of it: `sim/control.py`'s `_AIRBRAKE_TRIGGERS` and App 4's
+`brake_overrides`.
+
+### B20 — CFD-output ingestion: closing the loop App 2 and App 5 open  *(opened by the §30 design)*
+App 2 produces the `(V, alpha, M, Re)` conditions worth running in CFD and App 5 produces the
+exchange rate a CFD-driven design change gets judged against — but nothing in this repo reads a CFD
+*result* back in. The destination already exists (`data/aero/*.csv` + `aero.model = "table"`); what is
+missing is a converter and a convention for which CFD output columns map onto `C_A0`/`C_N_alpha`/
+`C_m_alpha` per Mach, in the spirit of `tools/fetch_sounding.py`. This is the step that would make
+the user's CFD workflow a closed loop rather than two open ends.
+
+### B21 — Coast-only restart as an optimizer speed-up  *(opened by the §30 design)*
+Measured (§30.2 F8): re-running only the coast from an injected burnout state, with
+`thrust.motor_curve = ""`, reproduces a full launch→apogee run to **8.3e-5 m** and is 2.4× faster
+(26.0 ms vs 62.5 ms). App 4 does not use it because a whole solve is ~1.2 s either way and the
+restart carries real traps — leaving the motor curve in place **re-ignites the motor at `t = 0`**
+(1954.7 m instead of 996.8 m), and `State.m` defaults to `0.0`, so a restart silently drops the mass
+state when Step 36's variable-mass model is on. Worth building when a single `run_sim` stops being
+~60 ms: a sounding atmosphere, a Mach-indexed aero table, or a Monte Carlo wrapper.
+
+### B22 — Mass changes that also change inertia and geometry  *(opened by the §30 design)*
+App 5's mass axis moves `weight.m` and holds `weight.I` fixed — exact for the attitude-frozen
+vertical demo scenario (`C_z = C_m = 0`), an approximation for anything with a restoring moment,
+where added mass also moves the pitch MOI and usually `lengths.l1` (the CoP→CoG arm). A physically
+complete mass axis needs a component model — *where* the mass is added — which is a design decision
+the user has not made yet. **B15** is the same gap seen from App 3's side (per-motor casing mass and
+`I_sp`), so the two should be resolved together.
+
+### B23 — A descent objective for the post-apogee airbrake — **BLOCKED on B17**  *(opened by the §30 design)*
+The `"after_apogee"` trigger (Step 65) exists as a capability, but **nothing can be solved against
+it today**. Two measured reasons (§30.2 F19). (1) The apogee is independent of the brake *by
+construction* — the trigger condition `y[VZ] > 0.0` is true only strictly after the apogee instant —
+and the measurement confirms it: apogee flat to **2.4e-3 m** across `C_dA ∈ [0, 10]` m², i.e. pure
+adaptive-step jitter, against 779 m of signal for the same sweep under `after_burnout`. So there is
+no apogee-target root to find. (2) The obvious alternative objectives — target impact speed, target
+descent duration — are nonphysical in this project right now: with a 0.01 m² brake the vehicle hits
+the ground **sooner** (20.7 s vs 25.7 s) at **5285 m/s**, and for `C_dA ≥ 0.1 m²` the integration
+never reaches the ground at all. The mechanism is already on record: `forces.aero_force_body` applies
+the axial term along the **body** axis (nose→tail), and with `C_z = C_m = 0.0` the attitude stays
+frozen nose-up through a tail-first fall, so the brake's drag points *downward* and accelerates the
+descent. That is **B17**/the Step-55/F5 finding with area added to it. The fix is therefore a `sim/`
+**physics** decision belonging to B17 — an attitude model with a restoring moment, or axial drag that
+opposes the relative wind under reversed flow — not an app feature. Until then App 4 refuses to run a
+descent study rather than optimize an artifact.
+
 ---
 
 ## Dependency summary
@@ -2012,8 +2387,12 @@ model (or `solve_ivp`'s own step-size floor) needs a guard for this regime.
       54 ──────────────→ 55                                     must land before 55; 59 needs 53+57)
                                      ↓
                            61 → 62                           Phase 2.12: motor-selection app
-                                                               (consumer app, no sim/ — designed,
-                                                                not approved; 62 needs 61 only)
+                                                               (consumer app, no sim/; 62 needs 61)
+                                     ↓
+                   63 ──┬─→ 64 ──┬─→ 66                      Phase 2.13: apps 4-5 + configs
+                        │        ├─→ 67 → 68                   (65 = the ONLY sim/ step, D-36-gated,
+                        │        └─→ 69                          independent of 63/64; 66 needs 65;
+                   65 ───────────────→ 66                        66 ∥ 67 parallel-safe; 68 needs 67)
                                      ↓
                       28 → 29 → 30 → 31 → 32                 Phase 3 (6-DOF) — not worked on yet
 
@@ -2025,6 +2404,11 @@ Backlog (unscheduled): B3 EGM gravity · B6 crosswind
                        B16 motor × environment sweeps  (all three new at the §29 design)
                        B17 "constant" aero numerical stability under a frozen-attitude high-speed
                        descent  (found at Step 61, in the spirit of the Step-55/F5 finding)
+                       B18 higher-dimensional trade studies · B19 airbrake deployment beyond an
+                       onset latch · B20 CFD-output ingestion · B21 coast-only restart speed-up
+                       B22 mass changes that also move inertia/geometry · B23 a descent objective
+                       for the post-apogee airbrake, BLOCKED on B17  (all six new at the §30
+                       design; B22 and B15 are the same gap from two sides)
                        B11 and B12 both UNBLOCKED at 59 (the integration mode exists; neither the
                        turbulence model nor the PID law is written — the work is now the model/law)
 Promoted out of the backlog: B4 → Step 38 (+ its curved-ground remainder → Step 42) · B5 → Step 40

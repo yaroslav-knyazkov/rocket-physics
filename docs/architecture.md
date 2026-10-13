@@ -4399,3 +4399,57 @@ two-dimensional sweeps) §29.12.
 `C_dA_total = C_dA_rocket + C_dA_airbrake`; that already exists, in exactly that additive-under-a-
 shared-`q` form and off by default, in `sim/forces.py`'s `aero_force_body` (§27.3, Step 49). §29
 designs no airbrake change.
+
+---
+
+## 30. Phase 2.13 — Apps 4-5, the shared app layer, reusable configs (Steps 63-69) — *lives in a separate file*
+
+**→ `docs/architecture-30-apps-4-5-and-configs.md`** (proposal, not yet approved; no code written).
+
+Same split as §28/§29, for the same reason: content there, navigation here.
+
+§30 designs the **five-tool layout** the user asked for on 2026-10-13 — (1) simple simulation,
+(2) motor sweep, (3) airbrake `C_dA` determination, (4) CFD input conditions, (5) CFD optimization
+(weight vs aerodynamics) — plus "configs I can create and reuse across multiple apps". Two of the
+five already exist and are untouched: the user's "2nd" is **App 3** (`apps/motor_selection/`, §29)
+and their "4th" is **App 2** (`apps/cfd_conditions/`); their "1st" is `run.py`, which stays at the
+repo root and never carries an "App N" label. **The internal "App N" numbering is not the user's 1-5
+list order** — App 2 = CFD conditions, App 3 = motor selection, **App 4 = airbrake sizing (new)**,
+**App 5 = weight-vs-aero trade (new)**. Recorded here because it is the single most likely thing for
+a later reader to misread.
+
+New in §30: `configs/` (one module per named scenario, `Config` + `Variant`, registry in
+`__init__.py`; Python literals per the already-approved D-23, and git history *is* the config
+history); `apps/common/` (App 3's `flight_stats` promoted so three apps share one tested
+implementation); **App 4** (`apps/airbrake_sizing/`, the user's MATLAB `fminbnd`/explicit-Euler
+prototype re-done against the real solver, with three selectable deployment triggers); **App 5**
+(`apps/weight_aero_tradeoff/`, a 2-D apogee(`C_dA`, mass) trade surface with an iso-apogee exchange
+rate, plus a named-scenario comparison). Seven steps, 63-69, one commit each; Phase 3 keeps its
+reserved 28-32 block. **User-approved 2026-10-13:** the four root wrappers (D-29), the `configs/`
+package and its migration (D-30/D-31/D-32), and both App 5 modes (D-38).
+
+**A consumer phase with exactly one `sim/` step, and that step is the open gate.** Apps 4 and 5
+themselves need no `sim/` change, no new dependency and no `docs/latex/` pass (no new physics). The
+exception is the three airbrake deployment triggers the user asked for — "after burnout, after
+specified time, after apogee": only the first is reachable through `Params`, because
+`_proportional_airbrake` reads `t` solely via `thrust_curve.thrust` and returns `0.0` unconditionally
+once `y[VZ] >= 0.0` (§30.2 F15), and Step 59's `hold`/sampling path recomputes that same law rather
+than offering an injection seam (F16). The recommended fix is **Step 65: +2 defaulted `Control`
+fields and ~35 lines in `sim/control.py`** — a trigger dispatch dict copying the pattern
+`sim/forces.py`'s `parachute_deployed` already uses for the parachute's `timer`/`apogee` triggers —
+bit-for-bit safe for every existing config, in its own commit, with `"proportional"` untouched.
+**D-36-revised** (§30.10) puts that choice to the user.
+
+Everything load-bearing here was measured against this tree, not assumed (§30.2): apogee is strictly
+monotone decreasing in `C_dA_airbrake`, so App 4 is a bracketed `brentq` root-find (17 runs, 1.2 s,
+1.4e-4 m residual) rather than the precedent's squared-residual minimization; a *post-apogee* brake
+leaves the apogee **flat to 2.4e-3 m of solver noise** across the whole bound range, so App 4 must
+refuse to solve under that trigger (F19 — and the descent it would be judged on is itself
+nonphysical here, B17/B23); apogee depends on the **product** `aero.S * aero.C_x` to the last printed
+digit, which licenses App 5's one-dimensional drag axis; and the measured exchange rate at the demo
+vehicle is **1 g of mass ≈ 1.86 mm² of `C_dA`** — the number App 5 exists to produce. Tickets are
+§30.9, the decision forks §30.10 (**D-28 … D-42**, continuing §29's D-18 … D-27; D-29/D-30/D-31/D-32
+and D-38 answered, D-36 reworked and open), and six proposed backlog items (B18 higher-dimensional
+trades, B19 airbrake deployment beyond an onset latch, B20 CFD-output ingestion, B21 coast-only
+restart, B22 mass changes that also move inertia/geometry, B23 a descent objective for the
+post-apogee brake, blocked on B17) §30.12.
