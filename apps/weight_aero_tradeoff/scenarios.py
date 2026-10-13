@@ -46,7 +46,7 @@ from __future__ import annotations
 import numpy as np
 
 from apps.weight_aero_tradeoff.trade_surface import TradeAxes
-from configs.schema import Config
+from configs.schema import Config, Variant
 
 # C_dA axis: relative multipliers of cfg's own baseline C_dA = aero.S * aero.C_x.
 _CDA_LOW_MULT = 0.5
@@ -70,3 +70,45 @@ def default_axes(cfg: Config) -> TradeAxes:
     )
     mass_values = tuple(np.linspace(_MASS_LOW_KG, _MASS_HIGH_KG, _GRID_N))
     return TradeAxes(cda_values=cda_values, mass_values=mass_values)
+
+
+# ----------------------------------------------------------------------
+# App 5 mode (a) (Step 68, roadmap.md; docs/architecture-30-apps-4-5-and-
+# configs.md SS30.7.2): named-scenario comparison inputs.
+# ----------------------------------------------------------------------
+
+# Each `Variant` below is a *literal, absolute-value* override against
+# `demo_75mm`'s own baseline (`weight.m=1.5 kg`, `aero.C_x=0.5` at
+# `aero.S=0.00442 m^2`), applied via `Variant.apply`/`Config.with_variant`
+# -- the same "literal tuned to one demo vehicle's own scale" convention
+# `default_axes`'s own mass band already uses above (not a relative delta
+# computed off whatever `--config` baseline happens to be loaded).
+# Applying these two variants against a very different baseline config
+# would still set `weight.m`/`aero.C_x` to these exact absolute numbers,
+# which may not be a meaningful perturbation at that vehicle's own scale
+# -- a known limitation of a literal default, not a bug (flagged as a
+# judgment call in the Step 68 developer report, same reasoning as the
+# mass-axis literal above).
+SCENARIOS: list[Variant] = [
+    Variant(
+        name="heavy_sleek",
+        overrides={"weight.m": 1.8, "aero.C_x": 0.425},
+        notes=(
+            "+0.3 kg over demo_75mm's 1.5 kg baseline (a heavier battery "
+            "pack and avionics bay -- a rough budget guess, not weighed) "
+            "together with C_x x0.85 (0.5 -> 0.425: a sleeker nose cone "
+            "profile, read off a vendor's CFD run on a similar-OD "
+            "airframe, not measured on this one)."
+        ),
+    ),
+    Variant(
+        name="light_draggy",
+        overrides={"aero.C_x": 0.65},
+        notes=(
+            "Baseline mass unchanged (1.5 kg); C_x x1.3 (0.5 -> 0.65), "
+            "representing a flat payload-bay door left un-faired -- a "
+            "conservative estimate from the aero team's own notes, not a "
+            "measurement."
+        ),
+    ),
+]

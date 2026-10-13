@@ -1,6 +1,7 @@
 """Tests for apps/weight_aero_tradeoff/trade_surface.py (App 5 mode (b),
-roadmap.md Step 67, docs/architecture-30-apps-4-5-and-configs.md
-SS30.7.1/SS30.8).
+roadmap.md Step 67) and apps/weight_aero_tradeoff/compare_configs.py (App
+5 mode (a), roadmap.md Step 68), docs/architecture-30-apps-4-5-and-
+configs.md SS30.7.1/SS30.7.2/SS30.8.
 
 Per that design doc's test strategy (SS30.8): this module pins no raw
 apogee *value* as a fact (those are solver predictions, not facts about
@@ -15,7 +16,14 @@ project's own architecture:
   independent direct finite-difference pair of `run_sim` calls built in
   this file (not reusing `TradeSurface`'s own `np.gradient` machinery) --
   this is what actually proves the axis order and the gradient units;
-- `nan` propagation and counting for an unflyable grid point.
+- `nan` propagation and counting for an unflyable grid point;
+- (Step 68) mode (a)'s ranking/`None`-last rule, `cda_axial`'s
+  `aero.model` suppression, `Variant`'s no-silent-reset property, and the
+  **mode (a)/mode (b) cross-check** -- two scenarios differing only in
+  `(mass, C_dA)`, inside Step 67's default grid box, must agree between
+  `compare_configs` and `TradeSurface.apogee_at` to interpolation
+  accuracy (the load-bearing proof the two modes do not quietly disagree
+  where they overlap).
 
 A note on the unflyable-row mechanism: the roadmap ticket's own example
 ("an absurdly heavy mass value") does not actually produce
@@ -35,6 +43,7 @@ produces it.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 import numpy as np
@@ -42,7 +51,13 @@ import pytest
 
 import configs
 from apps.common.flight_stats import flight_stats
-from apps.weight_aero_tradeoff.scenarios import default_axes
+from apps.weight_aero_tradeoff.compare_configs import (
+    ConfigRun,
+    compare_configs,
+    evaluate_config,
+)
+from apps.weight_aero_tradeoff.compare_configs import main as compare_main
+from apps.weight_aero_tradeoff.scenarios import SCENARIOS, default_axes
 from apps.weight_aero_tradeoff.trade_surface import (
     TradeAxes,
     build_surface,
@@ -349,3 +364,223 @@ def test_save_contour_plot_and_save_surface_csv_smoke(tmp_path):
     assert png_path.exists()
     rows = csv_path.read_text().splitlines()
     assert len(rows) == 1 + 3 * 3
+
+
+# ----------------------------------------------------------------------
+# App 5 mode (a): apps/weight_aero_tradeoff/compare_configs.py (Step 68)
+# ----------------------------------------------------------------------
+#
+# Mirrors tests/test_motor_selection.py's own ordering/degenerate-flight
+# checks for compare_motors (SS30.7.2: "same shape as compare_motors,
+# deliberately") rather than assuming the shape from scratch.
+
+
+def test_compare_configs_ranking_non_increasing_with_none_last():
+    """Ranked by apogee descending (non-increasing), and a config that
+    cannot fly within its own `solver.t_max` (`apogee_altitude is None`)
+    sorts last -- the exact rule `compare_motors.compare_motors` already
+    uses (test_motor_selection.py's own
+    `test_ordering_invariants_across_fixtures` /
+    `test_motor_curve_empty_does_not_crash_and_ranks_last`), mirrored
+    here rather than reinvented."""
+    cfg = _demo_cfg()
+    light = cfg.derive("demo_75mm_light_test", {"weight.m": 1.2}, notes="test-only")
+    heavy = cfg.derive("demo_75mm_heavy_test", {"weight.m": 2.0}, notes="test-only")
+    # m=6.0's natural apogee is ~2.8 s at this baseline C_dA (confirmed
+    # empirically, same fact test_unflyable_mass_row_propagates_nan_and_
+    # is_counted above already relies on); t_max=2.0 truncates its flight
+    # before it crests, giving a genuine events["apogee"] is None, while
+    # every other config here keeps the default t_max=300.0 untouched.
+    unflyable = cfg.derive(
+        "demo_75mm_unflyable_test",
+        {"weight.m": 6.0, "solver.t_max": 2.0},
+        notes="test-only",
+    )
+
+    runs = compare_configs([heavy, unflyable, cfg, light])
+
+    apogees = [r.stats.apogee_altitude for r in runs]
+    assert apogees[-1] is None
+    numeric = [a for a in apogees if a is not None]
+    assert len(numeric) == 3
+    assert all(numeric[i] >= numeric[i + 1] for i in range(len(numeric) - 1))
+    assert runs[-1].cfg.name == "demo_75mm_unflyable_test"
+
+
+def test_cda_axial_is_none_under_table_aero_model():
+    """`cda_axial` is `None` unless `aero.model == "constant"` -- the
+    same suppression rule `apps.airbrake_sizing.solve_cda`'s
+    `_cda_rocket_and_total` already applies to its `cda_rocket` column.
+    `solver.t_max` is bounded well below the default 300 s here: this
+    table + geometry combination is statically marginal and the adaptive
+    integrator spends a very long wall-clock time grinding through a
+    long simulated tumble before `t_max` is reached (confirmed
+    empirically) -- irrelevant to what this test checks (`cda_axial` is
+    derived from `cfg.params.aero` alone, not from the flight outcome),
+    so a short bound keeps the test fast without weakening the check."""
+    cfg = _demo_cfg()
+    table_cfg = cfg.derive(
+        "demo_75mm_table_test",
+        {"aero.model": "table", "aero.table": "example.csv", "solver.t_max": 2.0},
+        notes="test-only: non-constant aero model",
+    )
+
+    run = evaluate_config(table_cfg)
+
+    assert run.cda_axial is None
+    assert run.mass_kg == table_cfg.params.weight.m
+
+
+def test_cda_axial_is_s_times_cx_under_constant_aero_model():
+    """The positive case: `aero.model == "constant"` (the default) does
+    report `cda_axial = aero.S * aero.C_x`, exactly."""
+    cfg = _demo_cfg()
+    run = evaluate_config(cfg)
+    assert run.cda_axial == cfg.params.aero.S * cfg.params.aero.C_x
+    assert run.mass_kg == cfg.params.weight.m
+
+
+def test_scenarios_variant_changes_exactly_its_named_fields():
+    """Confirms the same no-silent-reset property
+    `tests/test_configs.py`'s own `test_derive_changes_exactly_the_
+    named_fields` already pins at the `Config.derive` level holds through
+    this app's own usage path: applying each `scenarios.SCENARIOS` entry
+    to the baseline changes exactly its own `overrides` keys and leaves
+    every other field of every group (including untouched groups in
+    full) equal to the baseline's."""
+    base = _demo_cfg()
+    group_names = tuple(f.name for f in dataclasses.fields(base.params))
+
+    for variant in SCENARIOS:
+        derived = variant.apply(base)
+
+        for key, value in variant.overrides.items():
+            group_name, field_name = key.split(".")
+            assert getattr(getattr(derived.params, group_name), field_name) == value
+
+        touched_groups = {key.split(".")[0] for key in variant.overrides}
+        for group_name in group_names:
+            orig_group = getattr(base.params, group_name)
+            new_group = getattr(derived.params, group_name)
+            if group_name not in touched_groups:
+                assert new_group == orig_group, group_name
+                continue
+            touched_fields = {
+                key.split(".")[1]
+                for key in variant.overrides
+                if key.split(".")[0] == group_name
+            }
+            for f in dataclasses.fields(orig_group):
+                if f.name in touched_fields:
+                    continue
+                assert getattr(new_group, f.name) == getattr(orig_group, f.name), (
+                    group_name,
+                    f.name,
+                )
+
+        assert derived.s0 == base.s0
+        assert derived.name == f"{base.name}+{variant.name}"
+
+
+# ----------------------------------------------------------------------
+# End-to-end: python run_trade.py --mode compare (via compare_configs.main)
+# ----------------------------------------------------------------------
+
+
+def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, capsys):
+    """`--config demo_75mm` (a single name, the default): prints the
+    ranked table for the baseline plus every `SCENARIOS` variant, and
+    writes both artifacts."""
+    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+
+    monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
+
+    compare_main(["--config", "demo_75mm"])
+
+    out = capsys.readouterr().out
+    assert "Config comparison" in out
+    assert "demo_75mm" in out
+    assert "demo_75mm+heavy_sleek" in out
+    assert "demo_75mm+light_draggy" in out
+
+    csv_path = tmp_path / "config_comparison.csv"
+    png_path = tmp_path / "config_comparison_overlay.png"
+    assert csv_path.exists()
+    assert png_path.exists()
+
+    rows = csv_path.read_text().splitlines()
+    assert rows[0].startswith("rank,name,mass_kg,cda_axial_m2,notes,apogee_m")
+    assert len(rows) == 1 + 1 + len(SCENARIOS)  # header + baseline + each variant
+
+
+def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
+    tmp_path, monkeypatch, capsys
+):
+    """`--config a,b` (two or more comma-separated names): compares those
+    registry configs directly, `SCENARIOS` not consulted -- the case
+    that justifies this mode existing at all (SS30.7.2)."""
+    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+
+    monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
+
+    compare_main(["--config", "demo_75mm,toy_05kg"])
+
+    out = capsys.readouterr().out
+    assert "demo_75mm" in out
+    assert "toy_05kg" in out
+    assert "heavy_sleek" not in out
+    assert "light_draggy" not in out
+
+    csv_path = tmp_path / "config_comparison.csv"
+    rows = csv_path.read_text().splitlines()
+    assert len(rows) == 1 + 2  # header + exactly the two named configs
+
+
+# ----------------------------------------------------------------------
+# The cross-check (roadmap.md Step 68's "Check"): mode (a) must agree
+# with mode (b)'s TradeSurface where they overlap.
+# ----------------------------------------------------------------------
+
+
+def test_mode_a_agrees_with_mode_b_trade_surface_at_shared_points():
+    """Two scenarios differing **only** in `(mass, C_dA)`, both strictly
+    inside Step 67's default grid box (`scenarios.default_axes`'s own
+    range) and deliberately off any grid node (so this genuinely
+    exercises `TradeSurface`'s bilinear interpolation, not a node-exact
+    lookup): mode (a)'s `compare_configs`/`evaluate_config` apogee for
+    each must agree with mode (b)'s `TradeSurface.apogee_at` to
+    interpolation accuracy.
+
+    This is the test the roadmap ticket calls load-bearing, not a
+    nice-to-have -- it is the only check in this file that would catch
+    the two modes silently disagreeing where they overlap (e.g. mode (a)
+    realising C_dA via a different C_x/S split, or a units slip). The
+    measured agreement (see the Step 68 developer report for the actual
+    numbers) is ~0.1-0.3% relative, consistent with bilinear truncation
+    error on this grid's spacing, well inside the 1% bound asserted here
+    and far tighter than the 10% bound the independent-finite-difference
+    `exchange_rate` cross-check above needs (that one differentiates the
+    grid; this one only interpolates it)."""
+    cfg = _demo_cfg()
+    axes = default_axes(cfg)  # the full F10 11x11 box -- "the same grid"
+    surface = build_surface(cfg, axes)
+
+    baseline_cda = cfg.params.aero.S * cfg.params.aero.C_x
+    # Both strictly inside [0.5, 1.5]*baseline_cda x [1.0, 2.5] kg, and
+    # off any of the 11 evenly-spaced grid nodes on either axis.
+    points = [(0.83 * baseline_cda, 1.37), (1.22 * baseline_cda, 1.93)]
+
+    def _cfg_at(cda: float, m: float, name: str):
+        c_x = cda / cfg.params.aero.S
+        return cfg.derive(name, {"weight.m": m, "aero.C_x": c_x}, notes="cross-check test-only")
+
+    cfgs = [_cfg_at(cda, m, f"xcheck_{i}") for i, (cda, m) in enumerate(points)]
+    runs = compare_configs(cfgs)
+    by_name = {r.cfg.name: r for r in runs}
+
+    for i, (cda, m) in enumerate(points):
+        apogee_mode_a = by_name[f"xcheck_{i}"].stats.apogee_altitude
+        apogee_mode_b = surface.apogee_at(cda, m)
+        assert apogee_mode_a is not None
+        assert not np.isnan(apogee_mode_b)
+        assert apogee_mode_a == pytest.approx(apogee_mode_b, rel=0.01), (i, cda, m)

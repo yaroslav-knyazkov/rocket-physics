@@ -15,10 +15,12 @@ surface first) to run:
   `apps.weight_aero_tradeoff.trade_surface.main`, which owns that
   parsing itself (`apps/common/cli.py`) -- this wrapper only adds
   `--mode` on top, it does not re-implement `--config`.
-- `"compare"` -- mode (a), the named-scenario comparison
-  (`compare_configs.py`). **Not built in this step** (Step 68): selecting
-  it raises `NotImplementedError` naming the step that will add it,
-  rather than silently doing nothing.
+- `"compare"` -- mode (a), the named-scenario comparison (Step 68,
+  `compare_configs.py`). Forwards every other argument (`--config`,
+  `--list-configs`, ...) unchanged to
+  `apps.weight_aero_tradeoff.compare_configs.main`, which owns that
+  parsing itself -- this wrapper only adds `--mode` on top, it does not
+  re-implement `--config`.
 """
 
 from __future__ import annotations
@@ -35,18 +37,16 @@ def main(argv: "list[str] | None" = None) -> None:
         choices=("surface", "compare"),
         default="surface",
         help="'surface' (default, Step 67): the 2-D weight-vs-aero trade "
-        "surface and its exchange rate. 'compare' (Step 68, not yet "
-        "built): named-scenario side-by-side comparison.",
+        "surface and its exchange rate. 'compare' (Step 68): "
+        "named-scenario side-by-side comparison.",
     )
     args, remaining = parser.parse_known_args(argv)
 
     if args.mode == "compare":
-        raise NotImplementedError(
-            "run_trade.py --mode compare is App 5 mode (a), named-scenario "
-            "comparison (apps/weight_aero_tradeoff/compare_configs.py) -- "
-            "not implemented yet (roadmap.md Step 68). Use --mode surface "
-            "(the default) for the trade surface."
-        )
+        from apps.weight_aero_tradeoff.compare_configs import main as compare_main
+
+        compare_main(remaining)
+        return
 
     from apps.weight_aero_tradeoff.trade_surface import main as surface_main
 
