@@ -16,6 +16,123 @@ Approach: incremental, step-by-step, one small piece at a time, committed indivi
 - Everything currently in `main.tex` should be reflected in code; models start as constants.
 - Commit after every completed step (small, reviewable increments).
 
+## Phase 2.13 — Apps 4-5, shared app layer, reusable configs, git-flow — COMPLETE (2026-10-13)
+
+**All 7 steps done, each independently verified by the orchestrator (full test suite re-run,
+`git diff`/`git status` review, direct execution, byte-identical-output re-checks via git-stash
+round-trips where the gate called for it) before committing — never taken on a developer's
+self-report alone:**
+
+- Step 63 `932c285` — `configs/` package (`Config`/`Variant`, explicit registry, three seed
+  configs). 306/306 tests.
+- Step 64 `fd68de6` — `apps/common/` (shared `flight_stats`/`artifacts`/`cli`), promoted verbatim
+  out of App 3. Byte-identical App-3 output confirmed. 307/307 tests.
+- Step 65 `1b3c785` — airbrake deployment triggers in `sim/control.py` (the phase's only `sim/`
+  change, D-36-revised, user-approved). F17 equivalence re-verified directly (3.8e-8 m agreement).
+  314/314 tests.
+- Step 66 `e211073` — App 4, airbrake `C_dA`/deploy-time sizing against the real solver, replacing
+  the `temp/` MATLAB prototype. Round-trip pin re-verified directly (1.2e-8 m² agreement). 331/331.
+- Step 67 `9fddb2a` — App 5 mode (b), the weight-vs-aero trade surface + exchange rate. Interrupted
+  once by a session usage-limit reset mid-task; resumed the same agent from its on-disk files per
+  standing policy rather than restarting. 121/121 grid points flew, exchange rate -3.7 to -33.8
+  mm²/g across the grid, 39.04 s wall-clock (orchestrator's own re-run). 342/342 tests.
+  **Final test count: 353/353.**
+- Step 68 `0b37876` — App 5 mode (a), named-configuration comparison. The load-bearing mode(a)/
+  mode(b) cross-check agreed to ~0.1-0.3% relative — the two App-5 modes do not disagree where
+  they overlap. 349/349 tests.
+- Step 69 `5f72f44` — migrated `run.py`/App 2/App 3 onto `configs/`, bit-for-bit. All three
+  migrated entry points byte-identical pre/post (independently re-captured via git-stash
+  round-trip, not just trusted). Two remaining root wrappers added
+  (`run_motor_sweep.py`/`run_cfd_conditions.py`) — all "five run files" the user asked for are now
+  `ls`-visible at the repo root. 353/353 tests.
+
+**Headline capability delivered**: airbrake `C_dA` sizing (and deploy-time sizing) against the
+real solver with three selectable deployment triggers; a weight-vs-aero trade surface *and* a
+named-configuration comparison tool; a shared, reusable, git-history-tracked `configs/` package
+usable by every app; five `ls`-visible run files at the repo root; git-flow branching adopted
+(`develop` + `feature/phase2.13-apps-and-configs`, 9 commits on the feature branch including the
+design commit, not yet merged — awaiting the user's go-ahead to land).
+
+Full decision log (D-28 through D-42, D-36-revised parts 1-3): `status.json`'s
+`phase2_13_apps_configs.decisions_log`. Design doc: `docs/architecture-30-apps-4-5-and-configs.md`.
+
+Requested by the user on 2026-10-13, mirroring their own Notion "To Do" list reorganized 2026-10-10
+("single simulation / motor sweep / air brake parameters determination / cfd input parameters
+determination / cfd optimization (weight vs aerodynamics)"): five "run files," of which three
+already existed (`run.py`, `apps/motor_selection/` "App 3", `apps/cfd_conditions/` "App 2") — the
+new work is "App 4" (airbrake `C_dA` sizing, modernizing two `temp/` MATLAB scratch files the user
+pointed at) and "App 5" (a weight-vs-aero trade-off tool), plus a shared config-reuse system and
+adopting git-flow branching. Design: `docs/architecture-30-apps-4-5-and-configs.md`
+(`architecture.md` §30 pointer). Steps 63-69, continuing the sequence (last used: 62).
+
+**Decisions approved by the user (2026-10-13), all via AskUserQuestion, all on the architect's own
+recommendation except where noted:**
+- D-28 shared ascent-window stats bundle promoted to `apps/common/flight_stats.py` (App 3 re-exports
+  `MotorStats = FlightStats`, zero test edits).
+- **D-29 (user choice)** — four thin root wrappers (`run_motor_sweep.py`, `run_airbrake.py`,
+  `run_cfd_conditions.py`, `run_trade.py`) added alongside unchanged `run.py`, so all "five run
+  files" are literally `ls`-visible at the repo root.
+- **D-30/D-31 (user choice)** — `configs/` package, Python-literal modules (same convention as
+  Step 62's `motors.py`, D-23), two shapes: `Config` (a full params+`s0` baseline) and `Variant` (a
+  named override dict, generalizing `MotorEntry.overrides`) so App 3's motor-keyed deltas and App
+  5's named-scenario comparisons both fit.
+- D-32 `run.py`/App 2/App 3's demo baseline migrate onto `configs/` behind a bit-for-bit
+  (byte-identical-output) gate (Step 69); `apps/motor_selection/motors.py` stays put.
+- D-33 `--config NAME`/`--list-configs` CLI via `apps/common/cli.py` on the new apps/wrappers.
+- D-34 App 4 solves for the scalar `C_dA_airbrake` (not `airbrake_S_max`/`airbrake_Cd` jointly —
+  the sim only ever uses their product, so solving both is ill-posed); `airbrake_Cd` is a fixed
+  design input, `S_max` is back-computed and reported.
+- D-35 App 4 search method: `scipy.optimize.brentq` root-find on `apogee(C_dA) - target` (exploits
+  measured strict monotonicity; `minimize_scalar`/`fminbnd`-style squared-residual search available
+  as a `method=` fallback for a literal MATLAB cross-check).
+- **D-36 REVISED — three parts, all resolved by direct user answer, not just architect
+  recommendation:**
+  - **Part 1:** the user's own "three airbrake laws" (after burnout / after a specified time /
+    after apogee) genuinely conflict with "no sim file touched" for 2 of the 3 — confirmed by
+    reading `sim/control.py` (the existing `"proportional"` law hardcodes the post-burnout/
+    pre-apogee window in its body; no parameter choice reaches a time trigger or a post-apogee
+    trigger). **User chose: small, isolated `sim/` change** — `sim/params.py` +2 defaulted
+    `Control` fields, `sim/control.py` +~35 lines (a trigger dispatch dict + one "full open" law),
+    same shape this codebase already uses for the parachute's timer/apogee triggers
+    (`sim/forces.py`'s `parachute_deployed`). Bit-for-bit safe by construction; `_proportional_airbrake`
+    itself is untouched. This is the phase's *only* `sim/` step (Step 65).
+  - **Part 2:** a post-apogee-triggered brake provably cannot be sized against an apogee target
+    (measured: apogee flat to 2.4mm across the whole `C_dA` range once apogee-gated — the trigger
+    fires only strictly after the apogee instant, so there is no signal to optimize). **User chose:
+    implement the trigger, but App 4 detects the flat objective and refuses to solve, with a clear
+    explanation** (root cause is a separate, already-known gap — backlog B17/B23, frozen-attitude
+    tail-first descent behaves nonphysically in this simulator today).
+  - **Part 3:** App 4 also solves for *deploy time* at a fixed known `C_dA` (apogee is measured
+    monotone in deploy time too — same `brentq` seam, ~10 extra lines). **User chose: yes, support
+    both solve targets.**
+- D-37 App 4 runs the full launch-to-apogee flight per iterate (not a mid-flight-state-injected
+  reduction matching the MATLAB precedent literally — measured faithful and simpler; a restart-from-
+  burnout optimization is backlog B21 for if/when runtime becomes a real cost).
+- **D-38 (user choice)** — App 5 builds **both modes**: the weight-vs-aero trade surface (b) first
+  (a reusable 2D `apogee(C_dA, mass)` grid + exchange rate), then named-configuration comparison (a)
+  second (reusing the new `Config`/`Variant` system, for cases differing in more than mass+drag).
+- D-39 trade surface axes: `C_dA` swept via `aero.C_x` at fixed `aero.S` (measured: apogee is an
+  exact function of the product `S*C_x`, so one scalar legitimately represents drag) × `weight.m`.
+- D-40 the surface is recomputed on demand (CSV + contour PNG under gitignored `output/`,
+  `apogee_at()`/`exchange_rate()` as the query API) — not committed as a `data/` input, since
+  `data/` in this repo means measured/synthetic physical input, and a 121-point surface recomputes
+  in ~5.8s.
+- D-41 pinned tests per new step (round-trip/monotonicity/axis-invariance checks), same standing as
+  every other step in this project.
+- D-42 app naming: `apps/airbrake_sizing/solve_cda.py`, `apps/weight_aero_tradeoff/
+  {trade_surface,compare_configs}.py`.
+
+Git-flow adopted the same day, orchestrator-side (not a step): `develop` branch off the prior
+`master` trunk; `feature/phase2.13-apps-and-configs` off `develop` for this phase's work; `temp/`
+(the two scratch MATLAB files that were this phase's own airbrake precedent) added to
+`.gitignore`. Commits `25a512c` (git-flow adoption), architect's design commit to follow.
+
+Steps 63 (`configs/` package), 64 (`apps/common/` promotion) and 67 (trade surface) are
+parallel-safe against each other and against Step 65; only Step 66 (App 4) blocks on Step 65
+landing first. Implementation proceeds sequentially per this project's standing "one step, one
+commit, full regression suite after each" rule regardless of what could technically run in
+parallel.
+
 ## Phase 2.12 — motor-selection app — COMPLETE (2026-10-13), Step 30 still paused, unchanged by it
 
 **Both steps (S61–S62) done, each independently verified by the orchestrator, not taken on any

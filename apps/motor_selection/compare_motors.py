@@ -75,28 +75,29 @@ from __future__ import annotations
 
 import csv
 import dataclasses
-import math
 from pathlib import Path
 from typing import Any, Optional
 
-import numpy as np
-
-from sim import dynamics, thrust_curve
-from sim.flow import flow_state
-from sim.gravity import altitude_agl
+import configs
+from apps.common.artifacts import OUTPUT_DIR
+from apps.common.flight_stats import (
+    FlightStats,
+    _assert_derivatives_reconstructible,
+    flight_stats,
+)
 from sim.integrate import Result, run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight
+from sim.params import Params
 from sim.params import replace as params_replace
 from sim.plotting import plot_trajectory_overlay
-from sim.state import State, VX, VZ, X
+from sim.state import State
 
-_OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
-
-# The house dense-grid size (sim/report.py, apps/cfd_conditions/
-# select_conditions.py both use 2000-4000-point grids over the window they
-# reduce) -- SS29.4.2.
-_ASCENT_GRID_N = 2000
-_BURN_GRID_N = 2000
+# Step 64: MotorStats/flight_stats moved to apps/common/flight_stats.py
+# (docs/architecture-30-apps-4-5-and-configs.md SS30.5) -- Apps 4/5 want
+# the same ascent-window reduction App 3 pioneered (SS30.2 F11). Re-exported
+# under the original name so nothing downstream moves:
+# tests/test_motor_selection.py imports `flight_stats` (never `MotorStats`)
+# from this module, unedited.
+MotorStats = FlightStats
 
 
 @dataclasses.dataclass(frozen=True)
@@ -116,26 +117,6 @@ class MotorEntry:
     name: str          # label for the table / legend / CSV; free text
     motor_curve: str   # file under data/motors/, e.g. "synthetic_large.csv"
     overrides: dict[str, Any] = dataclasses.field(default_factory=dict)
-
-
-@dataclasses.dataclass(frozen=True)
-class MotorStats:
-    """The per-motor stats bundle (architecture-29-motor-selection.md
-    SS29.4). Every field is a float or None; None means "the flight never
-    produced this event" (SS29.4.6 -- a motor too small to leave the pad is
-    a legitimate study result, not an error)."""
-
-    apogee_altitude: float | None    # m AGL, the ranking criterion
-    apogee_time: float | None        # s
-    max_velocity: float | None       # m/s, ascent window, inertial |v|
-    avg_velocity: float | None       # m/s, time-average over the ascent window
-    max_accel: float | None          # m/s^2, ascent window, inertial |dv/dt| incl. gravity
-    max_accel_g: float | None        # max_accel / p.g0 [-]
-    max_q: float | None              # Pa, ascent window
-    total_impulse: float | None      # N*s, delivered, numerically integrated over the ascent
-    burnout_time: float | None       # s, from result.events
-    impact_time: float | None        # s, from result.events (full flight)
-    downrange_impact: float | None   # m, at impact (full flight)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -169,136 +150,6 @@ def build_params(entry: MotorEntry, baseline: Params) -> Params:
         )
     return params_replace(
         baseline, {"thrust.motor_curve": entry.motor_curve, **entry.overrides}
-    )
-
-
-def _assert_derivatives_reconstructible(p: Params) -> None:
-    """Shared guard (F8): a post-hoc `dynamics.derivatives` re-evaluation on
-    this module's own sampling grid cannot reconstruct a sampled-data run's
-    per-tick zero-order hold (`sim/sampling.py`, roadmap.md Step 59), so
-    `max_accel` would silently not be the acceleration that actually flew.
-    Called both before `run_sim` (`evaluate_motor`/`compare_motors`'
-    pre-flight pass, so this fails in a millisecond rather than after a
-    full integration) and again in `flight_stats` itself (which is a public
-    pure function and may be called directly on a `Result`/`Params` pair
-    this module did not itself produce).
-    """
-    if p.solver.sample_rate_hz != 0.0:
-        raise ValueError(
-            f"p.solver.sample_rate_hz={p.solver.sample_rate_hz} is not "
-            "supported here: a post-hoc dynamics.derivatives re-evaluation "
-            "cannot reconstruct a sampled-data run's per-tick zero-order "
-            "hold (sim/sampling.py, roadmap.md Step 59), so max_accel would "
-            "not be the acceleration that actually flew "
-            "(architecture-29-motor-selection.md F8)."
-        )
-
-
-def flight_stats(result: Result, p: Params) -> MotorStats:
-    """Reduce one `Result` to the stats bundle (SS29.4).
-
-    Two measurement windows, per-quantity, not per-table (SS29.4.1):
-    `apogee_altitude`/`apogee_time` at the apogee event instant;
-    `max_velocity`/`avg_velocity`/`max_accel`/`max_q`/`total_impulse` over
-    the **ascent only** (launch to apogee) -- because this project's own
-    scenarios can put max speed *during descent* (frozen nose-up attitude,
-    real axial drag accelerating a tail-first fall, roadmap.md Step 55), so
-    a whole-flight extremum here would be reporting that descent artifact
-    in the column that is supposed to answer "how fast does this motor make
-    my rocket go"; `burnout_time` from the event; `impact_time`/
-    `downrange_impact` over the **whole flight** (they are end-of-flight
-    quantities by definition). A useful side effect: the ranking and every
-    ascent column are unaffected by the recovery configuration.
-
-    Raises `ValueError` if `p.solver.sample_rate_hz != 0.0`: a post-hoc
-    `dynamics.derivatives` re-evaluation on this function's own sampling
-    grid cannot reconstruct a sampled-data run's per-tick zero-order hold
-    (`sim/sampling.py`, roadmap.md Step 59), so `max_accel` would silently
-    not be the acceleration that actually flew. `p.solver.method == "rk4"`
-    is allowed, but its dense interpolant is piecewise-linear
-    (`sim/integrate.py`'s `_LinearInterpolant`), so grid-sampled extrema
-    are then only as good as `p.solver.dt`.
-    """
-    _assert_derivatives_reconstructible(p)
-
-    burnout_time = result.events["burnout"]
-    impact_time = result.events["ground"]
-    t_apogee = result.events["apogee"]
-
-    t_end = impact_time if impact_time is not None else result.t[-1]
-    t_full_grid = np.linspace(0.0, t_end, _ASCENT_GRID_N)
-    y_full_grid = result.raw.sol(t_full_grid)
-    downrange_impact = (
-        float(result.raw.sol(impact_time)[X])
-        if impact_time is not None
-        else float(y_full_grid[X, -1])
-    )
-
-    if t_apogee is None:
-        # Degenerate flight (SS29.4.6): the motor never produced an apogee
-        # event (too small to leave the pad, or never comes back down
-        # inside t_max). Every ascent-window field is unknowable; the
-        # whole-flight fields are still reported.
-        return MotorStats(
-            apogee_altitude=None,
-            apogee_time=None,
-            max_velocity=None,
-            avg_velocity=None,
-            max_accel=None,
-            max_accel_g=None,
-            max_q=None,
-            total_impulse=None,
-            burnout_time=burnout_time,
-            impact_time=impact_time,
-            downrange_impact=downrange_impact,
-        )
-
-    apogee_altitude = float(altitude_agl(result.raw.sol(t_apogee), p))
-
-    # The ascent grid: the house 2000-point grid over [0, t_apogee], unioned
-    # with a second 2000-point grid over [0, t_burnout] -- a motor's
-    # ignition spike (~50 ms) would otherwise be under-sampled by a uniform
-    # grid over a multi-second ascent (SS29.4.2). np.union1d sorts and
-    # de-duplicates, giving a single strictly increasing, non-uniform grid.
-    t_grid = np.linspace(0.0, t_apogee, _ASCENT_GRID_N)
-    if burnout_time is not None and 0.0 < burnout_time < t_apogee:
-        t_grid = np.union1d(t_grid, np.linspace(0.0, burnout_time, _BURN_GRID_N))
-    y_grid = result.raw.sol(t_grid)
-
-    speed = np.hypot(y_grid[VX], y_grid[VZ])
-    max_velocity = float(speed.max())
-    # Time-average over a non-uniform grid must be a proper time integral,
-    # not speed.mean() (which would be wrong by the ratio of the refined to
-    # the coarse spacing) -- np.trapezoid, not np.trapz (removed in numpy
-    # 2.x, architecture-29-motor-selection.md F11).
-    avg_velocity = float(np.trapezoid(speed, t_grid) / (t_grid[-1] - t_grid[0]))
-
-    # Exact inertial acceleration: re-evaluate the RHS the integrator
-    # itself saw, rather than finite-differencing the velocity grid (F7) --
-    # no differencing stencil, no smearing of the thrust curve's kinks.
-    dydt = np.array([dynamics.derivatives(t, y_grid[:, i], p) for i, t in enumerate(t_grid)])
-    accel = np.hypot(dydt[:, VX], dydt[:, VZ])
-    max_accel = float(accel.max())
-    max_accel_g = max_accel / p.g0
-
-    q = np.array([flow_state(t, y_grid[:, i], p).q for i, t in enumerate(t_grid)])
-    max_q = float(q.max())
-
-    T = np.array([thrust_curve.thrust(t, y_grid[:, i], p) for i, t in enumerate(t_grid)])
-    total_impulse = float(np.trapezoid(T, t_grid))
-
-    return MotorStats(
-        apogee_altitude=apogee_altitude,
-        apogee_time=float(t_apogee),
-        max_velocity=max_velocity,
-        avg_velocity=avg_velocity,
-        max_accel=max_accel,
-        max_accel_g=max_accel_g,
-        max_q=max_q,
-        total_impulse=total_impulse,
-        burnout_time=burnout_time,
-        impact_time=impact_time,
-        downrange_impact=downrange_impact,
     )
 
 
@@ -433,27 +284,15 @@ def save_overlay(runs: list[MotorRun], path: Path) -> None:
 
 
 def _demo_baseline() -> Params:
-    """The architect's own synthetic 1.5 kg / 75 mm vehicle. Deliberately
-    NOT run.py's 0.5 kg toy scenario: 338 N*s (the largest new fixture) on
-    0.5 kg gives an ideal delta-v of ~676 m/s (~Mach 2), where a constant
-    C_x = 0.5 is not a defensible aerodynamic model and the ISA
-    extrapolation ceiling starts to matter. 1.5 kg keeps every fixture
-    subsonic (largest motor: ideal delta-v ~225 m/s before gravity/drag
-    losses, <~ Mach 0.7) while still leaving the smallest motor just barely
-    flyable -- itself informative. `C_z = C_m = 0.0` makes this a vertical,
-    attitude-frozen 1-D shot, the same simplification run.py and App 2
-    already carry, appropriate for a motor comparison (one variable at a
-    time) and, per SS29.4.1/F5, the reason the ascent window is mandatory.
+    """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 69
+    (roadmap.md; `docs/architecture-30-apps-4-5-and-configs.md` SS30.4): a
+    one-line re-export of `configs.get("demo_75mm").params`, kept under
+    this name only because `tests/test_motor_selection.py` imports it
+    unedited (F11). The full provenance/rationale for these numbers now
+    lives once, in `configs/demo_75mm.py`'s own docstring -- the single
+    source of truth this function used to duplicate.
     """
-    return Params(
-        weight=Weight(m=1.5, I=0.08),                 # launch mass, mass model OFF (m_d=None)
-        lengths=Lengths(l1=0.3, l2=0.4),
-        thrust=Thrust(motor_curve="placeholder.csv"),  # replaced per entry; never read as-is
-        aero=Aero(
-            S=0.00442, d_ref=0.075, l_ref=0.75,        # 75 mm body: S = pi*d^2/4 = 0.004418 m^2
-            C_x=0.5, C_z=0.0, C_m=0.0,
-        ),
-    )
+    return configs.get("demo_75mm").params
 
 
 def _demo_entries() -> list[MotorEntry]:
@@ -473,15 +312,20 @@ def main() -> None:
     the existing Step-61 tests that import it keep working bit-for-bit)."""
     from apps.motor_selection.motors import MOTORS
 
-    baseline = _demo_baseline()
-    s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
+    # Step 69: baseline + s0 both sourced from configs/demo_75mm.py (the
+    # same Config _demo_baseline() above re-exports .params from), so the
+    # demo vehicle's initial state stops being a second, separately
+    # maintained literal.
+    cfg = configs.get("demo_75mm")
+    baseline = cfg.params
+    s0 = cfg.s0
 
     runs = compare_motors(MOTORS, baseline, s0)
     print_motor_table(runs)
 
-    _OUTPUT_DIR.mkdir(exist_ok=True)
-    csv_path = _OUTPUT_DIR / "motor_selection.csv"
-    overlay_path = _OUTPUT_DIR / "motor_selection_overlay.png"
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    csv_path = OUTPUT_DIR / "motor_selection.csv"
+    overlay_path = OUTPUT_DIR / "motor_selection_overlay.png"
     save_motor_csv(runs, csv_path)
     save_overlay(runs, overlay_path)
     print(f"\nSaved {csv_path}")

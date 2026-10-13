@@ -56,6 +56,22 @@ variant other than `"none"` exists yet, and threading it further would
 change the per-variant contract test_control.py's own locally-registered
 dummy variants already rely on; a future stateful coefficient controller
 can accept it from this function directly when one is written).
+
+Step 65 (architecture-30-apps-4-5-and-configs.md SS30.6.1, D-36-revised):
+three airbrake deployment *triggers*, orthogonal to the deployment law
+above -- `_AIRBRAKE_TRIGGERS`/`airbrake_triggered`, dispatching on
+`p.control.airbrake_trigger` (`after_burnout`/`after_time`/`after_apogee`),
+and a `"full"` law (`_full_airbrake`) registered as a third
+`_AIRBRAKE_CONTROLLERS` entry beside the untouched `"none"`/
+`"proportional"` (`_proportional_airbrake` itself is not edited). Each
+trigger is a pure *onset* latch with no retraction (backlog B19) --
+duration, retraction and rate limits are a separate, later step.
+`after_apogee` uses the `y[VZ] > 0.0` state predicate, never the apogee
+*event*, for `forces.parachute_deployed`'s own reason (the RHS runs before
+any event is finalised, so it cannot read `Result.events`) and carries its
+same documented caveat (a pre-apogee `v_z` transient would arm it early).
+`airbrake_deploy_time == 0.0` under `"after_time"` means "deployed from
+t=0", the same semantics `Recovery.deploy_time == 0.0` already carries.
 """
 
 import numpy as np
@@ -112,6 +128,72 @@ def _proportional_airbrake(t: float, y: np.ndarray, p) -> float:
     return float(np.clip(p.control.airbrake_kp * error, 0.0, 1.0))
 
 
+def _trigger_after_burnout(t: float, y: np.ndarray, p) -> bool:
+    """Trigger "after_burnout": `thrust(t, y, p) <= 0.0` -- the negation
+    framing of `_proportional_airbrake`'s own `thrust(t, y, p) > 0.0` gate
+    above: "triggered" means "no longer under power", true from burnout
+    onward.
+    """
+    return thrust_curve.thrust(t, y, p) <= 0.0
+
+
+def _trigger_after_time(t: float, y: np.ndarray, p) -> bool:
+    """Trigger "after_time": `t >= p.control.airbrake_deploy_time`.
+    `airbrake_deploy_time == 0.0` (the default) means "deployed from t=0",
+    the same semantics `Recovery.deploy_time == 0.0` already carries for
+    the parachute's own "timer" trigger.
+    """
+    return t >= p.control.airbrake_deploy_time
+
+
+def _trigger_after_apogee(t: float, y: np.ndarray, p) -> bool:
+    """Trigger "after_apogee": `y[VZ] > 0.0` -- the same state predicate,
+    and the same reasoning, as `forces.parachute_deployed`'s own "apogee"
+    trigger (architecture.md SS27.2): the RHS runs before any event is
+    finalised, so this cannot read `Result.events`, and "has apogee
+    happened" has to be reconstructed from the state actually being
+    integrated. `vz == 0.0` exactly (the pad, t=0) is `False`, not
+    triggered -- strict inequality, matching `parachute_deployed`'s own.
+    Known simplification, same standing as `parachute_deployed`'s: a
+    pre-apogee transient dip in `vz` would arm this early. Not guarded
+    against, documented here instead (same standing as B11).
+    """
+    return y[VZ] > 0.0
+
+
+# Module-private dispatch dict (architecture.md SS12): which trigger is
+# active is orthogonal to which deployment law is active (airbrake_model,
+# below) -- a separate dict rather than three more _AIRBRAKE_CONTROLLERS
+# entries, and the seam through which "proportional" could later be gated
+# on a chosen trigger instead of its hardcoded window (a later step, not
+# this one). Unknown strings raise KeyError at the first call -- no input
+# validation (SS7).
+_AIRBRAKE_TRIGGERS = {
+    "after_burnout": _trigger_after_burnout,
+    "after_time":    _trigger_after_time,
+    "after_apogee":  _trigger_after_apogee,
+}
+
+
+def airbrake_triggered(t: float, y: np.ndarray, p) -> bool:
+    """Has the brake's deployment condition fired by now -- a pure state
+    predicate dispatching on `p.control.airbrake_trigger`, same shape as
+    `forces.parachute_deployed`, and never a lookup of the trigger *event*
+    itself. Each trigger is a pure *onset* latch with no retraction
+    (backlog B19): duration, retraction and rate limits are out of scope
+    here.
+    """
+    return _AIRBRAKE_TRIGGERS[p.control.airbrake_trigger](t, y, p)
+
+
+def _full_airbrake(t: float, y: np.ndarray, p) -> float:
+    """Variant "full": fully deployed from the trigger instant onward --
+    `0.0` before `airbrake_triggered(t, y, p)`, `1.0` at and after it. The
+    constant-C_dA model App 4 solves against.
+    """
+    return 1.0 if airbrake_triggered(t, y, p) else 0.0
+
+
 # Module-private dispatch dict (architecture.md SS12), same pattern as
 # wind.py's `_TURBULENCE_MODELS`/`_MODELS`: the public seam is
 # `airbrake_deploy_fraction`; callers never learn variants exist. Unknown
@@ -119,6 +201,7 @@ def _proportional_airbrake(t: float, y: np.ndarray, p) -> float:
 _AIRBRAKE_CONTROLLERS = {
     "none": _no_airbrake,
     "proportional": _proportional_airbrake,
+    "full": _full_airbrake,
 }
 
 

@@ -12,6 +12,7 @@ philosophy -- no fixtures, no conftest.py, plain `assert` + `math.isclose`/
 import math
 
 import numpy as np
+import pytest
 
 from sim import control, forces, thrust_curve
 from sim.dynamics import derivatives
@@ -335,3 +336,128 @@ def test_aero_coeff_delta_reaches_all_four_consumers():
     finally:
         del control._AERO_COEFF_CONTROLLERS["test_s57_all"]
         del control._AERO_COEFF_CONTROLLERS["test_s57_l1_only"]
+
+
+# ----------------------------------------------------------------------
+# Step 65 (architecture-30-apps-4-5-and-configs.md SS30.6.1, D-36-revised):
+# airbrake deployment triggers -- orthogonal to the deployment law above.
+# `_proportional_airbrake` is untouched; these tests exercise the new
+# `_AIRBRAKE_TRIGGERS` dispatch, `airbrake_triggered` and the "full" law.
+# ----------------------------------------------------------------------
+
+
+def test_control_defaults_for_the_new_trigger_fields():
+    """`Control()` with no arguments defaults to `airbrake_trigger ==
+    "after_burnout"` and `airbrake_deploy_time == 0.0` -- the structural
+    half of the bit-for-bit gate: every pre-Step-65 config reproduces its
+    prior behaviour without naming anything new.
+    """
+    c = Control()
+    assert c.airbrake_trigger == "after_burnout"
+    assert c.airbrake_deploy_time == 0.0
+
+
+def test_after_burnout_trigger_is_false_under_thrust_and_true_after():
+    """`airbrake_triggered` under `"after_burnout"`: false while
+    `thrust(t, y, p) > 0.0` (still under power), true once thrust has
+    ended. `_LAUNCH_THRUST`'s placeholder curve tails off to exactly
+    `0.0` at `t = 2.0 s` (data/motors/placeholder.csv).
+    """
+    p = _launch_params(airbrake_trigger="after_burnout")
+    y = np.array(_launch_state())
+    assert thrust_curve.thrust(1.0, y, p) > 0.0   # sanity: genuinely under power
+    assert not control.airbrake_triggered(1.0, y, p)
+    assert thrust_curve.thrust(2.5, y, p) <= 0.0  # sanity: genuinely burned out
+    assert control.airbrake_triggered(2.5, y, p)
+
+
+def test_after_time_trigger_is_false_before_deploy_time_true_at_and_after():
+    """`airbrake_triggered` under `"after_time"`: false for `t <
+    airbrake_deploy_time`, true at and after it -- `t >=`, not `t >`.
+    """
+    p = _launch_params(airbrake_trigger="after_time", airbrake_deploy_time=4.0)
+    y = np.array(_launch_state())
+    assert not control.airbrake_triggered(3.9, y, p)
+    assert control.airbrake_triggered(4.0, y, p)   # at the instant, not just after it
+    assert control.airbrake_triggered(4.1, y, p)
+
+
+def test_after_apogee_trigger_is_false_on_the_pad_false_ascending_true_descending():
+    """`airbrake_triggered` under `"after_apogee"`: `y[VZ] > 0.0` -- false
+    while ascending (`vz < 0`, z DOWN-positive), false at exactly `vz ==
+    0.0` (the pad case, t=0 -- strict inequality, not `>=`), and true once
+    descending (`vz > 0`). Same state predicate and same boundary
+    convention as `forces.parachute_deployed`'s own "apogee" trigger.
+    """
+    p = _launch_params(airbrake_trigger="after_apogee")
+    y_ascending = np.array(State(x=0.0, z=-500.0, vx=0.0, vz=-10.0, theta=math.pi / 2, omega=0.0))
+    y_pad = np.array(State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0))
+    y_descending = np.array(State(x=0.0, z=-500.0, vx=0.0, vz=10.0, theta=math.pi / 2, omega=0.0))
+    assert not control.airbrake_triggered(0.0, y_ascending, p)
+    assert not control.airbrake_triggered(0.0, y_pad, p)   # pad case: vz == 0.0 exactly
+    assert control.airbrake_triggered(0.0, y_descending, p)
+
+
+def test_unknown_airbrake_trigger_raises_keyerror():
+    """House no-validation rule (architecture.md SS7/SS12): an unnamed
+    `airbrake_trigger` string raises `KeyError` at the first call, not at
+    construction time -- `Control` itself performs no validation.
+    """
+    p = _launch_params(airbrake_trigger="nope")
+    y = np.array(_launch_state())
+    with pytest.raises(KeyError):
+        control.airbrake_triggered(0.0, y, p)
+
+
+def test_full_airbrake_returns_only_zero_or_one():
+    """`_full_airbrake` is a latch, not a law: across a sampled trajectory
+    it must return exactly `0.0` or `1.0`, never anything strictly between
+    -- unlike `_proportional_airbrake`, which this same scenario (the
+    modest-gain test above) demonstrably does take intermediate values.
+    """
+    s0 = _launch_state()
+    p = _launch_params(
+        airbrake_model="full", airbrake_trigger="after_burnout",
+        airbrake_Cd=1.0, airbrake_S_max=0.05,
+    )
+    r = run_sim(p, s0)
+    ground_t = r.events["ground"]
+    assert ground_t is not None
+
+    ts = np.linspace(0.0, ground_t, 500)
+    fracs = [control.airbrake_deploy_fraction(t, r.raw.sol(t), p) for t in ts]
+    assert all(f in (0.0, 1.0) for f in fracs)
+    assert any(f == 1.0 for f in fracs)   # the brake genuinely deployed at some point
+
+
+def test_full_after_burnout_reproduces_the_saturated_proportional_apogee():
+    """F17 (architecture-30-apps-4-5-and-configs.md SS30.2): a bare "fully
+    open while coasting" law reproduces the saturated-gain trick
+    (`airbrake_model="proportional"`, a saturating `airbrake_kp`,
+    `airbrake_target_apogee_m=0.0`) to solver tolerance -- the two are the
+    same physics, `"after_burnout"` + `"full"` being the legible framing of
+    what the saturated gain already did. Asserted loosely (a solver-
+    tolerance claim, not an exact identity), against this module's own
+    shared launch scenario (not F17's own demo-vehicle numbers, which used
+    a different motor curve and aero model).
+    """
+    s0 = _launch_state()
+
+    p_full = _launch_params(
+        airbrake_model="full", airbrake_trigger="after_burnout",
+        airbrake_Cd=1.0, airbrake_S_max=0.05,
+    )
+    p_saturated = _launch_params(
+        airbrake_model="proportional", airbrake_kp=1.0e9,
+        airbrake_target_apogee_m=0.0, airbrake_Cd=1.0, airbrake_S_max=0.05,
+    )
+
+    r_full = run_sim(p_full, s0)
+    r_saturated = run_sim(p_saturated, s0)
+    apogee_t_full = r_full.events["apogee"]
+    apogee_t_saturated = r_saturated.events["apogee"]
+    assert apogee_t_full is not None and apogee_t_saturated is not None
+
+    alt_full = -r_full.raw.sol(apogee_t_full)[Z]
+    alt_saturated = -r_saturated.raw.sol(apogee_t_saturated)[Z]
+    assert alt_full == pytest.approx(alt_saturated, abs=1e-5)

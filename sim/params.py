@@ -153,6 +153,8 @@ class Control:
     airbrake_kp: float = 0.0
     airbrake_Cd: float = 1.0
     airbrake_S_max: float = 0.0
+    airbrake_trigger: str = "after_burnout"    # after_burnout | after_time | after_apogee
+    airbrake_deploy_time: float = 0.0          # s, read only when airbrake_trigger == "after_time"
     aero_coeff_model: str = "none"        # Step 57 seam; "none" = identity
 
 
