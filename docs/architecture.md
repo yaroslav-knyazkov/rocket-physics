@@ -4468,3 +4468,35 @@ and D-38 answered, D-36 reworked and open), and six proposed backlog items (B18 
 trades, B19 airbrake deployment beyond an onset latch, B20 CFD-output ingestion, B21 coast-only
 restart, B22 mass changes that also move inertia/geometry, B23 a descent objective for the
 post-apogee brake, blocked on B17) §30.12.
+
+---
+
+## 31. Phase 2.15 — config separation: rocket / launch site / atmosphere — *lives in a separate file*
+
+**→ `docs/architecture-31-config-separation.md`** (**user-approved 2026-10-14**, all eleven decision
+forks settled as recommended; tickets §31.12, Steps 71-74; no code written yet).
+
+§31 answers the user's 2026-10-13 request to "start developing config separation between rocket,
+atmosphere, launch site". §30.4 made a config **one** bundled `Config` (`Params` + `s0` + notes),
+which is right for *consumption* but means a vehicle, a site and a flying day's air cannot be reused
+independently of each other. §31 splits the **authoring** layer into three reusable pieces —
+`Rocket`, `LaunchSite`, `Weather` — plus a `Scenario` that names one combination and assembles them
+into exactly the ordinary `Params`/`State` the simulator already takes. **`sim/params.py` and the
+twelve group dataclasses are untouched**; the whole design rests on one invariant, *exactly one
+owning piece per `Params` group*, so assembly is a 15-line total function with no merge logic.
+
+Full backward compatibility is proposed as a first-class goal (D-45): `Config`, `Variant` and
+`configs.get`/`names`/`CONFIGS` stay as they are, every scenario module still exports
+`CONFIG = SCENARIO.config`, and the recommended design needs **zero caller edits and zero test
+edits** — verified call site by call site (the blast radius is 11 files that touch the API, not the 19
+that mention it). The three seed configs migrate behind the four exact-equality tests already in
+`tests/test_configs.py`, with `math.radians(90.0) == math.pi / 2` measured exactly true so a
+rail-derived `s0` stays bit-for-bit. Eleven decision forks, **D-45 … D-55** (§31.9), continuing
+§30.10's D-28 … D-42 and skipping D-43/D-44 (used by Phase 2.14) — **all answered 2026-10-14 with the
+recommended option**. Tickets are §31.12, **Steps 71-74**, strictly sequential, no `sim/` file and no
+`apps/` file touched by any of them: 71 the schema additions, 72 the four subpackages with their
+registries plus a blank `_TEMPLATE_*.py` per piece type, 73 the switch-over (the gate step), 74 one
+worked mix-and-match demo (`demo_75mm_highland` — the same vehicle module at a second site) and the
+"how do I add my own" guide. One honest amendment the ticketing exposed: D-45's "zero test edits" is
+"no test edits **other than the two module-path strings the `git mv` itself renames**", since
+`tests/test_configs.py:206` imports a seed module by path.
