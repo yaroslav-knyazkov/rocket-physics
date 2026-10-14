@@ -85,8 +85,24 @@ def moment_of_inertia(m_p: float, l_B: float, p) -> float:
     simplest closed form that needs no geometry constant beyond the four
     this step introduces (`m_d, l_d, l_p, I_d`). Revisit once real grain
     geometry is available (main.tex's own note).
+
+    Step 77 (`Weight.I_p_spec`): that placeholder was borrowing the dry
+    assembly's OWN specific moment of inertia, `I_d/m_d`, for the
+    propellant -- a weaker assumption once the motor's real length and
+    diameter are known, because a short motor grain and a long airframe
+    do not, in general, share a radius of gyration. `I_p_spec`, when set,
+    replaces the borrowed `I_d/m_d` with the propellant's own specific
+    MOI about its own centroid (still taken proportional to `m_p(t)`,
+    same functional shape `main.tex` states -- only the constant
+    changes). `None` (the default) keeps the pre-Step-77 placeholder,
+    bit-for-bit. This is main.tex's own `\\todo`, now additionally
+    cross-referenced to backlog item B24 (motor mass/MOI from real grain
+    geometry, docs/architecture-32-motor-separation.md SS32.7), which
+    replaces both the placeholder and `I_p_spec` itself with an
+    integration over the actual receding grain shape.
     """
-    I_p = (p.weight.I_d / p.weight.m_d) * m_p
+    I_p = (p.weight.I_d / p.weight.m_d) * m_p if p.weight.I_p_spec is None \
+          else p.weight.I_p_spec * m_p
     return p.weight.I_d + p.weight.m_d * (l_B - p.weight.l_d) ** 2 + I_p + m_p * (l_B - p.weight.l_p) ** 2
 
 

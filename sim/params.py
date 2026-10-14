@@ -52,6 +52,11 @@ class Weight:
     l_p: float = 0.0
     I_d: float = 0.0
     I_sp: float = 0.0
+    I_p_spec: Optional[float] = None  # propellant MOI per unit mass about its own centroid [m^2]
+                                       # ("radius of gyration squared"), i.e. the propellant's own
+                                       # specific moment of inertia about its own centroid, per unit
+                                       # mass. None -> fall back to the pre-Step-77 placeholder
+                                       # (I_d/m_d) -- bit-for-bit unchanged when left None.
 
 
 @dataclass(frozen=True)

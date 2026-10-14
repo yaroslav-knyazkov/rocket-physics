@@ -143,3 +143,98 @@ def test_propellant_mass_cog_position_moment_of_inertia_are_callable_directly():
 
     I = moment_of_inertia(m_p, l_B, p)
     assert I > p.weight.I_d
+
+
+# --- Step 77: Weight.I_p_spec -- the propellant's own specific MOI ----
+
+
+def test_moment_of_inertia_I_p_spec_none_reproduces_pre_step77_result_bitwise():
+    """The gate (SS32.3.5, D-61): `I_p_spec=None` must short-circuit to the
+    IDENTICAL expression `(I_d/m_d) * m_p`, not merely an algebraically
+    equal one -- so this asserts `==`, not `pytest.approx`.
+    """
+    m_d, l_d, I_d, l_p = 1.1, 0.62, 0.080, 0.78
+    m_p, l_B = 0.585, 0.70
+
+    p_none = Params(
+        weight=Weight(m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=None)
+    )
+
+    # the exact pre-Step-77 expression, reproduced here so the gate is
+    # self-contained and does not depend on reading history
+    I_p_pre_step77 = (I_d / m_d) * m_p
+    I_expected = I_d + m_d * (l_B - l_d) ** 2 + I_p_pre_step77 + m_p * (l_B - l_p) ** 2
+
+    assert moment_of_inertia(m_p, l_B, p_none) == I_expected
+
+
+def test_moment_of_inertia_I_p_spec_equal_to_I_d_over_m_d_matches_to_1e15_not_bitwise():
+    """An explicit `I_p_spec` set equal to `I_d/m_d` reproduces the same
+    numeric result as the `None` path to 1e-15 relative -- NOT bitwise: the
+    two expressions multiply in a different order (`(I_d/m_d) * m_p` vs
+    `I_p_spec * m_p` where `I_p_spec` was itself computed as `I_d/m_d` by
+    the caller), so an ULP-scale difference is expected and is fine; only
+    the `None` path is required to be bitwise (see the test above).
+    """
+    m_d, l_d, I_d, l_p = 1.1, 0.62, 0.080, 0.78
+    m_p, l_B = 0.585, 0.70
+
+    p_none = Params(
+        weight=Weight(m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=None)
+    )
+    p_explicit = Params(
+        weight=Weight(
+            m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=I_d / m_d
+        )
+    )
+
+    I_none = moment_of_inertia(m_p, l_B, p_none)
+    I_explicit = moment_of_inertia(m_p, l_B, p_explicit)
+
+    assert I_explicit == pytest.approx(I_none, rel=1e-15)
+
+
+def test_moment_of_inertia_smaller_I_p_spec_gives_smaller_I_monotonically():
+    """Monotonicity sanity check: a smaller `I_p_spec` than `I_d/m_d` gives
+    a smaller `I(t)` at the same `m_p` (the propellant is modelled as
+    contributing less of its own spin inertia).
+    """
+    m_d, l_d, I_d, l_p = 1.1, 0.62, 0.080, 0.78
+    m_p, l_B = 0.585, 0.70
+
+    p_baseline = Params(
+        weight=Weight(m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=None)
+    )
+    p_smaller = Params(
+        weight=Weight(
+            m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0,
+            I_p_spec=0.5 * (I_d / m_d),
+        )
+    )
+
+    assert moment_of_inertia(m_p, l_B, p_smaller) < moment_of_inertia(m_p, l_B, p_baseline)
+
+
+def test_moment_of_inertia_I_p_spec_zero_is_honoured_as_zero_not_unset():
+    """`I_p_spec=0.0` must be honoured as exactly zero propellant self-
+    inertia (a point-mass grain model), and must NOT be treated as
+    "unset" -- it must be distinguishable from `I_p_spec=None`, mirroring
+    the existing `Weight.m_d` None-vs-set convention already in this
+    codebase (None = off/unknown, 0.0 = a real, honoured value).
+    """
+    m_d, l_d, I_d, l_p = 1.1, 0.62, 0.080, 0.78
+    m_p, l_B = 0.585, 0.70
+
+    p_zero = Params(
+        weight=Weight(m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=0.0)
+    )
+    p_none = Params(
+        weight=Weight(m=m_d + m_p, I=0.0, m_d=m_d, l_d=l_d, l_p=l_p, I_d=I_d, I_sp=200.0, I_p_spec=None)
+    )
+
+    I_zero = moment_of_inertia(m_p, l_B, p_zero)
+    I_none = moment_of_inertia(m_p, l_B, p_none)
+    I_expected_zero = I_d + m_d * (l_B - l_d) ** 2 + 0.0 + m_p * (l_B - l_p) ** 2
+
+    assert I_zero == I_expected_zero
+    assert I_zero != I_none
