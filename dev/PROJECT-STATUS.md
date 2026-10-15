@@ -24,7 +24,7 @@
 
 ## 6. ⏳ Ожидает решения / аппрува
 
-- **Phase 2.16 (motor-config-separation), ветка `feature/motor-config-separation`** — Steps 75-83 готовы (485/485 тестов), Step 84 (LaTeX) отложен. Нужно: подтвердить D-56…D-73 (`dev/docs/architecture-32-motor-separation.md` §32.10), решить D-76 (см. §10), затем аппрув мержа в `develop`.
+- **Phase 2.16 (motor-config-separation), ветка `feature/motor-config-separation`** — Steps 75-83 готовы (485/485 тестов), Step 84 (LaTeX) отложен. D-56…D-73 и D-76 утверждены 2026-10-15. Идёт чистка `configs/` до шаблона + одного демо (D-78, Steps 85+), затем аппрув мержа в `develop`.
 - **Step 30 (3D вращательная динамика) заблокирован** — ждёт ревью пользователем `dev/docs/latex/research/3d_equations_of_motion.md`; открытая развилка — осевой момент инерции `I_a` (значения по умолчанию нет).
 - **Локальная компиляция LaTeX** — `dev/docs/latex/main.tex` ни разу не собирался (в среде нет pdflatex/latexmk); пользователю собрать локально (два прохода ради `\autoref`) и просмотреть.
 - **Уточнить: `develop` → `master`** — `master` последний раз догнан до `7167c45` (Phases 2.13-2.14); перенос Phase 2.15 (и затем 2.16) в `master` в памяти не зафиксирован.
@@ -55,7 +55,6 @@
 
 Полный список — `status_query.py key deferred_decisions`. Кратко:
 
-- **2026-10-15 — D-76** — `s0.m` не берётся из `weight.m` (`configs/schema.py::_pad_state`): сценарий с включённой масс-моделью, собранный через `SCENARIO.config`, стартует с неверной массой; `demo_75mm_k570` обходит локально. Рекомендация: в `assemble()` задавать `s0.m = weight.m` только при `weight.m_d is not None`.
 - **2026-10-15 — Step 84 (LaTeX для Phase 2.16)** — отложен: LaTeX не править.
 - **2026-10-14 — D-54** — ad-hoc CLI `--rocket/--site/--weather` отдельным будущим шагом.
 - **2026-10-04 — Step 30** — ждёт ревью предложения 3D-уравнений (развилка `I_a`).
