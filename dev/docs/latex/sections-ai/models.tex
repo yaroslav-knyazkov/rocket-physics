@@ -209,31 +209,149 @@ time there.
 
 \subsection{Mass, centre of gravity and moment of inertia}\label{sec:mass}
 As propellant burns, mass leaves the rocket through the nozzle and both the centre of gravity and
-the moment of inertia change over the burn. A minimal model treats the rocket as two lumped
-masses: dry structure (mass $m_d$, fixed centroid at $l_d$ from the nose tip $A$) and remaining
-propellant (mass $m_p(t)=m(t)-m_d$, centroid at $l_p$).
+the moment of inertia change over the burn. The rocket is therefore split into two bodies: the
+\emph{dry rocket} (subscript $r$: everything that does not burn, with constant mass $m_r$, centre
+of gravity $l_{g,r}$ from the nose tip $A$, and moment of inertia $I_{r,g}$ about its own centre of
+gravity) and the \emph{motor} (subscript $m$: casing and remaining propellant, with time-dependent
+mass $m_{m}(t)$, centre of gravity $l_{g,m}(t)$ and moment of inertia $I_{m,g}(t)$ about its own
+centre of gravity). The subscript $g$ on $I_{r,g}$, $I_{m,g}$ says ``about that body's own centre
+of gravity''; the total quantities $m$, $l_g$, $I$ carry no body subscript. $t$ is time since
+ignition. (Here $p$ is no longer a propellant subscript: it names only the aerodynamic reference
+point, \autoref{sec:notation}.) $g_0=9.80665\,\mathrm{m/s^2}$ is the standard gravity, a fixed
+constant of the definition of specific impulse and unrelated to the local $g(h)$ of
+\autoref{sec:gravity}.
 
-\subsubsection{Mass}
-\begin{equation}
-    \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0}
+\subsubsection{Mass}\label{sec:mass_mass}
+The total mass is the dry rocket plus the motor,
+\begin{equation}\label{eq:mass_total}
+    m(t) = m_r + m_m(t).
 \end{equation}
-or a measured mass-flow table, if available; $I_{sp}$ is the motor's specific impulse.
+Only $m_m(t)$ changes; its rate is fixed by one of two motor mass models.
 
-\subsubsection{Centre of gravity}
-\begin{equation}
-    l_B(t) = \frac{m_d\,l_d + m_p(t)\,l_p}{m_d + m_p(t)},
+\paragraph{Linear model.} Inputs: the motor mass at ignition $m_0$, at burnout $m_f$ (the casing and
+whatever else stays; $m_f=0$ if $m_m$ counts propellant only), and the burn duration $\Delta t$.
+The mass falls at a constant rate,
+\begin{equation}\label{eq:mass_linear}
+    \frac{\mathrm{d}m_m}{\mathrm{d}t} = \frac{m_f-m_0}{\Delta t}, \qquad
+    m_m(t)=m_0+\frac{m_f-m_0}{\Delta t}\,t \quad(0\le t\le\Delta t),
 \end{equation}
-the CoG distance from the nose, replacing the constant $l_B$ of \autoref{sec:geometry}.
+and $m_m=m_f$ afterwards. The rate is negative, since $m_f<m_0$. It ignores the shape of the
+thrust curve: mass leaves at the same rate whether the motor is delivering its peak or its tail-off.
 
-\subsubsection{Moment of inertia}
-\begin{equation}
-    I(t) = I_d + m_d\bigl(l_B(t)-l_d\bigr)^2 + I_p(t) + m_p(t)\bigl(l_B(t)-l_p\bigr)^2,
+\paragraph{Specific-impulse model.} Inputs: the thrust curve $T_0(t)$ and the specific impulse
+$\mathrm{ISP}$ (seconds). The propellant leaves at the rate that delivers exactly that thrust,
+\begin{equation}\label{eq:mass_isp}
+    \frac{\mathrm{d}m_m}{\mathrm{d}t} = -\frac{T_0(t)}{\mathrm{ISP}\;g_0},
 \end{equation}
-by the parallel-axis theorem, with $I_d,I_p(t)$ the dry structure's and remaining propellant's own
-moments of inertia about their respective centroids.
+integrated alongside the equations of motion until $m_m$ reaches $m_f$. The minus sign is
+essential: the motor mass decreases. \autoref{eq:mass_linear}
+is negative automatically, and \autoref{eq:mass_isp} must agree with it in sign. $T_0(t)$ is the
+\emph{reference} thrust curve (the test-stand curve, $T_{ref}$ of \autoref{sec:thrust}), not the
+pressure-corrected $T=T_0(t)+A_e(p_0-p_{atm})$ of D-88. The reason is that $\mathrm{ISP}$ is
+defined from the stand measurement: it is the ratio of the stand thrust to the propellant weight
+flow, and the nozzle-exit pressure term is a change in the force delivered to the airframe, not in
+the rate at which the propellant is consumed. When the mass model is built from the thrust file
+alone, $\mathrm{ISP}$ follows from the curve's total impulse $J=\int T_0\,\mathrm{d}t$ and the
+burned mass $\Delta m=m_0-m_f$ as $\mathrm{ISP}=J/(\Delta m\,g_0)$, so that the integral of
+\autoref{eq:mass_isp} burns exactly $\Delta m$.
+\todo{sim/dynamics.py computes the mass flow from \texttt{thrust\_curve.thrust}, i.e.\ the
+pressure-corrected $T$, not from the bare $T_0(t)$; the two differ only when $A_e\neq0$ (default
+$A_e=0$, so no current result changes). Decide whether the code should be switched to $T_0$, as
+derived here.}
 
-$I_p(t)$ and $l_p$ depend on the propellant grain geometry and on how it recedes as it burns, so
-they deserve elaborating rather than just flagging. Solid-motor grains commonly come in a few
+\paragraph{In the code.} Only the specific-impulse model is implemented (\texttt{motor.mass\_model}
+$\in\{$\texttt{"none"}, \texttt{"isp"}, \texttt{"endpoints"}$\}$; the last obtains $\mathrm{ISP}$ from
+$J/(\Delta m\,g_0)$ as above; \texttt{mass.isp\_from\_impulse}). There is no separate linear-in-time
+model of \autoref{eq:mass_linear}; $m(t)$ is the integrated state \texttt{y[M]}.
+\todo{linear mass model (\autoref{eq:mass_linear}) is not implemented in sim/.}
+
+\subsubsection{Centre of gravity}\label{sec:mass_cog}
+The first moment of mass about the nose tip $A$ is additive:
+\begin{equation}\label{eq:mass_cog}
+    l_g(t)\,m(t) = l_{g,r}\,m_r + l_{g,m}(t)\,m_m(t)
+    \quad\Longrightarrow\quad
+    l_g(t) = \frac{l_{g,r}\,m_r + l_{g,m}(t)\,m_m(t)}{m(t)},
+\end{equation}
+the CoG distance from the nose, replacing the constant $l_B$ of \autoref{sec:geometry}. The same
+holds for the radial offset when it is not zero,
+\begin{equation}\label{eq:mass_cog_r}
+    r_g(t)\,m(t) = r_{g,r}\,m_r + r_{g,m}(t)\,m_m(t).
+\end{equation}
+Part of the motor's centre of gravity travel is the motor itself shifting aft as the forward
+grain burns away. The simplest model of it is linear in the \emph{burned} mass: with $l_0$ and $l_f$
+the motor's centre of gravity at ignition and burnout,
+\begin{equation}\label{eq:mass_l_linear}
+    \frac{\partial l_{g,m}}{\partial m_b}=\frac{l_f-l_0}{\Delta m},\qquad
+    l_{g,m}(m_m)=l_0+\frac{l_f-l_0}{\Delta m}\,(m_0-m_m),
+\end{equation}
+where $m_b=m_0-m_m$ is the burned mass and $\Delta m=m_0-m_f$ its total. (The derivative is taken with respect to the burned mass $m_b$: with respect to $m_m$ itself the
+sign would flip.) At $m_m=m_0$ this gives $l_0$, at $m_m=m_f$ it gives $l_f$.
+
+\subsubsection{Moment of inertia}\label{sec:mass_inertia}
+The moments of inertia add once each body's own moment is transferred to the total centre of
+gravity $g$ by the parallel-axis theorem,
+\begin{equation}\label{eq:mass_inertia}
+    I(t) = I_r + I_m(t),
+\end{equation}
+\begin{equation}\label{eq:mass_inertia_parts}
+    I_r = I_{r,g} + m_r\,d_r^2, \qquad I_m(t) = I_{m,g}(t) + m_m(t)\,d_m(t)^2,
+\end{equation}
+where $I_{r,g}$, $I_{m,g}(t)$ are taken about each body's own centre of gravity. In the
+two-dimensional pitch plane the transfer distances are
+\begin{equation}\label{eq:mass_dist}
+    d_r^2=\bigl(l_g(t)-l_{g,r}\bigr)^2+\bigl(r_g(t)-r_{g,r}\bigr)^2, \qquad
+    d_m^2=\bigl(l_g(t)-l_{g,m}(t)\bigr)^2+\bigl(r_g(t)-r_{g,m}(t)\bigr)^2.
+\end{equation}
+With all bodies on the axis ($r\equiv0$) the radial terms vanish, and \autoref{eq:mass_dist}
+reduces to the axial form $d_r=l_g(t)-l_{g,r}$, $d_m=l_g(t)-l_{g,m}(t)$. Note that
+$I_r$ depends on time through $l_g(t)$ although $I_{r,g}$ and $m_r$ do not.
+
+The motor's own moment of inertia is modelled, like its centre of gravity, as linear in burned
+mass: with $I_0$, $I_f$ its values at ignition and burnout,
+\begin{equation}\label{eq:mass_I_linear}
+    \frac{\partial I_{m,g}}{\partial m_b}=\frac{I_f-I_0}{\Delta m},\qquad
+    I_{m,g}(m_m)=I_0+\frac{I_f-I_0}{\Delta m}\,(m_0-m_m),
+\end{equation}
+with $I_{m,g}=I_0$ at $m_m=m_0$ and $I_f$ at $m_m=m_f$.
+
+\paragraph{Radial offsets.}
+\autoref{eq:mass_cog_r} and \autoref{eq:mass_dist} are the general forms. The rest of this document
+treats $r_g$ as a constant as-built input (the old $u_B$ of \autoref{sec:geometry}, zero by
+default), and the code does the same: the mass model is purely axial (\texttt{mass.cog\_position},
+\texttt{mass.moment\_of\_inertia} take no radial argument) and \texttt{p.lengths.u\_B} is a constant.
+For $r_{g,r}=r_{g,m}=0$ the two agree; for a rocket with an off-axis dry-rocket CoG, $r_g(t)$ would
+drift as the motor burns, and the transfer distances would gain the radial terms, neither of which
+is implemented.
+\todo{radial offsets are inconsistent between the document and the code: \autoref{eq:mass_cog_r} and
+\autoref{eq:mass_dist} make $r_g(t)$ time-dependent and add a radial term to the parallel-axis
+distance, whereas sim/ keeps $r_g$ (\texttt{u\_B}) constant and omits the radial term. Exact for
+$r\equiv0$, which is the default.}
+
+\paragraph{Variable-mass terms.} Differentiating the angular momentum of a body whose mass and inertia
+change gives, besides $I\varepsilon_r$, the terms $\omega_r\,\mathrm{d}I/\mathrm{d}t$ and the
+jet-damping moment of the exhaust leaving at distance $l_t-l_g$ from the centre of gravity (of the
+order of $|\mathrm{d}m_m/\mathrm{d}t|\,(l_t-l_g)^2\,\omega_r$). The equation of motion used here is
+simply $I(t)\,\varepsilon_r=\sum M$ (\autoref{sec:eom}); both terms are dropped.
+\todo{variable-mass terms $\omega_r\,\mathrm{d}I/\mathrm{d}t$ and jet damping are neglected (sim/
+integrates $I(t)\,\varepsilon_r=\sum M$ with no such terms); estimate their size against the
+pitch-damping of \autoref{sec:analysis_dynamic} for a short, high-thrust motor.}
+
+\paragraph{In the code.} The motor is represented not by the linear models above but by the
+two-lump composition of \texttt{configs/schema.py}: a casing lump and a propellant lump of mass
+$m_{prop}$ with a \emph{fixed} propellant centroid and $I_{prop}\propto$ remaining propellant mass.
+Equivalent to \autoref{eq:mass_cog}--\autoref{eq:mass_inertia_parts} with the dry body
+$m_d=m_r+m_f$ (airframe plus casing; \texttt{Weight.m\_d}, \texttt{l\_d}, \texttt{I\_d}) and the
+motor reduced to the propellant alone (\texttt{l\_p}, \texttt{I\_p\_spec}). The endpoint inputs
+$l_0,l_f,I_0,I_f$ (\texttt{l\_cog\_0}, \texttt{l\_cog\_f}, \texttt{I\_0}, \texttt{I\_f}) are not
+used to interpolate linearly: they are inverted at assembly time into the fixed-centroid
+propellant lump, which reproduces $l_0,l_f,I_0,I_f$ at both ends but is not linear in between.
+\todo{linear centre-of-gravity and moment-of-inertia models (\autoref{eq:mass_l_linear},
+\autoref{eq:mass_I_linear}) differ from the two-lump model of sim/ in between the endpoints; they
+agree only at ignition and burnout.}
+
+\subsubsection{Propellant grain geometry}
+The propellant part of $m_m(t)$, $l_{g,m}(t)$ and $I_{m,g}(t)$ depends on the grain geometry and on
+how it recedes as it burns, so it deserves elaborating rather than just flagging. Solid-motor grains commonly come in a few
 standard families: \textbf{cylindrical} grains (a solid or centrally bored cylinder, burning on
 the outer surface, or --- the common BATES configuration --- on the inner bore and, if
 uninhibited, the end faces too); \textbf{tubular/annular} grains (a thin-walled, case-bonded tube
@@ -241,14 +359,18 @@ burning on the inner bore only); \textbf{end-burning} grains (burning only on on
 gives a nearly constant burn area and hence a nearly constant thrust, but a centroid that moves
 along the grain quite differently from a radially-burning one); and \textbf{star or finocyl}
 grains (a star- or wagon-wheel-shaped central perforation, chosen specifically to tailor the
-burn-area-versus-time curve, and so the thrust curve $T_{ref}(t)$ itself). Each family gives a
+burn-area-versus-time curve, and so the thrust curve $T_0(t)$ itself). Each family gives a
 different relationship between burn area and web thickness $A_b(w)$; combined with a regression
-rate $\dot{w}=r_b(p)$ (typically Saint-Robert's law, $r_b=ap^n$), the instantaneous propellant
-volume, its centroid $l_p(t)$, and its own moment of inertia $I_p(t)$ about that centroid all
-follow by direct integration over the receding grain shape.
+rate $\mathrm{d}w/\mathrm{d}t=r_b(p)$ (typically Saint-Robert's law, $r_b=ap^n$, with $p$ the
+chamber pressure), the instantaneous propellant volume, its centroid, and its own moment of
+inertia about that centroid all follow by direct integration over the receding grain shape; added
+to the casing's contribution they give $l_{g,m}(t)$ and $I_{m,g}(t)$ of
+\autoref{eq:mass_cog}--\autoref{eq:mass_inertia_parts}.
 
-That is exactly the information the placeholder above is standing in for: holding $l_p$ constant
-and taking $I_p(t)\propto m_p(t)$ assumes a uniform density and a shape that merely shrinks in
+That is exactly the information the linear models of \autoref{eq:mass_l_linear} and
+\autoref{eq:mass_I_linear} (and, in the code, the fixed-centroid propellant lump with
+$I_{prop}\propto$ propellant mass) are standing in for: a centroid fixed or moving linearly and an
+inertia proportional to the remaining mass assume a uniform density and a shape that merely shrinks in
 overall size, self-similarly, as it burns --- which no real grain does. The true centroid and the
 true inertia ratio both drift over the burn, and by how much depends on which family above is
 used and on the specific grain's own dimensions: bore and outer diameter, grain length, and, for
@@ -257,6 +379,8 @@ yet, so the placeholder stays in place until an actual grain geometry is chosen;
 be revisited once one is.
 \todo{change of mass or moment of inertia due to mechanisms (e.g.\ deployable surfaces) is not
 covered above}
+\todo{estimate the dry-rocket inputs $m_r$, $l_{g,r}$, $I_{r,g}$ from components (OpenRocket-style)
+instead of entering them by hand; see the Backlog item in \autoref{sec:backlog}.}
 
 \subsection{Aerodynamics}\label{sec:aero}
 \subsubsection{Force magnitudes}

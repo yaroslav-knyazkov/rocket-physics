@@ -1,5 +1,5 @@
 \section{Rocket 2D}\label{sec:rocket2d}
-This section follows the author's handwritten notes and uses their notation. The sections after it,
+This section uses the new notation. The sections after it,
 and the simulator code, still use the older symbols until they are converted;
 \autoref{sec:notation} maps one onto the other.
 
@@ -207,7 +207,7 @@ Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
 \end{itemize}
 
 \subsection{Notation}\label{sec:notation}
-This section uses the notation of the handwritten notes. The older notation is still used by the
+This section uses the new notation. The older notation is still used by the
 later sections until they are converted, and by the simulator code (\texttt{sim/}), whose
 identifiers are not renamed. The two map as follows; ``not stored'' means the code keeps only an
 arm relative to the centre of gravity, not the length from the nose tip.
@@ -236,6 +236,20 @@ $l_t-l_p$ & $l_2=l_C-l_D$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
 $\vec{gt}$, $\vec{gp}$ & $\vec{BC}$, $\vec{BD}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
 $\theta_t$ & $-\delta$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
 $m$, $I$ & $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
+$m_r$ & $m_d$ less the casing & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
+$m_m(t)$ & $m_p$ (propellant only) & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
+$m_0$, $m_f$ & --- & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
+$\Delta t$ & --- & not used (no linear mass model) & burn duration & s \\
+$\Delta m$ & --- & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
+$\mathrm{ISP}$ & $I_{sp}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
+$g_0$ & $g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
+$T_0(t)$ & $T_{ref}(t)$ & \texttt{thrust\_curve} lookup & reference (test-stand) thrust & N \\
+$I_r$, $I_{r,g}$ & $I_d$ & \texttt{p.weight.I\_d} (dry assembly about its own centroid) & dry-rocket inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
+$I_m(t)$, $I_{m,g}(t)$ & $I_p(t)$ & \texttt{p.weight.I\_p\_spec}$\cdot m_p$ (propellant only) & motor inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
+$I_0$, $I_f$ & --- & \texttt{motor.I\_0}, \texttt{motor.I\_f} & $I_{m,g}$ at ignition, at burnout & $\mathrm{kg\,m^2}$ \\
+$l_{g,r}$, $r_{g,r}$ & $l_d$ & \texttt{p.weight.l\_d}; radial: not stored (constant \texttt{u\_B}) & dry-rocket centre of gravity (axial, radial) & m \\
+$l_{g,m}(t)$, $r_{g,m}(t)$ & $l_p$ (propellant) & \texttt{p.weight.l\_p} (fixed); radial: not stored & motor centre of gravity (axial, radial) & m \\
+$l_0$, $l_f$ & --- & \texttt{motor.l\_cog\_0}, \texttt{motor.l\_cog\_f} & $l_{g,m}$ at ignition, at burnout & m \\
 $S$ & $S$ & \texttt{p.aero.S} & aerodynamic reference area (same symbol in both) & $\mathrm{m^2}$ \\
 $c$ & $d_{ref}$ & \texttt{p.aero.d\_ref} & reference length of the pitching moment & m \\
 $C_x$, $C_z$, $C_m$ & $C_x$, $C_z$, $C_m$ ($C_A$, $C_N$) & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (constant model); fields of \texttt{aero.AeroCoeffs} & axial-force, normal-force, pitching-moment coefficients & --- \\
@@ -257,7 +271,7 @@ $\vec{a}_r$ & $\ddot{\vec{x}}$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acc
 $A$ is now only the nose tip, the reference area being $S$ (and $A_e$, $A_f$, $A_m$ keep their
 own subscripts). Some letters still carry two meanings and are told apart by context only: $g$ is both the
 centre of gravity and the gravitational acceleration, and as a subscript both the point ($l_g$,
-$r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$); and $p$ as a subscript is both the
-aerodynamic reference point here ($l_p$) and the propellant in the mass model of
-\autoref{sec:mass} ($m_p$, $l_p$, $I_p$ there; \texttt{p.weight.l\_p} in the code). $t$ as a
-point is likewise distinct from time $t$.
+$r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$). The mass model of \autoref{sec:mass}
+no longer uses $p$ for the propellant (subscript $m$ for the motor, $r$ for the dry rocket), so
+$l_p$ is only the aerodynamic reference point; in the code \texttt{p.weight.l\_p} is still the
+propellant centroid (the motor's $l_{g,m}$). $t$ as a point is likewise distinct from time $t$.

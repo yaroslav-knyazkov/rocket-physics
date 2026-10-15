@@ -94,7 +94,7 @@ choice'' at a glance.
     rotating $\hat{z}_g$; the two corrections stay deliberately independent
     (\autoref{sec:noninertial}, closing caveat).
     \item \textbf{Constant moment arms (not constant mass).} Mass, centre of gravity and moment of
-    inertia are \emph{not} held fixed: $m(t)$, $l_B(t)$ and $I(t)$ come from the propellant model
+    inertia are \emph{not} held fixed: $m(t)$, $l_g(t)$ and $I(t)$ come from the motor model
     of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held fixed is one
     step further out --- how the other two application points travel relative to a moving centre
     of gravity. The CoG-to-$D$ arm $l_1=l_D-l_B$ never responds to CoG travel, and how far it
@@ -209,12 +209,20 @@ tell a missing derivation from a missing input.
     What is missing is a value or model for $c_{m,q}$ itself. \emph{Waiting on:} either a measured
     value (forced-oscillation wind-tunnel testing, or unsteady CFD) or a full distributed-force
     derivation from the airframe geometry of the previous item.
-    \item \textbf{Propellant grain geometry behind $I_p(t)$ and $l_p$.} The physical mechanism and
-    the standard grain families (cylindrical/BATES, tubular, end-burning, star/finocyl) are now
-    elaborated in \autoref{sec:mass}; what remains is choosing one and fixing its actual
-    dimensions (bore/outer diameter, length, and, for star grains, the point geometry), from which
-    $A_b(w)$, $l_p(t)$ and $I_p(t)$ follow by direct integration. Picking this up is the next
-    conversation, not something to guess at here.
+    \item \textbf{Propellant grain geometry behind $I_{m,g}(t)$ and $l_{g,m}(t)$.} The physical
+    mechanism and the standard grain families (cylindrical/BATES, tubular, end-burning,
+    star/finocyl) are now elaborated in \autoref{sec:mass}; what remains is choosing one and fixing
+    its actual dimensions (bore/outer diameter, length, and, for star grains, the point geometry),
+    from which $A_b(w)$, $l_{g,m}(t)$ and $I_{m,g}(t)$ follow by direct integration. Picking this
+    up is the next conversation, not something to guess at here.
+    \item \textbf{Component-based estimate of the dry rocket's mass properties.} Today the dry
+    rocket's mass $m_r$, centre of gravity $l_{g,r}$ and moment of inertia $I_{r,g}$
+    (\autoref{sec:mass}) are entered by hand. An OpenRocket-style estimator would build them from
+    components --- nose cone, body tubes, fins, internal parts --- each with its geometry and
+    material density, combining masses, centroids and own moments of inertia by the same
+    mass-weighted-centroid and parallel-axis rules as \autoref{eq:mass_cog} and
+    \autoref{eq:mass_inertia_parts}. \emph{Waiting on:} the airframe geometry of the wing-body item
+    above and a materials table.
     \item \textbf{Vertical wind.} Two candidate families exist (terrain-slope/mass-continuity
     orographic lift, or a convective/thermal parameterisation, \autoref{sec:wind} > Vertical
     wind), each needing a data source (terrain elevation, or surface heat-flux/insolation data)
