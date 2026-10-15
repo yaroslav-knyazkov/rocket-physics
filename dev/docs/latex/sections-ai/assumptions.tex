@@ -1,0 +1,27 @@
+\section{Current assumptions}\label{sec:assumptions}
+The simplifications the derivation and the simulator rely on. Each is expected to be relaxed
+later, unless stated otherwise.
+\begin{itemize}
+    \item \textbf{Planar flight, no crosswind.} Motion is confined to the vertical plane fixed by
+    the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded. Wind is
+    horizontal only: updrafts and downdrafts are not modelled.
+    \item \textbf{Gravity direction.} Parallel by default, $\hat{z}_g\equiv\hat{z}_0$. The radial
+    and ellipsoidal direction models are available; once one is enabled the ground is curved and
+    the true altitude $h_{true}$ (\autoref{eq:h_true}) replaces $h=-z$, with impact at
+    $h_{true}=0$.
+    \item \textbf{Earth rotation, in part.} The centrifugal effect on the magnitude of $g$ and the
+    in-plane Coriolis term are included. The out-of-plane Coriolis component and the residual
+    centrifugal term are dropped, and $\vec{\Omega}$ is frozen at the launch site's latitude and
+    heading.
+    \item \textbf{Moment arms.} Mass, centre of gravity and inertia vary with the motor model. The
+    arm $l_p-l_g$ does not respond to the centre-of-gravity travel, and responds to the flight
+    state only under the table aerodynamic model; the thrust arm is constant.
+    \item \textbf{Thrust axis.} The thrust angle $\theta_t$ and the radial offsets $r_g,r_t$ are
+    constant inputs, zero by default. A commanded gimbal is not modelled.
+    \item \textbf{Rail, recovery, air brake.} The rail has no friction and no tip-off. The canopy
+    opens instantly and the attitude is frozen under it. The air brake affects the axial force
+    only, through a memoryless law; a law with memory is expressible in the sampled mode but not
+    written.
+    \item \textbf{Turbulence.} The Dryden spectrum is driven at a fixed reference airspeed, not the
+    rocket's own, and has no vertical component. It is off by default.
+\end{itemize}

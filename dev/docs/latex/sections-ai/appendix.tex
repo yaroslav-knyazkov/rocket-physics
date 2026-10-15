@@ -162,8 +162,25 @@ Signs and axes in one place; the rest of the report follows them.
     $\vec{A}_m=-qSc\,C_m\hat{y}_r$, so positive $C_x$ and $C_z$ oppose motion along $+\hat{x}_r$
     and $+\hat{z}_r$ respectively, and positive $C_m$ gives a moment about $-\hat{y}_r$, i.e.\
     nose-down.
-    \item \textbf{Angle of attack} $\alpha$ is defined in \autoref{sec:relwind}; the gravity
-    direction $\hat{z}_g$ in \autoref{sec:gravity}.
     \item \textbf{Units.} SI throughout; angles are radians internally and degrees in the
     configuration files.
 \end{itemize}
+
+\section{Constants}\label{sec:constants}
+WGS84 ellipsoid constants used by the ellipsoidal gravity model, and the standard gravity.
+\begin{center}
+\small
+\begin{tabular}{l l l l}
+\hline
+\textbf{Symbol} & \textbf{Value} & \textbf{Units} & \textbf{Meaning} \\
+\hline
+$a_e$ & $6378137$ & m & equatorial radius \\
+$f$ & $1/298.257223563$ & --- & flattening \\
+$e^2$ & $0.00669437999013$ & --- & first eccentricity squared \\
+$m$ & $0.00344978650684$ & --- & $\Omega^2a_e^2b_e/GM$ (rotation-to-gravity ratio) \\
+$\gamma_e$ & $9.7803253359$ & $\mathrm{m/s^2}$ & normal gravity at the equator \\
+$k$ & $0.00193185265241$ & --- & Somigliana constant \\
+$g_0$ & $9.80665$ & $\mathrm{m/s^2}$ & standard gravity \\
+\hline
+\end{tabular}
+\end{center}
