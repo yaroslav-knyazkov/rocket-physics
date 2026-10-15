@@ -3,10 +3,10 @@ own numbers (Step 72, docs/architecture-31-config-separation.md
 SS31.5).
 
 This file is a blank `Scenario`: one named combination of a rocket, a
-site, and a day's weather, plus the run-level groups nobody reuses by
-name (gravity/solver/g0). It demonstrates the thing this whole phase
-is for -- referencing named pieces **by import** instead of
-re-specifying them every time.
+motor, a site, and a day's weather, plus the run-level groups nobody
+reuses by name (gravity/solver/g0). It demonstrates the thing this
+whole phase is for -- referencing named pieces **by import** instead
+of re-specifying them every time.
 
 This module is **never registered** -- it is deliberately absent from
 `configs/scenarios/__init__.py`'s `_MODULES` tuple, and must stay
@@ -26,19 +26,20 @@ still empty; Step 73 is what moves the seed rockets in) -- the import
 above is illustrative, a forward reference to the shape Step 73
 produces, **not working code today**. This template builds its
 placeholder rocket inline below instead, exactly so the file can still
-import cleanly before any real rocket piece exists; the site and
+import cleanly before any real rocket piece exists; the motor, site and
 weather pieces below, however, really do exist already
-(`configs.sites.origin_msl`, `configs.weather.isa_dry_calm`), so those
-two imports are live, working examples of the pattern.
+(`configs.motors.placeholder`, `configs.sites.origin_msl`,
+`configs.weather.isa_dry_calm`), so those three imports are live,
+working examples of the pattern.
 
 A flat, whole-`Config` scenario module -- one `Config(...)` literal
-with no `Rocket`/`LaunchSite`/`Weather`/`Scenario` pieces at all, the
-shape the user's own `configs/_TEMPLATE_my_rocket.py` uses -- remains
-legal and registrable here, forever (SS31.5, SS31.8 #7): the scenario
-registry only requires a module to expose `CONFIG: Config`; `SCENARIO`
-below is optional metadata for anyone who wants the piece-composed
-form instead. Splitting into pieces is not mandatory just because this
-package exists.
+with no `Rocket`/`Motor`/`LaunchSite`/`Weather`/`Scenario` pieces at
+all, the shape the user's own `configs/_TEMPLATE_my_rocket.py` uses --
+remains legal and registrable here, forever (SS31.5, SS31.8 #7): the
+scenario registry only requires a module to expose `CONFIG: Config`;
+`SCENARIO` below is optional metadata for anyone who wants the
+piece-composed form instead. Splitting into pieces is not mandatory
+just because this package exists.
 
 To use this template:
   1. Fill in every `# <-- fill this in` field below (and build or
@@ -52,10 +53,10 @@ To use this template:
 
 from __future__ import annotations
 
-from configs.schema import Rocket, Scenario
+from configs.motors.placeholder import MOTOR
+from configs.schema import Airframe, Rocket, Scenario
 from configs.sites import origin_msl
 from configs.weather import isa_dry_calm
-from sim.params import Weight
 
 # Normally you would import a registered rocket piece, e.g.:
 #     from configs.rockets.demo_75mm import ROCKET  # <-- replace with your own once you have one
@@ -63,14 +64,15 @@ from sim.params import Weight
 # this template builds a minimal placeholder inline instead. See
 # configs/rockets/_TEMPLATE_rocket.py for every field, with comments.
 _placeholder_rocket = Rocket(
-    name="my_rocket",              # <-- rename to match whatever rocket you actually use
-    weight=Weight(m=1.5, I=0.08),  # <-- fill this in (see _TEMPLATE_rocket.py for the full field set)
+    name="my_rocket",                  # <-- rename to match whatever rocket you actually use
+    airframe=Airframe(m=1.5, I=0.08),  # <-- fill this in (see _TEMPLATE_rocket.py for the full field set)
 )
 
 SCENARIO = Scenario(
     name="my_scenario",  # <-- rename this string to match the filename once you rename it
 
     rocket=_placeholder_rocket,    # <-- fill this in: your own Rocket, built inline or imported
+    motor=MOTOR,                   # <-- fill this in: your own Motor, see configs/motors/_TEMPLATE_motor.py
     site=origin_msl.SITE,          # <-- fill this in: swap for your own LaunchSite once you have one
     weather=isa_dry_calm.WEATHER,  # <-- fill this in: swap for your own Weather once you have one
 

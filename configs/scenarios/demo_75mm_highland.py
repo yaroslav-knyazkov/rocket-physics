@@ -16,6 +16,7 @@ scenario's derived `s0` still does).
 
 from __future__ import annotations
 
+from configs.motors.placeholder import MOTOR
 from configs.rockets import demo_75mm
 from configs.schema import Config, Scenario
 from configs.sites import highland_1500m
@@ -24,6 +25,7 @@ from configs.weather import breezy_isa
 SCENARIO = Scenario(
     name="demo_75mm_highland",
     rocket=demo_75mm.ROCKET,
+    motor=MOTOR,
     site=highland_1500m.SITE,
     weather=breezy_isa.WEATHER,
     notes="One vehicle, two sites, zero duplication.",

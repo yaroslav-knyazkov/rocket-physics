@@ -32,18 +32,26 @@ The `s0`/`notes` this module's flat `Config` used to carry now live in
 `configs/scenarios/demo_75mm.py` -- `s0` because it is derived from the
 rail (SS31.4, D-51a) rather than a vehicle property, `notes` because it
 is what `--list-configs` prints for the scenario, not the vehicle.
+
+Step 80 (`docs/architecture-32-motor-separation.md` SS32.2.3): this
+rocket's motor (including the "replaced per entry; never read as-is"
+judgment call on `motor_curve`) now lives in
+`configs/scenarios/demo_75mm.py`, imported from
+`configs.motors.placeholder`. `sections` is left at its default
+(`Sections()`) -- this rocket has no measured section geometry.
 """
 
 from __future__ import annotations
 
-from configs.schema import Rocket
-from sim.params import Aero, Lengths, Thrust, Weight
+from configs.schema import Airframe, Rocket
+from sim.params import Aero, Lengths
 
 ROCKET = Rocket(
     name="demo_75mm",
-    weight=Weight(m=1.5, I=0.08),                 # launch mass, mass model OFF (m_d=None)
+    airframe=Airframe(m=1.5, I=0.08),              # launch mass, mass model OFF (m_d=None)
     lengths=Lengths(l1=0.3, l2=0.4),
-    thrust=Thrust(motor_curve="placeholder.csv"),  # replaced per entry; never read as-is
+    # sections left at its default -- no measured section geometry for
+    # this rocket (SS32.2.3).
     aero=Aero(
         S=0.00442, d_ref=0.075, l_ref=0.75,        # 75 mm body: S = pi*d^2/4 = 0.004418 m^2
         C_x=0.5, C_z=0.0, C_m=0.0,

@@ -24,6 +24,7 @@ history (`configs/rockets/demo_75mm.py`'s) rather than a second literal.
 
 from __future__ import annotations
 
+from configs.motors.placeholder import MOTOR
 from configs.rockets import demo_75mm
 from configs.schema import Config, Scenario
 from configs.sites import origin_msl
@@ -32,6 +33,7 @@ from configs.weather import isa_dry_calm
 SCENARIO = Scenario(
     name="demo_75mm_airbrake",
     rocket=demo_75mm.ROCKET,
+    motor=MOTOR,
     site=origin_msl.SITE,
     weather=isa_dry_calm.WEATHER,
     notes=(

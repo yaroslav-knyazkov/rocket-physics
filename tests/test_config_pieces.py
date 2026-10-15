@@ -23,7 +23,7 @@ import textwrap
 
 import pytest
 
-from configs.schema import Config, LaunchSite, Rocket, Scenario, Weather, assemble
+from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
 from sim.params import (
     Aero,
     Atmosphere,
@@ -43,20 +43,42 @@ from sim.state import State
 
 
 def _minimal_rocket(name: str = "rocket") -> Rocket:
-    return Rocket(name=name, weight=Weight(m=1.0, I=0.01))
+    return Rocket(name=name, airframe=Airframe(m=1.0, I=0.01))
+
+
+def _minimal_motor(name: str = "motor") -> Motor:
+    return Motor(name=name)
 
 
 def _non_default_rocket() -> Rocket:
     """Every group non-default, so assembling this rocket can prove each
-    one actually travelled from `Rocket` into `Params` (SS31.8 #1)."""
+    one actually travelled from `Rocket` into `Params` (SS31.8 #1).
+
+    `weight`/`thrust` moved off `Rocket` at Step 80 -- `_non_default_motor()`
+    below covers `thrust`'s non-default case now; `weight` is DERIVED by
+    `assemble`, not sourced from `Rocket` at all (SS32.3), so it is
+    exercised by `_non_default_scenario`'s composed `Params.weight`
+    instead of by a `Rocket` field."""
     return Rocket(
         name="non_default_rocket",
-        weight=Weight(m=2.5, I=0.2),
+        airframe=Airframe(m=2.5, I=0.2),
         lengths=Lengths(l1=0.3, l2=0.4, u_B=0.01, u_C=0.02, misalign_deg=1.0),
-        thrust=Thrust(motor_curve="motor.csv", A_e=0.001, p_ref=90000.0),
         aero=Aero(model="linearized", S=0.01, d_ref=0.1, C_A0=0.05),
         recovery=Recovery(model="deploy", trigger="timer", deploy_time=5.0, Cd=1.0, S=1.0),
         control=Control(airbrake_model="proportional", airbrake_kp=0.5, airbrake_Cd=1.2, airbrake_S_max=0.01),
+        sections=Sections(L_total=1.0, l_nose=0.2, l_fin_root_fwd=0.6, l_fin_root_aft=0.7),
+    )
+
+
+def _non_default_motor() -> Motor:
+    """`Scenario.motor`'s non-default fixture (Step 80) -- mirrors
+    `_non_default_rocket()`'s style. `mass_model` stays `"none"` (every
+    existing seed's path, SS32.3.3 case 0) so assembling this motor
+    still exercises the pass-through, not the full mass-model
+    composition -- that is `tests/test_motor_pieces.py`'s job."""
+    return Motor(
+        name="non_default_motor",
+        thrust=Thrust(motor_curve="motor.csv", A_e=0.001, p_ref=90000.0),
     )
 
 
@@ -80,6 +102,7 @@ def _non_default_scenario() -> Scenario:
     return Scenario(
         name="non_default_scenario",
         rocket=_non_default_rocket(),
+        motor=_non_default_motor(),
         site=_non_default_site(),
         weather=_non_default_weather(),
         gravity=Gravity(model="wgs84", direction="radial", earth_rotation=True),
@@ -156,6 +179,7 @@ def test_override_applies_before_s0_is_derived():
     sc = Scenario(
         name="override_test",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),  # default rail_angle_deg == 90.0
         weather=Weather(name="weather"),
         overrides={"site.rail_angle_deg": 85.0},
@@ -173,6 +197,7 @@ def test_s0_none_with_default_90_degree_rail_is_exactly_pi_over_2():
     sc = Scenario(
         name="default_rail",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
     )
@@ -184,6 +209,7 @@ def test_explicit_s0_is_passed_through_untouched():
     sc = Scenario(
         name="explicit_s0",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site", site=Site(rail_angle_deg=45.0)),
         weather=Weather(name="weather"),
         s0=explicit_s0,
@@ -200,6 +226,7 @@ def test_scenario_config_returns_config_with_the_scenarios_own_name_and_notes():
     sc = Scenario(
         name="my_scenario",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
         notes="test notes for my_scenario",
@@ -237,6 +264,7 @@ def test_scenario_is_frozen():
     sc = Scenario(
         name="scenario",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
     )

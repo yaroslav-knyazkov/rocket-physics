@@ -16,16 +16,21 @@ The `s0`/`notes` this module's flat `Config` used to carry now live in
 `configs/scenarios/toy_05kg.py` -- `s0` because it is derived from the
 rail (SS31.4, D-51a) rather than a vehicle property, `notes` because it
 is what `--list-configs` prints for the scenario, not the vehicle.
+
+Step 80 (`docs/architecture-32-motor-separation.md` SS32.2.3): this
+rocket's motor now lives in `configs/scenarios/toy_05kg.py`, imported
+from `configs.motors.placeholder`. `sections` is left at its default
+(`Sections()`) -- this rocket has no measured section geometry.
 """
 
 from __future__ import annotations
 
-from configs.schema import Rocket
-from sim.params import Aero, Lengths, Thrust, Weight
+from configs.schema import Airframe, Rocket
+from sim.params import Aero, Lengths
 
 ROCKET = Rocket(
     name="toy_05kg",
-    weight=Weight(
+    airframe=Airframe(
         m=0.5,      # 0.5 kg dry+propellant mass
         I=0.05,     # kg*m^2, rough estimate for a small rocket
     ),
@@ -33,7 +38,8 @@ ROCKET = Rocket(
         l1=0.3,     # m, CoP -> CoG distance
         l2=0.4,     # m, CoP -> thrust point distance
     ),
-    thrust=Thrust(motor_curve="placeholder.csv"),  # Step 14: real (time, thrust) curve
+    # sections left at its default -- no measured section geometry for
+    # this rocket (SS32.2.3).
     aero=Aero(
         # Step 55 (architecture-28-rewrite.md SS28.5.4): "constant"'s
         # C_x/C_z/C_m are true, q-scaled coefficients now, not raw

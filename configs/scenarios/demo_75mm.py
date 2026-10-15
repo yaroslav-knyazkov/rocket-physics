@@ -22,6 +22,7 @@ is what proves this reproduces the original `s0` bit-for-bit
 
 from __future__ import annotations
 
+from configs.motors.placeholder import MOTOR
 from configs.rockets import demo_75mm
 from configs.schema import Config, Scenario
 from configs.sites import origin_msl
@@ -30,6 +31,7 @@ from configs.weather import isa_dry_calm
 SCENARIO = Scenario(
     name="demo_75mm",
     rocket=demo_75mm.ROCKET,
+    motor=MOTOR,
     site=origin_msl.SITE,
     weather=isa_dry_calm.WEATHER,
     notes=(

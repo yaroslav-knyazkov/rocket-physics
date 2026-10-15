@@ -1,10 +1,16 @@
 """configs/rockets/_TEMPLATE_rocket.py -- TEMPLATE, fill in your own
 numbers (Step 72, docs/architecture-31-config-separation.md SS31.5).
 
-This file is a blank `Rocket` piece: one vehicle -- airframe, motor
-installation, aerodynamics, and the recovery/control hardware bolted
-to it. Every field below is commented with its unit, its meaning, and
-the consequence of leaving it at the placeholder value.
+This file is a blank `Rocket` piece: one airframe -- structure,
+geometry, aerodynamics, and the recovery/control hardware bolted to
+it, but NOT its motor (SS32.1) -- a `Rocket` no longer carries one as
+of Step 80. Every field below is commented with its unit, its meaning,
+and the consequence of leaving it at the placeholder value.
+
+To fill in your motor, see `configs/motors/_TEMPLATE_motor.py`
+instead -- a motor is its own piece now, referenced from
+`configs/scenarios/<your_scenario>.py`'s `Scenario.motor`, not from
+this file.
 
 This module is **never registered** -- it is deliberately absent from
 `configs/rockets/__init__.py`'s `_MODULES` tuple, and must stay
@@ -25,20 +31,22 @@ To use this template:
 
 from __future__ import annotations
 
-from configs.schema import Rocket
-from sim.params import Aero, Control, Lengths, Recovery, Thrust, Weight
+from configs.schema import Airframe, Rocket
+from sim.params import Aero, Control, Lengths, Recovery
 
 ROCKET = Rocket(
     name="my_rocket",  # <-- rename this string to match the filename once you rename it
 
-    weight=Weight(
+    airframe=Airframe(
         m=1.5,        # <-- fill this in: TOTAL mass at liftoff (dry + full propellant), kg
         I=0.08,       # <-- fill this in: pitch moment of inertia about the CoG, kg*m^2
-        # Leave m_d=None (the default) unless you want time-varying
-        # mass/CoG/MOI during burn -- that needs l_d/l_p/I_d/I_sp too
-        # (sim/mass.py), a separate step; a single m/I number treats
-        # mass as constant through the whole flight, which is fine for
-        # a first pass and is what every demo rocket does today.
+        # Leave l=None (the default) unless you are pairing this
+        # airframe with a mass-modelled motor (mass_model != "none",
+        # configs/motors/_TEMPLATE_motor.py) -- that needs l plus a
+        # Sections.l_motor_fwd/l_motor_aft below. A bare m/I pair
+        # treats mass as constant through the whole flight, which is
+        # fine for a first pass and is what every demo rocket does
+        # today.
     ),
 
     lengths=Lengths(
@@ -49,14 +57,10 @@ ROCKET = Rocket(
         # or a fixed nozzle cant.
     ),
 
-    thrust=Thrust(
-        motor_curve="placeholder.csv",  # <-- fill this in: a filename under data/motors/
-        # Either pick one of the existing files (placeholder.csv,
-        # synthetic_small/medium_long/medium_punchy/large.csv) or drop
-        # your own two-column CSV (t_s,thrust_N) into data/motors/ and
-        # name it here. This is the single biggest "is this actually
-        # my rocket" number for both run.py and the airbrake app.
-    ),
+    # sections left at its default (Sections()) -- fill it in (see
+    # configs/schema.py's Sections docstring) only if you are pairing
+    # this airframe with a mass-modelled motor, which needs
+    # l_motor_fwd/l_motor_aft to place the motor along the airframe.
 
     aero=Aero(
         # "constant" model: true, q-scaled coefficients (not raw

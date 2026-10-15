@@ -126,20 +126,30 @@ def test_get_scenario_returns_none_for_a_flat_config_only_module(monkeypatch):
 
 
 def test_demo_75mm_rocket_groups_equal_demo_baseline():
+    """`weight`/`thrust` moved off `Rocket` at Step 80 (SS32.2.3) --
+    `rocket.weight`/`rocket.thrust` no longer exist, so these two groups
+    are read off the assembled `Config.params` instead, which is a
+    strengthening: it now tests the composition's output (the derived
+    `weight`, and `thrust` sourced from `Scenario.motor`), not a piece's
+    raw field."""
     rocket = configs.rockets.get("demo_75mm")
+    params = configs.get("demo_75mm").params
     baseline = _demo_baseline()
-    assert rocket.weight == baseline.weight
+    assert params.weight == baseline.weight
     assert rocket.lengths == baseline.lengths
-    assert rocket.thrust == baseline.thrust
+    assert params.thrust == baseline.thrust
     assert rocket.aero == baseline.aero
 
 
 def test_toy_05kg_rocket_groups_equal_toy_05kg_literal():
+    """See `test_demo_75mm_rocket_groups_equal_demo_baseline`'s docstring
+    -- same Step-80 retargeting of `weight`/`thrust`."""
     rocket = configs.rockets.get("toy_05kg")
+    params = configs.get("toy_05kg").params
     literal = _toy_05kg_literal()
-    assert rocket.weight == literal.weight
+    assert params.weight == literal.weight
     assert rocket.lengths == literal.lengths
-    assert rocket.thrust == literal.thrust
+    assert params.thrust == literal.thrust
     assert rocket.aero == literal.aero
 
 
