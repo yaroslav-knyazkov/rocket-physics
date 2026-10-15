@@ -17,6 +17,7 @@ import math
 import numpy as np
 import pytest
 
+import configs
 from apps.airbrake_sizing import solve_cda
 from apps.airbrake_sizing.solve_cda import (
     AirbrakeSpec,
@@ -295,24 +296,25 @@ def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
 
 
 # ----------------------------------------------------------------------
-# End to end: all four named SPECS against demo_75mm_airbrake
+# End to end: all four named SPECS against the demo
 # ----------------------------------------------------------------------
 
 
-def test_end_to_end_against_demo_75mm_airbrake_for_every_named_spec():
+def test_end_to_end_against_demo_for_every_named_spec():
     """Runs every spec in targets.SPECS against the app's own default
-    vehicle and writes both artifacts. No apogee value is pinned here by
+    vehicle (SPECS are sized for the demo, Step 90) and writes both artifacts. No apogee value is pinned here by
     design (roadmap.md Step 66) -- this is a smoke/wiring test, the
     numbers are reported in the developer's own step report."""
+    cfg = configs.get("demo")
     ensure_dir(OUTPUT_DIR)
     csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
     png_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
 
     for name, spec in SPECS.items():
         if spec.solve_for == "none":
-            sol = evaluate_airbrake(spec.cda_bounds[1], _CFG, spec)
+            sol = evaluate_airbrake(spec.cda_bounds[1], cfg, spec)
         else:
-            sol = solve_airbrake(_CFG, spec)
+            sol = solve_airbrake(cfg, spec)
 
         assert sol.n_sim_runs >= 1
         assert sol.trigger == spec.trigger

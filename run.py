@@ -39,12 +39,12 @@ import configs
 
 
 def main() -> None:
-    # Step 69: sourced from configs/toy_05kg.py (byte-equal to this
-    # module's own historical in-place literal, pinned by
-    # tests/test_configs.py since Step 63) instead of an inline Params/
-    # State construction -- same scenario, single source of truth now
-    # shared with App 2 (apps/cfd_conditions/select_conditions.py).
-    cfg = configs.get("toy_05kg")
+    # Step 90 (dev/docs/architecture-33-configs-one-demo.md SS33.4.1): the
+    # one demo (configs/scenarios/demo.py -- a real Cesaroni K570 on a
+    # 54 mm airframe, mass model ON) instead of the former 0.5 kg toy;
+    # single source of truth shared with App 2
+    # (apps/cfd_conditions/select_conditions.py).
+    cfg = configs.get("demo")
     params = cfg.params
     state0 = cfg.s0
 
@@ -60,9 +60,7 @@ def main() -> None:
     # ------------------------------------------------------------------
 
     # (a) The three gravity models, at this scenario's own apogee scale
-    # (substantially lower since Step 55 gave "constant" real, q-scaled
-    # drag instead of a near-inert 0.5 N placeholder -- see the Aero(...)
-    # comment in configs/toy_05kg.py, Step 69), where roadmap.md Step 27
+    # (the demo's, ~5.9 km), where roadmap.md Step 27
     # expects them to differ "by a predictable, small amount" -- same base
     # scenario as the single run above (aero.model="constant" here, so
     # gravity is the only thing varying). "linear" was removed at Phase 2.5
@@ -87,8 +85,6 @@ def main() -> None:
         params,
         {
             "aero.model": "linearized",
-            "aero.S": 0.005,
-            "aero.d_ref": 0.08,
             "aero.C_A0": 0.5,
             "aero.C_N_alpha": 2.0,
             "aero.C_m_alpha": -0.5,

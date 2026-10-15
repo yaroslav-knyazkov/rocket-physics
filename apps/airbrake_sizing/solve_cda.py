@@ -627,7 +627,7 @@ def save_overlay(sol: AirbrakeSolution, path: Path) -> None:
 def main(argv: "list[str] | None" = None) -> None:
     """`python run_airbrake.py` / `python -m apps.airbrake_sizing.solve_cda`.
     Runs one named spec from `targets.SPECS` (`--spec`, default the main
-    burnout solve) against `--config` (default `demo_75mm_airbrake`),
+    burnout solve) against `--config` (default `demo`),
     prints the SS30.6 report, writes `output/airbrake_sizing.csv` and
     `output/airbrake_sizing_overlay.png`. `--list-configs` lists every
     registered vehicle; running every named spec in one go is the test
@@ -635,7 +635,7 @@ def main(argv: "list[str] | None" = None) -> None:
     from apps.airbrake_sizing.targets import SPECS
 
     parser = argparse.ArgumentParser(description=__doc__)
-    add_config_arg(parser, default="demo_75mm_airbrake")
+    add_config_arg(parser, default="demo")
     parser.add_argument(
         "--spec",
         default=next(iter(SPECS)),
