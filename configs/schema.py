@@ -1,5 +1,5 @@
 """configs/schema.py -- `Config` and `Variant` (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4).
 
 Both frozen dataclasses, both trivially constructible, no inheritance, no
 builders. `Config` is one complete, runnable scenario (`Params` + initial
@@ -16,7 +16,7 @@ that point still partially-initialised) namespace would be a circular
 import. Importing this submodule directly, as above, is always safe --
 `configs/schema.py` has no dependency on `configs/__init__.py`.
 
-Step 71 (`docs/architecture-31-config-separation.md` SS31.4) adds four
+Step 71 (`dev/docs/architecture-31-config-separation.md` SS31.4) adds four
 more frozen dataclasses -- `Rocket`, `LaunchSite`, `Weather`, `Scenario`
 -- and the module-level `assemble(sc)` / `_pad_state(site)` that turn a
 `Scenario` into an ordinary `Config`. **`Config` and `Variant` above are
@@ -36,7 +36,7 @@ its single `Params(...)` call is pinned, structurally, against
 `tests/test_config_pieces.py` (SS31.8 #1), so a thirteenth `Params`
 group would fail that test loudly instead of silently taking its
 default in every scenario. Amended at Step 80 (D-57,
-`docs/architecture-32-motor-separation.md` SS32.2.3/SS32.3.3): `weight`
+`dev/docs/architecture-32-motor-separation.md` SS32.2.3/SS32.3.3): `weight`
 is now the one DERIVED group -- a function of two disjoint-field-set
 inputs, `Rocket.airframe` (+ `Rocket.sections`) and `Scenario.motor`,
 composed by `_weight_from_pieces`, not a merge with a precedence rule.
@@ -143,7 +143,7 @@ class Variant:
 
 
 # ----------------------------------------------------------------------
-# Phase 2.16 (docs/architecture-32-motor-separation.md SS32.2, SS32.3):
+# Phase 2.16 (dev/docs/architecture-32-motor-separation.md SS32.2, SS32.3):
 # `Airframe`, `Sections`, `Motor` -- the pieces the motor's own mass/CoG/
 # MOI history is split out into -- and the assembly-time composition
 # `_weight_from_pieces` (below `assemble`) that turns them (plus
@@ -264,7 +264,7 @@ class Rocket:
     """One airframe: structure, geometry, aerodynamics, and the
     recovery/control hardware bolted to it -- but NOT its motor (SS32.1).
 
-    Changed at Step 80 (`docs/architecture-32-motor-separation.md`
+    Changed at Step 80 (`dev/docs/architecture-32-motor-separation.md`
     SS32.2.3): `weight: Weight` -> `airframe: Airframe` (the
     `Params.weight` group is now DERIVED by `assemble` from this piece
     plus the `Scenario.motor` piece, SS32.3); `thrust: Thrust` REMOVED

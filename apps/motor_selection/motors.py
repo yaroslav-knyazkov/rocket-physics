@@ -1,5 +1,5 @@
 """Per-motor dry-rocket configuration (Step 62,
-`docs/architecture-29-motor-selection.md` SS29.7/SS29.8, decision D-23).
+`dev/docs/architecture-29-motor-selection.md` SS29.7/SS29.8, decision D-23).
 
 The user's own framing: "for each motor I can also select dry rocket
 parameters (for smaller motors the casing is smaller)." This module is

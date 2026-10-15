@@ -208,36 +208,6 @@ Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled
 time there.
 
 \subsection{Mass, centre of gravity and moment of inertia}\label{sec:mass}
-
-\subsubsection{Composition of rigid lumps}\label{sec:mass_composition}
-Before specialising to two lumps, state the general result once. Consider $N$ rigid lumps whose
-positions are fixed relative to one another --- nothing slides, deploys, or otherwise moves during
-the interval of interest --- lump $i$ having mass $m_i$, centroid at station $l_i$ (measured as in
-\autoref{sec:geometry}), and its own moment of inertia $I_i$ about that centroid. Mass, centroid and
-moment of inertia compose exactly:
-\begin{align}
-    M &= \sum_{i=1}^{N} m_i, \label{eq:mass_combine_M}\\
-    L &= \frac{1}{M}\sum_{i=1}^{N} m_i\,l_i, \label{eq:mass_combine_L}\\
-    I_{comb} &= \sum_{i=1}^{N} \Bigl[I_i + m_i\bigl(L-l_i\bigr)^2\Bigr]. \label{eq:mass_combine_I}
-\end{align}
-That is: the combined mass is simply additive; the combined centroid $L$ is the mass-weighted
-average of the lumps' own centroids; and the combined moment of inertia $I_{comb}$, about that
-combined centroid, is the sum of each lump's own moment of inertia about its own centroid plus its
-own parallel-axis term $m_i(L-l_i)^2$ for the distance from that lump's centroid to the combined
-one. This holds for any $N$ and places no requirement on the lumps' shapes, sizes or symmetry ---
-only that their relative positions are fixed.
-
-An airframe and a motor casing are exactly such a pair: bolted, bonded or otherwise mechanically
-joined so that neither moves relative to the other in flight, their relative position is as fixed
-as any single rigid body's own geometry. Writing the vehicle as three rigid lumps --- airframe,
-motor casing, and the propellant remaining inside the motor --- the first two compose once, at
-assembly, by \eqref{eq:mass_combine_M}--\eqref{eq:mass_combine_I} into a single dry assembly, and
-only the propellant's mass, centroid and inertia change over the burn. The $N$-lump composition
-above therefore reduces \emph{exactly} to a two-lump problem: dry assembly plus propellant. The
-equations below, with $(m_d,l_d,I_d)$ now understood as this combined dry assembly rather than a
-single hand-measured lump, are consequently unchanged from before this subsection was added ---
-they are now \emph{derived} from the general composition above rather than postulated directly.
-
 As propellant burns, mass leaves the rocket through the nozzle and both the centre of gravity and
 the moment of inertia change over the burn. A minimal model treats the rocket as two lumped
 masses: dry structure (mass $m_d$, fixed centroid at $l_d$ from the nose tip $A$) and remaining
@@ -248,19 +218,6 @@ propellant (mass $m_p(t)=m(t)-m_d$, centroid at $l_p$).
     \dot{m}(t) = -\frac{T_{ref}(t)}{I_{sp}\,g_0}
 \end{equation}
 or a measured mass-flow table, if available; $I_{sp}$ is the motor's specific impulse.
-
-An equivalent way to specify the same model is by the propellant's two endpoint masses --- loaded
-$m_0$ and burnout $m_f$ --- together with the thrust curve's own shape, rather than by $I_{sp}$
-directly. Writing $J=\int T_{ref}(t)\,dt$ for the curve's total impulse and $m_p=m_0-m_f$ for the
-total propellant mass burned, choosing
-\begin{equation}
-    I_{sp,eff} = \frac{J}{m_p\,g_0} \label{eq:isp_eff}
-\end{equation}
-and substituting it for $I_{sp}$ above reproduces $m(t_{end})=m_f$ exactly, because integrating
-$\dot m$ over the whole curve gives $-J/(I_{sp,eff}g_0)=-m_p$ by construction, whatever shape
-$T_{ref}(t)$ actually has. The endpoint parameterisation is therefore not a second $\dot m$ model:
-it is the same equation above, with one constant, \eqref{eq:isp_eff}, computed once from the curve
-and the two endpoint masses rather than read off a datasheet.
 
 \subsubsection{Centre of gravity}
 \begin{equation}
@@ -292,19 +249,12 @@ follow by direct integration over the receding grain shape.
 
 That is exactly the information the placeholder above is standing in for: holding $l_p$ constant
 and taking $I_p(t)\propto m_p(t)$ assumes a uniform density and a shape that merely shrinks in
-overall size, self-similarly, as it burns --- which no real grain does. The proportionality
-constant itself is the propellant's own specific moment of inertia --- its radius of gyration
-squared, about its own centroid --- taken from the propellant's own geometry where that is
-separately known, rather than borrowed from the dry structure's; only when the propellant's own
-value is not known does the dry structure's own specific inertia stand in for it, as it always did
-before. Either way $I_p(t)$ remains one constant times $m_p(t)$: which constant is used changes a
-number, not the shape of this placeholder. The true centroid and the true inertia ratio both drift
-over the burn, and by how much depends on which family above is used and on the specific grain's
-own dimensions: bore and outer diameter, grain length, and, for star grains, the number and shape
-of the points. None of that is fixed anywhere in this document yet, so the placeholder stays in
-place until an actual grain geometry is chosen; this section can be revisited once one is (see
-project backlog item B24, which replaces this placeholder with mass, centroid and inertia obtained
-by integrating the real grain geometry).
+overall size, self-similarly, as it burns --- which no real grain does. The true centroid and the
+true inertia ratio both drift over the burn, and by how much depends on which family above is
+used and on the specific grain's own dimensions: bore and outer diameter, grain length, and, for
+star grains, the number and shape of the points. None of that is fixed anywhere in this document
+yet, so the placeholder stays in place until an actual grain geometry is chosen; this section can
+be revisited once one is.
 \todo{change of mass or moment of inertia due to mechanisms (e.g.\ deployable surfaces) is not
 covered above}
 

@@ -1,5 +1,5 @@
 """configs/weather/isa_dry_calm.py -- the placeholder weather (Step 72,
-docs/architecture-31-config-separation.md SS31.7).
+dev/docs/architecture-31-config-separation.md SS31.7).
 
 ISA, dry air, no wind, no sounding case (D-53).
 

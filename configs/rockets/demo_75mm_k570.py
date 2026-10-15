@@ -1,6 +1,6 @@
 """configs/rockets/demo_75mm_k570.py -- a 54 mm airframe sized for the
 real Cesaroni K570 (Phase 2.16, Step 81,
-docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/SS32.5).
+dev/docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/SS32.5).
 
 Demonstrates a real vendor motor, with its own measured mass history,
 composed with an airframe that knows where the motor sits -- the first

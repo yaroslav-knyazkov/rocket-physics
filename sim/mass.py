@@ -1,6 +1,6 @@
 """The mass model: m(t), l_B(t), I(t) -- the one place the
 two-lumped-mass model and the rigid-lump composition live
-(docs/architecture-32-motor-separation.md SS32.3; main.tex SSsec:mass).
+(dev/docs/architecture-32-motor-separation.md SS32.3; main.tex SSsec:mass).
 
 Step 75 is a PURE MOVE of `sim/dynamics.py`'s `_propellant_mass`,
 `_cog_position` and `_moment_of_inertia`, expressions unchanged
@@ -97,7 +97,7 @@ def moment_of_inertia(m_p: float, l_B: float, p) -> float:
     changes). `None` (the default) keeps the pre-Step-77 placeholder,
     bit-for-bit. This is main.tex's own `\\todo`, now additionally
     cross-referenced to backlog item B24 (motor mass/MOI from real grain
-    geometry, docs/architecture-32-motor-separation.md SS32.7), which
+    geometry, dev/docs/architecture-32-motor-separation.md SS32.7), which
     replaces both the placeholder and `I_p_spec` itself with an
     integration over the actual receding grain shape.
     """

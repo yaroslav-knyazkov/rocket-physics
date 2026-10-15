@@ -1,5 +1,5 @@
 """run_trade.py -- entry point 5 of 5: weight vs aero (roadmap.md Steps
-67-68; docs/architecture-30-apps-4-5-and-configs.md SS30.3).
+67-68; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.3).
 
 Thin root-level wrapper (D-29): `apps/weight_aero_tradeoff/` keeps its
 own `python -m apps.weight_aero_tradeoff.trade_surface` invocation and

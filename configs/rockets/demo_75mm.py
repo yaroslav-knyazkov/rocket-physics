@@ -1,7 +1,7 @@
 """configs/rockets/demo_75mm.py -- the 1.5 kg / 75 mm vehicle (Step 63,
-roadmap.md, `docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved
+roadmap.md, `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved
 here and reduced to a `Rocket` at Step 73,
-`docs/architecture-31-config-separation.md` SS31.7).
+`dev/docs/architecture-31-config-separation.md` SS31.7).
 
 Copied number-for-number, including its justifying docstring, from
 `apps/motor_selection/compare_motors.py`'s `_demo_baseline()` (D-26,
@@ -33,7 +33,7 @@ The `s0`/`notes` this module's flat `Config` used to carry now live in
 rail (SS31.4, D-51a) rather than a vehicle property, `notes` because it
 is what `--list-configs` prints for the scenario, not the vehicle.
 
-Step 80 (`docs/architecture-32-motor-separation.md` SS32.2.3): this
+Step 80 (`dev/docs/architecture-32-motor-separation.md` SS32.2.3): this
 rocket's motor (including the "replaced per entry; never read as-is"
 judgment call on `motor_curve`) now lives in
 `configs/scenarios/demo_75mm.py`, imported from

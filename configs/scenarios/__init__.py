@@ -1,8 +1,8 @@
 """configs/scenarios/ -- the scenario registry (Step 72,
-docs/architecture-31-config-separation.md SS31.5).
+dev/docs/architecture-31-config-separation.md SS31.5).
 
 This is what `configs.get()` delegates to, as of Step 73
-(`docs/architecture-31-config-separation.md` SS31.7): `toy_05kg`,
+(`dev/docs/architecture-31-config-separation.md` SS31.7): `toy_05kg`,
 `demo_75mm` and `demo_75mm_airbrake` moved under this package and are
 what first fill `_MODULES` in. `demo_75mm_highland` -- the
 one-rocket-two-sites mix-and-match demo -- was added at Step 74

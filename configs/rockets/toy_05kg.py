@@ -1,7 +1,7 @@
 """configs/rockets/toy_05kg.py -- the 0.5 kg / S=0.005 / C_x=0.5 placeholder
 vehicle (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved here and
-reduced to a `Rocket` at Step 73, `docs/architecture-31-config-separation.md`
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved here and
+reduced to a `Rocket` at Step 73, `dev/docs/architecture-31-config-separation.md`
 SS31.7).
 
 Copied number-for-number, including its justifying comments, from
@@ -17,7 +17,7 @@ The `s0`/`notes` this module's flat `Config` used to carry now live in
 rail (SS31.4, D-51a) rather than a vehicle property, `notes` because it
 is what `--list-configs` prints for the scenario, not the vehicle.
 
-Step 80 (`docs/architecture-32-motor-separation.md` SS32.2.3): this
+Step 80 (`dev/docs/architecture-32-motor-separation.md` SS32.2.3): this
 rocket's motor now lives in `configs/scenarios/toy_05kg.py`, imported
 from `configs.motors.placeholder`. `sections` is left at its default
 (`Sections()`) -- this rocket has no measured section geometry.

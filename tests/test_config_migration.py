@@ -1,5 +1,5 @@
 """Tests for the Step 73 switch-over -- seeds split into pieces,
-`configs.get` delegates to `configs.scenarios` (`docs/architecture-31-
+`configs.get` delegates to `configs.scenarios` (`dev/docs/architecture-31-
 config-separation.md` SS31.7/SS31.8 items 5, 7, 8).
 
 The four pre-existing exact-equality pins in `tests/test_configs.py`
@@ -211,7 +211,7 @@ def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
 
 
 # ----------------------------------------------------------------------
-# Step 81 (docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/
+# Step 81 (dev/docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/
 # SS32.3.4/SS32.5): demo_75mm_k570 -- a real CTI motor (its own mass
 # history read from its own RASP file) composed with a mass-modelled
 # airframe, the mass model ON from a config for the first time.

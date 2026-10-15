@@ -1,5 +1,5 @@
 """Tests for configs/ (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4/SS30.8).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4/SS30.8).
 
 Per SS30.8: the two exact-equality pins against `run.py`'s literal and
 `apps.motor_selection.compare_motors._demo_baseline()` are the primary

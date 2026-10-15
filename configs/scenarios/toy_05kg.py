@@ -1,8 +1,8 @@
 """configs/scenarios/toy_05kg.py -- run.py's / App 2's historical
 placeholder scenario (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4; split into a
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; split into a
 `Scenario` composing the `toy_05kg` rocket piece at Step 73,
-`docs/architecture-31-config-separation.md` SS31.7).
+`dev/docs/architecture-31-config-separation.md` SS31.7).
 
 The vehicle numbers live in `configs/rockets/toy_05kg.py` now; this module
 pairs that piece with the two "pin the defaults" pieces

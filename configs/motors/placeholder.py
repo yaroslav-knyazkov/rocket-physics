@@ -1,5 +1,5 @@
 """configs/motors/placeholder.py -- the no-mass-model seed motor (Phase
-2.16, Step 79, docs/architecture-32-motor-separation.md SS32.2.1, D-73).
+2.16, Step 79, dev/docs/architecture-32-motor-separation.md SS32.2.1, D-73).
 
 `Thrust(motor_curve="placeholder.csv")`, `mass_model="none"` (the
 default) -- this is the motor every pre-Step-80 seed rocket uses, and
@@ -9,7 +9,7 @@ field moves to once Step 80 wires motors into `Scenario` instead of
 
 NOTE on `thrust.motor_curve` (the same judgment call `demo_75mm`'s own
 docstring has carried since Step 63/73, preserved here verbatim in
-spirit): `docs/architecture-30-apps-4-5-and-configs.md` SS30.4's seed-
+spirit): `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4's seed-
 config table says a demo motor should carry
 `thrust.motor_curve="synthetic_large.csv"` "so it is runnable on its
 own", but `tests/test_configs.py` pins

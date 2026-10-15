@@ -1,5 +1,5 @@
 """configs/motors/ -- the motor-piece registry (Phase 2.16, Step 79,
-docs/architecture-32-motor-separation.md SS32.2.1, SS31.5 -- the fifth
+dev/docs/architecture-32-motor-separation.md SS32.2.1, SS31.5 -- the fifth
 time this project uses the registry shape SS31.5 first set out).
 
 Same registry shape as `configs/rockets/__init__.py` (and

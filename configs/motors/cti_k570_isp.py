@@ -1,6 +1,6 @@
 """configs/motors/cti_k570_isp.py -- the same CTI K570 curve,
 mass_model="isp" with a hand-entered `I_sp` (Phase 2.16, Step 79,
-docs/architecture-32-motor-separation.md SS32.2.1, D-73, D-59).
+dev/docs/architecture-32-motor-separation.md SS32.2.1, D-73, D-59).
 
 This module exists specifically so D-59's "isp" vs "endpoints"
 equivalence -- same mass model, two different ways of specifying it --

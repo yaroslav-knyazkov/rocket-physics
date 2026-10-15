@@ -1,6 +1,6 @@
 """apps/weight_aero_tradeoff/compare_configs.py -- App 5 mode (a):
 named-configuration side-by-side comparison (Step 68, roadmap.md;
-docs/architecture-30-apps-4-5-and-configs.md SS30.7.2).
+dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.2).
 
 **Why this mode exists at all, given mode (b)'s trade surface
 (`trade_surface.py`, Step 67) already answers "what does a (delta-mass,

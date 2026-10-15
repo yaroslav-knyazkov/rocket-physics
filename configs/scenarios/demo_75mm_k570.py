@@ -1,6 +1,6 @@
 """configs/scenarios/demo_75mm_k570.py -- the real CTI K570 flown on the
 new 54 mm airframe (Phase 2.16, Step 81,
-docs/architecture-32-motor-separation.md SS32.2.3/SS32.3.3/SS32.3.4).
+dev/docs/architecture-32-motor-separation.md SS32.2.3/SS32.3.3/SS32.3.4).
 
 Pairs `configs.rockets.demo_75mm_k570.ROCKET` with
 `configs.motors.cti_k570.MOTOR` -- the "endpoints" mass model, deriving
@@ -37,7 +37,7 @@ SCENARIO = Scenario(
 
 # `_pad_state` (configs/schema.py) does not yet set the derived `s0.m`
 # from the composed `weight.m` -- an open backlog item
-# (docs/architecture-32-motor-separation.md SS32.10, "backlog candidates
+# (dev/docs/architecture-32-motor-separation.md SS32.10, "backlog candidates
 # this phase opens": "s0.m derived from weight.m"). Every scenario
 # registered so far leaves `m_d=None`, so `y[M]` is never read and
 # `s0.m`'s harmless `0.0` default never mattered; this is the first

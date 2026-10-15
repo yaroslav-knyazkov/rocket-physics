@@ -1,5 +1,5 @@
 """Tests for `Airframe`, `Sections`, `Motor` and `_weight_from_pieces`
-(Phase 2.16, Step 78, docs/architecture-32-motor-separation.md SS32.2,
+(Phase 2.16, Step 78, dev/docs/architecture-32-motor-separation.md SS32.2,
 SS32.3).
 
 Nothing is wired up here, by design (the same pattern Step 71 used for

@@ -108,7 +108,7 @@ switches: `forces.parachute_deployed` returns `False`/the chute force is
 zero, so this branch is bit-for-bit unreachable or inert, reproducing every
 prior step.
 
-Step 75 (docs/architecture-32-motor-separation.md SS32.3): the mass model
+Step 75 (dev/docs/architecture-32-motor-separation.md SS32.3): the mass model
 (propellant mass, CoG position, moment of inertia) moved to sim/mass.py,
 the one place `weight`'s dispatch now lives.
 """

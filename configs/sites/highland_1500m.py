@@ -1,6 +1,6 @@
 """configs/sites/highland_1500m.py -- the architect's own synthetic
 high-altitude launch site (Step 74,
-docs/architecture-31-config-separation.md SS31.12).
+dev/docs/architecture-31-config-separation.md SS31.12).
 
 A synthetic site, not a surveyed one -- `lat0_deg=39.7` is only
 illustrative of "somewhere on the high desert/mountain plains of the

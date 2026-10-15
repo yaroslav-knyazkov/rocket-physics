@@ -1,5 +1,5 @@
 """configs/motors/_TEMPLATE_motor.py -- TEMPLATE, fill in your own numbers
-(Phase 2.16, Step 79, docs/architecture-32-motor-separation.md SS32.2.1).
+(Phase 2.16, Step 79, dev/docs/architecture-32-motor-separation.md SS32.2.1).
 
 This file is a blank `Motor` piece: one motor installation -- its thrust
 curve, and its OWN mass / CoG / MOI history. Every field below is

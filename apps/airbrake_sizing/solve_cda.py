@@ -15,7 +15,7 @@ ISA/sounding atmosphere, q-scaled variable aero, the real additive brake
 term (`sim/forces.py`'s `A_brake = flow.q * Cd * S_max * deploy_fraction`),
 launched from the pad rather than from an injected mid-flight state (D-37).
 
-Design: `docs/architecture-30-apps-4-5-and-configs.md` SS30.6 (in full,
+Design: `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6 (in full,
 including SS30.6.1) and SS30.2's F1-F8/F15-F19.
 
 ### Scope -- what this app deliberately does NOT do

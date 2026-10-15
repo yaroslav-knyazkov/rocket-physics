@@ -1,6 +1,6 @@
 """Tests for apps/airbrake_sizing/ -- App 4, airbrake C_dA determination
 against the real solver (roadmap.md Step 66,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.6/SS30.8).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6/SS30.8).
 
 Same testing philosophy as `tests/test_control.py`/`test_motor_selection.py`:
 no fixtures, no conftest.py, plain `assert` + `math.isclose`. The primary

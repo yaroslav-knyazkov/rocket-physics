@@ -1,5 +1,5 @@
 """Tests for the four piece-registry subpackages (Step 72,
-docs/architecture-31-config-separation.md SS31.5/SS31.7/SS31.8 #2, #3,
+dev/docs/architecture-31-config-separation.md SS31.5/SS31.7/SS31.8 #2, #3,
 #6).
 
 As of this step:
@@ -19,7 +19,7 @@ trivially (empty lists/dicts), which is still worth checking: an
 empty registry answering `names()`/duplicate-check calls correctly is
 part of its contract.
 
-Phase 2.16, Step 79 (docs/architecture-32-motor-separation.md SS32.2.1,
+Phase 2.16, Step 79 (dev/docs/architecture-32-motor-separation.md SS32.2.1,
 D-73) adds `configs.motors` to `_REGISTRIES` as a fourth entry (same
 shape as `rockets`/`sites`/`weather` -- `scenarios` stays out of this
 dict for the structural reason already noted below, its own attribute
@@ -126,7 +126,7 @@ def test_scenarios_registry_is_populated_by_step_73():
 # ----------------------------------------------------------------------
 # No circular import ×5 -- fresh interpreter, each subpackage imported
 # first (SS31.8 #3, mirroring tests/test_configs.py:197-210; `motors`
-# joins at Step 79, docs/architecture-32-motor-separation.md SS32.2.1).
+# joins at Step 79, dev/docs/architecture-32-motor-separation.md SS32.2.1).
 # ----------------------------------------------------------------------
 
 
@@ -198,7 +198,7 @@ def test_isa_dry_calm_weather_equals_bare_defaults():
 
 
 # ----------------------------------------------------------------------
-# Phase 2.16, Step 79 (docs/architecture-32-motor-separation.md SS32.2.1,
+# Phase 2.16, Step 79 (dev/docs/architecture-32-motor-separation.md SS32.2.1,
 # D-73) -- the `configs.motors` seed set itself.
 # ----------------------------------------------------------------------
 

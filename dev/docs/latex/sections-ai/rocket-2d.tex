@@ -102,18 +102,6 @@ exactly, and there is no separate ``model'' for them beyond that: like $\delta$,
 representing an as-built offset, in principle obtained from manufacturing metrology of the actual
 airframe rather than derived from anything else in this document.
 
-Every dimension above is given as a \emph{positive} distance measured aft of the nose tip $A$ ---
-$l_B,l_C,l_D\geq0$ by convention, however far forward or aft $B$, $C$ and $D$ actually sit. The
-negative sign belongs to the body-frame vector equations above, $\vec{AB},\vec{AC},\vec{AD}$, which
-each carry it exactly once, at the single point where a station becomes a displacement along
-$-\hat{x}_r$; it is never folded into $l_B,l_C,l_D$ themselves. The configuration layer that
-supplies these stations carries exactly this convention, down to the motor's own mounting station,
-and nowhere else. The two arms $l_1,l_2$ that \autoref{sec:aero} and \autoref{sec:eom} actually use
-are differences of these stations, not stations in their own right: $l_1=l_D-l_B$, the CoP-to-CoG
-arm already defined in \autoref{sec:aero}, and $l_2=l_C-l_D$, the CoP-to-thrust-point arm. Both are
-translation-invariant in the choice of reference point, which is why pinning that reference to the
-nose tip $A$ changes nothing about any quantity computed from them.
-
 \subsection{Equations of motion}\label{sec:eom}
 \begin{gather}
     m\vec{\ddot{x}} = \sum \vec{F} = \vec{W} + \vec{T} + \vec{A}_f \label{eq:eom_trans}\\

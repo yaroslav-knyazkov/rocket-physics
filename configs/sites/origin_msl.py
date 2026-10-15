@@ -1,5 +1,5 @@
 """configs/sites/origin_msl.py -- the placeholder launch site (Step 72,
-docs/architecture-31-config-separation.md SS31.7).
+dev/docs/architecture-31-config-separation.md SS31.7).
 
 "lat 0, lon 0, sea level, no rail" -- honest that this is a
 placeholder, not a field anyone actually flies from (D-53).

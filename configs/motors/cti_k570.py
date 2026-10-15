@@ -1,5 +1,5 @@
 """configs/motors/cti_k570.py -- the real CTI K570, mass_model="endpoints"
-(Phase 2.16, Step 79, docs/architecture-32-motor-separation.md SS32.2.1,
+(Phase 2.16, Step 79, dev/docs/architecture-32-motor-separation.md SS32.2.1,
 D-73).
 
 Every mass/geometry field below is left `None` so

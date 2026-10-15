@@ -1,6 +1,6 @@
 """sim/mass.py -- the new module (Step 75, Phase 2.16).
 
-docs/architecture-32-motor-separation.md SS32.3: this step is a PURE MOVE
+dev/docs/architecture-32-motor-separation.md SS32.3: this step is a PURE MOVE
 of `sim/dynamics.py`'s three private mass-model helpers into
 `propellant_mass`/`cog_position`/`moment_of_inertia` here, plus the new
 `Lump`/`combine` assembly-time composition and the endpoint-model helpers

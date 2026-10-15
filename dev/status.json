@@ -1,0 +1,1361 @@
+{
+  "project": "Rocket-physics",
+  "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
+  "created": "2026-09-19",
+  "updated": "2026-10-15",
+  "active_modules": [
+    "architect",
+    "developer"
+  ],
+  "excluded_modules": [],
+  "complexity": "simple",
+  "current_stage": "2.16",
+  "stages": [
+    {
+      "id": "1",
+      "name": "Phase 1 — 2D, плоская модель, всё константами",
+      "status": "complete",
+      "dates": "≤ 2026-09-19",
+      "steps": [
+        {
+          "step": 1,
+          "title": "scaffolding",
+          "commit": "4c3f836"
+        },
+        {
+          "step": 2,
+          "title": "вертикальная точечная масса, постоянная тяга+гравитация",
+          "commit": "2024207"
+        },
+        {
+          "step": 3,
+          "title": "графики высоты/скорости",
+          "commit": "3c5f261"
+        },
+        {
+          "step": 4,
+          "title": "модуль аэросил, постоянное осевое сопротивление",
+          "commit": "68eb716"
+        },
+        {
+          "step": 5,
+          "title": "frames, наклонная 2D-трансляция",
+          "commit": "f794ec8"
+        },
+        {
+          "step": 6,
+          "title": "вращательная динамика, моменты относительно ЦМ",
+          "commit": "d5226ac"
+        },
+        {
+          "step": 7,
+          "title": "полный вывод Phase 1: траектория, тангаж, сводка",
+          "commit": "81615c6"
+        },
+        {
+          "step": 8,
+          "title": "RK4 как перекрёстная проверка интегратора",
+          "commit": "53a3894"
+        }
+      ],
+      "result": "8/8, 7 тестов. Детали — legacy_keys.completed_steps."
+    },
+    {
+      "id": "2",
+      "name": "Phase 2 — реальные модели, всё ещё 2D (Steps 9-27)",
+      "status": "complete",
+      "dates": "2026-09-19 … 2026-09-21",
+      "steps": [
+        {
+          "step": 9,
+          "title": "относительный ветер и угол атаки",
+          "commit": "79af229"
+        },
+        {
+          "step": 10,
+          "title": "гравитация: constant/linear/radial",
+          "commit": "1f8c641"
+        },
+        {
+          "step": 11,
+          "title": "гравитация WGS84",
+          "commit": "f53a0f8"
+        },
+        {
+          "step": 12,
+          "title": "атмосфера ISA",
+          "commit": "09950ce"
+        },
+        {
+          "step": 13,
+          "title": "аэросилы через скоростной напор, Re и M",
+          "commit": "9b558c1"
+        },
+        {
+          "step": 14,
+          "title": "кривая тяги + событие burnout",
+          "commit": "0d184bf"
+        },
+        {
+          "step": 15,
+          "title": "переменная масса (опционально)",
+          "status": "skipped — позже покрыт Step 36"
+        },
+        {
+          "step": 16,
+          "title": "поправка тяги на давление",
+          "commit": "0882da3"
+        },
+        {
+          "step": 17,
+          "title": "формат зондирований, загрузчик, интерполяция по высоте",
+          "commit": "cc77846"
+        },
+        {
+          "step": 18,
+          "title": "атмосфера tier 2: одна станция",
+          "commit": "26f1f8f"
+        },
+        {
+          "step": 19,
+          "title": "горизонтальная интерполяция (проекция, IDW/RBF)",
+          "commit": "9d6e791"
+        },
+        {
+          "step": 20,
+          "title": "атмосфера tier 3: поле станций",
+          "commit": "f818573"
+        },
+        {
+          "step": 21,
+          "title": "ветер tier 1: аналитический сдвиг",
+          "commit": "7e15296"
+        },
+        {
+          "step": 22,
+          "title": "ветер tier 2: одна станция",
+          "commit": "1c10109"
+        },
+        {
+          "step": 23,
+          "title": "ветер tier 3: поле станций",
+          "commit": "b1fb9fb"
+        },
+        {
+          "step": 24,
+          "title": "интерполяция зондирований по времени (опционально)",
+          "status": "skipped — нет мультиснапшотных данных"
+        },
+        {
+          "step": "pre-25",
+          "title": "исправление знака плеча ЦД/ЦМ (main.tex ac2cff2)",
+          "commit": "c2e7537"
+        },
+        {
+          "step": 25,
+          "title": "аэрокоэффициенты как функции α и M (aero_table)",
+          "commit": "c4fe830"
+        },
+        {
+          "step": 26,
+          "title": "tools/fetch_sounding.py (сеть одобрена)",
+          "commit": "00a576a"
+        },
+        {
+          "step": 27,
+          "title": "сравнительные прогоны и overlay-графики",
+          "commit": "9291b32"
+        }
+      ],
+      "result": "19 обязательных шагов, 114/114 тестов."
+    },
+    {
+      "id": "2.5",
+      "name": "Phase 2.5 — исправления и расширения (документация, переменная масса, Кориолис)",
+      "status": "complete",
+      "dates": "2026-09-21 … 2026-09-27 (точные даты не записаны)",
+      "steps": [
+        {
+          "step": 33,
+          "title": "реструктуризация документации (latex/main.tex + sections)",
+          "commit": "3aaec51"
+        },
+        {
+          "step": 34,
+          "title": "удалена linear-гравитация",
+          "commit": "6d48576"
+        },
+        {
+          "step": 35,
+          "title": "аэросила в связанных осях, не в скоростных",
+          "commit": "6fa46f2"
+        },
+        {
+          "step": 36,
+          "title": "переменная масса: движение ЦМ и момента инерции",
+          "commit": "2610cd8"
+        },
+        {
+          "step": "37-prep",
+          "title": "вывод Кориолиса в models.tex",
+          "commit": "a98f283"
+        },
+        {
+          "step": 37,
+          "title": "Кориолис в плоскости + боковая диагностика (вариант B)",
+          "commit": "9af29c7"
+        }
+      ],
+      "report_finalization_pass": "2026-09-27, только LaTeX: исправлены знак θ и перепутанные точки C/D в моменте, перекрёстные ссылки, раздел Backlog. Не скомпилировано (нет toolchain).",
+      "result": "123/123 тестов. Открытые вопросы Step 36 — в deferred_decisions."
+    },
+    {
+      "id": "2.6",
+      "name": "Phase 2.6 — направление гравитации, перекос тяги, влажный воздух",
+      "status": "complete",
+      "dates": "2026-09-27",
+      "steps": [
+        {
+          "step": 38,
+          "title": "непараллельная гравитация (направление по дальности)",
+          "commit": "da77aa6"
+        },
+        {
+          "step": 39,
+          "title": "перекос оси тяги и его момент",
+          "commit": "f3089aa"
+        },
+        {
+          "step": 40,
+          "title": "влажный воздух: виртуальная температура в tiers 2/3",
+          "commit": "069abce"
+        }
+      ],
+      "result": "150/150 тестов. Предварительный doc-pass: analysis.tex, architecture.md §23."
+    },
+    {
+      "id": "2.7",
+      "name": "Phase 2.7 — эллиптическая гравитация, кривая земля, боковые смещения, демпфирование",
+      "status": "complete",
+      "dates": "2026-09-27 … 2026-09-28",
+      "steps": [
+        {
+          "step": 41,
+          "title": "эллиптическое направление гравитации (R_chi)",
+          "commit": "f5d0120"
+        },
+        {
+          "step": 42,
+          "title": "условие удара о кривую землю (ground_depth)",
+          "commit": "bdc7e07"
+        },
+        {
+          "step": 43,
+          "title": "боковые смещения u_B/u_C в моменте",
+          "commit": "ad359eb"
+        },
+        {
+          "step": 44,
+          "title": "заготовка демпфирования c_mq",
+          "commit": "ff10242"
+        }
+      ],
+      "result": "187/187 тестов. Сессия разработчика падала на Step 42 — восстановлено оркестратором (legacy_keys.phase2_7_steps41_42_recovery_note)."
+    },
+    {
+      "id": "2.8",
+      "name": "Phase 2.8 — кривая высота везде (атмосфера, ветер, гравитация, вывод)",
+      "status": "complete",
+      "dates": "2026-09-28",
+      "steps": [
+        {
+          "step": 45,
+          "title": "кривая высота во всех моделях и в выводе (B8)",
+          "commit": "355a170",
+          "spec_commit": "7390f73"
+        }
+      ],
+      "result": "220/220 тестов, bit-for-bit для gravity_direction='parallel'."
+    },
+    {
+      "id": "2.9",
+      "name": "Phase 2.9 — турбулентность Драйдена",
+      "status": "complete",
+      "dates": "2026-10-02",
+      "steps": [
+        {
+          "step": 46,
+          "title": "модель Драйдена (MIL-F-8785C) вместо заглушки порывов",
+          "commit": "34e1127",
+          "spec_commit": "3193802"
+        }
+      ],
+      "result": "220/220 тестов. Открыты B10/B11."
+    },
+    {
+      "id": "2.10",
+      "name": "Phase 2.10 — пусковая направляющая, парашют, каркас управления",
+      "status": "complete",
+      "dates": "2026-10-04",
+      "steps": [
+        {
+          "step": 47,
+          "title": "ограничение пусковой направляющей (B1)",
+          "commit": "372115a"
+        },
+        {
+          "step": 48,
+          "title": "спасение/парашют (B2)",
+          "commit": "8529c72"
+        },
+        {
+          "step": 49,
+          "title": "каркас управления: аэротормоз с обратной связью",
+          "commit": "05821ad"
+        },
+        {
+          "step": "B13",
+          "title": "устойчивость экстраполяции ISA",
+          "commit": "657ff36"
+        }
+      ],
+      "result": "235/235 тестов. Открыт B12."
+    },
+    {
+      "id": "2.11",
+      "name": "Phase 2.11 — переписывание: композиция Params, баг аэромодели, режим ZOH",
+      "status": "complete",
+      "dates": "2026-10-10 … 2026-10-11",
+      "design_doc": "dev/docs/architecture-28-rewrite.md",
+      "steps": [
+        {
+          "step": 50,
+          "title": "Params: группы + миграция sim/",
+          "commit": "2120ed1"
+        },
+        {
+          "step": 51,
+          "title": "Params: tests/run.py/apps на вложенный API",
+          "commit": "beaf99b"
+        },
+        {
+          "step": 52,
+          "title": "Params: удалён переходный shim",
+          "commit": "6d14b7a"
+        },
+        {
+          "step": 53,
+          "title": "группа Solver, строгий run_sim(p, s0)",
+          "commit": "b1f6c2e"
+        },
+        {
+          "step": 54,
+          "title": "LaTeX: три аэромодели, C_x/C_z/C_m",
+          "commit": "3373b06"
+        },
+        {
+          "step": 55,
+          "title": "трёхвариантный dispatch аэромодели — исправление бага (не bit-for-bit)",
+          "commit": "8b8a343"
+        },
+        {
+          "step": 56,
+          "title": "один flow_state на вызов RHS (~44% быстрее)",
+          "commit": "2720c82"
+        },
+        {
+          "step": 57,
+          "title": "шов управляющих приращений коэффициентов",
+          "commit": "00d7219"
+        },
+        {
+          "step": 58,
+          "title": "run.py → sim/report.py",
+          "commit": "78a7e55"
+        },
+        {
+          "step": 59,
+          "title": "режим sampled-data / ZOH (разблокирует B11/B12)",
+          "commit": "37f0b68"
+        },
+        {
+          "step": 60,
+          "title": "закрытие трекера/roadmap/LaTeX",
+          "commit": "50e1b6f"
+        }
+      ],
+      "housekeeping_commits": [
+        "c22d8b7",
+        "03918e2",
+        "e460b61"
+      ],
+      "result": "260/260 тестов. Решения D-1 … D-17."
+    },
+    {
+      "id": "2.12",
+      "name": "Phase 2.12 — приложение подбора мотора",
+      "status": "complete",
+      "dates": "2026-10-12 … 2026-10-13",
+      "design_doc": "dev/docs/architecture-29-motor-selection.md",
+      "steps": [
+        {
+          "step": 61,
+          "title": "apps/motor_selection/compare_motors.py — перебор моторов",
+          "commit": "06dcffd"
+        },
+        {
+          "step": 62,
+          "title": "переопределения параметров ракеты для каждого мотора",
+          "commit": "e40e885"
+        }
+      ],
+      "result": "289/289 тестов. Решения D-18 … D-27. Аэротормоз как C_dA уже был (Step 49). Открыт B17."
+    },
+    {
+      "id": "2.13",
+      "name": "Phase 2.13 — Apps 4-5, общий слой приложений, configs/, git-flow",
+      "status": "complete",
+      "dates": "2026-10-13",
+      "design_doc": "dev/docs/architecture-30-apps-4-5-and-configs.md",
+      "branch": "feature/phase2.13-apps-and-configs (удалена после мержа)",
+      "steps": [
+        {
+          "step": 63,
+          "title": "configs/ — общий пакет конфигураций",
+          "commit": "932c285"
+        },
+        {
+          "step": 64,
+          "title": "apps/common/ — flight-stats, артефакты, CLI",
+          "commit": "fd68de6"
+        },
+        {
+          "step": 65,
+          "title": "триггеры аэротормоза (единственный шаг в sim/)",
+          "commit": "1b3c785"
+        },
+        {
+          "step": 66,
+          "title": "App 4 — подбор C_dA аэротормоза",
+          "commit": "e211073"
+        },
+        {
+          "step": 67,
+          "title": "App 5 (b) — поверхность компромисса масса/аэро",
+          "commit": "9fddb2a"
+        },
+        {
+          "step": 68,
+          "title": "App 5 (a) — сравнение именованных конфигураций",
+          "commit": "0b37876"
+        },
+        {
+          "step": 69,
+          "title": "перевод run.py и Apps 2-3 на configs/ (bit-for-bit)",
+          "commit": "5f72f44"
+        }
+      ],
+      "merge": "05d0aaa → develop (--no-ff); дизайн 9d5bd40; git-flow 25a512c",
+      "result": "353/353 тестов. Решения D-28 … D-42."
+    },
+    {
+      "id": "2.14",
+      "name": "Phase 2.14 — синхронизация LaTeX с кодом",
+      "status": "complete",
+      "dates": "2026-10-13",
+      "branch": "feature/phase2.14-latex-sync (удалена после мержа)",
+      "steps": [
+        {
+          "step": 70,
+          "title": "LaTeX: направляющая, парашют, аэротормоз, ZOH, Драйден",
+          "commit": "9412fa8"
+        }
+      ],
+      "merge": "3206e32 → develop; затем master fast-forward до 7167c45",
+      "result": "Только документация. Решения D-43, D-44. Не скомпилировано."
+    },
+    {
+      "id": "2.15",
+      "name": "Phase 2.15 — разделение configs/: ракета / площадка / погода",
+      "status": "complete",
+      "dates": "2026-10-14 … 2026-10-15",
+      "design_doc": "dev/docs/architecture-31-config-separation.md",
+      "branch": "feature/config-separation",
+      "steps": [
+        {
+          "step": 71,
+          "title": "configs/schema.py — Rocket/LaunchSite/Weather/Scenario + assemble()",
+          "commit": "68eb029",
+          "tests": "363/363"
+        },
+        {
+          "step": 72,
+          "title": "четыре подпакета, реестры, TEMPLATE-модули",
+          "commit": "7a28ff1",
+          "tests": "386/386"
+        },
+        {
+          "step": 73,
+          "title": "переключение: сиды разбиты на части, configs.get делегирует",
+          "commit": "0edb923",
+          "tests": "398/398"
+        },
+        {
+          "step": 74,
+          "title": "demo_75mm_highland — одна ракета, две площадки",
+          "commit": "e47c08d",
+          "tests": "403/403"
+        }
+      ],
+      "merge": "f34380c → develop (влито, 403/403)",
+      "result": "Решения D-45 … D-55. Без изменений sim/ и apps/."
+    },
+    {
+      "id": "2.16",
+      "name": "Phase 2.16 — отделение конфигурации мотора (motor-config-separation)",
+      "status": "in-progress",
+      "dates": "≤ 2026-10-15 … (точная дата старта не записана)",
+      "branch": "feature/motor-config-separation",
+      "design_doc": "dev/docs/architecture-32-motor-separation.md (есть только на ветке feature/motor-config-separation)",
+      "steps": [
+        {
+          "step": 75,
+          "title": "sim/mass.py",
+          "commit": "6224d97",
+          "status": "done"
+        },
+        {
+          "step": 76,
+          "title": "sim/motor_file.py",
+          "commit": "134e4f2",
+          "status": "done"
+        },
+        {
+          "step": 77,
+          "title": "Weight.I_p_spec",
+          "commit": "d509e25",
+          "status": "done"
+        },
+        {
+          "step": 78,
+          "title": "schema: Motor/Airframe/Sections",
+          "commit": "c4b8bb9",
+          "status": "done"
+        },
+        {
+          "step": 79,
+          "title": "реестр configs/motors",
+          "commit": "89fe8ea",
+          "status": "done"
+        },
+        {
+          "step": 80,
+          "title": "переключение: Scenario получает часть Motor",
+          "commit": "f85da38",
+          "status": "done"
+        },
+        {
+          "step": 81,
+          "title": "рабочий пример demo_75mm_k570",
+          "commit": "3789a3c",
+          "status": "partial — WIP-коммит «end of tokens» (сессия кончилась по токенам)"
+        },
+        {
+          "step": 82,
+          "title": "см. architecture-32 на ветке",
+          "status": "not-started"
+        },
+        {
+          "step": 83,
+          "title": "см. architecture-32 на ветке",
+          "status": "not-started"
+        },
+        {
+          "step": 84,
+          "title": "синхронизация LaTeX",
+          "status": "deferred — решение пользователя 2026-10-15: LaTeX не править"
+        }
+      ],
+      "next": "Откатить WIP-правки LaTeX из 3789a3c; доделать Step 81 (demo_75mm_k570), прогнать полный набор тестов; затем Steps 82-83. Step 84 отложен. После — ревью пользователя и аппрув мержа в develop.",
+      "pending_user": [
+        "Аппрув мержа feature/motor-config-separation → develop после Steps 81-83"
+      ]
+    },
+    {
+      "id": "3",
+      "name": "Phase 3 — 3D, полные 6 степеней свободы (Steps 28-32)",
+      "status": "blocked",
+      "dates": "старт 2026-10-04",
+      "scope": "3D — только симуляция/оптимизация/наведение; CFD и аэротормоз Step 49 остаются 2D (указание пользователя).",
+      "steps": [
+        {
+          "step": 28,
+          "title": "алгебра кватернионов",
+          "commit": "26cbf1b",
+          "status": "done"
+        },
+        {
+          "step": 29,
+          "title": "3D-состояние и поступательная динамика",
+          "commit": "2d9acb5",
+          "status": "done"
+        },
+        {
+          "step": 30,
+          "title": "3D вращательная динамика",
+          "status": "blocked — ждёт ревью dev/docs/latex/research/3d_equations_of_motion.md"
+        },
+        {
+          "step": 31,
+          "title": "3D аэродинамика",
+          "status": "planned"
+        },
+        {
+          "step": 32,
+          "title": "3D вывод и регрессия",
+          "status": "planned"
+        }
+      ],
+      "next": "После ревью пользователем 3d_equations_of_motion.md (развилка: осевой момент инерции I_a) — реализовать Step 30. Ставится в очередь после Phase 2.16.",
+      "pending_user": [
+        "Ревью dev/docs/latex/research/3d_equations_of_motion.md (I_a) — блокирует Step 30"
+      ],
+      "result": "245/245 тестов на момент Step 29."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "E-1",
+      "date": "2026-09-19",
+      "question": "Архитектура/стек",
+      "choice": "z вниз, solve_ivp, шов f(t, state, params) с фиксированной сигнатурой, кватернионы в Phase 3, минимальный pytest",
+      "stage": "1"
+    },
+    {
+      "id": "E-2",
+      "date": "2026-09-19",
+      "question": "Направление z_g и знак A_m",
+      "choice": "z_g вниз (W = m·g·z_g); положительный A_m опускает нос (восстанавливающий)",
+      "stage": "1"
+    },
+    {
+      "id": "E-3",
+      "date": "2026-09-19",
+      "question": "Положение ЦМ",
+      "choice": "пока фиксировано; пользователь дополнит main.tex",
+      "stage": "1"
+    },
+    {
+      "id": "E-4",
+      "date": "2026-09-19",
+      "question": "Шаблон выбора моделей",
+      "choice": "строковое поле Params + dispatch-dict на семейство",
+      "stage": "2"
+    },
+    {
+      "id": "E-5",
+      "date": "2026-09-19",
+      "question": "Формат реальных данных",
+      "choice": "единый CSV зондирования на станцию/время, папка = кейс в data/soundings/",
+      "stage": "2"
+    },
+    {
+      "id": "E-6",
+      "date": "2026-09-19",
+      "question": "pandas и живой API погоды",
+      "choice": "без pandas (numpy.genfromtxt); без живого API — ручные CSV, офлайн-скрипт вне sim/",
+      "stage": "2"
+    },
+    {
+      "id": "E-7",
+      "date": "2026-09-21",
+      "question": "Знак плеча ЦД/ЦМ",
+      "choice": "l1/l2 положительны от носа; исправлена геометрия (main.tex ac2cff2, код c2e7537)",
+      "stage": "2"
+    },
+    {
+      "id": "E-8",
+      "date": "2026-09-21",
+      "question": "Сеть для fetch_sounding",
+      "choice": "да, реализовать tools/fetch_sounding.py",
+      "stage": "2"
+    },
+    {
+      "id": "E-9",
+      "date": "2026-09-27",
+      "question": "Объём Кориолиса (Step 37; дата приблизительная)",
+      "choice": "вариант B: Кориолис в плоскости + боковая диагностика; центробежный член (D) отклонён",
+      "stage": "2.5"
+    },
+    {
+      "id": "E-10",
+      "date": "2026-09-27",
+      "question": "Финализация отчёта: 3 решения",
+      "choice": "S/d_ref вместо A/l; мост A/B/C/D ↔ l1/l2 только в тексте; все ссылки через \\autoref",
+      "stage": "2.5"
+    },
+    {
+      "id": "E-11",
+      "date": "2026-09-27",
+      "question": "Влажный воздух: формат CSV",
+      "choice": "необязательная колонка Td_K + флаг humid_air (по умолчанию False)",
+      "stage": "2.6"
+    },
+    {
+      "id": "E-12",
+      "date": "2026-09-27",
+      "question": "Структура analysis.tex",
+      "choice": "оставить как написал архитектор + сводная таблица",
+      "stage": "2.6"
+    },
+    {
+      "id": "E-13",
+      "date": "2026-09-27",
+      "question": "Знак c_mq",
+      "choice": "c_mq > 0 = устойчивое демпфирование (конвенция проекта); исправлено в analysis.tex",
+      "stage": "2.7"
+    },
+    {
+      "id": "E-14",
+      "date": "2026-09-27",
+      "question": "Объём Step 42 (кривая земля)",
+      "choice": "только событие удара; модели высоты — в backlog B8",
+      "stage": "2.7"
+    },
+    {
+      "id": "E-15",
+      "date": "2026-09-27",
+      "question": "Нет колонки c_mq в aero_table",
+      "choice": "fallback на Params.c_mq",
+      "stage": "2.7"
+    },
+    {
+      "id": "E-16",
+      "date": "2026-09-28",
+      "question": "Отчётная/графическая высота в Step 45",
+      "choice": "тоже кривая (пользователь переопределил рекомендацию архитектора)",
+      "stage": "2.8"
+    },
+    {
+      "id": "E-17",
+      "date": "2026-09-28",
+      "question": "Реальный c_mq (B9)",
+      "choice": "оставить тестовую фикстуру Step 44, метод OpenRocket не брать",
+      "stage": "2.8"
+    },
+    {
+      "id": "E-18",
+      "date": "2026-10-02",
+      "question": "Развилки турбулентности (Step 46)",
+      "choice": "Драйден, зависимость от высоты, фиксированная опорная скорость, интенсивность на высоте задаёт пользователь",
+      "stage": "2.9"
+    },
+    {
+      "id": "E-19",
+      "date": "2026-10-04",
+      "question": "Объём Phase 2.10 и 3D",
+      "choice": "направляющая+парашют+каркас управления проектирует оркестратор; наведение — в 3D; CFD и аэротормоз — 2D",
+      "stage": "2.10"
+    },
+    {
+      "id": "D-1",
+      "date": "2026-10-10",
+      "question": "Группировка ~35 полей Params",
+      "choice": "вариант (a) §28.3; вложенные под-dataclass'ы (пользователь)",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-2",
+      "date": "2026-10-10",
+      "question": "Стратегия миграции Params",
+      "choice": "3 коммита + переходный shim (S50-S52)",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-3",
+      "date": "2026-10-10",
+      "question": "Имена полей в группах",
+      "choice": "короткие (aero.model, wind.ref_ms); перекос — lengths.misalign_deg",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-4",
+      "date": "2026-10-10",
+      "question": "Символ площади",
+      "choice": "общий Aero.S для всех моделей, не новое поле A",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-5",
+      "date": "2026-10-10",
+      "question": "Длина отсчёта момента в constant",
+      "choice": "общий d_ref",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-6",
+      "date": "2026-10-10",
+      "question": "Нотация коэффициентов",
+      "choice": "C_x/C_z/C_m + мост C_x≡C_A, C_z≡C_N",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-7",
+      "date": "2026-10-10",
+      "question": "Форма аэро-шва",
+      "choice": "один AeroCoeffs + один dispatch-dict",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-8",
+      "date": "2026-10-10",
+      "question": "Демпфирование в constant",
+      "choice": "одинаковый член во всех трёх моделях",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-9",
+      "date": "2026-10-10",
+      "question": "Аэротормоз vs хук коэффициентов",
+      "choice": "оставить отдельный аддитивный член",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-10",
+      "date": "2026-10-10",
+      "question": "Сигнатура run_sim",
+      "choice": "строго run_sim(p, s0), без kwargs",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-11",
+      "date": "2026-10-10",
+      "question": "Включение sampled-режима",
+      "choice": "solver.sample_rate_hz > 0 и method='rk4'",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-12",
+      "date": "2026-10-10",
+      "question": "Как удерживаемые значения доходят до RHS",
+      "choice": "необязательный hold=None по всей цепочке",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-13",
+      "date": "2026-10-10",
+      "question": "Разделение run.py / report.py",
+      "choice": "определения в run.py, механика в report.py, plt.show() убран",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-14",
+      "date": "2026-10-10",
+      "question": "Мёртвые/переименованные поля",
+      "choice": "удалить Params.T; g→g0; misalign→lengths; parachute_model→recovery.model",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-15",
+      "date": "2026-10-10",
+      "question": "Неотслеживаемый select_conditions.py",
+      "choice": "закоммитить до S51 (c22d8b7)",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-16",
+      "date": "2026-10-10",
+      "question": "Кто пишет LaTeX",
+      "choice": "архитектор, с пометкой \\ai{}",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-17",
+      "date": "2026-10-10",
+      "question": "Насколько протягивать hold",
+      "choice": "по всей цепочке сразу, включая flow/wind",
+      "stage": "2.11"
+    },
+    {
+      "id": "D-18",
+      "date": "2026-10-12",
+      "question": "Где считать статистику по мотору",
+      "choice": "локально в приложении, sim/report.py не трогать",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-19",
+      "date": "2026-10-12",
+      "question": "Окно экстремумов",
+      "choice": "только подъём; время/дальность удара — весь полёт",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-20",
+      "date": "2026-10-12",
+      "question": "Макс. ускорение",
+      "choice": "пересчёт dynamics.derivatives на сетке",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-21",
+      "date": "2026-10-12",
+      "question": "Какое ускорение",
+      "choice": "инерциальное |dv/dt| (с гравитацией)",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-22",
+      "date": "2026-10-12",
+      "question": "Средняя скорость",
+      "choice": "трапеция по |v| на подъёме",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-23",
+      "date": "2026-10-12",
+      "question": "Формат конфигурации переопределений",
+      "choice": "Python-литерал в apps/motor_selection/motors.py",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-24",
+      "date": "2026-10-12",
+      "question": "Имя приложения",
+      "choice": "apps/motor_selection/compare_motors.py",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-25",
+      "date": "2026-10-12",
+      "question": "Тесты Step 61",
+      "choice": "tests/test_motor_selection.py с закреплёнными значениями",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-26",
+      "date": "2026-10-12",
+      "question": "Демо-ракета",
+      "choice": "синтетическая 1.5 кг / 75 мм",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-27",
+      "date": "2026-10-12",
+      "question": "Артефакты сравнения",
+      "choice": "таблица + CSV + overlay PNG (рекомендация §29.10; в старом логе явно не записан)",
+      "stage": "2.12"
+    },
+    {
+      "id": "D-28",
+      "date": "2026-10-13",
+      "question": "Общая статистика полёта",
+      "choice": "apps/common/flight_stats.py; MotorStats = FlightStats",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-29",
+      "date": "2026-10-13",
+      "question": "Точки запуска",
+      "choice": "четыре тонкие обёртки в корне рядом с run.py",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-30/D-31",
+      "date": "2026-10-13",
+      "question": "Переиспользуемые конфигурации",
+      "choice": "пакет configs/, Python-литералы; Config и Variant",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-32",
+      "date": "2026-10-13",
+      "question": "Миграция run.py/App 2/App 3",
+      "choice": "на configs/ с проверкой bit-for-bit (Step 69)",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-33",
+      "date": "2026-10-13",
+      "question": "CLI",
+      "choice": "--config NAME / --list-configs через apps/common/cli.py",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-34",
+      "date": "2026-10-13",
+      "question": "Что решает App 4",
+      "choice": "скалярный C_dA аэротормоза; S_max выводится",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-35",
+      "date": "2026-10-13",
+      "question": "Метод поиска App 4",
+      "choice": "brentq; minimize_scalar как запасной",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-36-revised",
+      "date": "2026-10-13",
+      "question": "Законы аэротормоза",
+      "choice": "малое изменение sim/ (3 триггера + 'full'); after_apogee — отказ решать (B17/B23); решение и по времени раскрытия",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-37",
+      "date": "2026-10-13",
+      "question": "Полёт на итерацию App 4",
+      "choice": "полный запуск→апогей (рестарт с burnout — B21)",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-38",
+      "date": "2026-10-13",
+      "question": "Режимы App 5",
+      "choice": "оба: сначала поверхность (b), затем сравнение (a)",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-39",
+      "date": "2026-10-13",
+      "question": "Оси поверхности",
+      "choice": "C_dA через aero.C_x при фиксированном S × weight.m",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-40",
+      "date": "2026-10-13",
+      "question": "Хранение поверхности",
+      "choice": "пересчёт по запросу в output/, не коммитится",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-41",
+      "date": "2026-10-13",
+      "question": "Тесты новых шагов",
+      "choice": "закреплённые значения на каждый шаг",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-42",
+      "date": "2026-10-13",
+      "question": "Имена приложений",
+      "choice": "apps/airbrake_sizing/solve_cda.py, apps/weight_aero_tradeoff/{trade_surface,compare_configs}.py",
+      "stage": "2.13"
+    },
+    {
+      "id": "D-43",
+      "date": "2026-10-13",
+      "question": "Текст о Драйдене в models.tex",
+      "choice": "оставить как написал архитектор",
+      "stage": "2.14"
+    },
+    {
+      "id": "D-44",
+      "date": "2026-10-13",
+      "question": "3D-каркас в main.tex",
+      "choice": "пока не добавлять",
+      "stage": "2.14"
+    },
+    {
+      "id": "D-45",
+      "date": "2026-10-14",
+      "question": "Совместимость вызовов",
+      "choice": "ноль правок вызывающего кода; configs.get() как был, добавлен get_scenario()",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-46",
+      "date": "2026-10-14",
+      "question": "Где recovery/control",
+      "choice": "в части Rocket",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-47",
+      "date": "2026-10-14",
+      "question": "gravity/solver/g0",
+      "choice": "простые поля Scenario, без четвёртого реестра",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-48",
+      "date": "2026-10-14",
+      "question": "Погода",
+      "choice": "одна часть Weather: атмосфера+зондирования+ветер",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-49",
+      "date": "2026-10-14",
+      "question": "Слияние частей",
+      "choice": "инвариант одного владельца, без merge-логики (вынуждено кодом)",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-50",
+      "date": "2026-10-14",
+      "question": "Когда собирать",
+      "choice": "жадно, при импорте (вынуждено тестом идентичности)",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-51",
+      "date": "2026-10-14",
+      "question": "Начальное состояние s0",
+      "choice": "выводится из site.rail_angle_deg, если не задано",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-52",
+      "date": "2026-10-14",
+      "question": "Структура пакетов",
+      "choice": "configs/{rockets,sites,weather,scenarios}/",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-53",
+      "date": "2026-10-14",
+      "question": "Имена",
+      "choice": "Rocket/LaunchSite/Weather/Scenario, папка configs/weather/",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-54",
+      "date": "2026-10-14",
+      "question": "CLI --rocket/--site/--weather",
+      "choice": "отложен в отдельный будущий шаг",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-55",
+      "date": "2026-10-14",
+      "question": "Существующие сиды",
+      "choice": "разбить все три на части сразу (+поправка: одна правка строки в tests/test_configs.py на Step 73)",
+      "stage": "2.15"
+    },
+    {
+      "id": "D-74",
+      "date": "2026-10-15",
+      "question": "Step 84 (синхронизация LaTeX для Phase 2.16)",
+      "choice": "отложен: LaTeX не править; WIP-правки LaTeX из 3789a3c будут откачены",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-75",
+      "date": "2026-10-15",
+      "question": "Переход на набор агентов",
+      "choice": "установлен agents kit; память перенесена docs/ → dev/ (трекер dev/status.json + архив dev/status-archive.json, старый трекер — dev/docs/PROJECT-STATUS-legacy.md); LaTeX перенесён в dev/docs/latex/ без изменений; ветка usage/my-rocket удалена (её LaTeX идентичен develop, коммит 66a589d с пустым шаблоном my-rocket отброшен); worktree-режим выключен",
+      "stage": "2.16"
+    }
+  ],
+  "deferred_decisions": [
+    {
+      "date": "2026-10-04",
+      "topic": "Step 30: ревью предложения 3D-уравнений движения (dev/docs/latex/research/3d_equations_of_motion.md), развилка — осевой момент инерции I_a",
+      "stage": "3",
+      "status": "ждёт пользователя"
+    },
+    {
+      "date": "2026-10-15",
+      "topic": "Step 84: синхронизация LaTeX с Phase 2.16 — отложено, LaTeX не трогать",
+      "stage": "2.16",
+      "status": "отложено пользователем"
+    },
+    {
+      "date": "2026-10-14",
+      "topic": "D-54: ad-hoc CLI --rocket/--site/--weather — отдельным будущим шагом",
+      "stage": "2.15",
+      "status": "отложено"
+    },
+    {
+      "date": "2026-09-27",
+      "topic": "Step 36: должны ли l1/l2 следовать за l_B(t) при движении ЦМ (сейчас фиксированы)",
+      "stage": "2.5",
+      "status": "открыт, нужен ревью пользователя/архитектора"
+    },
+    {
+      "date": "2026-09-27",
+      "topic": "Step 36: I_p(t) = (I_d/m_d)·m_p(t) — заглушка до реальной геометрии заряда",
+      "stage": "2.5",
+      "status": "приемлемо как заглушка"
+    },
+    {
+      "date": "2026-09-27",
+      "topic": "Переименование точек A/B/C/D ↔ l1/l2 в коде — только если захочется, отдельным шагом",
+      "stage": "2.5",
+      "status": "отложено"
+    },
+    {
+      "date": "2026-09-28",
+      "topic": "Отложено пользователем: закон управления подвесом сопла, аэродинамика Barrowman, геометрия заряда, вертикальный ветер (исследует сам), конвейер CFD → aero_table",
+      "stage": "2.7",
+      "status": "отложено, не запланировано"
+    },
+    {
+      "date": "2026-09-21",
+      "topic": "Step 24: интерполяция зондирований по времени — до появления мультиснапшотных данных",
+      "stage": "2",
+      "status": "отложено"
+    },
+    {
+      "date": "2026-10-13",
+      "topic": "Отдельный раздел LaTeX «Численное интегрирование» — по желанию, не срочно",
+      "stage": "2.14",
+      "status": "отложено"
+    }
+  ],
+  "backlog_ideas": [
+    {
+      "id": "B1",
+      "title": "Пусковая направляющая",
+      "status": "done (Step 47)"
+    },
+    {
+      "id": "B2",
+      "title": "Спасение / парашют",
+      "status": "done (Step 48)"
+    },
+    {
+      "id": "B3",
+      "title": "Сеточная гравитация EGM2008 / геоид",
+      "status": "open",
+      "note": "эффект ~1e-4 g, ниже ошибки атмосферы"
+    },
+    {
+      "id": "B4",
+      "title": "Непараллельная гравитация",
+      "status": "done (Step 38)"
+    },
+    {
+      "id": "B5",
+      "title": "Влажность / виртуальная температура",
+      "status": "done (Step 40)"
+    },
+    {
+      "id": "B6",
+      "title": "Боковой ветер (вне плоскости)",
+      "status": "parked — нужен Phase 3",
+      "note": "ждут и средний w_y, и Драйден v"
+    },
+    {
+      "id": "B7",
+      "title": "Вертикальный ветер",
+      "status": "parked — пользователь исследует",
+      "note": "турбулентная часть Φ_w есть, средний восходящий поток — нет"
+    },
+    {
+      "id": "B8",
+      "title": "h_true во всех моделях высоты",
+      "status": "done (Step 45)"
+    },
+    {
+      "id": "B9",
+      "title": "Реальное значение/модель c_mq",
+      "status": "open — решено оставить фикстуру Step 44",
+      "note": "исследование dev/docs/latex/research/c_mq_pitch_damping.md"
+    },
+    {
+      "id": "B10",
+      "title": "Турбулентность на измеренных tiers 2/3",
+      "status": "open",
+      "note": "W20 AGL нет в зондировании; риск двойного учёта сдвига"
+    },
+    {
+      "id": "B11",
+      "title": "Турбулентность от истинной воздушной скорости",
+      "status": "open — разблокирован Step 59, модель не написана"
+    },
+    {
+      "id": "B12",
+      "title": "Дискретное управление (ZOH, PID)",
+      "status": "open — разблокирован Step 59, закон не написан"
+    },
+    {
+      "id": "B13",
+      "title": "Устойчивость экстраполяции ISA",
+      "status": "done (657ff36)"
+    },
+    {
+      "id": "B14",
+      "title": "Реальные моторы: импорт .eng/RASP и база",
+      "status": "open (проверить пересечение с Phase 2.16 / sim/motor_file.py)"
+    },
+    {
+      "id": "B15",
+      "title": "Масса/геометрия на мотор + переменная масса",
+      "status": "open (проверить пересечение с Phase 2.16)",
+      "note": "решать вместе с B22"
+    },
+    {
+      "id": "B16",
+      "title": "Двумерные прогоны мотор × окружение",
+      "status": "open"
+    },
+    {
+      "id": "B17",
+      "title": "Численная устойчивость aero 'constant' при падении хвостом вперёд",
+      "status": "open",
+      "note": "нефизичный спуск при замороженной ориентации; блокирует B23"
+    },
+    {
+      "id": "B18",
+      "title": "Многомерные trade-исследования",
+      "status": "open"
+    },
+    {
+      "id": "B19",
+      "title": "Аэротормоз сложнее защёлки (втягивание, график, C_dA(M))",
+      "status": "open"
+    },
+    {
+      "id": "B20",
+      "title": "Приём результатов CFD обратно в data/aero/",
+      "status": "open"
+    },
+    {
+      "id": "B21",
+      "title": "Рестарт только участка выбега для ускорения оптимизатора",
+      "status": "open"
+    },
+    {
+      "id": "B22",
+      "title": "Изменение массы с изменением инерции и геометрии",
+      "status": "open",
+      "note": "решать вместе с B15"
+    },
+    {
+      "id": "B23",
+      "title": "Цель на спуске для аэротормоза after_apogee",
+      "status": "blocked on B17"
+    }
+  ],
+  "artifacts": {
+    "architecture": "dev/docs/architecture.md",
+    "architecture_28_rewrite": "dev/docs/architecture-28-rewrite.md",
+    "architecture_29_motor_selection": "dev/docs/architecture-29-motor-selection.md",
+    "architecture_30_apps_configs": "dev/docs/architecture-30-apps-4-5-and-configs.md",
+    "architecture_31_config_separation": "dev/docs/architecture-31-config-separation.md",
+    "architecture_32_motor_separation": "dev/docs/architecture-32-motor-separation.md (только на ветке feature/motor-config-separation)",
+    "roadmap": "dev/docs/roadmap.md",
+    "latex_main": "dev/docs/latex/main.tex",
+    "latex_sections": "dev/docs/latex/sections-ai/{rocket-2d,models,analysis}.tex",
+    "research_3d_eom": "dev/docs/latex/research/3d_equations_of_motion.md",
+    "research_c_mq": "dev/docs/latex/research/c_mq_pitch_damping.md",
+    "research_dryden": "dev/docs/latex/research/dryden_turbulence_model.md",
+    "legacy_tracker": "dev/docs/PROJECT-STATUS-legacy.md",
+    "legacy_status": "dev/status-archive.json (legacy_keys)"
+  },
+  "branching": {
+    "convention": "git-flow: master (стабильная) ← develop (интеграция) ← feature/<slug> (--no-ff мерж в develop); develop → master на закрытии фаз",
+    "worktree_mode": "выключен",
+    "usage_branches": "usage/my-rocket удалена 2026-10-15; usage/* — от master, только конфиги реальных ракет",
+    "history": "старое описание — `key git_flow` (архив)"
+  },
+  "notes": "Личный инструмент, один пользователь, своя реализация на Python (без RocketPy). Одна ступень — один коммит, полный прогон тестов после каждой. LaTeX (dev/docs/latex/) — спецификация физики, правит пользователь.",
+  "archive": {
+    "file": "dev/status-archive.json",
+    "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/)."
+  }
+}

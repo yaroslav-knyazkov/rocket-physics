@@ -1,5 +1,5 @@
 """apps/common/cli.py -- the shared `--config`/`--list-configs` argparse
-pair (Step 64, roadmap.md; docs/architecture-30-apps-4-5-and-configs.md
+pair (Step 64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md
 SS30.5).
 
 Not a subcommand framework -- ~30 lines of plain argparse, added to a
