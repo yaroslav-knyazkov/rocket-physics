@@ -323,3 +323,16 @@ def test_end_to_end_against_demo_for_every_named_spec():
         save_overlay(sol, png_path)
         assert csv_path.exists() and csv_path.stat().st_size > 0
         assert png_path.exists() and png_path.stat().st_size > 0
+
+
+def test_named_apogee_target_specs_converge_with_margin():
+    """Step 96: the named apogee-target specs reach the 1e-2 m acceptance
+    with margin (brentq's xtol is derived from the acceptance, not a fixed
+    constant that only just fit)."""
+    from apps.airbrake_sizing.targets import SPECS
+
+    for name in ("burnout_3850m", "timer_3850m", "when_to_pop"):
+        spec = SPECS[name]
+        sol = solve_airbrake(configs.get("demo"), spec)
+        assert sol.reachable and sol.converged, name
+        assert abs(sol.apogee_m - spec.target_apogee_m) < 5.0e-3, name

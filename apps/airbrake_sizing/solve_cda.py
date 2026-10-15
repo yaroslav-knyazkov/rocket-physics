@@ -319,13 +319,36 @@ def _solve_scalar(
             result_open=result_open,
         )
 
+    evals: "list[tuple[float, float]]" = []
+
     def f(x: float) -> float:
         nonlocal n_runs
         n_runs += 1
         apogee_x, _, _ = objective(x)
+        evals.append((x, apogee_x - target))
         return apogee_x - target
 
+    # Step 96: the apogee residual at the root is ~ |local slope| * xtol, and
+    # the local slope can be orders of magnitude above the chord slope over
+    # the bounds (apogee(C_dA) is strongly convex: ~6.7e5 m/m^2 near the
+    # root vs ~4.6e2 m/m^2 on the chord for the demo), so a fixed xtol that
+    # fits one vehicle misses the acceptance on another. Refine instead:
+    # after the first brentq, measure the local slope on the tight bracket
+    # it leaves, and re-run on that bracket with xtol <= 1% of the
+    # acceptance / slope (~100x margin on the 1e-2 m acceptance). `xtol`
+    # (the spec's `xtol_m2`) stays as an upper cap on the refined tolerance.
     root = brentq(f, lo, hi, xtol=xtol)
+    below = [(x, v) for x, v in evals if v < 0.0]
+    above = [(x, v) for x, v in evals if v > 0.0]
+    if below and above:
+        # the evaluated points nearest the root on each side of the sign change
+        xa, fa = min(below + above, key=lambda xv: (abs(xv[0] - root), xv[0]))
+        opp = above if fa < 0.0 else below
+        xb, fb = min(opp, key=lambda xv: abs(xv[0] - root))
+        slope = abs((fb - fa) / (xb - xa))
+        xtol_fine = min(xtol, 0.01 * _APOGEE_CONVERGED_ATOL_M / slope)
+        if abs(xb - xa) > xtol_fine:
+            root = brentq(f, min(xa, xb), max(xa, xb), xtol=xtol_fine)
     root_apogee, root_result, root_params = objective(root)
     n_runs += 1   # step 5's final confirmation run, kept separate from brentq's own internal evaluations
     converged = abs(root_apogee - target) <= _APOGEE_CONVERGED_ATOL_M
