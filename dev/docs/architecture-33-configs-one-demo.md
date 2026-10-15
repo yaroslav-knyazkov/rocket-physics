@@ -560,3 +560,32 @@ bit-for-bit list moved; (3) `git diff --stat` = the ticket's boundaries; (4) no 
 - `Config.derive` re-syncing `s0.m` (R3) and App 3 mass-on entries (R4) — backlog candidate.
 - A Mach-dependent drag table for the demo (D-83 (c)).
 - `data/` trimming — D-72 stands.
+
+---
+
+## 33.12 User decisions (2026-10-15) and the added Step 92
+
+- **D-79 → (a)** study vehicle in `apps/common/study_vehicle.py`. **D-80 → (a)** `demo`. **D-81 → (a)**. **D-82 → (a)**.
+- **D-83 → (a) keep the numbers, amended by the user:** "raise a warning that Mach is > 0.8". The
+  docstring caveat alone is not enough — the run itself must say so.
+
+### [Step 92] Mach > 0.8 under a Mach-blind drag model warns at run time (D-83)
+
+- **Module/boundaries:** the module that owns the post-run result (`sim/integrate.py` or
+  `sim/report.py` — the developer picks the narrowest seam that every entry point, `run.py` and all
+  five apps, passes through, and states why); a new test file `tests/test_mach_warning.py`. No
+  `configs/` file, no other test file.
+- **depends_on:** [Step 90] (the demo is then the default everywhere, so the warning is visible).
+- **Do:** after a run, compute the peak flight Mach number over the trajectory (speed relative to
+  the air mass, i.e. wind-relative, divided by the local speed of sound from the same atmosphere
+  model the run used). If it exceeds **0.8** and `params.aero.model` is Mach-independent
+  (`"constant"` or `"linearized"`; `"table"` is exempt because it can encode Mach), emit one
+  `warnings.warn(..., MachRangeWarning)` (a `UserWarning` subclass defined next to the check) with
+  the peak Mach, the time it occurs and the aero model name, e.g.
+  `peak Mach 2.61 at t=1.9 s exceeds 0.8 with Mach-independent aero model "constant" -- drag is not
+  credible above ~0.8; use aero.model="table" with Mach-dependent data`. Pure diagnostic: the
+  integration result is unchanged, no numeric pin moves.
+- **Check:** the demo run warns (peak Mach ≈ 2.6); a subsonic run (`study_75mm` / placeholder
+  motor) does not; a `"table"` run above 0.8 does not; `pytest.warns` / `warnings.catch_warnings`
+  based. Full suite green with the same count + the new tests, no expected value edited.
+- **Commit:** `Step 92 (Phase 2.16): warn when peak Mach exceeds 0.8 under a Mach-independent drag model`

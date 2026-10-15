@@ -576,14 +576,55 @@
           "step": 84,
           "title": "синхронизация LaTeX",
           "status": "deferred — решение пользователя 2026-10-15: LaTeX не править"
+        },
+        {
+          "step": 85,
+          "title": "D-76: assemble() задаёт s0.m",
+          "status": "not-started"
+        },
+        {
+          "step": 86,
+          "title": "study vehicle в apps/common (D-79)",
+          "status": "not-started"
+        },
+        {
+          "step": 87,
+          "title": "Apps 3/5 отвергают базу с масс-моделью (D-82)",
+          "status": "not-started"
+        },
+        {
+          "step": 88,
+          "title": "тесты перестают читать удаляемые записи",
+          "status": "not-started"
+        },
+        {
+          "step": 89,
+          "title": "демо называется demo (D-80)",
+          "status": "not-started"
+        },
+        {
+          "step": 90,
+          "title": "run.py, App 2, App 4 летают на demo",
+          "status": "not-started"
+        },
+        {
+          "step": 91,
+          "title": "удалить всё, что заменяет demo",
+          "status": "not-started"
+        },
+        {
+          "step": 92,
+          "title": "предупреждение Mach > 0.8 (D-83)",
+          "status": "not-started"
         }
       ],
-      "next": "Чистка configs/ до _TEMPLATE + одного demo (D-78) с фиксом D-76: дизайн architecture-33 → Steps 85+. Затем аппрув мержа.",
+      "next": "Steps 85-92 (architecture-33) по очереди, затем аппрув мержа.",
       "pending_user": [
         "Аппрув мержа feature/motor-config-separation → develop (после чистки configs/, Steps 85+)"
       ],
       "handoff": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt — сохранённый диалог прошлой сессии",
-      "tests": "485/485 после перепина D-77"
+      "tests": "485/485 после перепина D-77",
+      "design_doc_2": "dev/docs/architecture-33-configs-one-demo.md (чистка configs/, Steps 85-92)"
     },
     {
       "id": "3",
@@ -1179,6 +1220,41 @@
       "date": "2026-10-15",
       "question": "Состав configs/",
       "choice": "пользователь: убрать всё, что заменяется существующей конфигурацией; в идеале один демо. Цель — в каждом подпакете _TEMPLATE + один demo, один сценарий demo; тестовые варианты — фикстуры в tests/. Дизайн — architecture-33",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-79",
+      "date": "2026-10-15",
+      "question": "architecture-33 §33.8",
+      "choice": "утверждено пользователем: Константно-массовые исследования (Apps 3, 5) — отдельный study vehicle в apps/common/study_vehicle.py",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-80",
+      "date": "2026-10-15",
+      "question": "architecture-33 §33.8",
+      "choice": "утверждено пользователем: Единственный демо называется demo",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-81",
+      "date": "2026-10-15",
+      "question": "architecture-33 §33.8",
+      "choice": "утверждено пользователем: s0.m заполняется при включённой масс-модели, если s0.m == 0.0",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-82",
+      "date": "2026-10-15",
+      "question": "architecture-33 §33.8",
+      "choice": "утверждено пользователем: Apps 3/5 падают с понятной ошибкой на базе с включённой масс-моделью",
+      "stage": "2.16"
+    },
+    {
+      "id": "D-83",
+      "date": "2026-10-15",
+      "question": "architecture-33 §33.8",
+      "choice": "утверждено пользователем: Числа демо оставить; при пиковом Mach > 0.8 и Mach-независимой аэромодели — предупреждение во время прогона (Step 92)",
       "stage": "2.16"
     }
   ],
