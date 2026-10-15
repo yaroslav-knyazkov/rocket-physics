@@ -513,10 +513,10 @@
     {
       "id": "2.16",
       "name": "Phase 2.16 — отделение конфигурации мотора (motor-config-separation)",
-      "status": "in-progress",
+      "status": "in-progress — Steps 75-83 готовы на ветке, ждёт ревью и аппрува мержа",
       "dates": "≤ 2026-10-15 … (точная дата старта не записана)",
       "branch": "feature/motor-config-separation",
-      "design_doc": "dev/docs/architecture-32-motor-separation.md (есть только на ветке feature/motor-config-separation)",
+      "design_doc": "dev/docs/architecture-32-motor-separation.md (на ветке feature/motor-config-separation)",
       "steps": [
         {
           "step": 75,
@@ -556,19 +556,21 @@
         },
         {
           "step": 81,
-          "title": "рабочий пример demo_75mm_k570",
-          "commit": "3789a3c",
-          "status": "partial — WIP-коммит «end of tokens» (сессия кончилась по токенам)"
+          "title": "рабочий пример demo_75mm_k570 (реальный CTI K570, масс-модель включена)",
+          "commit": "9650679",
+          "status": "done — доделан после WIP 3789a3c; 2 устаревших инварианта Step 78 в test_motor_pieces.py переформулированы под D-70(a)"
         },
         {
           "step": 82,
-          "title": "см. architecture-32 на ветке",
-          "status": "not-started"
+          "title": "документация полей шаблонов: REQ|OPT, единицы/варианты, описание + таблицы",
+          "status": "done — 5 шаблонов, tests/test_template_docs.py (15 тестов), поведение не изменено (AST идентичен)",
+          "commit": "eabc83b"
         },
         {
           "step": 83,
-          "title": "см. architecture-32 на ветке",
-          "status": "not-started"
+          "title": "data/ README: что за файл и кто его читает; ничего не удалено (D-72a)",
+          "status": "done",
+          "commit": "0d5e82b"
         },
         {
           "step": 84,
@@ -576,10 +578,14 @@
           "status": "deferred — решение пользователя 2026-10-15: LaTeX не править"
         }
       ],
-      "next": "Откатить WIP-правки LaTeX из 3789a3c; доделать Step 81 (demo_75mm_k570), прогнать полный набор тестов; затем Steps 82-83. Step 84 отложен. После — ревью пользователя и аппрув мержа в develop.",
+      "next": "Ревью пользователя: (1) подтвердить рекомендации архитектора D-56…D-73 (architecture-32 §32.10), уже реализованные; (2) решить D-76 (s0.m из weight.m); (3) аппрув мержа feature/motor-config-separation → develop. Step 84 (LaTeX) отложен.",
       "pending_user": [
-        "Аппрув мержа feature/motor-config-separation → develop после Steps 81-83"
-      ]
+        "Подтвердить D-56…D-73 (рекомендации архитектора, реализованы в Steps 75-83)",
+        "D-76: задавать s0.m = weight.m в assemble(), когда масс-модель включена",
+        "Аппрув мержа feature/motor-config-separation → develop"
+      ],
+      "handoff": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt — сохранённый диалог прошлой сессии",
+      "tests": "483/485 (2 падения — пины окружения в test_integrate.py, воспроизводятся на чистом develop)"
     },
     {
       "id": "3",
@@ -1148,6 +1154,13 @@
       "question": "Переход на набор агентов",
       "choice": "установлен agents kit; память перенесена docs/ → dev/ (трекер dev/status.json + архив dev/status-archive.json, старый трекер — dev/docs/PROJECT-STATUS-legacy.md); LaTeX перенесён в dev/docs/latex/ без изменений; ветка usage/my-rocket удалена (её LaTeX идентичен develop, коммит 66a589d с пустым шаблоном my-rocket отброшен); worktree-режим выключен",
       "stage": "2.16"
+    },
+    {
+      "id": "D-56…D-73",
+      "date": "2026-10-15",
+      "question": "Дизайн-решения Phase 2.16 (architecture-32 §32.10)",
+      "choice": "рекомендованные архитектором варианты реализованы в Steps 75-83; ждут подтверждения пользователя (по просьбе пользователя решения не задавались ночью)",
+      "stage": "2.16"
     }
   ],
   "deferred_decisions": [
@@ -1204,6 +1217,20 @@
       "topic": "Отдельный раздел LaTeX «Численное интегрирование» — по желанию, не срочно",
       "stage": "2.14",
       "status": "отложено"
+    },
+    {
+      "id": "D-76",
+      "date": "2026-10-15",
+      "topic": "s0.m не берётся из weight.m: configs/schema.py::_pad_state оставляет s0.m=0.0. Для сценария с mass_model != \"none\", собранного через SCENARIO.config (например из шаблона), интегрирование стартует с неверной массой. demo_75mm_k570 обходит это локально в своём CONFIG. Рекомендация: в assemble() задавать s0.m = weight.m только при weight.m_d is not None (пины s0 существующих сценариев не трогаются).",
+      "stage": "2.16",
+      "status": "ждёт решения"
+    },
+    {
+      "id": "D-77",
+      "date": "2026-10-15",
+      "topic": "Пины np.array_equal в test_integrate.py (2 теста tilted bit-for-bit) падают на этой машине (numpy 2.5.4, scipy 1.18.1; расхождение ~1e-15 в одной компоненте), на чистом develop тоже. Варианты: перепинить под текущее окружение / сравнивать с допуском ~1e-12 / оставить.",
+      "stage": "2.16",
+      "status": "ждёт решения"
     }
   ],
   "backlog_ideas": [
@@ -1329,6 +1356,16 @@
       "id": "B23",
       "title": "Цель на спуске для аэротормоза after_apogee",
       "status": "blocked on B17"
+    },
+    {
+      "id": "B24",
+      "title": "Масса/CoG/MOI мотора интегрированием геометрии шашек (architecture-32 §32.7)",
+      "status": "open"
+    },
+    {
+      "id": "B25",
+      "title": "Сухие масса/CoG/MOI ракеты из распределения по секциям, как OpenRocket (architecture-32 §32.7)",
+      "status": "open"
     }
   ],
   "artifacts": {
@@ -1345,7 +1382,11 @@
     "research_c_mq": "dev/docs/latex/research/c_mq_pitch_damping.md",
     "research_dryden": "dev/docs/latex/research/dryden_turbulence_model.md",
     "legacy_tracker": "dev/docs/PROJECT-STATUS-legacy.md",
-    "legacy_status": "dev/status-archive.json (legacy_keys)"
+    "legacy_status": "dev/status-archive.json (legacy_keys)",
+    "architecture-32": "dev/docs/architecture-32-motor-separation.md",
+    "handoff-2026-10-15": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt",
+    "data-motors-readme": "data/motors/README.md",
+    "data-soundings-readme": "data/soundings/README.md"
   },
   "branching": {
     "convention": "git-flow: master (стабильная) ← develop (интеграция) ← feature/<slug> (--no-ff мерж в develop); develop → master на закрытии фаз",
