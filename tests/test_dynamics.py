@@ -1015,3 +1015,24 @@ def test_demo_descent_without_recovery_is_dissipative_not_free_fall_faster():
     h_apogee = -z[np.argmin(np.abs(r.t - t_a))]
     v_impact = float(np.hypot(vx[-1], vz[-1]))
     assert v_impact < math.sqrt(2.0 * g * h_apogee)
+
+
+def test_apogee_triggered_parachute_ignores_the_pad_sag():
+    """Step 94 (D-94b): a rest start without a rail and T(0)=0 sags tail-first
+    (vz > 0) for ~ms; the apogee-triggered chute must still deploy at apogee."""
+    import warnings
+
+    import configs
+    from sim.mach_warning import MachRangeWarning
+    from sim.params import replace as params_replace
+
+    cfg = configs.get("demo")
+    p = params_replace(
+        cfg.params,
+        {"recovery.model": "deploy", "recovery.trigger": "apogee", "recovery.S": 1.23, "recovery.Cd": 0.8},
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", MachRangeWarning)
+        r = run_sim(p, cfg.s0)
+    assert r.events["apogee"] is not None
+    assert abs(r.events["parachute_deploy"] - r.events["apogee"]) < 1e-6

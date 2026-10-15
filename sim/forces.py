@@ -292,6 +292,10 @@ def parachute_deployed(t: float, y: np.ndarray, p) -> bool:
     # mid-boost on an unstable trajectory) would arm deployment early. Not a
     # concern for the nominal trajectories this project models; documented
     # here rather than guarded against, the same standing as B11.
+    # Step 94 (D-94b): same 0.1 s pad guard as `_apogee_event` -- a rest start
+    # with T(0) < mg sags tail-first for ~ms (vz > 0) and must not arm the chute.
+    if t < 0.1:
+        return False
     return y[VZ] > 0.0
 
 
