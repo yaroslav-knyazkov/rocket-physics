@@ -243,7 +243,13 @@ def _resolve_configs(spec: "Optional[str]") -> "list[Config]":
     names = _parse_config_names(spec)
     if len(names) == 1:
         baseline = configs.get(names[0])
-
+        if baseline.params.weight.m_d is not None:
+            raise ValueError(
+                f"config {baseline.name!r}: mass model is on (weight.m_d="
+                f"{baseline.params.weight.m_d!r}); the integrator reads mass "
+                "from y[M], so the SCENARIOS variants' weight.m overrides "
+                "would be inert (F3). App 5 is a constant-mass study."
+            )
         return [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
     return [configs.get(name) for name in names]
 

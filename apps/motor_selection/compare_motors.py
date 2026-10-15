@@ -178,7 +178,19 @@ def compare_motors(entries: list[MotorEntry], baseline: Params, s0: State) -> li
     unknown dotted path, raising `AttributeError`/`TypeError` from
     `sim.params.replace`) or a sampled-data `Params` fails in the first
     millisecond instead of after six completed runs.
+
+    Raises `ValueError` (D-82) if `baseline.weight.m_d is not None`: this
+    is a constant-mass study, and with the mass model on the integrator
+    reads mass from `y[M]`, so per-motor curve/weight overrides would be
+    inert or inconsistent. Raised before any integration.
     """
+    if baseline.weight.m_d is not None:
+        raise ValueError(
+            "compare_motors: baseline has the mass model on "
+            f"(weight.m_d={baseline.weight.m_d!r}); App 3 is a constant-mass "
+            "study -- the integrator reads mass from y[M], so per-motor "
+            "curve/weight overrides are meaningless on such a baseline (F3)"
+        )
     params_list = [build_params(entry, baseline) for entry in entries]
     for p in params_list:
         _assert_derivatives_reconstructible(p)

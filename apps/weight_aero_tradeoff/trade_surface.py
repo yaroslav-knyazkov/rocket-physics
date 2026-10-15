@@ -215,7 +215,18 @@ def build_surface(cfg: Config, axes: TradeAxes) -> TradeSurface:
     pre-flight, rather than on the first grid point -- the same
     fail-fast reasoning `compare_motors.compare_motors`'s own pre-flight
     pass applies.
+
+    Raises `ValueError` (D-82) if `cfg.params.weight.m_d is not None`: with
+    the mass model on the integrator reads mass from `y[M]`, so the swept
+    `weight.m` is inert and the mass axis would come out flat (F3).
     """
+    if cfg.params.weight.m_d is not None:
+        raise ValueError(
+            f"config {cfg.name!r}: mass model is on (weight.m_d="
+            f"{cfg.params.weight.m_d!r}); the integrator reads mass from "
+            "y[M], so the swept weight.m is inert and the mass axis would "
+            "be flat (F3). App 5 is a constant-mass study."
+        )
     if cfg.params.aero.S == 0.0:
         raise ValueError(
             f"config {cfg.name!r}: aero.S == 0.0 -- the C_dA axis is swept "

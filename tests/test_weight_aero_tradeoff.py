@@ -584,3 +584,33 @@ def test_mode_a_agrees_with_mode_b_trade_surface_at_shared_points():
         assert apogee_mode_a is not None
         assert not np.isnan(apogee_mode_b)
         assert apogee_mode_a == pytest.approx(apogee_mode_b, rel=0.01), (i, cda, m)
+
+
+# ----------------------------------------------------------------------
+# D-82: the constant-mass study refuses a mass-model-on baseline
+# ----------------------------------------------------------------------
+
+
+def test_build_surface_refuses_mass_model_on_config(monkeypatch):
+    import configs
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called for a mass-on config")
+
+    monkeypatch.setattr("apps.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
+
+    cfg = configs.get("demo_75mm_k570")
+    with pytest.raises(ValueError, match="mass model is on"):
+        build_surface(cfg, default_axes(cfg))
+
+
+def test_compare_single_name_baseline_refuses_mass_model_on_config(monkeypatch):
+    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called for a mass-on baseline")
+
+    monkeypatch.setattr(compare_configs_module, "run_sim", _must_not_be_called)
+
+    with pytest.raises(ValueError, match="mass model is on"):
+        compare_main(["--config", "demo_75mm_k570"])
