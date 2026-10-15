@@ -14,7 +14,9 @@ brake-closed apogee"): 3850 m. The earlier 372 m / 9.19 s / burnout-2.0 s
 narrative belonged to the former constant-mass `demo_75mm_airbrake`
 vehicle, which is gone. NOTE (D-83): the demo's aero model is
 `"constant"` and the flight is supersonic, so these are wiring/behaviour
-numbers, not credible drag predictions.
+numbers, not credible drag predictions. The demo now carries a main
+canopy at apogee (Step 95, D-97), so `descent_demo` below descends under it
+(and its brake) to `t_max` instead of falling ballistically.
 
 The four named specs (SS30.6.1's table, the one of each kind that table
 distinguishes):

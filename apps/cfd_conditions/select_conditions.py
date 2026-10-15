@@ -197,8 +197,8 @@ def save_conditions_csv(conditions: list[WeightedCondition], path: Path) -> None
 def main() -> None:
     # Step 90 (dev/docs/architecture-33-configs-one-demo.md SS33.4.2): the
     # one demo (configs/scenarios/demo.py), the same scenario run.py uses.
-    # Its flight reaches supersonic Mach (~1.05-2.6), which is what a
-    # K-class demo honestly produces (D-83).
+    # Its ascent reaches supersonic Mach (selected rows span ~0.5-1.7;
+    # peak ~1.75), which is what a K-class demo honestly produces (D-83).
     cfg = configs.get("demo")
     params = cfg.params
     state0 = cfg.s0

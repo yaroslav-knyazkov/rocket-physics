@@ -10,10 +10,15 @@ the D-59 "isp" vs "endpoints" equivalence check) -- at `origin_msl`/`isa_dry_cal
 "pin the defaults" site/weather pair every other demo scenario uses.
 
 Mach caveat (D-83): this K570 on a 1.5 kg airframe reaches roughly Mach
-2.6 (apogee ~5.95 km), but the airframe's aero model is `"constant"`
+1.75 on the ascent (apogee ~5.95 km), but the airframe's aero model is `"constant"`
 (C_x = 0.5, not Mach-dependent), which is not credible above ~Mach 0.8.
 The numbers are kept as built; a run that exceeds Mach 0.8 under a
 Mach-independent drag model warns at run time (Step 92).
+
+Recovery (Step 95, D-97): one main canopy at apogee (see the rocket module);
+a real flight to this altitude would use drogue + main (dual deploy), which
+`sim/` cannot model yet (backlog B29). The canopy descent from ~5.9 km takes
+~890 s, hence the longer `t_max` below.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ from configs.rockets import demo
 from configs.schema import Config, Scenario
 from configs.sites import origin_msl
 from configs.weather import isa_dry_calm
+from sim.params import Solver
 
 SCENARIO = Scenario(
     name="demo",
@@ -30,6 +36,7 @@ SCENARIO = Scenario(
     motor=MOTOR,
     site=origin_msl.SITE,
     weather=isa_dry_calm.WEATHER,
+    solver=Solver(t_max=1200.0),  # canopy descent from ~5.9 km takes ~860 s; default 300 s would stop mid-air
     notes=(
         "A real vendor motor (Cesaroni K570), its own mass history read "
         "from its own RASP file, composed with an airframe that knows "

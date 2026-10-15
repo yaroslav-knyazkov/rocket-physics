@@ -39,6 +39,11 @@ measured off a real kit:
 - `airframe.l=0.55` puts the dry (motor-excluded) CoG a little forward of
   the airframe's own midpoint -- plausible for a vehicle whose recovery
   bay and avionics sit ahead of an aft-mounted motor.
+- `recovery`: one main canopy at apogee (Phase 2.16, Step 95, D-97) --
+  a round ~1.25 m canopy sized for ~6 m/s on the 2.195 kg burnt-out vehicle,
+  so the demo lands instead of falling ballistically. A real flight to this
+  altitude would use drogue + main (dual deploy), which `sim/` cannot model
+  yet (backlog B29).
 
 `lengths=Lengths(l1=0.3, l2=0.4)` reuses the study vehicle's own CoP/thrust-arm
 pair unchanged: this module's purpose is the motor/mass-model demo
@@ -53,7 +58,7 @@ own `Aero(...)` triple, below) does not read `Sections` for its own arms
 from __future__ import annotations
 
 from configs.schema import Airframe, Rocket, Sections
-from sim.params import Aero, Lengths
+from sim.params import Aero, Lengths, Recovery
 
 ROCKET = Rocket(
     name="demo",
@@ -73,5 +78,13 @@ ROCKET = Rocket(
         l_fin_root_aft=1.02,     # fin root trailing edge
         l_motor_aft=1.10,        # aft-flush install (SS32.2.2); forward face
         #                          resolves to L_total - motor.length at assembly
+    ),
+    recovery=Recovery(
+        model="deploy",     # single main canopy (the only recovery machinery sim/ has)
+        trigger="apogee",   # deploys once v_z > 0 (descending), after the t < 0.1 s pad guard (D-94b)
+        Cd=0.8,             # round canopy, typical vendor figure
+        S=1.23,             # m^2 -- ~1.25 m flat-diameter round canopy (pi*1.25^2/4 = 1.227);
+        #                     sized for ~6 m/s at sea level on the 2.195 kg burnt-out vehicle:
+        #                     V_term = sqrt(2*m*g/(rho*Cd*S)) = sqrt(2*2.195*9.807/(1.225*0.8*1.23)) = 5.98 m/s
     ),
 )

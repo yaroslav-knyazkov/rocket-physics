@@ -30,9 +30,9 @@ including SS30.6.1) and SS30.2's F1-F8/F15-F19.
   *onset* latch -- backlog B19.
 - **No descent-braking study.** `"after_apogee"` cannot be an apogee-sizing
   trigger (F19: the objective is flat by construction, the trigger fires
-  only strictly after apogee) and this project's post-apogee physics is
-  not yet trustworthy either (frozen nose-up attitude, body-axis drag
-  accelerating a tail-first fall -- roadmap B17/B23). `evaluate_airbrake`
+  only strictly after apogee). Descent physics is sound since the
+  axial-drag sign fix (Step 93, D-91; B17 closed), but a descent objective
+  is not built yet (roadmap B23). `evaluate_airbrake`
   is the report-only path for that trigger; `solve_airbrake` refuses it
   outright, loudly, without running a search.
 
@@ -111,9 +111,8 @@ _AFTER_APOGEE_REFUSAL = (
     "the apogee is independent of C_dA_airbrake by construction (measured "
     "flat to 2.4e-3 m across C_dA in [0, 10] m^2, i.e. solver noise; "
     "architecture-30-apps-4-5-and-configs.md F19). Call evaluate_airbrake "
-    "for a report-only flight instead, and note that this project's descent "
-    "physics is not yet trustworthy for a post-apogee brake (roadmap "
-    "B17/B23)."
+    "for a report-only flight instead; a descent-rate objective for a "
+    "post-apogee brake is not built yet (roadmap B23)."
 )
 
 

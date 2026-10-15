@@ -253,3 +253,23 @@ def test_demo_isp_and_endpoints_motors_agree_on_apogee():
     apogee_endpoints = -result_endpoints.y[1].min()  # z is DOWN-positive; altitude = -z
     apogee_isp = -result_isp.y[1].min()
     assert apogee_endpoints == pytest.approx(apogee_isp, rel=1e-3)
+
+
+def test_demo_lands_under_its_main_canopy():
+    """Step 95 (D-97): the demo deploys one main canopy at apogee and lands
+    at ~6 m/s (measured 5.97 m/s at t ~ 890.9 s)."""
+    import warnings
+
+    import numpy as np
+
+    from sim.integrate import run_sim
+    from sim.mach_warning import MachRangeWarning
+
+    cfg = configs.get("demo")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", MachRangeWarning)
+        r = run_sim(cfg.params, cfg.s0)
+    assert r.events["ground"] is not None
+    v_impact = float(np.hypot(r.y[2][-1], r.y[3][-1]))
+    assert 5.5 <= v_impact <= 6.5
+    assert abs(r.events["parachute_deploy"] - r.events["apogee"]) < 1e-6
