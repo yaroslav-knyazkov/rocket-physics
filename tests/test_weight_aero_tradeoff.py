@@ -1,6 +1,6 @@
 """Tests for apps/weight_aero_tradeoff/trade_surface.py (App 5 mode (b),
 roadmap.md Step 67) and apps/weight_aero_tradeoff/compare_configs.py (App
-5 mode (a), roadmap.md Step 68), docs/architecture-30-apps-4-5-and-
+5 mode (a), roadmap.md Step 68), dev/docs/architecture-30-apps-4-5-and-
 configs.md SS30.7.1/SS30.7.2/SS30.8.
 
 Per that design doc's test strategy (SS30.8): this module pins no raw

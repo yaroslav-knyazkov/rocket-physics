@@ -1,5 +1,5 @@
 """configs/scenarios/_TEMPLATE_scenario.py -- TEMPLATE, fill in your
-own numbers (Step 72, docs/architecture-31-config-separation.md
+own numbers (Step 72, dev/docs/architecture-31-config-separation.md
 SS31.5).
 
 This file is a blank `Scenario`: one named combination of a rocket, a

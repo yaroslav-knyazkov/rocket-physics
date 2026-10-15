@@ -1,0 +1,72 @@
+{
+  "agent": "orchestrator",
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": { "source": "github", "repo": "anthropics/claude-plugins-official" }
+    },
+    "mattpocock": {
+      "source": { "source": "github", "repo": "mattpocock/skills" }
+    }
+  },
+  "enabledPlugins": {
+    "mattpocock-skills@mattpocock": true,
+    "frontend-design@claude-plugins-official": true,
+    "context7@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/block-env-edit.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-main-repo-write.sh" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/block-find.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-bash-write.sh" },
+          { "type": "command", "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/graphify_nudge.py\" bash" }
+        ]
+      },
+      {
+        "matcher": "WebFetch|WebSearch",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/block-webfetch.sh" }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/warn-agent-webfetch.sh" }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/graphify_nudge.py\" read" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/telegram_notify.py" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Context was just compacted (lossy by design). Before continuing: re-check the tracker slices (python .claude/scripts/status_query.py current; decisions --since <date>; md-journal --last 3) and recent git log for the actual latest committed state -- trackers/commits are the source of truth, not this compacted summary. If decisions/work happened since the last tracker commit and are only in the compacted conversation, write them down now.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

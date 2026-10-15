@@ -1,6 +1,6 @@
 """configs/scenarios/demo_75mm_highland.py -- demo_75mm, unmodified, flown
 from a different site in different weather (Step 74,
-docs/architecture-31-config-separation.md SS31.12).
+dev/docs/architecture-31-config-separation.md SS31.12).
 
 The one worked mix-and-match demo this phase was built for: the
 **existing, unmodified** `configs.rockets.demo_75mm.ROCKET` -- not

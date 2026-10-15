@@ -1,0 +1,19 @@
+{
+  "project": "{{PROJECT_NAME}}",
+  "description": "{{PROJECT_DESCRIPTION}}",
+  "created": "{{TODAY}}",
+  "updated": "{{TODAY}}",
+  "active_modules": [],
+  "excluded_modules": [],
+  "complexity": null,
+  "current_stage": null,
+  "stages": [],
+  "decisions": [],
+  "deferred_decisions": [],
+  "backlog_ideas": [],
+  "artifacts": {},
+  "archive": {
+    "file": "dev/status-archive.json",
+    "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/)."
+  }
+}

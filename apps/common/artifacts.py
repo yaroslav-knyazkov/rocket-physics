@@ -1,5 +1,5 @@
 """apps/common/artifacts.py -- the shared output-directory helper (Step
-64, roadmap.md; docs/architecture-30-apps-4-5-and-configs.md SS30.5).
+64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5).
 
 `OUTPUT_DIR` is the `Path(__file__).parents[2] / "output"` both
 `apps/cfd_conditions/select_conditions.py` and

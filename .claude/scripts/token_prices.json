@@ -1,0 +1,6 @@
+{
+  "_comment": "Human-edited assumption used by token_usage.py, NOT fetched from any pricing API. USD per 1,000,000 tokens (input / output / cache_write / cache_read). Update by hand when Anthropic changes list prices; unknown/renamed model families silently cost $0 and trigger a warning in the report until added here.",
+  "opus": {"input": 15, "output": 75, "cache_write": 18.75, "cache_read": 1.50},
+  "sonnet": {"input": 3, "output": 15, "cache_write": 3.75, "cache_read": 0.30},
+  "haiku": {"input": 1, "output": 5, "cache_write": 1.25, "cache_read": 0.10}
+}

@@ -1,7 +1,7 @@
 """configs/ -- the shared configuration package (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.3/SS30.4; rewritten
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.3/SS30.4; rewritten
 to delegate to `configs.scenarios` at Step 73,
-`docs/architecture-31-config-separation.md` SS31.6/SS31.7; this
+`dev/docs/architecture-31-config-separation.md` SS31.6/SS31.7; this
 docstring turned into the package's "how do I add my own" guide at
 Step 74, SS31.12).
 

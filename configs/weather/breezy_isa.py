@@ -1,5 +1,5 @@
 """configs/weather/breezy_isa.py -- ISA air with a steady analytic wind
-(Step 74, docs/architecture-31-config-separation.md SS31.12).
+(Step 74, dev/docs/architecture-31-config-separation.md SS31.12).
 
 `Atmosphere(model="isa")` -- same air model as `isa_dry_calm`, so
 pairing this piece with a non-default site is a clean test of SS31.2

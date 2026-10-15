@@ -12,7 +12,7 @@ post-processes each `Result`, and prints/saves a table ranked by apogee. It
 adds no new physics and changes nothing under `sim/`. It is the third such
 tool in the repo and the second under `apps/`.
 
-Design: `docs/architecture-29-motor-selection.md` SS29.2-SS29.6 for the
+Design: `dev/docs/architecture-29-motor-selection.md` SS29.2-SS29.6 for the
 sweep mechanics (Step 61); SS29.7/SS29.8 for the per-motor configuration
 schema below (Step 62).
 
@@ -92,7 +92,7 @@ from sim.plotting import plot_trajectory_overlay
 from sim.state import State
 
 # Step 64: MotorStats/flight_stats moved to apps/common/flight_stats.py
-# (docs/architecture-30-apps-4-5-and-configs.md SS30.5) -- Apps 4/5 want
+# (dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5) -- Apps 4/5 want
 # the same ascent-window reduction App 3 pioneered (SS30.2 F11). Re-exported
 # under the original name so nothing downstream moves:
 # tests/test_motor_selection.py imports `flight_stats` (never `MotorStats`)
@@ -285,7 +285,7 @@ def save_overlay(runs: list[MotorRun], path: Path) -> None:
 
 def _demo_baseline() -> Params:
     """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 69
-    (roadmap.md; `docs/architecture-30-apps-4-5-and-configs.md` SS30.4): a
+    (roadmap.md; `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4): a
     one-line re-export of `configs.get("demo_75mm").params`, kept under
     this name only because `tests/test_motor_selection.py` imports it
     unedited (F11). The full provenance/rationale for these numbers now

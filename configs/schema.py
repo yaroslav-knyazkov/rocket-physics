@@ -1,5 +1,5 @@
 """configs/schema.py -- `Config` and `Variant` (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4).
 
 Both frozen dataclasses, both trivially constructible, no inheritance, no
 builders. `Config` is one complete, runnable scenario (`Params` + initial
@@ -16,7 +16,7 @@ that point still partially-initialised) namespace would be a circular
 import. Importing this submodule directly, as above, is always safe --
 `configs/schema.py` has no dependency on `configs/__init__.py`.
 
-Step 71 (`docs/architecture-31-config-separation.md` SS31.4) adds four
+Step 71 (`dev/docs/architecture-31-config-separation.md` SS31.4) adds four
 more frozen dataclasses -- `Rocket`, `LaunchSite`, `Weather`, `Scenario`
 -- and the module-level `assemble(sc)` / `_pad_state(site)` that turn a
 `Scenario` into an ordinary `Config`. **`Config` and `Variant` above are

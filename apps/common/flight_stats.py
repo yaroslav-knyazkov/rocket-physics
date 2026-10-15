@@ -1,8 +1,8 @@
 """apps/common/flight_stats.py -- the shared flight-stats reduction
-(Step 64, roadmap.md; docs/architecture-30-apps-4-5-and-configs.md SS30.5).
+(Step 64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5).
 
 Moved verbatim out of `apps/motor_selection/compare_motors.py` (Step
-61/62, `docs/architecture-29-motor-selection.md` SS29.2-SS29.6), where it
+61/62, `dev/docs/architecture-29-motor-selection.md` SS29.2-SS29.6), where it
 was `MotorStats`/`flight_stats`. Promoted because App 3 was never the only
 customer (SS30.2 F11): Apps 4/5 (airbrake `C_dA` determination, mass/drag
 trade) want the exact same ascent-window reduction over a `Result`, and
@@ -18,7 +18,7 @@ same `dynamics.derivatives` re-evaluation for an exact acceleration, same
 refinement).
 
 This file is the one home for four decisions made at Phase 2.12
-(`docs/architecture-29-motor-selection.md` SS29.10, D-19..D-22):
+(`dev/docs/architecture-29-motor-selection.md` SS29.10, D-19..D-22):
 
 - **D-19 -- measurement window.** Ascent-only (launch -> apogee) for every
   kinematic/aerodynamic extremum except impact time/downrange, which are

@@ -1,5 +1,5 @@
 """Quaternion algebra for Phase 3 attitude (roadmap.md Step 28; architecture.md
-"Phase 3"; docs/latex/research/3d_equations_of_motion.md SS2).
+"Phase 3"; dev/docs/latex/research/3d_equations_of_motion.md SS2).
 
 Pure algebra: no `Params`/`State` dependency, no dynamics, nothing imported
 from the rest of `sim/`. Everything downstream (Step 29 state3d.py, Step 30
@@ -34,7 +34,7 @@ y = w1*y2 - x1*z2 + y1*w2 + z1*x2
 z = w1*z2 + x1*y2 - y1*x2 + z1*w2
 ```
 (`w` <-> `q0`, `(x, y, z)` <-> `(q1, q2, q3)`.) This is the same convention
-docs/latex/research/3d_equations_of_motion.md SS2 uses for the kinematics
+dev/docs/latex/research/3d_equations_of_motion.md SS2 uses for the kinematics
 below -- `q_dot`'s component form there was derived from exactly this
 product, not a different textbook sign/order convention.
 
@@ -182,7 +182,7 @@ def to_euler(q: np.ndarray) -> tuple[float, float, float]:
 
 def q_dot(q: np.ndarray, omega_body: np.ndarray) -> np.ndarray:
     """Attitude kinematics `q_dot = 0.5 * q (x) (0, omega_body)`, explicit
-    component form (module docstring; docs/latex/research/
+    component form (module docstring; dev/docs/latex/research/
     3d_equations_of_motion.md SS2, reproduced verbatim). `omega_body` is
     the body-frame angular velocity `(wx, wy, wz)` [rad/s]."""
     q0, q1, q2, q3 = q

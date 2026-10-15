@@ -1,7 +1,7 @@
 """configs/rockets/demo_75mm.py -- the 1.5 kg / 75 mm vehicle (Step 63,
-roadmap.md, `docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved
+roadmap.md, `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved
 here and reduced to a `Rocket` at Step 73,
-`docs/architecture-31-config-separation.md` SS31.7).
+`dev/docs/architecture-31-config-separation.md` SS31.7).
 
 Copied number-for-number, including its justifying docstring, from
 `apps/motor_selection/compare_motors.py`'s `_demo_baseline()` (D-26,

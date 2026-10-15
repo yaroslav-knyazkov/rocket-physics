@@ -1,0 +1,22 @@
+{
+  "_comment": "Copy to .claude/wt.config.json and adjust. Every key is optional; defaults shown. Used only when worktree mode is on (CLAUDE.md, Профиль проекта).",
+  "worktree_root": null,
+  "_worktree_root": "Where worktrees are created. null = sibling folder <repo>-worktrees. Keep it OUTSIDE cloud-synced folders (OneDrive/YandexDisk/Dropbox). Env WT_ROOT overrides.",
+  "env_file": ".env",
+  "_env_file": "Env file copied into each tree; if it holds a Postgres DATABASE_URL the tree gets its own database, REDIS_DB and rewritten FRONTEND_URL/CORS_ORIGINS ports. Example for a split repo: backend/.env",
+  "venv_dir": ".venv",
+  "_venv_dir": "Python venv with asyncpg, used only for CREATE/DROP DATABASE. Example: backend/.venv",
+  "local_artifacts": [
+    ["node_modules", "junction"],
+    [".venv", "junction"],
+    [".env", "copy"]
+  ],
+  "_local_artifacts": "Gitignored things a fresh tree needs: junction = link to the main repo copy (no reinstall), copy = real copy. Missing paths are skipped. Example: [[\"frontend/node_modules\",\"junction\"],[\"backend/.venv\",\"junction\"],[\"backend/.env\",\"copy\"]]",
+  "backend_port_base": 8000,
+  "frontend_port_base": 3000,
+  "port_stride": 10,
+  "_ports": "Slot N (1..9) gets base + stride*N; slot 0 is the main repo.",
+  "tracker_files": ["dev/status.json", "dev/journal.md", "dev/PROJECT-STATUS.md"],
+  "main_repo_allowlist": ["graphify-out/", "temporary/", ".claude/wt-active.json", "dev/.status-backup/", "dev/.docs-backup/"],
+  "co_author": "Co-Authored-By: Claude <noreply@anthropic.com>"
+}
