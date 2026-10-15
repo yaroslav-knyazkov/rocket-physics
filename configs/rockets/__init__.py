@@ -22,10 +22,10 @@ cleanly (SS31.8 #6) but is deliberately never in `_MODULES` -- see that
 module's docstring.
 """
 
-from configs.rockets import demo_75mm, demo_75mm_k570, toy_05kg
+from configs.rockets import demo, demo_75mm, toy_05kg
 from configs.schema import Rocket
 
-_MODULES = (toy_05kg, demo_75mm, demo_75mm_k570)
+_MODULES = (toy_05kg, demo_75mm, demo)
 
 ROCKETS: dict[str, Rocket] = {m.ROCKET.name: m.ROCKET for m in _MODULES}
 

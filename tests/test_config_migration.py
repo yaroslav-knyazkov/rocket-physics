@@ -25,7 +25,7 @@ import configs.rockets
 import configs.scenarios
 from apps.common import study_vehicle
 from apps.motor_selection.compare_motors import _demo_baseline
-from configs.rockets import demo_75mm_k570
+from configs.rockets import demo
 from configs.schema import Config, Scenario
 from configs.sites import origin_msl
 from configs.weather import isa_dry_calm
@@ -40,9 +40,9 @@ from tests.test_configs import _toy_05kg_literal
 
 
 def test_get_scenario_demo_75mm_returns_the_composition():
-    scenario = configs.get_scenario("demo_75mm_k570")
+    scenario = configs.get_scenario("demo")
     assert isinstance(scenario, Scenario)
-    assert scenario.rocket.name == "demo_75mm_k570"
+    assert scenario.rocket.name == "demo"
     assert scenario.motor.name == "cti_k570"
     assert scenario.site.name == "origin_msl"
     assert scenario.weather.name == "isa_dry_calm"
@@ -170,7 +170,7 @@ def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
 
 # ----------------------------------------------------------------------
 # Step 81 (dev/docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/
-# SS32.3.4/SS32.5): demo_75mm_k570 -- a real CTI motor (its own mass
+# SS32.3.4/SS32.5): demo -- a real CTI motor (its own mass
 # history read from its own RASP file) composed with a mass-modelled
 # airframe, the mass model ON from a config for the first time.
 # `test_every_registered_scenario_flies` above already exercises this
@@ -182,41 +182,41 @@ def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
 # ----------------------------------------------------------------------
 
 
-def _demo_75mm_k570_airframe():
-    return configs.rockets.get("demo_75mm_k570").airframe
+def _demo_airframe():
+    return configs.rockets.get("demo").airframe
 
 
-def test_demo_75mm_k570_mass_model_is_on():
+def test_demo_mass_model_is_on():
     """The mass model is ON for the first time from a config (SS32.3.3)."""
-    assert configs.get("demo_75mm_k570").params.weight.m_d is not None
+    assert configs.get("demo").params.weight.m_d is not None
 
 
-def test_demo_75mm_k570_composed_masses():
-    airframe = _demo_75mm_k570_airframe()
-    weight = configs.get("demo_75mm_k570").params.weight
+def test_demo_composed_masses():
+    airframe = _demo_airframe()
+    weight = configs.get("demo").params.weight
     # K570 header (SS32.3.1 F5): m_total=1.685 kg, m_prop=0.990 kg,
     # m_f = m_total - m_prop = 0.695 kg.
     assert weight.m == pytest.approx(airframe.m + 1.685, rel=1e-6)
     assert weight.m_d == pytest.approx(airframe.m + 0.695, rel=1e-6)
 
 
-def test_demo_75mm_k570_isp_eff_matches_f5():
+def test_demo_isp_eff_matches_f5():
     """`I_sp_eff = J/(m_prop*g0)` derived at assembly from the curve's own
     total impulse (SS32.3.4), matching F5's measured 212.41 s."""
-    assert configs.get("demo_75mm_k570").params.weight.I_sp == pytest.approx(212.41, abs=0.01)
+    assert configs.get("demo").params.weight.I_sp == pytest.approx(212.41, abs=0.01)
 
 
-def test_demo_75mm_k570_stations_are_inside_the_airframe():
+def test_demo_stations_are_inside_the_airframe():
     """`l_d`/`l_p` (the composed dry-assembly and propellant nose-tip
     stations) both fall inside `[l_nose, L_total]` -- the station-
     convention sanity check (SS32.5)."""
-    sections = demo_75mm_k570.ROCKET.sections
-    weight = configs.get("demo_75mm_k570").params.weight
+    sections = demo.ROCKET.sections
+    weight = configs.get("demo").params.weight
     assert sections.l_nose <= weight.l_d <= sections.L_total
     assert sections.l_nose <= weight.l_p <= sections.L_total
 
 
-def test_demo_75mm_k570_burnout_mass_lands_on_m_f():
+def test_demo_burnout_mass_lands_on_m_f():
     """The headline assertion (SS32.3.4, D-59): the impulse-fraction-
     shaped 'endpoints' model consumes exactly `m_prop` over the whole
     curve, so the integrated state's mass at the end of the run lands on
@@ -225,22 +225,22 @@ def test_demo_75mm_k570_burnout_mass_lands_on_m_f():
     `(0.0, 0.0)` prepend plus the curve's own trailing zero, SS32.3.4), so
     mass stops changing at burnout and the LAST sample of a full run to
     ground impact is still the burnout mass."""
-    airframe = _demo_75mm_k570_airframe()
-    cfg = configs.get("demo_75mm_k570")
+    airframe = _demo_airframe()
+    cfg = configs.get("demo")
     result = run_sim(cfg.params, cfg.s0)
     assert result.y[M][-1] == pytest.approx(airframe.m + 0.695, rel=1e-4)
 
 
-def test_demo_75mm_k570_isp_and_endpoints_motors_agree_on_apogee():
+def test_demo_isp_and_endpoints_motors_agree_on_apogee():
     """D-59's equivalence, end to end: the same airframe flown with
     `cti_k570` ('endpoints', `I_sp` derived from the curve's own total
     impulse) and `cti_k570_isp` ('isp', `I_sp` hand-entered to match)
     give apogees agreeing to ~0.1%."""
-    cfg_endpoints = configs.get("demo_75mm_k570")
+    cfg_endpoints = configs.get("demo")
 
     scenario_isp = Scenario(
-        name="_test_demo_75mm_k570_isp",
-        rocket=demo_75mm_k570.ROCKET,
+        name="_test_demo_isp",
+        rocket=demo.ROCKET,
         motor=config_variants.CTI_K570_ISP,
         site=origin_msl.SITE,
         weather=isa_dry_calm.WEATHER,

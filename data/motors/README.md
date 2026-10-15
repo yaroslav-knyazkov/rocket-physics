@@ -6,7 +6,7 @@ Nothing here is a throwaway example: every file is read by code or tests.
 
 | file | what it is | who reads it |
 |---|---|---|
-| `Cesaroni_2060K570-17A.eng` | Real vendor RASP data (Cesaroni K570). | `configs/motors/cti_k570.py`, `cti_k570_isp.py`, `configs/rockets/demo_75mm_k570.py`, `tests/test_motor_file.py`, `tests/test_motor_pieces.py`, `tests/test_config_registries.py`. Only file exercising the RASP reader, header-derived masses and the `"endpoints"` mass model. |
+| `Cesaroni_2060K570-17A.eng` | Real vendor RASP data (Cesaroni K570). | `configs/motors/cti_k570.py`, `cti_k570_isp.py`, `configs/rockets/demo.py`, `tests/test_motor_file.py`, `tests/test_motor_pieces.py`, `tests/test_config_registries.py`. Only file exercising the RASP reader, header-derived masses and the `"endpoints"` mass model. |
 | `placeholder.csv` | Default demo motor (162.75 N*s). | `configs/motors/placeholder.py`, `configs/rockets/demo_75mm.py`, `configs/scenarios/demo_75mm.py`, `apps/motor_selection/compare_motors.py`, `apps/airbrake_sizing/targets.py`, many `tests/test_*.py` (pins the `_demo_baseline()` equality). |
 | `synthetic_small.csv` | Small (E-class) member of the comparison set. | `apps/motor_selection/{motors,compare_motors}.py`, `tests/test_motor_selection.py`, `tests/test_thrust_curve.py`. |
 | `synthetic_medium_punchy.csv` | H motor, 169.2 N*s, short high-thrust burn. | Same as above. |

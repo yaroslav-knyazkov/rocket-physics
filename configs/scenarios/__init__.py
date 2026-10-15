@@ -25,14 +25,14 @@ convention as every other registry in this project.
 
 from configs.schema import Config
 from configs.scenarios import (
+    demo,
     demo_75mm,
     demo_75mm_airbrake,
     demo_75mm_highland,
-    demo_75mm_k570,
     toy_05kg,
 )
 
-_MODULES = (toy_05kg, demo_75mm, demo_75mm_airbrake, demo_75mm_highland, demo_75mm_k570)
+_MODULES = (toy_05kg, demo_75mm, demo_75mm_airbrake, demo_75mm_highland, demo)
 
 SCENARIOS: dict[str, Config] = {m.CONFIG.name: m.CONFIG for m in _MODULES}
 

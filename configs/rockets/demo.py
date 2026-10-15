@@ -1,4 +1,4 @@
-"""configs/rockets/demo_75mm_k570.py -- a 54 mm airframe sized for the
+"""configs/rockets/demo.py -- the one demo rocket: a 54 mm airframe sized for the
 real Cesaroni K570 (Phase 2.16, Step 81,
 dev/docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/SS32.5).
 
@@ -57,7 +57,7 @@ from configs.schema import Airframe, Rocket, Sections
 from sim.params import Aero, Lengths
 
 ROCKET = Rocket(
-    name="demo_75mm_k570",
+    name="demo",
     # launch mass EXCLUDING the motor -- mass model ON once paired with a
     # mass_model != "none" motor (SS32.2.2), so `l` (the airframe's own
     # CoG station aft of the nose tip) is now required.

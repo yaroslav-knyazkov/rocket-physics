@@ -119,7 +119,7 @@ def test_scenarios_registry_is_populated_by_step_73():
     Step 74 added a fourth)."""
     assert configs.scenarios._MODULES != ()
     assert configs.scenarios.SCENARIOS != {}
-    assert {"demo_75mm_k570"} <= set(configs.scenarios.names())
+    assert {"demo"} <= set(configs.scenarios.names())
     with pytest.raises(KeyError):
         configs.scenarios.get("anything")
 

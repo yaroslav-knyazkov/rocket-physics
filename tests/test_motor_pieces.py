@@ -408,7 +408,7 @@ def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
     """D-70 (a): `import configs` reads a motor file only for a motor with
     `mass_model != "none"`. Until Step 81 every registered scenario was on
     the `"none"` pass-through path (case 0) and the import touched no file
-    at all; Step 81 registers `demo_75mm_k570` (`cti_k570`, "endpoints"),
+    at all; Step 81 registers `demo` (`cti_k570`, "endpoints"),
     the gated case. So: re-import the whole `configs` tree from scratch,
     record every `sim.motor_file` call, and require that the only file
     read is `cti_k570`'s own curve -- the four pre-phase seeds still read
@@ -435,7 +435,7 @@ def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
     for name in fresh_configs.names():
         fresh_configs.get(name)  # exercises assemble() for every registered scenario/config
 
-    assert calls, "demo_75mm_k570 is on the gated path and must read its motor file"
+    assert calls, "demo is on the gated path and must read its motor file"
     assert set(calls) == {cti_k570.MOTOR.thrust.motor_curve}
 
 
@@ -449,6 +449,6 @@ def test_configs_names_after_step_81():
         "demo_75mm",
         "demo_75mm_airbrake",
         "demo_75mm_highland",
-        "demo_75mm_k570",
+        "demo",
         "toy_05kg",
     }

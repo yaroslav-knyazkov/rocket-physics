@@ -216,8 +216,8 @@ def _run_fresh_interpreter(code: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_import_configs_demo_75mm_first_has_no_circular_import():
-    _run_fresh_interpreter("import configs.scenarios.demo_75mm\nprint(configs.scenarios.demo_75mm.CONFIG.name)\n")
+def test_import_configs_demo_first_has_no_circular_import():
+    _run_fresh_interpreter("import configs.scenarios.demo\nprint(configs.scenarios.demo.CONFIG.name)\n")
 
 
 def test_import_configs_package_first_has_no_circular_import():

@@ -546,7 +546,7 @@ def test_mass_model_on_baseline_is_refused_before_any_integration(monkeypatch):
 
     monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
-    cfg = configs.get("demo_75mm_k570")
+    cfg = configs.get("demo")
     assert cfg.params.weight.m_d is not None
     with pytest.raises(ValueError, match="mass model on"):
         compare_motors(

@@ -529,10 +529,10 @@ def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
 
     monkeypatch.setitem(configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG)
 
-    compare_main(["--config", "demo_75mm_k570,toy_05kg"])
+    compare_main(["--config", "demo,toy_05kg"])
 
     out = capsys.readouterr().out
-    assert "demo_75mm_k570" in out
+    assert "demo" in out
     assert "toy_05kg" in out
     assert "heavy_sleek" not in out
     assert "light_draggy" not in out
@@ -605,7 +605,7 @@ def test_build_surface_refuses_mass_model_on_config(monkeypatch):
 
     monkeypatch.setattr("apps.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
 
-    cfg = configs.get("demo_75mm_k570")
+    cfg = configs.get("demo")
     with pytest.raises(ValueError, match="mass model is on"):
         build_surface(cfg, default_axes(cfg))
 
@@ -619,4 +619,4 @@ def test_compare_single_name_baseline_refuses_mass_model_on_config(monkeypatch):
     monkeypatch.setattr(compare_configs_module, "run_sim", _must_not_be_called)
 
     with pytest.raises(ValueError, match="mass model is on"):
-        compare_main(["--config", "demo_75mm_k570"])
+        compare_main(["--config", "demo"])
