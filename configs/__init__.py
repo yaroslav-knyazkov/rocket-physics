@@ -26,6 +26,9 @@ under the matching subpackage rather than here:
   - `configs/rockets/`  -- vehicles: airframe, motor, aero, recovery, control
   - `configs/sites/`    -- launch sites: pad geodesy and rail
   - `configs/weather/`  -- a flying day's air: atmosphere, soundings, wind
+  - `configs/motors/`   -- motors: thrust curve file plus mass model
+    (the data file itself goes under `data/motors/`; see its README for
+    the accepted `.csv` / `.eng` formats)
   - `configs/scenarios/` -- named rocket + site + weather combinations
     (what this package's registry is built from); a flat whole-`Config`
     module is also legal here, forever (SS31.5, SS31.8 #7)
