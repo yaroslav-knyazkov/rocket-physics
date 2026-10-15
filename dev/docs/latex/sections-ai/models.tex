@@ -9,7 +9,7 @@ environment the last of them is computed from: the air (\autoref{sec:atmosphere}
 fictitious-force corrections that come from the frame rather than from any force at all
 (\autoref{sec:noninertial}). This ordering deliberately allows forward references: a model
 sometimes uses a quantity defined further down (\autoref{sec:thrust}'s pressure correction needs
-$p_{amb}$ from \autoref{sec:atmosphere}, and \autoref{sec:aero} needs $\rho$ and $q$ from
+$p_{atm}$ from \autoref{sec:atmosphere}, and \autoref{sec:aero} needs $\rho$ and $q$ from
 \autoref{sec:atmosphere} and $\alpha$ from \autoref{sec:relwind}); every such symbol is
 cross-referenced at the point of use.
 
@@ -26,9 +26,12 @@ equation of this section reads exactly as it does above.
 
 \subsection{Gravity}\label{sec:gravity}
 Interchangeable models for the gravitational acceleration magnitude $g$ and direction $\hat{z}_g$
-used in $\vec{W}=mg\hat{z}_g$ (\autoref{sec:forces}). Magnitude and direction are chosen
+used in the weight $\vec{W}=mg\hat{z}_g$ (\autoref{sec:forces}). Magnitude and direction are chosen
 independently, since they answer different questions --- how strong, and which way. $h=-z$ is
-altitude above the launch point, $R_e$ the Earth's mean radius.
+altitude above the launch point, $R_e$ the Earth's mean radius. The magnitude models are
+\emph{constant}, \emph{radial} and \emph{ellipsoidal} (experimental); the direction models are
+\emph{parallel}, \emph{radial} and \emph{ellipsoidal}; and a \emph{vector field} model supplies
+magnitude and direction together.
 
 \subsubsection{Magnitude}
 \begin{itemize}
@@ -40,7 +43,7 @@ altitude above the launch point, $R_e$ the Earth's mean radius.
     Here $R_e+h$ is the distance from the Earth's centre, so $h$ is height above the
     \emph{local} spherical surface --- the same reading of the coordinates the direction model
     below uses.
-    \item \textbf{Real data (WGS84)}: Somigliana normal gravity at the ellipsoid surface, plus the
+    \item \textbf{Ellipsoidal} (WGS84, experimental): Somigliana normal gravity at the ellipsoid surface, plus the
     second-order free-air correction to height above it,
     \begin{gather}
         \gamma_0(\phi) = \gamma_e\frac{1+k\sin^2\phi}{\sqrt{1-e^2\sin^2\phi}} \\
@@ -66,7 +69,7 @@ increasing fidelity:
     \item \textbf{Radial} (spherical, non-parallel): the Earth is modelled as a sphere of radius
     $R_e$ centred at $O$ --- a point distinct from the launch point $O^*$, which merely lies on
     the sphere.
-    \item \textbf{Elliptical} (non-parallel, origin still at $O$): the same WGS84 ellipsoid as the
+    \item \textbf{Ellipsoidal} (non-parallel, origin still at $O$): the same WGS84 ellipsoid as the
     Magnitude model above, whose local vertical is the ellipsoid normal rather than the direction
     to $O$.
 \end{itemize}
@@ -103,7 +106,7 @@ itself is taken as
 with $x$ the simulation's own downrange coordinate --- reading $x$ as ground arc length, the same
 reading the ground track $(x\sin\chi, x\cos\chi)$ of \autoref{sec:atmosphere} > Field already uses.
 
-\paragraph{Weight.} The weight vector becomes, in launch-frame components,
+\paragraph{Weight.} The weight $\vec{W}=mg\,\hat{z}_g$ becomes, in launch-frame components,
 \begin{equation} \label{eq:weight_rotated}
     \vec{W} = mg\,\hat{z}_g(\varphi)
         = mg\left(-\sin\varphi\,\hat{x}_0 + \cos\varphi\,\hat{z}_0\right),
@@ -114,10 +117,10 @@ nothing else in the equations of motion is touched. In particular the rotational
 \autoref{eq:eom_rot} is untouched for a reason that holds exactly and not just to leading order
 --- moments are taken about the centre of gravity, so weight contributes none whatever direction
 it points (\autoref{sec:analysis_moment}). In body axes the whole effect collapses to the
-substitution $\theta \to \theta + \varphi$ in the weight terms
+substitution $\theta_r \to \theta_r + \varphi$ in the weight terms
 (\autoref{eq:analytic_force_x}, \autoref{eq:analytic_force_z}).
 
-\paragraph{Construction (elliptical).} Unlike the sphere, the ellipsoid's surface normal at
+\paragraph{Construction (ellipsoidal).} Unlike the sphere, the ellipsoid's surface normal at
 geodetic latitude $\phi$ does \emph{not} pass through the centre $O$ except along the equator and
 at the poles: $O$ here anchors the coordinate system that defines $\phi$ (the same $\phi$ the
 Magnitude model uses), it is not literally the point the local vertical points towards. To reuse
@@ -159,52 +162,70 @@ reading $-z$ by exactly the curvature drop quoted above (the ground has dropped 
 rocket that has not, so the true clearance is larger). \autoref{eq:h_true} is the altitude to use,
 in place of $-z$, for every altitude-dependent model once a non-parallel direction model is
 active --- the atmosphere and wind tiers, and the radial/WGS84 magnitude models --- and the impact
-condition becomes $h_{true}(x,z)=0$ in place of $z=0$. For the elliptical variant the same
+condition becomes $h_{true}(x,z)=0$ in place of $z=0$. For the ellipsoidal variant the same
 substitution $R_e\to R_\chi(\phi_0,\chi)$ applies throughout \autoref{eq:h_true} as well.
 
 \subsubsection{Vector field (magnitude + direction)}
-Data from some dataset, using the same station/field interpolation as \autoref{sec:atmos_tiers}.
+A single model may supply the magnitude $g$ and the direction $\hat{z}_g$ together, as a vector
+field $\vec{g}(\vec{x},t)=g\,\hat{z}_g$ taken from a dataset (e.g.\ a gridded geopotential model),
+using the same station/field interpolation as \autoref{sec:atmos_tiers}. The weight is then
+$\vec{W}=m\vec{g}$, and the separate magnitude and direction choices above do not apply.
+\todo{no vector-field gravity model exists in sim/; only the separate magnitude and direction
+models are implemented.}
 
 \subsection{Thrust}\label{sec:thrust}
 \subsubsection{Magnitude}
 Magnitude of thrust is the result of conservation of momentum (ejection of fuel) and pressure
 differences, which can be computed analytically for an internal-combustion nozzle:
 \begin{equation}
-    T = \dot{m}v_e + A_e(p_e - p_{atm}).
+    T = \left|\frac{\mathrm{d}m_m}{\mathrm{d}t}\right| v_e + A_e(p_e - p_{atm}),
 \end{equation}
-In real life, however, the data from a static test is used instead. It is given as a tabulated
-curve, linearly interpolated between measured $(t_i,T_i)$ points, and held at $T_1$ for $t<t_1$
-and zero for $t>t_N$; burnout is the falling zero-crossing of this curve:
+with the motor mass flow of \autoref{sec:mass}, the exhaust speed $v_e$, the nozzle-exit pressure
+$p_e$, the exit area $A_e$ and the ambient pressure $p_{atm}$.
+In real life, however, the data from a static test is used instead. The \emph{reference} thrust
+curve $T_0(t)$ is given as scatter (data) points $(t_i,T_i)$, $i=1,\dots,N$, read from a motor file,
+and evaluated by linear interpolation between neighbouring points, held at $T_1$ for $t<t_1$ and
+zero for $t>t_N$; burnout is the falling zero-crossing of this curve:
 \begin{equation}
-    T_{ref}(t) = \mathrm{lerp}\!\left(t; \{t_i\}, \{T_i\}\right).
+    T_0(t) = \mathrm{lerp}\!\left(t; \{t_i\}, \{T_i\}\right).
 \end{equation}
-As the test is static, there is no variation in atmospheric pressure. To account for the change in
-altitude, the net thrust once the motor is flowing is
-\begin{equation}
-    T(t, h) = T_{ref}(t) + A_e\left(p_{ref} - p_{amb}(h)\right),
+As the test is static, the ambient pressure $p_0$ it was measured at is fixed and does not follow
+the rocket's altitude. To account for the change in ambient pressure $p_{atm}$ during flight, the
+net thrust once the motor is flowing is
+\begin{equation}\label{eq:thrust_pressure}
+    T(t, h) = T_0(t) + A_e\left(p_0 - p_{atm}(h)\right),
 \end{equation}
-valid only while $T_{ref}(t)>0$ (i.e.\ while the motor is actually flowing); $p_{amb}(h)$ comes
-from \autoref{sec:atmosphere}, $A_e$ is the nozzle exit area, and $p_{ref}$ is the ambient pressure
-the curve was measured at (the test-stand pressure, not necessarily the launch site's own pad
-pressure). $A_e=0$ recovers $T_{ref}(t)$ exactly.
+valid only while $T_0(t)>0$ (i.e.\ while the motor is actually flowing); $p_{atm}(h)$ comes from
+\autoref{sec:atmosphere}, $A_e$ is the nozzle exit area, and $p_0$ is the ambient pressure the
+curve was measured at (the test-stand pressure, not necessarily the launch site's own pad
+pressure). Since $p_{atm}$ falls with altitude, the thrust rises as the rocket climbs, by at most
+$A_ep_0$ in vacuum. $A_e=0$ recovers $T_0(t)$ exactly.
+\todo{sim/ names $p_0$ \texttt{p.thrust.p\_ref} and $A_e$ \texttt{p.thrust.A\_e}; the
+default $A_e=0$ switches the correction off.}
 
 \subsubsection{Direction}
-Done, in this document, by a fixed misalignment rather than by active thrust control. The nozzle
-cant $\delta$ of \autoref{eq:thrust_frame} is carried as a constant input --- a manufacturing-type
-error, chosen once per airframe, not a function of $t$ or $h$ --- and is zero by default. The two
-things this document keeps deliberately separate are: $\delta$ does not scale any part of the
-magnitude model above, and the mass flow of \autoref{sec:mass} is driven by $T_{ref}(t)$
-regardless of which way the nozzle points. The only coupling is the obvious one, that the axial
-component actually delivered is $T\cos\delta$ (\autoref{eq:analytic_force_x}) --- a $4\times10^{-5}$
-relative loss at $\delta=0.5^\circ$, negligible as a performance effect, while the $T\sin\delta$
-that goes with it is not at all negligible as a \emph{moment}
-(\autoref{sec:analysis_misaligned}). A \emph{commanded} gimbal, driven by a control law and the
-only pitch authority a rocket has once it is off the rail, is left for later
-(\autoref{sec:backlog}); $\delta$ here is simply an input to be swept, to see how sensitive the
-airframe is to a manufacturing-grade misalignment before any control authority is added.
+The direction of the thrust is the angle $\theta_t$ of the thrust frame $\mathcal{F}_t$ from the
+body axis (\autoref{eq:thrust_frame}). Three options:
+\begin{itemize}
+    \item \textbf{Ideal} (the default): $\theta_t=0$, the thrust acts along $\hat{x}_r$.
+    \item \textbf{Misalignment}: $\theta_t$ is a constant input --- a manufacturing-type error,
+    chosen once per airframe, not a function of $t$ or $h$.
+    \item \textbf{Controlled orientation} (gimbal): $\theta_t(t)$ commanded by a control law, the
+    only pitch authority a rocket has once it is off the rail. Future work
+    (\autoref{sec:backlog}).
+\end{itemize}
+The two things this document keeps deliberately separate are: $\theta_t$ does not scale any part of
+the magnitude model above, and the mass flow of \autoref{sec:mass} is driven by $T_0(t)$ regardless
+of which way the nozzle points. The only coupling is the obvious one, that the axial component
+actually delivered is $T\cos\theta_t$ (\autoref{eq:analytic_force_x}) --- a $4\times10^{-5}$
+relative loss at $|\theta_t|=0.5^\circ$, negligible as a performance effect, while the
+$T\sin\theta_t$ that goes with it, acting at the arm $l_t-l_g$ from the centre of gravity, is not
+at all negligible as a \emph{moment} (\autoref{sec:analysis_misaligned}). The misalignment option is
+simply an input to be swept, to see how sensitive the airframe is to a manufacturing-grade error
+before any control authority is added.
 
 Propellant mass flow and the resulting CoG/moment-of-inertia travel are modelled in
-\autoref{sec:mass}, and are carried by \autoref{sec:eom}: $m$, $l_B$ and $I$ are all functions of
+\autoref{sec:mass}, and are carried by \autoref{sec:eom}: $m$, $l_g$ and $I$ are all functions of
 time there.
 
 \subsection{Mass, centre of gravity and moment of inertia}\label{sec:mass}
@@ -383,28 +404,44 @@ covered above}
 instead of entering them by hand; see the Backlog item in \autoref{sec:backlog}.}
 
 \subsection{Aerodynamics}\label{sec:aero}
-\subsubsection{Force magnitudes}
-\begin{equation}
-    A_x = qSC_x, \qquad A_z = qSC_z,
-\end{equation}
+\subsubsection{Force and moment}
+The aerodynamic force and the pitching moment about the reference point $p$ are
 \begin{equation} \label{eq:aero_magnitudes}
-    A_m = qSd_{ref}C_m,
+    \vec{A}_f = -qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right), \qquad
+    \vec{A}_m = -qSc\,C_m\hat{y}_r,
 \end{equation}
-with $q$ the dynamic pressure, $S$ the reference area and $d_{ref}$ the reference length (in
-practice the body cross-section and its diameter) --- the same $S,d_{ref}$ that
-\autoref{sec:analysis} uses and the same $d_{ref}$ that forms the Reynolds number of
-\autoref{sec:reynolds_mach}. $C_x,C_z,C_m$ are the axial-force, normal-force and pitching-moment
-coefficients.
+with $q$ the dynamic pressure, $S$ the reference area, $c$ the reference length, and
+$C_x,C_z,C_m$ the axial-force, normal-force and pitching-moment coefficients. The component
+magnitudes are $qSC_x$, $qSC_z$ and $qScC_m$.
 
-These three equations are \emph{definitions}, not a model. They hold unchanged for every
+\paragraph{Reference dimensions.} $S$ is the area of the pipe, i.e.\ the cross-section of the body
+tube, and $c$ is the diameter of the pipe. They are the same $S,c$ that \autoref{sec:analysis} uses
+and the same $c$ that forms the Reynolds number of \autoref{sec:reynolds_mach}.
+
+These equations are \emph{definitions}, not a model. They hold unchanged for every
 coefficient model of \autoref{sec:aero_coeffs}: the aerodynamic force is always a dynamic-pressure
 times reference-area times coefficient product, and there is no variant in which it is supplied
 directly as a force. Which arguments the coefficients actually depend on --- $(\alpha,M)$, $\alpha$
 alone, or nothing at all --- is a property of the selected model, not of these definitions, and is
-stated there. One pair $(S,d_{ref})$ per airframe is shared by all three models, which is what
-makes their coefficients comparable in the first place: a coefficient means nothing except relative
-to the $(S,d_{ref})$ it was normalised by. The same $d_{ref}$ also fixes the caliber static margin
-below, so a model-local reference length would silently change what the static margin means.
+stated there. One pair $(S,c)$ per component is shared by all of its coefficient models, which is
+what makes them comparable in the first place: a coefficient means nothing except relative to the
+$(S,c)$ it was normalised by. The same $c$ also fixes the caliber static margin below, so a
+model-local reference length would silently change what the static margin means.
+
+\paragraph{Multi-component aerodynamics.} When the airframe is built from several aerodynamic
+components $k$ (body, fins, nose cone, \dots), each with its own reference point $pp_k$, its own
+force $\vec{A}_{f,k}$ and moment $\vec{A}_{m,k}$ about $pp_k$, the total force is the sum and the
+total moment about the common reference point $p$ adds the moment of each force about $p$:
+\begin{equation} \label{eq:aero_multi}
+    \vec{A}_f = \sum_k \vec{A}_{f,k}, \qquad
+    \vec{A}_m(p) = \sum_k \vec{A}_{m,k} + \sum_k \vec{p\,pp_k}\times\vec{A}_{f,k},
+\end{equation}
+where $\vec{p\,pp_k}$ is the position of $pp_k$ relative to $p$ (the lever arm of component $k$'s
+force about $p$). Each component's coefficients are normalised by its \emph{own} reference area and length,
+$\vec{A}_{f,k}=-qS_k(C_{x,k}\hat{x}_r+C_{z,k}\hat{z}_r)$ and $\vec{A}_{m,k}=-qS_kc_k\,C_{m,k}\hat{y}_r$,
+so $S_k,c_k$ generally differ between components and from the airframe's $S,c$.
+\todo{sim/ carries a single aerodynamic component (one $S,c$ and one coefficient set per airframe);
+\autoref{eq:aero_multi} is not implemented.}
 
 \paragraph{Notation.} $C_x\equiv C_A$ and $C_z\equiv C_N$. The axial/normal names $C_A,C_N$ are the
 ones the wind-tunnel/CFD convention --- and hence the coefficient tables and slope inputs of
@@ -414,76 +451,130 @@ together as a set, as in the definitions above. Same quantities, two spellings, 
 either: this is the same device the document already uses for $c_z\equiv C_N$ in
 \autoref{sec:aero_linearization} and \autoref{sec:analysis_stability}.
 
-$l_1=l_D-l_B$ is the axial distance from the centre of gravity $B$ to the
-aerodynamic reference point $D$ of \autoref{sec:geometry}, positive with $D$ aft, so that
-$\vec{BD}=-l_1\hat{x}_r$ and the caliber static margin of \autoref{sec:analysis_stability} is
-$\mathrm{SM}=l_1/d_{ref}$.
+$l_p-l_g$ is the axial distance from the centre of gravity $g$ to the aerodynamic reference point
+$p$ of \autoref{sec:geometry}, positive with $p$ aft, so that $\vec{gp}=-(l_p-l_g)\hat{x}_r$ and
+the caliber static margin of \autoref{sec:analysis_stability} is $\mathrm{SM}=(l_p-l_g)/c$.
+
+\paragraph{Axial force and the flow direction.} The axial term $-qSC_x\hat{x}_r$ of
+\autoref{eq:aero_magnitudes} assumes nose-first flight, with the relative flow along $-\hat{x}_r$
+and $|\alpha|$ small. The coefficient $C_x$ is defined in body axes and is positive, so the term
+always points aft; when the rocket flies tail-first (after apogee on a ballistic descent, or in a
+tumble) the relative flow arrives from behind, and the same aft-pointing term would \emph{push}
+the rocket along its motion --- ``drag'' that accelerates it. The physically correct axial force
+opposes the axial component of the relative flow: its sign must follow the sign of
+$\hat{x}_r\cdot\vec{v}_{rel}$ (equivalently of $\cos\alpha$), not stay fixed.
+\todo{the equation in \autoref{sec:forces} and \autoref{eq:aero_magnitudes} assume nose-first flight.
+The correction (a sign factor on $C_x$ that follows $\cos\alpha$, continuous through
+$\alpha=90^\circ$ and equal to $1$ for nose-first flight) is a separate code decision (D-91) and its
+implementation is in progress; once accepted, state the factor here.}
 
 \subsubsection{Dynamic pressure}
 \begin{equation}
-    q = \tfrac12\rho V^2,
+    q = \tfrac12\rho v_{rel}^2,
 \end{equation}
-with $\rho$ the local air density (\autoref{sec:density}) and $V$ the relative airspeed. Both $V$
-and the angle of attack $\alpha$ that feeds the coefficients above are derived from the rocket's
-velocity relative to the surrounding air in \autoref{sec:relwind}.
+with $\rho$ the local air density from the atmosphere model (\autoref{sec:density}) and $v_{rel}$
+the magnitude of the rocket's velocity relative to the air, which combines the state of the rocket
+with the wind model (\autoref{sec:wind}). Both $v_{rel}$ and the angle of attack $\alpha$ that feeds
+the coefficients below are derived from this relative velocity in \autoref{sec:relwind}.
 
 \subsubsection{Coefficients}\label{sec:aero_coeffs}
-$C_x,C_z,C_m$ and $l_1$ are not derived in this document from the airframe's shape --- they are
-supplied. Three interchangeable models supply them, selected per run, on the same footing as the
-magnitude/direction models of \autoref{sec:gravity} and the tiers of \autoref{sec:atmos_tiers} and
-\autoref{sec:wind}: no one of them is a ``fallback'' of another, and all three feed the identical
-definitions of the Force magnitudes subsection above.
+$C_x,C_z,C_m$ and the arm $l_p-l_g$ are not derived in this document from the airframe's shape ---
+they are supplied. Three interchangeable models supply them, selected per run, on the same footing
+as the magnitude/direction models of \autoref{sec:gravity} and the tiers of
+\autoref{sec:atmos_tiers} and \autoref{sec:wind}: no one of them is a ``fallback'' of another, and
+all three feed the identical definitions of the Force and moment subsection above. Writing $C$ for
+any one of $C_x,C_z,C_m$, they are, in order of increasing fidelity: constant,
+\begin{equation}
+    C = C_0,
+\end{equation}
+linearized about a reference condition in the angle of attack, the Mach number and the Reynolds
+number,
+\begin{equation} \label{eq:aero_general_linear}
+    C(\alpha,M,Re) = C_0 + \alpha\frac{\partial C}{\partial\alpha} + M\frac{\partial C}{\partial M}
+        + Re\frac{\partial C}{\partial Re},
+\end{equation}
+and real data, a multivariable lookup table $C(\alpha,M,Re)$. The bullets below give the form each
+takes in the code.
+\todo{sim/ implements the $\alpha$ slope only in the linearized model (no $M$ or $Re$ slope), and
+the table model is a two-variable $(M,\alpha)$ table; $Re$ enters neither.}
 \begin{itemize}
     \item \textbf{Constant} (the cheapest model): $C_x,C_z,C_m$ are fixed inputs and
-    $l_1=l_1^{(0)}$, independent of both $\alpha$ and $M$. Useful for first-cut sizing, and for
+    $l_p-l_g$ is fixed, independent of both $\alpha$ and $M$. Useful for first-cut sizing, and for
     isolating one effect at a time in a comparison sweep --- freezing the aerodynamic coefficients
     is the cleanest way to attribute a difference between two runs to the model actually under
     study. Note what is \emph{not} frozen: the forces themselves still vary over the flight, since
-    the constant coefficients are multiplied by $q=\tfrac12\rho V^2$ like everybody else's, with
+    the constant coefficients are multiplied by $q=\tfrac12\rho v_{rel}^2$ like everybody else's, with
     $\rho$ from \autoref{sec:density}. This model therefore reads the atmosphere exactly as the
     other two do --- it is a crude aerodynamic model, not a prescribed force.
     \item \textbf{Linearized}: a single linear slope in $\alpha$ about the zero-$\alpha$ condition,
     with the moment arm still fixed,
     \begin{equation} \label{eq:aero_linearized}
-        C_x = C_{A0}, \qquad C_z = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_1 = l_1^{(0)}.
+        C_x = C_{A0}, \qquad C_z = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_p-l_g \text{ fixed}.
     \end{equation}
+    This is \autoref{eq:aero_general_linear} with $C_{z,0}=C_{m,0}=0$ and no $M$ or $Re$ slope.
     $M$-independent, and valid only for small $\alpha$ --- which an on-trajectory flight of a
     statically stable airframe mostly is. Implementation note: $C_z,C_m$ are evaluated as
     $C_{N\alpha}\sin\alpha$, $C_{m\alpha}\sin\alpha$ in code (identical to the formula above for
     small $\alpha$, within $0.4\%$ at $8.6^\circ$) rather than the raw linear form. This is a
     numerical-robustness fix, not a different physical model:
     $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch cut ($u<0$, $w$ crossing
-    zero), which an unperturbed flight coasting tail-first through $V=0$ at apogee lands on
+    zero), which an unperturbed flight coasting tail-first through $v_{rel}=0$ at apogee lands on
     exactly, and the unbounded linear form turns that into a solver-breaking jump in the moment
     every evaluation. $\sin\alpha$ removes the discontinuity (and, at large $\alpha$, is arguably
     more correct besides: it is exactly zero at $\alpha=\pi$, matching the zero net side force a
     body of revolution has flying exactly tail-first by symmetry).
-    \item \textbf{Table} (the highest-fidelity model available here): $C_A,C_N,C_m$ and $l_1$ are
-    read from a database, populated once per airframe from wind-tunnel testing, CFD sweeps, or a
-    semi-empirical panel-method tool, and interpolated at run time. In practice this means a
-    rectangular table over $(M,\alpha)$: bracket and clamp $M$ at the grid edges (no extrapolation
-    beyond the table's Mach range), interpolate linearly in $\alpha$ within each bracketing row,
-    then blend the two rows linearly across the $M$ bracket. This is the only model in which $l_1$,
-    and hence the static margin of \autoref{sec:analysis_stability}, responds to the flight state
-    at all.
+    \item \textbf{Table} (the highest-fidelity model available here): $C_x,C_z,C_m$ and the arm
+    $l_p-l_g$ are read from a database, populated once per airframe from wind-tunnel testing, CFD
+    sweeps, or a semi-empirical panel-method tool, and interpolated at run time. In practice this
+    means a rectangular table over $(M,\alpha)$: bracket and clamp $M$ at the grid edges (no
+    extrapolation beyond the table's Mach range), interpolate linearly in $\alpha$ within each
+    bracketing row, then blend the two rows linearly across the $M$ bracket. This is the only model
+    in which $l_p-l_g$, and hence the static margin of \autoref{sec:analysis_stability}, responds to
+    the flight state at all.
 \end{itemize}
+
+\paragraph{Table file format.} The table is a CSV file \texttt{data/aero/<name>.csv}, read by
+\texttt{sim/aero.py}. Lines starting with \texttt{\#} and blank lines are comments; the first other
+line is the header, and every following line is one grid point $(M,\alpha)$:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\hline
+\textbf{Column} & \textbf{Meaning} & \textbf{Units} \\
+\hline
+\texttt{alpha\_deg} & angle of attack $\alpha$ (axis) & deg \\
+\texttt{M} & Mach number (axis) & --- \\
+\texttt{C\_A} & axial-force coefficient ($C_x$) & --- \\
+\texttt{C\_N} & normal-force coefficient ($C_z$) & --- \\
+\texttt{C\_m} & pitching-moment coefficient & --- \\
+\texttt{l1\_m} & arm $l_p-l_g$ from the centre of gravity to $p$, positive aft & m \\
+\texttt{c\_mq} & pitch-damping derivative $c_{m,q}$ (optional column) & --- \\
+\hline
+\end{tabular}
+\end{center}
+The grid must be rectangular: every $M$ value repeats exactly the same set of \texttt{alpha\_deg}
+values, otherwise the loader raises an error. Interpolation is as described above (clamped in $M$,
+linear in $\alpha$, then linear blend across the $M$ bracket); nothing is extrapolated.
+\todo{the table has no Reynolds-number axis; a third axis $Re$ would extend the format by one
+\texttt{Re} column and a trilinear interpolation. A long CSV (one row per grid point) is kept as the
+exchange format since it is what CFD post-processing scripts export most easily.}
 
 \paragraph{Pitch damping across the models.} The pitch-damping derivative $c_{m,q}$ ---
 \autoref{sec:analysis_dynamic}, which also owns its sign convention, positive $c_{m,q}$ being
-damping in this document's fixed sign of $A_m$, the deliberate flip from the textbook sign --- is a
+damping in this document's fixed sign of $\vec{A}_m$, the deliberate flip from the textbook sign --- is a
 property of the airframe, not of how the static coefficients above happen to be supplied. It
 therefore applies under all three models. Constant and Linearized both take it as a single constant
 input; Table takes it from an optional $c_{m,q}$ column when the table carries one and falls back
 to that same constant input when it does not. It enters as an additive contribution to $C_m$
 itself, exactly as \autoref{sec:analysis_dynamic} writes it, so \autoref{eq:aero_magnitudes} needs
 no modification: whichever model supplied the static $C_m$, it gains the further term
-$\hat{q}\,c_{m,q}$, with $\hat{q}=\omega d_{ref}/(2V)$ the non-dimensional pitch rate.
+$\hat{q}\,c_{m,q}$, with $\hat{q}=\omega_r c/(2v_{rel})$ the non-dimensional pitch rate.
 Implementation note, of the same kind as $\sin\alpha$ above: the resulting moment contribution is
 evaluated in the equivalent product form
 \begin{equation} \label{eq:pitch_damping_moment}
-    qSd_{ref}\,\hat{q}\,c_{m,q} = \tfrac14\rho VSd_{ref}^2\,\omega\,c_{m,q},
+    qSc\,\hat{q}\,c_{m,q} = \tfrac14\rho v_{rel}Sc^2\,\omega_r\,c_{m,q},
 \end{equation}
-which never forms $\hat{q}$ and so never divides by $V$ --- the same $V=0$ at apogee that the
+which never forms $\hat{q}$ and so never divides by $v_{rel}$ --- the same $v_{rel}=0$ at apogee that the
 branch cut above is about would otherwise produce $0\cdot\infty$.
 
 The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
@@ -500,11 +591,11 @@ planform and cant, body-fin interference, surface finish) --- introducing exactl
 \autoref{sec:reynolds_mach}.
 \todo{expand once the CFD/data-extraction pipeline that populates this database is defined; a
 control surface (airbrake, aileron, etc.) has a defined point of entry --- a control law
-perturbing $C_x,C_z,C_m$ or $l_1$ (\autoref{sec:backlog}) --- and the implementation carries that
+perturbing $C_x,C_z,C_m$ or the arm $l_p-l_g$ (\autoref{sec:backlog}) --- and the implementation carries that
 entry point as an identity-by-default seam, with no non-identity variant registered, but neither
 the surface's geometry nor any deflection law is written down here; the one control surface that
 \emph{is} modelled, the air brake of \autoref{sec:airbrake}, deliberately does not use it, entering
-instead as a separate additive drag area that leaves $C_x,C_z,C_m,l_1$ untouched; pitch rate is
+instead as a separate additive drag area that leaves $C_x,C_z,C_m,l_p-l_g$ untouched; pitch rate is
 covered above through $c_{m,q}$ as a constant or a table column, not as a function of $(\alpha,M)$
 in its own right; and, for 3D, other stuff}
 
@@ -520,22 +611,30 @@ Coefficients can be linearised in $\alpha$ for the static-stability analysis of
 where $c_z\equiv C_z\equiv C_N$ and $c_m\equiv C_m$ (and, in the drag polar below,
 $c_x\equiv C_x\equiv C_A$): the lowercase form is kept purely because that is the historical
 notation of that section, not a different quantity --- one more spelling of the same three
-coefficients, on top of the $C_x\equiv C_A$, $C_z\equiv C_N$ bridge of the Force magnitudes
+coefficients, on top of the $C_x\equiv C_A$, $C_z\equiv C_N$ bridge of the Force and moment
 subsection. Note also that this linearisation and the \textbf{Linearized} model of
 \autoref{sec:aero_coeffs} are not the same statement: the former is an analysis device applied to
 whichever coefficients are in force, the latter is a choice of how to supply them ---
 \autoref{eq:aero_linearized} is exactly the two equations above with $c_{z,0}=c_{m,0}=0$, together
 with a constant $C_x=C_{A0}$ in place of any drag polar.
-\todo{what about $c_d$ in general? A closed analytic drag-polar form exists for lifting surfaces
-(airfoils, wings), induced drag growing with the square of the lift coefficient,}
-\begin{equation}
-    c_x = c_{x,0} + \frac{c_z^2}{e\pi\lambda},
+
+\paragraph{Optional drag polar.} Instead of supplying $C_x$ as an independent family, it can be
+tied to the normal-force coefficient through an induced-drag term,
+\begin{equation} \label{eq:drag_polar}
+    C_x = C_{x,0} + k\,C_z^2,
 \end{equation}
-with $e$ the Oswald efficiency factor and $\lambda$ the aspect ratio. That, however, is
-specifically an airfoil/wing result; what the equivalent closed form is for a body of revolution
-(the rocket's own fuselage, which is not a lifting surface) is not resolved here, which is exactly
-why $C_x$ is instead supplied by the models of \autoref{sec:aero_coeffs} --- tabulated, a single
-linear slope, or simply constant --- rather than by a formula like this one.
+with $C_{x,0}$ the zero-lift axial coefficient and $k$ the induced-drag factor. For a lifting
+surface (airfoil, wing) the closed form is $k=1/(e\pi\lambda)$, with $e$ the Oswald efficiency
+factor and $\lambda$ the aspect ratio; for a body of revolution with fins no such closed form is
+known here, so $k$ would be fitted to CFD or wind-tunnel data. The benefit is one coefficient
+family less to tabulate, and an axial force that stays consistent with the normal force at an angle
+of attack, instead of being tabulated separately and possibly inconsistently. The limits: it is an
+approximation valid for attached flow (small to moderate $\alpha$); it is parabolic in $C_z$, so it
+misses flow separation and the Mach-number dependence of $k$ unless $C_{x,0}$ and $k$ are
+themselves tabulated in $M$; and the axial force on a slender body at $\alpha$ is not purely
+induced drag.
+\todo{decide whether to adopt the drag polar (\autoref{eq:drag_polar}). sim/ does not have it:
+$C_x$ is constant, $C_{A0}$ or a table column.}
 
 \subsection{Atmosphere}\label{sec:atmosphere}
 Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the local
@@ -550,12 +649,26 @@ Three tiers, increasing in fidelity, all exposing the same $(\rho, T, p, a, \mu)
     temperature-lapse model (troposphere + lower stratosphere), pressure from the hydrostatic
     equation, density from the ideal gas law, speed of sound $a=\sqrt{\gamma R_{specific}T}$,
     viscosity from Sutherland's law.
-    \item \textbf{Real atmosphere} (single station): measured/forecast sounding data ($T(h)$,
-    $p(h)$ at one geographic location and time), interpolated in altitude only.
-    \item \textbf{Real atmosphere} (multi-station, spatially interpolated): the same kind of
-    measured data from several geographic locations, interpolated in altitude, horizontal
-    position, and optionally time, to estimate local conditions along the actual ground track.
+    \item \textbf{Real data} (one sounding): a profile ($T(h)$, $p(h)$) measured at one
+    geographic location at one time, or an average profile for that location (e.g.\ a seasonal
+    mean), interpolated in altitude only.
+    \item \textbf{Real data across multiple stations}: the same kind of data from several
+    geographic locations, interpolated in altitude, horizontal position, and optionally time, to
+    estimate local conditions along the actual ground track. Implemented for the spatial
+    interpolation (the \emph{Field} paragraph below); \todo{interpolation in time between
+    soundings is not implemented -- each station contributes one profile.}
 \end{enumerate}
+
+\paragraph{Disturbances and gusts.} The three tiers above give the \emph{mean} state of the
+air. Disturbances about that mean --- turbulence and gusts --- are a separate layer, treated with
+the wind (\autoref{sec:wind}), because they perturb the velocity of the air and not its
+thermodynamic state ($\rho$, $T$, $p$ are not perturbed). Two kinds are distinguished. A
+\emph{discrete gust} is a single deterministic event of prescribed shape (e.g.\ the ``1-minus-cosine''
+ramp-up and ramp-down of fixed amplitude and length, used for load certification);
+\emph{continuous turbulence} is a stationary random process described by a spectrum. Only the
+latter is modelled, as the Dryden turbulence of \autoref{sec:wind} > Turbulence. \todo{A
+discrete-gust model is not in the code; add it as a deterministic wind increment $\Delta\vec{v}_w(t)$
+if gust-response cases are wanted.}
 
 \paragraph{ISA.} Geopotential altitude from geometric altitude above mean sea level $h_{msl}$:
 \begin{equation}
@@ -611,7 +724,7 @@ outside the data range.
 
 \paragraph{Field.} $N$ stations projected onto a tangent plane centred at the launch site
 $(\phi_0,\lambda_0)$, together with the rocket's own ground position $(x\sin\chi, x\cos\chi)$
-($x$ = downrange coordinate, $\chi$ = launch heading, degrees clockwise from North, the direction
+($x$ = downrange component of $\vec{x}_r$, $\chi$ = launch heading, degrees clockwise from North, the direction
 of $+\hat{x}_0$):
 \begin{equation}
     E = R_e\cos\phi_0\,(\lambda-\lambda_0), \qquad N = R_e\,(\phi-\phi_0).
@@ -700,25 +813,29 @@ not an integration over a deep column.
 
 \subsubsection{Reynolds and Mach numbers}\label{sec:reynolds_mach}
 \begin{equation}
-    Re = \frac{\rho V d_{ref}}{\mu}, \qquad M = \frac{V}{a},
+    Re = \frac{\rho v_{rel} c}{\mu}, \qquad M = \frac{v_{rel}}{a},
 \end{equation}
-with $V$ from \autoref{sec:relwind}, $d_{ref}$ the reference length (the body diameter --- the
-same $d_{ref}$ that normalises the aerodynamic coefficients, \autoref{sec:aero}), $\mu$ the
+with $v_{rel}$ the airspeed from \autoref{sec:relwind}, $c$ the reference length (the body diameter --- the
+same $c$ that normalises the aerodynamic coefficients, \autoref{sec:aero}), $\mu$ the
 dynamic viscosity, and $a$ the local speed of sound, both from the tier above.
 
 \subsection{Wind}\label{sec:wind}
 Goal: given time $t$ and position (altitude $h$, and horizontal position for the interpolated
 tier), provide the wind velocity $\vec{v}_w$ in $\mathcal{F}_0$, used in
-$\vec{v}_{rel} = \vec{v} - \vec{v}_w$ (\autoref{sec:relwind}). Same three-tier structure as
+$\vec{v}_{rel} = \vec{v}_r - \vec{v}_w$ (\autoref{sec:relwind}). Same tier structure as
 \autoref{sec:atmos_tiers}:
 \begin{enumerate}
     \item \textbf{Simple analytic model}: e.g.\ constant wind plus an altitude-dependent shear
-    profile, optionally with seeded gusts.
-    \item \textbf{Real wind data} (single station): measured/forecast wind profile $\vec{v}_w(h)$
-    at one location and time.
-    \item \textbf{Real wind data} (multi-station, spatially interpolated): wind profiles from
-    multiple locations, interpolated in altitude, horizontal position, and optionally time.
+    profile, with an optional, separately selected turbulence term (below).
+    \item \textbf{Real data} (one sounding): measured/forecast wind profile $\vec{v}_w(h)$
+    at one location and time, or an average profile for that location.
+    \item \textbf{Real data across multiple stations}: wind profiles from multiple locations,
+    interpolated in altitude and horizontal position (inverse-distance weighting, as the
+    \emph{Field} paragraph of \autoref{sec:atmos_tiers}); implemented in \texttt{sim/atmosphere.py}.
+    \todo{Interpolation in time between soundings is not implemented.}
 \end{enumerate}
+The wind enters only through the relative velocity $\vec{v}_{rel}=\vec{v}_r-\vec{v}_w$; the
+aerodynamic force and moment see the air through $\vec{v}_{rel}$ alone.
 
 \paragraph{Flight-plane projection.} The launch heading $\chi$ (\autoref{sec:atmosphere}) fixes the
 2D flight plane. A horizontal wind given as ENU components $(u,v)$, or as meteorological
@@ -729,7 +846,7 @@ blows \emph{from}), projects onto it as
     w_y = u\cos\chi - v\sin\chi = -W\sin(\psi-\chi),
 \end{equation}
 with $w_x$ the downrange (along-plane) component feeding $\vec{v}_w$ and $w_z=0$ (no vertical wind
-modelled). $w_y$, the cross-plane component, is computed and discarded: crosswind weathercocking
+modelled, \autoref{sec:vertical_wind}). $w_y$, the cross-plane component, is computed and discarded: crosswind weathercocking
 needs the out-of-plane freedom only a full 6DOF model has.
 
 \paragraph{Analytic.} Power-law shear and constant direction:
@@ -830,11 +947,11 @@ this model integrates --- it is carried because it is half of what makes ``Dryde
 label, and because the 6DOF work of \autoref{sec:backlog} picks it up unchanged.
 
 Two deliberate limitations, both named rather than hidden. First, $V_{ref}$ is a \emph{fixed input},
-not the rocket's own relative airspeed $V$ of \autoref{sec:relwind}: Dryden's temporal spectra
+not the rocket's own relative airspeed $v_{rel}$ of \autoref{sec:relwind}: Dryden's temporal spectra
 describe what a vehicle flying at a constant airspeed through a frozen turbulence field measures,
 and this rocket's airspeed spans zero on the pad to supersonic at burnout. Driving the spectrum
 with the instantaneous airspeed is incompatible with the determinism the adaptive solver needs ---
-the airspeed at time $t$ is part of what the solver is still solving for, and it re-evaluates the
+the airspeed $v_{rel}$ at time $t$ is part of what the solver is still solving for, and it re-evaluates the
 right-hand side at arbitrary, repeated and rejected times, so a quantity that is not a function of
 $(t,\vec{y})$ alone destroys its step-size control and its reproducibility. The damage is bounded
 and worth stating precisely: after the renormalisation in \autoref{eq:dryden_synthesis} the
@@ -844,13 +961,18 @@ where the spectrum's knee sits in frequency, i.e.\ whether the rocket meets 30-s
 one-second buffets. The practical rule: set it to the airspeed over the part of the flight whose
 turbulence matters to the question being asked. Lifting this needs the sampled evaluation mode of
 \autoref{sec:sampled} and a filter formulation to run on it (\autoref{sec:backlog}). Second, there
-is no vertical component ($w$), for the same reason \autoref{sec:wind} > Vertical wind gives for
+is no vertical component ($w$), for the same reason \autoref{sec:vertical_wind} gives for
 the mean profile. At $h=0$ the low formula gives $L=0$ and the spectrum collapses to zero energy
 while $\sigma$ stays finite; the perturbation is taken as exactly zero there, which is the right
 limit --- at the surface there is no eddy left to resolve.
 
-\paragraph{Vertical wind.} All tiers above return horizontal wind only ($w_z=0$);
-updrafts/downdrafts are not modelled. Two standard families exist in the literature for deriving a
+\subsubsection{Vertical wind}\label{sec:vertical_wind}
+All tiers above return horizontal wind only ($w_z=0$); updrafts and downdrafts are not modelled.
+The structure already admits them: $\vec{v}_w=w_x\hat{x}_0+w_z\hat{z}_0$ in $\mathcal{F}_0$ with
+$\hat{z}_0$ pointing down, so an updraft of speed $w_{up}$ is $w_z=-w_{up}$ and changes
+$\vec{v}_{rel}=\vec{v}_r-\vec{v}_w$ (hence $v_{rel}$ and $\alpha$) directly. Its size matters
+most where $v_{rel}$ is small --- near the pad and around apogee, and under parachute --- since
+a vertical wind $w_{up}$ rotates the relative wind by about $w_{up}/v_{rel}$. Two standard families exist in the literature for deriving a
 vertical component: (1) terrain-slope / mass-continuity orographic lift, $w\approx\vec{v}_h\cdot
 \nabla h_{terrain}$, which needs a terrain elevation model this project does not have; (2)
 thermal/convective updraft parameterisations (as used in the soaring/glider literature), which need
@@ -861,24 +983,24 @@ families (or a combination) is actually worth the added data dependency; revisit
 research is done.
 
 \subsection{Relative wind and angle of attack}\label{sec:relwind}
-Let $\vec{v}$ be the rocket's velocity relative to $\mathcal{F}_0$, and $\vec{v}_w$ the wind
+Let $\vec{v}_r$ be the rocket's velocity relative to $\mathcal{F}_0$, and $\vec{v}_w$ the wind
 velocity relative to $\mathcal{F}_0$ (a model output, \autoref{sec:wind}). The rocket's velocity
 relative to the surrounding air is
 \begin{equation}
-    \vec{v}_{rel} = \vec{v} - \vec{v}_w = u\hat{x}_r + w\hat{z}_r,
+    \vec{v}_{rel} = \vec{v}_r - \vec{v}_w = v_{rel,x}\hat{x}_r + v_{rel,z}\hat{z}_r,
 \end{equation}
-with $u$ the axial (along-nose) component and $w$ the normal component, both expressed in
-$\mathcal{F}_r$. The relative airspeed and angle of attack are
+with $v_{rel,x}$ the axial (along-nose) component and $v_{rel,z}$ the normal component, both
+expressed in $\mathcal{F}_r$. The relative airspeed and angle of attack are
 \begin{equation}
-    V = \sqrt{u^2+w^2}, \qquad \alpha = \operatorname{atan2}(w, u),
+    v_{rel} = \sqrt{v_{rel,x}^2+v_{rel,z}^2}, \qquad \alpha = \operatorname{atan2}(v_{rel,z}, v_{rel,x}),
 \end{equation}
-so that $u=V\cos\alpha$, $w=V\sin\alpha$. At $\alpha=0$ (nose-first into the relative wind)
-$\vec{v}_{rel}=V\hat{x}_r$.
+so that $v_{rel,x}=v_{rel}\cos\alpha$, $v_{rel,z}=v_{rel}\sin\alpha$. At $\alpha=0$ (nose-first into the relative wind)
+$\vec{v}_{rel}=v_{rel}\hat{x}_r$.
 
 Define the unit vector along the relative wind and its in-plane normal (a $+90^\circ$ rotation of
 $\hat{u}$ within $\mathcal{F}_r$):
 \begin{equation}
-    \hat{u} = \frac{\vec{v}_{rel}}{V} = \cos\alpha\,\hat{x}_r + \sin\alpha\,\hat{z}_r, \qquad
+    \hat{u} = \frac{\vec{v}_{rel}}{v_{rel}} =\cos\alpha\,\hat{x}_r + \sin\alpha\,\hat{z}_r, \qquad
     \hat{n} = -\sin\alpha\,\hat{x}_r + \cos\alpha\,\hat{z}_r.
 \end{equation}
 At $\alpha=0$: $\hat{u}=\hat{x}_r$, $\hat{n}=\hat{z}_r$. $\hat{u},\hat{n}$ feed the dynamic pressure
@@ -892,11 +1014,11 @@ The WGS84 gravity model above already accounts for the Earth's rotation in the m
 introduces two velocity/position-dependent fictitious forces into the translational equations of
 motion, once $\mathcal{F}_0$ is reinterpreted as Earth-fixed rather than inertial:
 \begin{equation}
-    \vec{a}_{Coriolis} = -2\vec{\Omega}\times\vec{v}, \qquad
+    \vec{a}_{Coriolis} = -2\vec{\Omega}\times\vec{v}_r, \qquad
     \vec{a}_{centrifugal} = -\vec{\Omega}\times(\vec{\Omega}\times\vec{r}),
 \end{equation}
 with $\vec{\Omega}$ the Earth's angular velocity ($|\vec{\Omega}|=7.2921\times10^{-5}\,
-\mathrm{rad/s}$) and $\vec{r},\vec{v}$ the rocket's position/velocity relative to the Earth-fixed
+\mathrm{rad/s}$) and $\vec{r},\vec{v}_r$ the rocket's position/velocity relative to the Earth-fixed
 frame. The centrifugal term is a small, latitude-dependent correction, already absorbed into the
 WGS84 $g(\phi,h)$ above when the launch site is the reference point; the Coriolis term is
 genuinely new here and depends on the flight's own velocity and heading, not just the launch site.
@@ -949,17 +1071,17 @@ $\Omega_z$ is purely a bookkeeping consequence of this project's $z$-down conven
 vector points \emph{up} out of the northern hemisphere, hence negative along $\hat{z}_0$.
 
 \paragraph{Which component of $\vec{\Omega}$ actually matters in 2D.} With motion confined to the
-flight plane, $\vec{v}=v_x\hat{x}_0+v_z\hat{z}_0$ (no $\hat{y}_0$ component). Expanding the cross
+flight plane, $\vec{v}_r=v_x\hat{x}_0+v_z\hat{z}_0$ (no $\hat{y}_0$ component). Expanding the cross
 product in the right-handed triad,
 \begin{equation}
-    \vec{\Omega}\times\vec{v} =
+    \vec{\Omega}\times\vec{v}_r =
         \Omega_yv_z\,\hat{x}_0
         + \left(\Omega_zv_x - \Omega_xv_z\right)\hat{y}_0
         - \Omega_yv_x\,\hat{z}_0,
 \end{equation}
 so
 \begin{equation} \label{eq:coriolis_split}
-    \vec{a}_{Coriolis} = -2\vec{\Omega}\times\vec{v} =
+    \vec{a}_{Coriolis} = -2\vec{\Omega}\times\vec{v}_r =
         \underbrace{-2\Omega_y\left(v_z\hat{x}_0 - v_x\hat{z}_0\right)}_{\text{in-plane}}
         \;\underbrace{-\,2\left(\Omega_zv_x - \Omega_xv_z\right)\hat{y}_0}_{\text{out-of-plane}}.
 \end{equation}
@@ -990,16 +1112,16 @@ is.
 \begin{equation} \label{eq:coriolis_2d}
     \vec{a}_{Coriolis}^{\,2D} = 2\Omega\cos\phi_0\sin\chi\left(v_z\,\hat{x}_0 - v_x\,\hat{z}_0\right),
 \end{equation}
-i.e.\ componentwise, with the state variables of \autoref{sec:eom} ($v_x=\dot{x}$ downrange,
-$v_z=\dot{z}$ \emph{downward}, so an ascending rocket has $v_z<0$):
+i.e.\ componentwise, with the state variables of \autoref{sec:eom} ($v_x$ the downrange component of $\vec{v}_r$,
+$v_z$ the component \emph{downward}, so an ascending rocket has $v_z<0$):
 \begin{equation}
-    a_{Coriolis,x} = +2\Omega\cos\phi_0\sin\chi\;\dot{z}, \qquad
-    a_{Coriolis,z} = -2\Omega\cos\phi_0\sin\chi\;\dot{x}.
+    a_{Coriolis,x} = +2\Omega\cos\phi_0\sin\chi\;v_z, \qquad
+    a_{Coriolis,z} = -2\Omega\cos\phi_0\sin\chi\;v_x.
 \end{equation}
 The two classical checks both come out right. A rocket rising vertically at the equator with an
-Eastward $+\hat{x}_0$ ($\phi_0=0$, $\chi=90^\circ$, $\dot{z}<0$) gets $a_x<0$: it drifts
+Eastward $+\hat{x}_0$ ($\phi_0=0$, $\chi=90^\circ$, $v_z<0$) gets $a_x<0$: it drifts
 \emph{West}, the standard counterpart of the eastward deflection of a falling body. A body moving
-East ($\dot{x}>0$) gets $a_z<0$, i.e.\ \emph{upward} --- the E\"otv\"os effect, eastward motion
+East ($v_x>0$) gets $a_z<0$, i.e.\ \emph{upward} --- the E\"otv\"os effect, eastward motion
 reducing apparent weight.
 
 \paragraph{Residual centrifugal term.} Write the rocket's geocentric position as
@@ -1021,18 +1143,18 @@ would be a small error in the wrong direction). Recommendation: implement the Co
 and leave the residual centrifugal term documented here but unimplemented.
 
 \paragraph{Moment.} Coriolis and centrifugal accelerations are body forces distributed in exact
-proportion to mass, so their resultant acts at the centre of gravity $B$ and contributes
-\emph{zero} moment about $B$. The one surviving coupling comes from the body's own pitch rate
-($\vec{v}_i=\vec{v}_B+\vec{\omega}\times\vec{r}_i$ inside the rigid body), a gyroscopic torque of
-order $2I\Omega\omega$, i.e.\ an angular acceleration of order $2\Omega\omega\approx
-1.5\times10^{-4}\,\mathrm{rad/s^2}$ at $\omega=1\,\mathrm{rad/s}$. This is negligible against the
+proportion to mass, so their resultant acts at the centre of gravity $g$ and contributes
+\emph{zero} moment about $g$. The one surviving coupling comes from the body's own pitch rate
+($\vec{v}_i=\vec{v}_g+\vec{\omega}_r\times\vec{r}_i$ inside the rigid body), a gyroscopic torque of
+order $2I\Omega\omega_r$, i.e.\ an angular acceleration of order $2\Omega\omega_r\approx
+1.5\times10^{-4}\,\mathrm{rad/s^2}$ at $\omega_r=1\,\mathrm{rad/s}$. This is negligible against the
 aerodynamic pitching moment and is dropped; the rotational equation of \autoref{sec:eom} is
 unchanged.
 
 \paragraph{Result to add to the equations of motion.} The translational equation of
 \autoref{sec:eom} gains one term:
 \begin{equation}
-    m\vec{\ddot{x}} = \vec{W} + \vec{T} + \vec{A}_f + m\,\vec{a}_{Coriolis}^{\,2D},
+    m\vec{a}_r = \vec{W} +\vec{T} + \vec{A}_f + m\,\vec{a}_{Coriolis}^{\,2D},
 \end{equation}
 with $\vec{a}_{Coriolis}^{\,2D}$ from \autoref{eq:coriolis_2d}, evaluated directly in
 $\mathcal{F}_0$ (no body-axis rotation needed --- it is already a ground-frame expression, like
@@ -1040,7 +1162,7 @@ $\vec{W}$). $\phi_0$ and $\chi$ are the launch-site latitude and heading already
 \autoref{sec:gravity} and \autoref{sec:wind} respectively; no new parameter is introduced.
 
 \paragraph{Magnitudes, and an honest consistency caveat.} The retained term scales as
-$2\Omega\cos\phi_0\sin\chi\,V$: at $V=300\,\mathrm{m/s}$ it is at most
+$2\Omega\cos\phi_0\sin\chi\,|\vec{v}_r|$: at $|\vec{v}_r|=300\,\mathrm{m/s}$ it is at most
 $4.4\times10^{-2}\,\mathrm{m/s^2}$ (equatorial East launch) and about
 $2.8\times10^{-2}\,\mathrm{m/s^2}$ at $\phi_0=50^\circ$ --- some $0.3\%$ of $g$, accumulating to
 order $10\,\mathrm{m}$ of displacement over a $30\,\mathrm{s}$ powered ascent. That is worth
@@ -1066,46 +1188,163 @@ retained Coriolis acceleration at $x=10\,\mathrm{km}$ and $3\times10^{-4}$ at $1
 --- five orders of magnitude smaller than the gravity-direction term the same $x/R_e$ produces,
 because the Coriolis term is itself $10^{-3}$ of gravity to begin with.
 
+\subsection{States, initial conditions and integration}\label{sec:states}
+The models of this section fix the forces and moments; this subsection fixes what is integrated, from
+where, and how. The rocket has two groups of kinematic states, both resolved in the fixed ground
+frame $\mathcal{F}_0$ (\autoref{sec:frames}):
+\begin{itemize}
+    \item \emph{translation}: position $\vec{x}_r=x\,\hat{x}_0+z\,\hat{z}_0$, velocity
+    $\vec{v}_r=v_x\,\hat{x}_0+v_z\,\hat{z}_0$ and acceleration $\vec{a}_r$;
+    \item \emph{orientation}: pitch angle $\theta_r$, pitch rate $\omega_r$ and angular acceleration
+    $\varepsilon_r$.
+\end{itemize}
+Each level is the time derivative of the one below it,
+\begin{equation} \label{eq:state_kinematics}
+    \frac{\mathrm{d}\vec{x}_r}{\mathrm{d}t}=\vec{v}_r, \quad
+    \frac{\mathrm{d}\vec{v}_r}{\mathrm{d}t}=\vec{a}_r, \qquad
+    \frac{\mathrm{d}\theta_r}{\mathrm{d}t}=\omega_r, \quad
+    \frac{\mathrm{d}\omega_r}{\mathrm{d}t}=\varepsilon_r, \qquad
+    \frac{\mathrm{d}m}{\mathrm{d}t}=-\frac{T_0(t)}{\mathrm{ISP}\,g_0},
+\end{equation}
+and the accelerations $\vec{a}_r$, $\varepsilon_r$ are not independent states: they are the outputs
+of \autoref{eq:eom_trans} and \autoref{eq:eom_rot} (with the frame correction of
+\autoref{sec:noninertial}), evaluated from the other states and time at every call of the
+right-hand side. The last relation is the propellant mass flow of \autoref{sec:mass}. The integrated
+state vector is therefore of dimension seven,
+\begin{equation} \label{eq:state_vector}
+    \vec{y} = \left(x,\ z,\ v_x,\ v_z,\ \theta_r,\ \omega_r,\ m\right),
+\end{equation}
+with $z$ and $v_z$ positive \emph{down}. The mass $m$ is only read when the variable-mass model of
+\autoref{sec:mass} is switched on; otherwise $m$ and $I$ are the fixed values of the weight group
+and $\mathrm{d}m/\mathrm{d}t=0$. The right-hand side has three modes, selected from the state in
+this order: on the rail (\autoref{sec:rail}), under canopy (\autoref{sec:recovery}), otherwise free
+flight (\autoref{sec:eom}).
+\todo{The code evaluates the mass flow with the thrust magnitude $T$ (including the nozzle-exit
+pressure term), not the reference thrust $T_0$; the two differ only when the exit area is non-zero.}
+
+\paragraph{Initial conditions.} The default start is at rest on the pad, at ignition, with the nose
+along the rail:
+\begin{equation} \label{eq:initial_conditions}
+    \vec{x}_r(0)=\vec{0}, \quad \vec{v}_r(0)=\vec{0}, \quad
+    \theta_r(0)=\theta_{rail}, \quad \omega_r(0)=0, \quad m(0)=m_{launch},
+\end{equation}
+where $\theta_{rail}$ is the rail elevation (default $90^\circ$, vertical; \autoref{sec:rail}) and
+$m_{launch}$ the liftoff mass, composed from the dry rocket and the motor ($m_r+m_0$,
+\autoref{sec:mass}); it is set automatically when the variable-mass model is on. Time starts at
+$t=0$, which is also the ignition instant of the thrust curve. $\vec{a}_r(0)$ and $\varepsilon_r(0)$
+are not specified: they follow from \autoref{eq:eom_trans} and \autoref{eq:eom_rot}. The origin of
+$\mathcal{F}_0$ is the launch point, so the site elevation $h_0$ never enters $z$; it only feeds the
+atmosphere and gravity models. A scenario may override the whole state (for instance a non-vertical
+or a moving start), but nothing checks that $\theta_r(0)=\theta_{rail}$.
+Besides the state, the run is fixed by the constant inputs of each model (geometry, mass and
+aerodynamic data, site, wind and turbulence seed, recovery and air-brake settings); the models carry
+no hidden dynamical state of their own, which is what lets them be pure functions of $(t,\vec{y})$
+(\autoref{sec:sampled}).
+
+\paragraph{Integrators.} Two integrators are available behind one interface, chosen by a setting:
+\begin{itemize}
+    \item \textbf{Adaptive Runge--Kutta 4(5)} (the default): the \textsc{scipy} \texttt{RK45}
+    scheme with relative tolerance $10^{-8}$ and absolute tolerance $10^{-10}$ on every component of
+    $\vec{y}$, dense output on, and a time limit of $300\,\mathrm{s}$. Events (below) are located
+    to solver tolerance by root finding on the dense output.
+    \item \textbf{Fixed-step classical Runge--Kutta 4}, a hand-written scheme with step $\Delta t$
+    (default $1\,\mathrm{ms}$):
+    \begin{equation} \label{eq:rk4}
+        \vec{y}_{k+1}=\vec{y}_k+\frac{\Delta t}{6}\left(\vec{k}_1+2\vec{k}_2+2\vec{k}_3+\vec{k}_4\right),
+    \end{equation}
+    with $\vec{k}_1=\vec{f}(t_k,\vec{y}_k)$, $\vec{k}_{2,3}=\vec{f}\!\left(t_k+\tfrac{\Delta t}{2},
+    \vec{y}_k+\tfrac{\Delta t}{2}\vec{k}_{1,2}\right)$, $\vec{k}_4=\vec{f}(t_k+\Delta t,
+    \vec{y}_k+\Delta t\,\vec{k}_3)$ and $\vec{f}$ the right-hand side. It has no step control and no
+    event location: events are detected afterwards from sign changes between consecutive steps and
+    placed by linear interpolation inside the step, so they are accurate to about $\Delta t$. It is
+    the cross-check of the adaptive path, and the only one that supports the sampled-data mode of
+    \autoref{sec:sampled}.
+\end{itemize}
+Both integrate the same right-hand side, so the two differ only in the numerical error.
+\todo{Document the cost/accuracy trade-off between the two integrators with a convergence
+study (error against $\Delta t$ and against tolerance).}
+
+\paragraph{Events.} Five events are watched; only the first ends the run. Each is a sign change of
+a scalar function of $(t,\vec{y})$:
+\begin{itemize}
+    \item \textbf{ground impact} (terminal): the ground depth crosses zero going down, $z$ for the
+    flat ground, the curved-ground depth otherwise. The run stops here (or at the time limit).
+    Ignored during the first $0.1\,\mathrm{s}$, since $z=0$ at the start;
+    \item \textbf{apogee}: $v_z$ crosses from negative to positive in the launch frame, again
+    ignored for the first $0.1\,\mathrm{s}$;
+    \item \textbf{burnout}: the thrust magnitude falls through a small threshold ($10^{-9}$\,N)
+    from above, so a motor that never produces thrust never triggers it;
+    \item \textbf{rail exit}: $s_{rail}$ crosses $L_{rail}$ upwards (\autoref{eq:rail_distance});
+    never active when $L_{rail}=0$;
+    \item \textbf{parachute deployment}: the deployment predicate of \autoref{sec:recovery} turns
+    true; never active without a recovery model.
+\end{itemize}
+Apart from ground impact the events are informational: they only report times, and none of them
+switches the dynamics. The rail, canopy and air-brake modes are state predicates evaluated inside
+the right-hand side (the right-hand side cannot read an event that has not been finalised yet),
+which is why the same condition appears twice: as a predicate that acts and as an event that
+reports.
+\todo{The apogee event is the launch-frame $v_z$ crossing, not the maximum of the true altitude
+above a curved ground (\autoref{sec:gravity}); redefining apogee is a separate modelling decision.}
+
 \subsection{Launch rail}\label{sec:rail}
 While the rocket is still on the launch rail it can slide along the rail and do nothing else: the
 rail buttons mechanically react every force component transverse to the rail and prevent rotation.
 This is a \emph{kinematic constraint} on the force sum of \autoref{sec:eom}, not a new force ---
-nothing is added to $\sum\vec{F}$, the already-assembled acceleration is projected.
+nothing is added to $\sum\vec{F}$, the already-assembled acceleration is projected. In particular
+the constraint reaction is never computed: the component of the acceleration normal to the rail is
+simply set to zero, which is the same as the rail buttons reacting exactly the transverse part of
+the force (the ``radial'' forces vanish), and the rotation is removed together with it.
 
 The rail direction is fixed for the whole flight, and is the direction the nose initially points.
 With $\theta_{rail}$ the rail's elevation above the horizontal --- an as-built property of the pad,
-carried as a constant input on the same footing as $\delta,u_B,u_C$ (\autoref{sec:geometry}), and
-meant to be set consistently with the initial $\theta$, though nothing enforces that ---
+carried as a constant input on the same footing as $\theta_t,r_g,r_t$ (\autoref{sec:geometry}), and
+meant to be set consistently with the initial $\theta_r$ (\autoref{eq:initial_conditions}), though
+nothing enforces that ---
 \begin{equation} \label{eq:rail_direction}
     \hat{e}_{rail} = \cos\theta_{rail}\,\hat{x}_0 - \sin\theta_{rail}\,\hat{z}_0,
 \end{equation}
-which is \autoref{eq:body_axes_in_ground}'s $\hat{x}_r$ evaluated at $\theta=\theta_{rail}$ and
+which is \autoref{eq:body_axes_in_ground}'s $\hat{x}_r$ evaluated at $\theta_r=\theta_{rail}$ and
 then frozen. The distance travelled along the rail, from a launch point at the origin, is the
 projection of the position state onto it,
 \begin{equation} \label{eq:rail_distance}
-    s_{rail}(x,z) = \left(x\hat{x}_0+z\hat{z}_0\right)\cdot\hat{e}_{rail}
+    s_{rail}(\vec{x}_r) = \vec{x}_r\cdot\hat{e}_{rail}
         = x\cos\theta_{rail}-z\sin\theta_{rail},
 \end{equation}
 which is $0$ at $t=0$ and grows as the rocket slides. The rocket is on the rail while
-$s_{rail}<L_{rail}$, and there the equations of motion of \autoref{sec:eom} are replaced by
+$s_{rail}<L_{rail}$ (a state predicate, re-evaluated at every call of the right-hand side), and
+there the equations of motion of \autoref{sec:eom} are replaced by
 \begin{gather}
-    \vec{\ddot{x}} = \left[\left(\frac{\sum\vec{F}}{m}
+    \vec{a}_r = \left[\left(\frac{\sum\vec{F}}{m}
         + \vec{a}_{Coriolis}^{\,2D}\right)\cdot\hat{e}_{rail}\right]\hat{e}_{rail}
         \label{eq:rail_constraint} \\
-    \dot\theta = 0, \qquad \ddot\theta = 0 \label{eq:rail_attitude}
+    \omega_r = 0, \qquad \varepsilon_r = 0 \label{eq:rail_attitude}
 \end{gather}
 with $\sum\vec{F}$ exactly the sum of \autoref{eq:eom_trans} and $\vec{a}_{Coriolis}^{\,2D}$ the
-term of \autoref{eq:coriolis_2d} if it is enabled. The ordering matters and is deliberate: the
+term of \autoref{eq:coriolis_2d} if it is enabled. The component of $\vec{a}_r$ normal to the rail
+is therefore identically zero, and with $\vec{x}_r(0)$ on the rail line and $\vec{v}_r(0)=\vec{0}$
+the position and velocity stay on that line for the whole phase, so the constraint needs no
+correction step. In the integrator, \autoref{eq:rail_attitude} reads $\mathrm{d}\theta_r/\mathrm{d}t=0$,
+$\mathrm{d}\omega_r/\mathrm{d}t=0$, i.e.\ $\theta_r$ and $\omega_r$ keep their initial values
+(\autoref{eq:initial_conditions}). The ordering matters and is deliberate: the
 constraint reacts the \emph{same} total acceleration every other model in this document produces,
 including the gravity direction of \autoref{sec:gravity} and the frame correction of
 \autoref{sec:noninertial}, not a partial one. The pitching moment of \autoref{eq:eom_rot} is still
 perfectly well defined during this phase --- it is simply reacted by the rail rather than allowed
 to act, which is what \autoref{eq:rail_attitude} says.
 
-$L_{rail}=0$ is the default and the off switch: $s_{rail}=0$ at $t=0$, so the rocket is never on
-the rail, and every result produced without a rail is reproduced unchanged. Past rail exit
-($s_{rail}\geq L_{rail}$) \autoref{sec:eom} applies again, unmodified, with no transition term of
-any kind. The physically interesting output of this model is the speed $|\vec{v}|$ at that instant
+\paragraph{Exit and reverse motion.} $L_{rail}=0$ is the default and the off switch: $s_{rail}=0$
+at $t=0$, so the rocket is never on the rail, and every result produced without a rail is
+reproduced unchanged. Past rail exit ($s_{rail}\geq L_{rail}$) \autoref{sec:eom} applies again,
+unmodified, with no transition term of
+any kind. Nothing in the model holds the rocket on the pad before thrust exceeds weight: the rail
+projection of \autoref{eq:rail_constraint} is applied as it stands, whatever its sign.
+\todo{No pad contact: if the thrust along the rail is below the weight component, \autoref{eq:rail_constraint}
+gives a negative $\vec{a}_r\cdot\hat{e}_{rail}$ and the rocket slides \emph{backwards} down the
+rail ($s_{rail}<0$) until thrust catches up. A real pad reacts weight until lift-off; the fix is to
+clamp $\vec{a}_r\cdot\hat{e}_{rail}\geq0$ while $s_{rail}\leq0$ and $\vec{v}_r\cdot\hat{e}_{rail}\leq0$,
+which would change existing results for low thrust-to-weight starts.}
+The physically interesting output of this model is the speed $|\vec{v}_r|$ at that instant
 --- rail-exit speed is what decides whether the wind of \autoref{sec:wind} can tip the airframe
 before it has the airspeed to weathercock, and it is the reason launch rails exist at all
 (\autoref{sec:analysis_misaligned}, whose $\alpha_{trim}\propto T/q$ blows up at exactly the
@@ -1119,26 +1358,46 @@ one button at a time (\autoref{sec:backlog}).
 \subsection{Recovery}\label{sec:recovery}
 The second mechanically constrained phase, and --- usefully --- the same mechanism as the first:
 once a recovery canopy is deployed the attitude state is frozen exactly as in
-\autoref{eq:rail_attitude}, $\dot\theta=\ddot\theta=0$, and only the translational equation
-changes. Freezing is a choice, made in preference to an artificial damping term: a damping constant
+\autoref{eq:rail_attitude}, $\omega_r=0$, $\varepsilon_r=0$, and only the translational equation
+changes. Deployment is instantaneous and total, and the canopy is modelled by its drag alone. During
+the descent the translation obeys the point-mass equation of \autoref{eq:eom_trans} with one extra
+force,
+\begin{equation} \label{eq:chute_eom}
+    m\vec{a}_r = \vec{W} + \vec{T} + \vec{A}_f + \vec{F}_{ch},
+\end{equation}
+with $\vec{F}_{ch}$ the canopy drag of \autoref{eq:chute_force} (and the frame correction of
+\autoref{sec:noninertial} added to $\vec{a}_r$ once, as on the rail). The orientation is held at
+the pitch angle $\theta_r$ it had at deployment, and the pitching moment is not integrated.
+\todo{In the code only $\mathrm{d}\theta_r/\mathrm{d}t$ and $\mathrm{d}\omega_r/\mathrm{d}t$ are set
+to zero, so the stored $\omega_r$ keeps its non-zero value at deployment and the link
+$\omega_r=\mathrm{d}\theta_r/\mathrm{d}t$ of \autoref{eq:state_kinematics} is broken under canopy.
+The reported pitch rate is then meaningless after deployment; consider resetting it to zero.}
+Freezing is a choice, made in preference to an artificial damping term: a damping constant
 would need a time constant no source in this document fixes, where freezing needs nothing beyond
 the deployment condition itself, and ``the canopy holds the body in a fixed hang attitude'' is no
 less physical a description than a made-up damping rate would be.
 
 \paragraph{Deployment.} A function of the state being integrated, not of a detected event ---
-either a timer, $t\geq t_{dep}$, or apogee, taken as $\dot{z}>0$ (the rocket is descending, since
+either a timer, $t\geq t_{dep}$, or apogee, taken as $v_z>0$ (the rocket is descending, since
 $z$ is positive \emph{down}). The second one deserves its caveat stated: ``has apogee happened''
 is reconstructed from the state, because the right-hand side is evaluated before any event of the
-solve is finalised and cannot consult one, so a pre-apogee transient in $\dot{z}$ --- which an
+solve is finalised and cannot consult one, so a pre-apogee transient in $v_z$ --- which an
 unstable trajectory can produce --- would arm deployment early. Not guarded against; recorded.
+These two triggers are the only ones; the predicate is not latched, but both are monotone on a
+nominal flight. While the rocket is still on the rail (\autoref{sec:rail}) the rail mode takes
+precedence. The deployment event of \autoref{sec:states} reports the instant the predicate turns
+true.
+\todo{No altitude (or velocity/dynamic-pressure) deployment trigger exists; a main-chute-at-altitude
+trigger and a drogue-plus-main sequence are not modelled (\autoref{sec:backlog}).}
 
 \paragraph{Force.} The canopy's drag is computed directly in $\mathcal{F}_0$, the same standing as
 weight (\autoref{sec:forces}) and unlike every aerodynamic force of \autoref{sec:aero}:
 \begin{equation} \label{eq:chute_force}
-    \vec{F}_c = -\tfrac12\rho\,C_{D,c}S_c\,V\,\vec{v}_{rel},
+    \vec{F}_{ch} = -\tfrac12\rho\,C_{D,ch}S_{ch}\,v_{rel}\,\vec{v}_{rel},
 \end{equation}
-with $\vec{v}_{rel}=\vec{v}-\vec{v}_w$ and $V=|\vec{v}_{rel}|$ from \autoref{sec:relwind}, $S_c$
-the canopy reference area and $C_{D,c}$ its drag coefficient. Three properties of this equation are
+with $\vec{v}_{rel}=\vec{v}_r-\vec{v}_w$ and $v_{rel}=|\vec{v}_{rel}|$ from \autoref{sec:relwind},
+$S_{ch}$ the canopy reference area and $C_{D,ch}$ its drag coefficient; the model is the drag area
+$C_{D,ch}S_{ch}$ of the canopy, acting against the relative wind. Three properties of this equation are
 the whole content of the model, and each is a decision rather than a convenience:
 \begin{itemize}
     \item It is \emph{natively inertial}, and it is \emph{not} routed through the body
@@ -1146,32 +1405,36 @@ the whole content of the model, and each is a decision rather than a convenience
     opposes the relative-wind \emph{vector}, not the body's nose direction --- which, under canopy,
     is frozen at whatever attitude deployment happened to leave it. Routing it through
     $\hat{x}_r$ would make the descent rate depend on that attitude, which is not how a parachute
-    behaves. $C_{D,c}$ is therefore a drag coefficient on $\hat{v}_{rel}$ and specifically
-    \emph{not} the axial $C_A$ of \autoref{sec:aero}: it belongs to a different force, in a
-    different frame, with a different reference area.
+    behaves. $C_{D,ch}$ is therefore a drag coefficient on $\hat{v}_{rel}$ and specifically
+    \emph{not} the axial $C_x$ of \autoref{sec:aero}: it belongs to a different force, in a
+    different frame, with a different reference area ($S_{ch}$, not $S$).
     \item It is \emph{added to}, not substituted for, the airframe's own forces. Weight, any
     residual thrust and the body-axis aerodynamic force of \autoref{sec:aero} all continue to act
-    exactly as \autoref{eq:eom_trans} has them; $\vec{F}_c$ is one more term in that sum. (The
+    exactly as \autoref{eq:eom_trans} has them; $\vec{F}_{ch}$ is one more term in that sum. (The
     airframe's own force is small next to a deployed canopy's, but it is not switched off, and the
-    frozen $\theta$ is what it is evaluated at.)
-    \item It is written as $|\vec{v}_{rel}|\,\vec{v}_{rel}$ rather than the algebraically identical
-    $\tfrac12\rho V^2C_{D,c}S_c\,\hat{v}_{rel}$, so that it has no $0/0$ direction at $V=0$ --- the
+    frozen $\theta_r$ is what it is evaluated at.)
+    \item It is written as $v_{rel}\,\vec{v}_{rel}$ rather than the algebraically identical
+    $\tfrac12\rho v_{rel}^2C_{D,ch}S_{ch}\,\hat{v}_{rel}$, so that it has no $0/0$ direction at $v_{rel}=0$ --- the
     same device, for the same reason, as \autoref{eq:pitch_damping_moment}.
 \end{itemize}
-The quantity worth checking a run against is the terminal descent speed, where $\vec{F}_c$ balances
-weight:
+The quantity worth checking a run against is the terminal descent speed, where $\vec{F}_{ch}$
+balances weight:
 \begin{equation} \label{eq:chute_terminal}
-    V_{term} = \sqrt{\frac{2mg}{\rho\,C_{D,c}S_c}},
+    v_{term} = \sqrt{\frac{2mg}{\rho\,C_{D,ch}S_{ch}}},
 \end{equation}
 approached rather than attained, and only to within the variation of $\rho$
 (\autoref{sec:density}) over the altitude the convergence takes --- $\rho$ is not a constant, so
 this is a limit to within that, not an exact figure to pin.
 
-$S_c=0$ is the default, and so is ``no recovery model'' --- either alone leaves this subsection
+$S_{ch}=0$ is the default, and so is ``no recovery model'' --- either alone leaves this subsection
 inert and reproduces every result produced without it. What is deliberately simplified: inflation
 is instantaneous and total, with no opening transient, no inflation shock and no reefing stage; and
 there is no pendulum swing of the body under the risers, which the frozen attitude replaces
-outright (\autoref{sec:backlog}).
+outright.
+\todo{Neglected and not yet in the model (\autoref{sec:backlog}): the opening transient (drag area
+growing from zero over an inflation time), the opening-shock load on the airframe and shock cord, a
+reefed or two-stage (drogue and main) sequence, the pendulum and coning motion of the body under the
+risers, and the added-mass effect of the air carried with the canopy.}
 
 \subsection{Air brake}\label{sec:airbrake}
 The one feedback-controlled actuator modelled in this document: a switchable extra drag area,
@@ -1180,21 +1443,22 @@ of the wing-body air brake of \autoref{sec:backlog} --- but standing alone, as a
 coefficient of its own, rather than derived from an airframe, which is exactly why it can be
 modelled here while that item cannot.
 
-It enters as one additive axial term, so that the $A_x$ of \autoref{sec:aero} becomes
-$A_x+A_{brake}$ with
+It enters as one additive axial term, so that the axial force $qSC_x$ of \autoref{sec:aero} becomes
+$qSC_x+F_b$ with
 \begin{equation} \label{eq:airbrake_force}
-    A_{brake} = q\,C_{D,b}\,S_b\,f_b, \qquad f_b\in[0,1],
+    F_b = q\,C_{D,b}\,S_b\,f_b, \qquad f_b\in[0,1],
 \end{equation}
 where $S_b$ is the exposed area at full deployment, $C_{D,b}$ its drag coefficient, and $f_b$ the
 deployment fraction --- i.e.\ a linear fraction-to-area model, $S(f_b)=f_bS_b$, the simplest one
 that needs no geometry beyond those two numbers. The term is routed along $\hat{x}_r$, unlike the
 canopy of \autoref{sec:recovery} and for the opposite physical reason: a brake rigidly mounted to
 the body is shaped to add axial drag whatever the pitch, where a free-swinging canopy follows the
-relative wind. The deliberate simplification here is that it contributes to $A_x$ \emph{only}: it
-adds nothing to $A_z$ or $A_m$ and does not move $l_1$, so a real brake's effect on the normal
-force and on the centre of pressure is outside this model (\autoref{sec:aero}'s own note on where
-such a perturbation would enter; \autoref{sec:backlog}). $S_b=0$ is the default, as is the ``never
-deploys'' law below --- either alone makes \autoref{eq:airbrake_force} exactly zero.
+relative wind. The deliberate simplification here is that it contributes to the axial force
+\emph{only}: it adds nothing to $qSC_z$ or $qSc\,C_m$ and does not move the arm $l_p-l_g$, so a
+real brake's effect on the normal force and on the centre of pressure is outside this model
+(\autoref{sec:aero}'s own note on where such a perturbation would enter; \autoref{sec:backlog}).
+$S_b=0$ is the default, as is the ``never deploys'' law below --- either alone makes
+\autoref{eq:airbrake_force} exactly zero.
 
 Two orthogonal choices set $f_b$: a \emph{law}, which decides how far open the brake is, and a
 \emph{trigger}, which decides from when it is allowed to open at all.
@@ -1208,17 +1472,17 @@ or \autoref{sec:aero_coeffs}:
     \item \textbf{Proportional}: pure P control on \emph{predicted} apogee,
     \begin{equation} \label{eq:airbrake_p}
         f_b = \mathrm{clip}\!\left(k_p\left(\hat{h}_a-h_{tgt}\right),\,0,\,1\right), \qquad
-        \hat{h}_a = h + \frac{\dot{z}^2}{2g},
+        \hat{h}_a = h + \frac{v_z^2}{2g},
     \end{equation}
     with $h_{tgt}$ the commanded apogee and $k_p$ the gain. $\hat{h}_a$ is the standard estimator
-    --- the altitude the rocket would reach if drag vanished at this instant ($\dot{z}^2$ because
+    --- the altitude the rocket would reach if drag vanished at this instant ($v_z^2$ because
     the sign is squared away; $g$ from \autoref{sec:gravity}) --- and is deliberately an
     \emph{upper} bound: it ignores all further drag, including the brake's own, which is precisely
     the quantity being decided. The error is positive when the rocket is predicted to overshoot, so
     more brake is commanded; the clip is one-sided in effect as well as in form, since a brake
     cannot retract past stowed and cannot open past fully open. The law is additionally gated to
     the unpowered-ascent window, returning $0$ whenever $T(t)>0$ (still under power) or
-    $\dot{z}\geq0$ (already past apogee) --- that window is the law's own and is \emph{not} the
+    $v_z\geq0$ (already past apogee) --- that window is the law's own and is \emph{not} the
     trigger of \autoref{sec:airbrake_trigger}, which it does not read.
     \item \textbf{Full}: $f_b=1$ from the trigger instant onward and $0$ before it --- a constant
     area, opened once. This is the variant a sizing study solves against: with $f_b$ a step, a
@@ -1243,9 +1507,9 @@ Which condition arms the brake, chosen independently of the law above. Three var
     \item \textbf{After time}: $t\geq t_{brake}$, with $t_{brake}=0$ --- the default --- meaning
     deployed from $t=0$, the same reading the recovery timer of \autoref{sec:recovery} gives its
     own zero.
-    \item \textbf{After apogee}: $\dot{z}>0$, the same descending-state predicate as the canopy's
+    \item \textbf{After apogee}: $v_z>0$, the same descending-state predicate as the canopy's
     apogee trigger, and carrying the same caveat for the same reason: it is a state predicate and
-    never the apogee event, so a pre-apogee transient in $\dot{z}$ would arm it early.
+    never the apogee event, so a pre-apogee transient in $v_z$ would arm it early.
 \end{itemize}
 Only the \textbf{full} law actually reads the trigger; \textbf{none} is indifferent to it and
 \textbf{proportional} uses its own hardcoded window instead, so selecting a trigger changes nothing
@@ -1259,7 +1523,7 @@ interchangeable \emph{mode of evaluating} the models above, and it is the only t
 document that changes \emph{when} a quantity is computed rather than \emph{what} it is.
 
 The default mode is the one the rest of this document assumes: every model is a pure function of
-$(t,\vec{y})$, re-evaluated at every evaluation of the right-hand side, which an adaptive-step
+$(t,\vec{y})$ with $\vec{y}$ the state of \autoref{eq:state_vector}, re-evaluated at every evaluation of the right-hand side, which an adaptive-step
 solver performs at arbitrary, repeated and sometimes later-rejected times. That is a correct
 property of an adaptive solver and a real restriction on what can be modelled: nothing of the form
 ``this value, computed once, then held constant until the next tick'' --- a flight computer's

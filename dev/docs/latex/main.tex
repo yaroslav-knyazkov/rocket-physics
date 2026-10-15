@@ -97,27 +97,27 @@ choice'' at a glance.
     inertia are \emph{not} held fixed: $m(t)$, $l_g(t)$ and $I(t)$ come from the motor model
     of \autoref{sec:mass} and are carried by \autoref{sec:eom}. What is still held fixed is one
     step further out --- how the other two application points travel relative to a moving centre
-    of gravity. The CoG-to-$D$ arm $l_1=l_D-l_B$ never responds to CoG travel, and how far it
+    of gravity. The CoG-to-$p$ arm $l_p-l_g$ never responds to CoG travel, and how far it
     responds to the flight state at all depends on the selected aerodynamic model
     (\autoref{sec:aero}): under the table model it varies with $(\alpha,M)$, while the constant and
-    linearized models hold it fixed outright. The CoG-to-$C$ thrust arm is a constant under all
+    linearized models hold it fixed outright. The CoG-to-$t$ thrust arm is a constant under all
     three.
-    \item \textbf{Thrust axis: fixed cant, no commanded control.} The nozzle cant $\delta$
-    (\autoref{eq:thrust_frame}) and the lateral offsets $u_B,u_C$ (\autoref{sec:geometry}) are all
+    \item \textbf{Thrust axis: fixed cant, no commanded control.} The thrust angle $\theta_t$
+    (\autoref{eq:thrust_frame}) and the radial offsets $r_g,r_t$ (\autoref{sec:geometry}) are all
     carried as constant inputs --- as-built manufacturing quantities to be swept, not functions of
-    the flight state. $\delta=u_B=u_C=0$ is the default and reproduces every earlier result
+    the flight state. $\theta_t=r_g=r_t=0$ is the default and reproduces every earlier result
     unchanged. A \emph{commanded} deflection --- a gimbal and the control law driving it, the
     only pitch authority a rocket has off the rail --- is deliberately not modelled yet
     (\autoref{sec:backlog}).
     \item \textbf{Launch rail, recovery and air brake: modelled, still simplified.} A launch rail
-    of length $L_{rail}$ constrains translation to one fixed direction and freezes $\theta$ until
+    of length $L_{rail}$ constrains translation to one fixed direction and freezes $\theta_r$ until
     the rocket clears it, with no friction and no tip-off (\autoref{sec:rail}); a recovery canopy,
     once deployed at apogee or on a timer, adds a drag force opposing the inertial relative-wind
     vector and likewise freezes $\theta$, modelling neither its own opening transient nor the
     body's pendulum swing underneath it (\autoref{sec:recovery}); and an air brake modulates axial
     drag during the unpowered coast, as a switchable extra drag area standing alone rather than a
     surface derived from an airframe --- the wing-body treatment of \autoref{sec:backlog} ---
-    affecting $A_x$ only, neither the normal force nor the centre of pressure
+    affecting $qSC_x$ only, neither the normal force nor the centre of pressure
     (\autoref{sec:airbrake}). Of the two things simplified in that control loop, only one still is.
     The \emph{law} is continuous and memoryless, re-evaluated afresh from the current flight state
     at every solver call, with no integral or derivative term and no notion of a previous sample
@@ -161,10 +161,10 @@ more usefully --- what has to exist before it can be written down properly, so t
 tell a missing derivation from a missing input.
 
 \begin{itemize}
-    \item \textbf{Commanded gimbal control (direction/guidance).} $\delta$ is, for now, deliberately
+    \item \textbf{Commanded gimbal control (direction/guidance).} $\theta_t$ is, for now, deliberately
     kept as a constant input (\autoref{sec:thrust}) --- the point of the current pass was to see how
     a fixed manufacturing-type misalignment behaves (\autoref{sec:analysis_misaligned}) before
-    adding any control authority. A \emph{commanded}, time-varying $\delta(t)$ driven by a control
+    adding any control authority. A \emph{commanded}, time-varying $\theta_t(t)$ driven by a control
     law is the next step once that is wanted, and is explicitly a 3D-model item: steering needs an
     out-of-plane degree of freedom this 2D closure does not have. \emph{Waiting on:} a stated
     guidance objective (pitch programme? gravity turn? impact point?), actuator rate and deflection
@@ -177,7 +177,7 @@ tell a missing derivation from a missing input.
     (\autoref{sec:sampled}), but the law itself is still future work (see the sampled-data item
     below). Two smaller gaps in the same loop belong here rather than there: the brake has no
     retraction condition and no deployment-rate limit (\autoref{sec:airbrake_trigger}), and it
-    perturbs $A_x$ alone, leaving $A_z$, $A_m$ and $l_1$ untouched --- which the wing-body item
+    perturbs $qSC_x$ alone, leaving $qSC_z$, $qSc\,C_m$ and $l_p-l_g$ untouched --- which the wing-body item
     below is what would fix properly.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated, linearized or constant coefficients of \autoref{sec:aero} with a wing-body
@@ -189,13 +189,13 @@ tell a missing derivation from a missing input.
     corrected 2D lift-curve slope, an interference factor between fin and body, and an
     effective aspect ratio from its planform), and the assembly's centre of pressure is the
     $C_{N\alpha}$-weighted average of the component locations,
-    $X_{cp}=\sum_iC_{N\alpha,i}X_i/\sum_iC_{N\alpha,i}$ --- so that $l_1(\alpha,M)$ is
+    $X_{cp}=\sum_iC_{N\alpha,i}X_i/\sum_iC_{N\alpha,i}$ --- so that $(l_p-l_g)(\alpha,M)$ is
     \emph{computed} from the airframe rather than read from a table, and an air brake enters as a
-    switchable change to $C_A$ and to the CoP. That last point of entry is already fixed by the
+    switchable change to $C_x$ and to the CoP. That last point of entry is already fixed by the
     structure of \autoref{sec:aero}: whatever a control surface does, it does by perturbing
-    $C_x,C_z,C_m$ or $l_1$, so what this item is waiting on is the airframe and the deflection law
+    $C_x,C_z,C_m$ or $l_p-l_g$, so what this item is waiting on is the airframe and the deflection law
     --- not somewhere to put them. The air brake of \autoref{sec:airbrake} is that entry point
-    exercised \emph{without} an airframe behind it: a bare drag area added to $A_x$, which is
+    exercised \emph{without} an airframe behind it: a bare drag area added to $qSC_x$, which is
     precisely why it needs none of the build-up above and why it cannot say anything about the
     normal force or the centre of pressure. The original Barrowman formulas are subsonic
     linear-theory results and would need a Mach correction (Prandtl--Glauert or, in the linear
@@ -229,8 +229,8 @@ tell a missing derivation from a missing input.
     this project does not currently have. Deliberately on hold pending research into which family,
     if either, is worth the added dependency --- not to be implemented before that research is
     done.
-    \item \textbf{CFD/data-extraction pipeline for $C_A,C_N,C_m$.} \autoref{sec:aero} now states
-    plainly that these coefficients, and $l_1$, are supplied rather than derived in this document,
+    \item \textbf{CFD/data-extraction pipeline for $C_x,C_z,C_m$.} \autoref{sec:aero} now states
+    plainly that these coefficients, and $l_p-l_g$, are supplied rather than derived in this document,
     and that the highest-fidelity of its three ways of supplying them --- the table model --- reads
     them from a database (wind-tunnel testing, CFD sweeps, or a semi-empirical panel-method tool).
     What remains open is the pipeline that actually populates that database for a specific
