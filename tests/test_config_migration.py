@@ -15,6 +15,7 @@ already in the suite (SS31.8 #8), and every registered scenario still
 flying (SS31.8 #5).
 """
 
+import dataclasses
 import math
 import types
 
@@ -24,8 +25,13 @@ import configs
 import configs.rockets
 import configs.scenarios
 from apps.motor_selection.compare_motors import _demo_baseline
+from configs.motors.cti_k570_isp import MOTOR as _CTI_K570_ISP_MOTOR
+from configs.rockets import demo_75mm_k570
 from configs.schema import Config, Scenario
+from configs.sites import origin_msl
+from configs.weather import isa_dry_calm
 from sim.integrate import run_sim
+from sim.state import M
 from tests.test_configs import _toy_05kg_literal
 
 # ----------------------------------------------------------------------
@@ -202,3 +208,95 @@ def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
     cfg = configs.get("demo_75mm_highland")
     assert cfg.params.site.h0_m == 1500.0
     assert cfg.params.wind.model == "analytic"
+
+
+# ----------------------------------------------------------------------
+# Step 81 (docs/architecture-32-motor-separation.md SS32.2/SS32.3.3/
+# SS32.3.4/SS32.5): demo_75mm_k570 -- a real CTI motor (its own mass
+# history read from its own RASP file) composed with a mass-modelled
+# airframe, the mass model ON from a config for the first time.
+# `test_every_registered_scenario_flies` above already exercises this
+# scenario with no edit (its parametrised case count rises to five,
+# expected, not an anomaly, per that test's own Step-74 note above). The
+# checks below are Step 81's own: the composition's actual numbers, the
+# station-convention sanity check, and the headline burnout-mass claim
+# (D-59) measured on a real curve rather than argued.
+# ----------------------------------------------------------------------
+
+
+def _demo_75mm_k570_airframe():
+    return configs.rockets.get("demo_75mm_k570").airframe
+
+
+def test_demo_75mm_k570_mass_model_is_on():
+    """The mass model is ON for the first time from a config (SS32.3.3)."""
+    assert configs.get("demo_75mm_k570").params.weight.m_d is not None
+
+
+def test_demo_75mm_k570_composed_masses():
+    airframe = _demo_75mm_k570_airframe()
+    weight = configs.get("demo_75mm_k570").params.weight
+    # K570 header (SS32.3.1 F5): m_total=1.685 kg, m_prop=0.990 kg,
+    # m_f = m_total - m_prop = 0.695 kg.
+    assert weight.m == pytest.approx(airframe.m + 1.685, rel=1e-6)
+    assert weight.m_d == pytest.approx(airframe.m + 0.695, rel=1e-6)
+
+
+def test_demo_75mm_k570_isp_eff_matches_f5():
+    """`I_sp_eff = J/(m_prop*g0)` derived at assembly from the curve's own
+    total impulse (SS32.3.4), matching F5's measured 212.41 s."""
+    assert configs.get("demo_75mm_k570").params.weight.I_sp == pytest.approx(212.41, abs=0.01)
+
+
+def test_demo_75mm_k570_stations_are_inside_the_airframe():
+    """`l_d`/`l_p` (the composed dry-assembly and propellant nose-tip
+    stations) both fall inside `[l_nose, L_total]` -- the station-
+    convention sanity check (SS32.5)."""
+    sections = demo_75mm_k570.ROCKET.sections
+    weight = configs.get("demo_75mm_k570").params.weight
+    assert sections.l_nose <= weight.l_d <= sections.L_total
+    assert sections.l_nose <= weight.l_p <= sections.L_total
+
+
+def test_demo_75mm_k570_burnout_mass_lands_on_m_f():
+    """The headline assertion (SS32.3.4, D-59): the impulse-fraction-
+    shaped 'endpoints' model consumes exactly `m_prop` over the whole
+    curve, so the integrated state's mass at the end of the run lands on
+    `m_f = m_total - m_prop` -- measured on the real K570 curve, not just
+    argued. `thrust` (and hence `dm/dt`) is zero past burnout (the
+    `(0.0, 0.0)` prepend plus the curve's own trailing zero, SS32.3.4), so
+    mass stops changing at burnout and the LAST sample of a full run to
+    ground impact is still the burnout mass."""
+    airframe = _demo_75mm_k570_airframe()
+    cfg = configs.get("demo_75mm_k570")
+    result = run_sim(cfg.params, cfg.s0)
+    assert result.y[M][-1] == pytest.approx(airframe.m + 0.695, rel=1e-4)
+
+
+def test_demo_75mm_k570_isp_and_endpoints_motors_agree_on_apogee():
+    """D-59's equivalence, end to end: the same airframe flown with
+    `cti_k570` ('endpoints', `I_sp` derived from the curve's own total
+    impulse) and `cti_k570_isp` ('isp', `I_sp` hand-entered to match)
+    give apogees agreeing to ~0.1%."""
+    cfg_endpoints = configs.get("demo_75mm_k570")
+
+    scenario_isp = Scenario(
+        name="_test_demo_75mm_k570_isp",
+        rocket=demo_75mm_k570.ROCKET,
+        motor=_CTI_K570_ISP_MOTOR,
+        site=origin_msl.SITE,
+        weather=isa_dry_calm.WEATHER,
+    )
+    cfg_isp = scenario_isp.config
+    # SS32.10 backlog ("s0.m derived from weight.m", not yet implemented
+    # in `configs/schema.py::_pad_state`): same local patch
+    # `configs/scenarios/demo_75mm_k570.py` applies to its own `CONFIG`,
+    # needed here too since this scenario is built ad hoc, not registered.
+    cfg_isp = dataclasses.replace(cfg_isp, s0=cfg_isp.s0._replace(m=cfg_isp.params.weight.m))
+
+    result_endpoints = run_sim(cfg_endpoints.params, cfg_endpoints.s0)
+    result_isp = run_sim(cfg_isp.params, cfg_isp.s0)
+
+    apogee_endpoints = -result_endpoints.y[1].min()  # z is DOWN-positive; altitude = -z
+    apogee_isp = -result_isp.y[1].min()
+    assert apogee_endpoints == pytest.approx(apogee_isp, rel=1e-3)
