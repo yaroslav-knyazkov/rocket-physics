@@ -35,6 +35,13 @@ altitude above the launch point, $R_e$ the Earth's mean radius. The magnitude mo
 \emph{parallel}, \emph{radial} and \emph{ellipsoidal}; and a \emph{vector field} model supplies
 magnitude and direction together.
 
+The direction of gravity is the unit vector $\hat{z}_g$ (down, along the local vertical), with
+$\hat{x}_g$ the local downrange horizontal and $\hat{y}_g\equiv\hat{y}_0$. It is a direction
+defined by this model, not a frame of its own: it coincides with $\hat{z}_0$ by default,
+$\hat{z}_g(0)\equiv\hat{z}_0$, and rotates away from it with the downrange arc angle $\varphi$ only
+once a non-parallel direction model is enabled. The Earth's centre $O$ and the position
+$\vec{Og}=\vec{OO^*}+\vec{O^*g}$ needed by the non-parallel variants are defined below.
+
 \subsubsection{Magnitude}
 \begin{itemize}
     \item \textbf{Constant} (Phase 1 baseline): $g=g_0$.
@@ -79,7 +86,8 @@ increasing fidelity:
 \paragraph{Construction (radial).} Work in the launch frame $\mathcal{F}_0$, origin at the launch
 point $O^*$, axes $\hat{x}_0$ (downrange, horizontal) and $\hat{z}_0$ (down). The sphere's centre
 $O$ then lies at $(0,R_e)$ in those coordinates --- directly below $O^*$ along $\hat{z}_0$, since
-$\hat{z}_0$ is the down direction there. Parametrise the spherical surface by the arc angle
+$\hat{z}_0$ is the down direction there; the position of the centre of gravity from $O$ is
+$\vec{Og}=\vec{OO^*}+\vec{O^*g}$ with $\vec{OO^*}=-R_e\hat{z}_0$. Parametrise the spherical surface by the arc angle
 $\varphi$ subtended at $O$, measured from $O^*$ towards $+\hat{x}_0$:
 \begin{equation} \label{eq:surface_point}
     \vec{O^*P}(\varphi) = R_e\sin\varphi\,\hat{x}_0 + R_e(1-\cos\varphi)\,\hat{z}_0,
@@ -206,8 +214,16 @@ $A_ep_0$ in vacuum. $A_e=0$ recovers $T_0(t)$ exactly.
 default $A_e=0$ switches the correction off.}
 
 \subsubsection{Direction}
-The direction of the thrust is the angle $\theta_t$ of the thrust frame $\mathcal{F}_t$ from the
-body axis (\autoref{eq:thrust_frame}). Three options:
+The line of thrust need not coincide with the nose axis: a real nozzle can be canted, or otherwise
+misaligned, by a small angle $\theta_t$ from the body axis. The unit vector along the line of
+thrust, $\hat{x}_t$, is obtained from $\hat{x}_r$ exactly as $\hat{x}_r$ is from $\hat{x}_0$
+(\autoref{eq:body_axes_in_ground}):
+\begin{equation}\label{eq:thrust_frame}
+    \hat{x}_t = \cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r, \qquad
+    \hat{z}_t = \sin\theta_t\,\hat{x}_r + \cos\theta_t\,\hat{z}_r, \qquad \hat{y}_t\equiv\hat{y}_r,
+\end{equation}
+so a positive $\theta_t$ tilts the thrust line in the same sense as a positive $\theta_r$ tilts the
+nose. Three options:
 \begin{itemize}
     \item \textbf{Ideal} (the default): $\theta_t=0$, the thrust acts along $\hat{x}_r$.
     \item \textbf{Misalignment}: $\theta_t$ is a constant input --- a manufacturing-type error,
@@ -1020,14 +1036,14 @@ genuinely new here and depends on the flight's own velocity and heading, not jus
 at the launch site $(\phi_0,\lambda_0)$, with $\phi_0$ the site's geodetic latitude (the same
 quantity written $\phi$ in \autoref{sec:gravity}). The ground frame $\mathcal{F}_0$ is fixed by the
 launch heading $\chi$ (degrees clockwise from North, the direction of $+\hat{x}_0$,
-\autoref{sec:atmosphere} > Field) and by $\hat{z}_0$ pointing \emph{down} (\autoref{sec:frames}):
+\autoref{sec:atmosphere} > Field) and by $\hat{z}_0$ pointing \emph{down} (\autoref{sec:conventions}):
 \begin{equation}
     \hat{x}_0 = \sin\chi\,\hat{E} + \cos\chi\,\hat{N}, \qquad
     \hat{y}_0 = \cos\chi\,\hat{E} - \sin\chi\,\hat{N}, \qquad
     \hat{z}_0 = -\hat{U}.
 \end{equation}
 This whole subsection is written in the \emph{fixed} ground frame $\mathcal{F}_0$, not in the
-(possibly rotating) gravity frame $\mathcal{F}_g$: the $\vec{\Omega}$ decomposition below is
+(possibly rotating) gravity direction $\hat{z}_g$: the $\vec{\Omega}$ decomposition below is
 evaluated once, at the launch site, and does \emph{not} follow a rotating $\hat{z}_g(\varphi)$ ---
 see the closing paragraph for what that costs. Nothing here is new: $\hat{x}_0$ is the downrange
 direction used by the ground track $(x\sin\chi,x\cos\chi)$ of \autoref{sec:atmosphere} > Field,
@@ -1171,7 +1187,7 @@ velocity-dependent fictitious force --- and must not be multiplied together.
 \autoref{eq:omega_components} is evaluated once, at the launch site's latitude $\phi_0$ and
 heading $\chi$, and is \emph{not} re-evaluated as the rocket travels downrange --- so
 $\vec{\Omega}$ is resolved in the fixed ground frame $\mathcal{F}_0$ while gravity, if the
-radial/elliptical direction model is enabled, is resolved in the rotated frame $\mathcal{F}_g$.
+radial/elliptical direction model is enabled, is resolved along the rotated $\hat{x}_g,\hat{z}_g$.
 Deliberately so: building a single consistently rotating frame would replace both corrections with
 a curvilinear formulation the 2D state cannot carry (it would need the metric terms of motion over
 a sphere, not just a rotated basis). The cost of leaving them independent is bounded and small.
@@ -1184,7 +1200,7 @@ because the Coriolis term is itself $10^{-3}$ of gravity to begin with.
 \subsection{States, initial conditions and integration}\label{sec:states}
 The models of this section fix the forces and moments; this subsection fixes what is integrated, from
 where, and how. The rocket has two groups of kinematic states, both resolved in the fixed ground
-frame $\mathcal{F}_0$ (\autoref{sec:frames}):
+frame $\mathcal{F}_0$ (\autoref{sec:rocket2d}):
 \begin{itemize}
     \item \emph{translation}: position $\vec{x}_r=x\,\hat{x}_0+z\,\hat{z}_0$, velocity
     $\vec{v}_r=v_x\,\hat{x}_0+v_z\,\hat{z}_0$ and acceleration $\vec{a}_r$;

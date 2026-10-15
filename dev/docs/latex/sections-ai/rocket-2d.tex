@@ -1,59 +1,33 @@
 \section{Rocket 2D}\label{sec:rocket2d}
-\autoref{sec:notation} lists every symbol used in this report together with the identifier the
-simulator uses for it.
+This section sets up the rigid rocket in the pitch plane: the two frames it is described in, the
+forces and moments acting on it, where they act, and the equations of motion that follow. The
+models that supply each term --- gravity, thrust, mass, aerodynamics and the environment --- come
+in \autoref{sec:models}; here they are only named.
 
 \subsection{Frames}\label{sec:frames}
+Two frames are used.
 \begin{itemize}
-    \item $\mathcal{F}_0$ --- ground/launch frame, origin at the launch point $O^*$.
-    \item $\mathcal{F}_g$ --- ground/gravity frame: $\hat{x}_g$ downrange, $\hat{z}_g$ down, along
-    gravity.
-    \item $\mathcal{F}_r$ --- rocket (body) frame: $\hat{x}_r$ along the nose axis, forward.
-    \item $\mathcal{F}_t$ --- thrust frame: $\hat{x}_t$ along the line of thrust.
+    \item $\mathcal{F}_0$ --- ground (launch) frame, origin at the launch site $O^*$, with
+    $\hat{x}_0$ horizontal downrange and $\hat{z}_0$ down.
+    \item $\mathcal{F}_r$ --- rocket (body) frame, with $\hat{x}_r$ along the nose axis, forward.
 \end{itemize}
-$\mathcal{F}_0$ is fixed at the launch point $O^*$, with $\hat{x}_0$ horizontal (downrange) and
-$\hat{z}_0$ down. The rocket's state is always integrated in this frame, regardless of which gravity
-or ground model is switched on --- it is the one fixed thing in the whole document. The
-translational state is the position $\vec{x}_r=x\,\hat{x}_0+z\,\hat{z}_0$, the velocity
-$\vec{v}_r=\mathrm{d}\vec{x}_r/\mathrm{d}t$ and the acceleration
-$\vec{a}_r=\mathrm{d}\vec{v}_r/\mathrm{d}t$, all resolved in $\mathcal{F}_0$.
+The state is always integrated in $\mathcal{F}_0$: position $\vec{x}_r=x\,\hat{x}_0+z\,\hat{z}_0$,
+velocity $\vec{v}_r=\mathrm{d}\vec{x}_r/\mathrm{d}t$ and acceleration
+$\vec{a}_r=\mathrm{d}\vec{v}_r/\mathrm{d}t$. Models that need the position relative to the Earth's
+centre $O$ (radial or ellipsoidal gravity, Earth rotation, atmosphere altitude) use
+$\vec{Og}=\vec{OO^*}+\vec{O^*g}$, defined where they are introduced.
 
-$\mathcal{F}_g$ carries the direction gravity actually points, $\hat{z}_g(\varphi)$, a function of
-the downrange arc angle $\varphi$ introduced in \autoref{sec:gravity}. It coincides with
-$\mathcal{F}_0$ by default, $\hat{x}_g(0)\equiv\hat{x}_0$ and $\hat{z}_g(0)\equiv\hat{z}_0$, and
-only rotates away from it once a non-parallel direction model is enabled --- so $\mathcal{F}_g$
-and $\mathcal{F}_0$ are kept notationally separate precisely because ``ground'' and ``the
-direction gravity points'' are not always the same thing, even though they agree at the launch
-point.
-
-$\mathcal{F}_r$ is right-handed, with $\hat{x}_r$ along the rocket's nose axis (positive forward),
-$\hat{z}_r$ completing the pitch plane with it, and $\hat{y}_r$ out of the pitch plane. The pitch
-angle $\theta_r$ is measured from $\hat{x}_0$ (the ground-frame horizontal), positive nose-up; the
-pitch rate is $\omega_r=\mathrm{d}\theta_r/\mathrm{d}t$, the rotation rate about $\hat{y}_r$, and
-the angular acceleration is $\varepsilon_r=\mathrm{d}\omega_r/\mathrm{d}t$. In ground-frame
-components,
+In $\mathcal{F}_r$, $\hat{z}_r$ completes the pitch plane and $\hat{y}_r$ points out of it. The
+pitch angle $\theta_r$ is measured from $\hat{x}_0$, positive nose-up; $\omega_r=\mathrm{d}\theta_r/
+\mathrm{d}t$ is the pitch rate and $\varepsilon_r=\mathrm{d}\omega_r/\mathrm{d}t$ the angular
+acceleration. In ground-frame components,
 \begin{equation}\label{eq:body_axes_in_ground}
     \hat{x}_r = \cos\theta_r\,\hat{x}_0 - \sin\theta_r\,\hat{z}_0, \qquad
     \hat{z}_r = \sin\theta_r\,\hat{x}_0 + \cos\theta_r\,\hat{z}_0.
 \end{equation}
-($\alpha$ is reserved for the angle of attack, \autoref{sec:relwind}.)
-
-$\mathcal{F}_t$ carries the actual line of thrust action, $\hat{x}_t$, which need not coincide
-with the nose axis: a real nozzle can be canted, or otherwise misaligned, by a small angle
-$\theta_t$ from the body axis --- a fixed property of how the motor is mounted, not of the flight
-state. Giving thrust its own frame, rather than folding $\theta_t$ into every thrust term by hand,
-is what lets that distinction be written down once:
-\begin{equation}\label{eq:thrust_frame}
-    \hat{x}_t = \cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r, \qquad
-    \hat{z}_t = \sin\theta_t\,\hat{x}_r + \cos\theta_t\,\hat{z}_r, \qquad \hat{y}_t\equiv\hat{y}_r.
-\end{equation}
-$\mathcal{F}_t$ is obtained from $\mathcal{F}_r$ exactly as $\mathcal{F}_r$ is from
-$\mathcal{F}_0$ in \autoref{eq:body_axes_in_ground}, so a positive $\theta_t$ tilts the thrust line
-in the same sense as a positive $\theta_r$ tilts the nose. The older cant angle $\delta$ had the
-opposite sign, $\theta_t=-\delta$ (\autoref{sec:notation}). The thrust direction can in principle
-be controlled; for now $\theta_t$ is carried as a constant input, ideally zero --- a fixed
-manufacturing-type misalignment, swept by hand to see how sensitive the airframe is to it. A
-commanded, time-varying gimbal angle driven by a control law is future work
-(\autoref{sec:backlog}).
+Two further directions are defined with the models that own them: the gravity direction $\hat{z}_g$
+(\autoref{sec:gravity}) and the line of thrust $\hat{x}_t$ (\autoref{eq:thrust_frame}). All sign
+and axis conventions are collected in \autoref{sec:conventions}.
 
 \subsection{Forces and moments}\label{sec:forces}
 Weight is the main force the rocket has to overcome to increase its altitude:
@@ -61,268 +35,80 @@ Weight is the main force the rocket has to overcome to increase its altitude:
     \vec{W} = mg\hat{z}_g,
 \end{equation}
 where $m$ is the rocket's mass and $g$ the gravitational acceleration along the local vertical
-$\hat{z}_g$. Both factors are models rather than constants, and are chosen independently: the
-magnitude $g$ and the direction $\hat{z}_g$ answer different questions --- how strong, and which
-way --- and are supplied separately by \autoref{sec:gravity}.
+$\hat{z}_g$. Magnitude and direction are chosen independently, and both are supplied by
+\autoref{sec:gravity}.
 
 Thrust is generated by ejecting propellant at high velocity, plus a contribution from the pressure
-difference across the nozzle exit. With the thrust frame of \autoref{eq:thrust_frame} it is simply
+difference across the nozzle exit. With the thrust direction of \autoref{eq:thrust_frame} it is
+simply
 \begin{equation}
     \vec{T} = T\hat{x}_t = T\left(\cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r\right),
 \end{equation}
-purely axial in its own frame, with $T$ the thrust magnitude --- the measured thrust curve plus a
-nozzle-exit pressure correction (\autoref{sec:thrust}); the angle $\theta_t$ inside $\hat{x}_t$
-carries the whole of the misalignment, so the first form never needs to be rewritten as $\theta_t$
-changes.
+with $T$ the thrust magnitude (\autoref{sec:thrust}); the angle $\theta_t$ inside $\hat{x}_t$
+carries the whole of the misalignment.
 
-Motion through the surrounding air produces an aerodynamic force, and, about a reference point $p$
-on the rocket (\autoref{sec:geometry}), an aerodynamic pitching moment:
+Motion through the surrounding air produces an aerodynamic force and, about a reference point $p$
+on the rocket (\autoref{sec:geometry}), a pitching moment:
 \begin{equation}
     \vec{A}_f = -qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right), \qquad
     \vec{A}_m = -qSc\,C_m\hat{y}_r, \qquad
-    q = \tfrac12\rho v_{rel}^2,
+    q = \tfrac12\rho v_{rel}^2.
 \end{equation}
-with $q$ the dynamic pressure, $\rho$ the air density, $v_{rel}$ the airspeed (the magnitude of
-the rocket's velocity relative to the air, \autoref{sec:relwind}), $S$ the aerodynamic reference
-area and $c$ the reference length. $C_x,C_z,C_m$ are the axial-force, normal-force and
-pitching-moment coefficients, defined in the body frame (\autoref{sec:aero}). The aerodynamic
-force and moment are \emph{always} these dynamic-pressure-scaled coefficient products, whichever
-of \autoref{sec:aero}'s coefficient models is selected; no model in this document supplies an
-aerodynamic force directly as a force.
+Here $q$ is the dynamic pressure, $S$ the reference area, $c$ the reference length and
+$C_x,C_z,C_m$ the coefficients; \autoref{sec:aero} defines them and the models that supply them.
 
 \subsection{Geometry}\label{sec:geometry}
 Each of the three forces acts at its own point on the rocket:
 \begin{itemize}
     \item $A$ --- nose tip, the origin of every length below;
     \item $g$ --- centre of gravity, where weight acts;
-    \item $t$ --- thrust application point, where the (possibly canted) thrust line of
-    $\mathcal{F}_t$ crosses the body;
+    \item $t$ --- thrust application point, where the line of thrust crosses the body;
     \item $p$ --- aerodynamic reference point (centre of pressure), where $\vec{A}_f$ acts and
     about which $\vec{A}_m$ is taken.
 \end{itemize}
-Every dimension is defined in the rocket frame $\mathcal{F}_r$: $l$ is the axial distance of a
-point from $A$, measured aft (positive towards the tail), and $r$ its radial distance from the
-axis, along $-\hat{z}_r$. Writing $(a_1,a_2,a_3)_r\equiv a_1\hat{x}_r+a_2\hat{y}_r+a_3\hat{z}_r$
-for components in $\mathcal{F}_r$,
+Lengths are defined in $\mathcal{F}_r$: $l$ is the axial distance of a point from $A$, positive
+towards the tail, and $r$ its radial distance from the axis, along $-\hat{z}_r$. With components
+in $\mathcal{F}_r$,
 \begin{equation}
-    \vec{Ag} = -l_g\hat{x}_r - r_g\hat{z}_r, \qquad
-    \vec{At} = -l_t\hat{x}_r - r_t\hat{z}_r, \qquad
-    \vec{Ap} = -l_p\hat{x}_r.
+    \vec{Ag} = \begin{bmatrix} -l_g & 0 & -r_g \end{bmatrix}^\top_r, \qquad
+    \vec{At} = \begin{bmatrix} -l_t & 0 & -r_t \end{bmatrix}^\top_r, \qquad
+    \vec{Ap} = \begin{bmatrix} -l_p & 0 & 0 \end{bmatrix}^\top_r.
 \end{equation}
-The moments below are taken about $g$, so what they need is the position of the other two points
-relative to it:
+Moments are taken about $g$, so what they need are the arms from $g$ to the other two points:
 \begin{equation}\label{eq:arms}
-    \vec{gt} = -\vec{Ag} + \vec{At} = (l_g-l_t,\;0,\;r_g-r_t)_r, \qquad
-    \vec{gp} = -\vec{Ag} + \vec{Ap} = (l_g-l_p,\;0,\;r_g)_r.
+    \vec{gt} = -\vec{Ag} + \vec{At} = \begin{bmatrix} l_g-l_t & 0 & r_g-r_t \end{bmatrix}^\top_r, \qquad
+    \vec{gp} = -\vec{Ag} + \vec{Ap} = \begin{bmatrix} l_g-l_p & 0 & r_g \end{bmatrix}^\top_r.
 \end{equation}
-
-The radial distances $r$ describe the axis misalignment: in a real rocket the centre of gravity
-and the nozzle cannot be strictly on the axis, whether from manufacturing tolerance or from an
-as-built mass asymmetry. $r$ can be zero, and is by default. As $p$ is a reference point rather
-than a measured one, no misalignment is defined for it ($r_p\equiv0$); any asymmetry in the
-external surfaces instead shows up in the aerodynamic coefficients themselves, e.g.\ in polar
-plots, not in a radial offset of $p$. $r_g$ and $r_t$ are carried as ordinary constants alongside
-$l_g,l_t$ throughout what follows, on the same footing as the thrust angle $\theta_t$ --- setting
-them to zero recovers the on-axis geometry exactly, and there is no separate ``model'' for them
-beyond that: like $\theta_t$, they are inputs representing an as-built offset, in principle
-obtained from manufacturing metrology of the actual airframe rather than derived from anything
-else in this document. $l_t$, by contrast, only matters when the thrust is canted: it enters the
-moment through $\sin\theta_t$ alone (\autoref{eq:eom_rot_expanded}), so for $\theta_t=0$ its value
-is immaterial and it can be set to zero.
+The radial offsets $r_g,r_t$ describe the axis misalignment of a real airframe (manufacturing
+tolerance, mass asymmetry). They are constant inputs, zero by default, on the same footing as
+$\theta_t$. The point $p$ is a reference point, so $r_p\equiv0$; any asymmetry of the external
+surfaces shows up in the aerodynamic coefficients instead. The length $l_t$ matters only for a
+canted thrust, through $\sin\theta_t$.
 
 \subsection{Equations of motion}\label{sec:eom}
-\begin{gather}
-    m\vec{a}_r = \sum \vec{F} = \vec{W} + \vec{T} + \vec{A}_f \label{eq:eom_trans}\\
-    I\varepsilon_r = \sum \vec{M}(g) \cdot \hat{y}_r
-    = \left[\vec{gt}\times\vec{T} + \vec{gp}\times\vec{A}_f + \vec{A}_m\right]\cdot \hat{y}_r
-    \label{eq:eom_rot}
-\end{gather}
-Substituting the forces of \autoref{sec:forces},
-\begin{equation}\label{eq:eom_trans_expanded}
-    m\vec{a}_r = mg\hat{z}_g + T\left(\cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r\right)
-    - qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right).
-\end{equation}
-For the rotation, substitute \autoref{eq:arms} and use the $\hat{y}_r$ component of the cross
-product of two pitch-plane vectors,
-$\left[(a_1,0,a_3)_r\times(b_1,0,b_3)_r\right]\cdot\hat{y}_r = a_3b_1-a_1b_3$:
+Translation follows from the sum of the three forces,
 \begin{align}
-    I\varepsilon_r
-    &= \left[T\left(-\vec{Ag}+\vec{At}\right)\times\hat{x}_t
-       + \left(-\vec{Ag}+\vec{Ap}\right)\times\vec{A}_f + \vec{A}_m\right]\cdot\hat{y}_r
-       \nonumber\\
-    &= \Bigl[T\,(l_g-l_t,\,0,\,r_g-r_t)_r\times(\cos\theta_t,\,0,\,-\sin\theta_t)_r
-       \nonumber\\
-    &\qquad + qS\,(l_g-l_p,\,0,\,r_g)_r\times(-C_x,\,0,\,-C_z)_r
-       - qSc\,C_m\hat{y}_r\Bigr]\cdot\hat{y}_r
-       \nonumber\\
-    &= T\left[(r_g-r_t)\cos\theta_t + (l_g-l_t)\sin\theta_t\right]
-       + qS\left[-r_gC_x + (l_g-l_p)C_z - c\,C_m\right]. \label{eq:eom_rot_expanded}
+    m\vec{a}_r &= \vec{W} + \vec{T} + \vec{A}_f \label{eq:eom_trans}\\
+               &= mg\hat{z}_g + T\left(\cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r\right)
+                  - qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right). \label{eq:eom_trans_expanded}
 \end{align}
-Each term reads off the geometry directly. The radial offset $r_g-r_t$ of the thrust point gives
-an arm to the axial thrust component $T\cos\theta_t$, and its axial offset $l_g-l_t$ an arm to the
-normal component $T\sin\theta_t$; in the same way $r_g$ is the arm of the axial aerodynamic force
-$qSC_x$ and $l_g-l_p$ that of the normal one $qSC_z$. For the aligned rocket,
-$r_g=r_t=\theta_t=0$, thrust drops out of the moment altogether and
-$I\varepsilon_r=qS\left[(l_g-l_p)C_z-c\,C_m\right]$.
 
-Moments are taken about the centre of gravity $g$, so weight contributes none:
-$\vec{gg}\times\vec{W}=0$, for whatever direction $\vec{W}$ points. $m$ and $I$ are not constants
-once the propellant model of \autoref{sec:mass} is active --- they become $m(t), I(t)$, and the
-centre of gravity $g$ itself travels as $l_g(t)$. Reinterpreting $\mathcal{F}_0$ as Earth-fixed
-rather than inertial adds one further translational term to \autoref{eq:eom_trans} and nothing at
-all to \autoref{eq:eom_rot} (\autoref{sec:noninertial}). \autoref{sec:analysis} expands these two
-equations by hand.
+Rotation follows from the moments about $g$, along $\hat{y}_r$. Weight gives none, whatever
+direction it points:
+\begin{align}
+    I\varepsilon_r &= \left[\vec{gt}\times\vec{T} + \vec{gp}\times\vec{A}_f
+                       + \vec{A}_m\right]\cdot\hat{y}_r \label{eq:eom_rot}\\
+                   &= T\left[(r_g-r_t)\cos\theta_t + (l_g-l_t)\sin\theta_t\right]
+                      + qS\left[-r_gC_x + (l_g-l_p)C_z - c\,C_m\right]. \label{eq:eom_rot_expanded}
+\end{align}
+Each term is a force component times its arm; for the aligned rocket, $r_g=r_t=\theta_t=0$,
+thrust drops out and $I\varepsilon_r=qS\left[(l_g-l_p)C_z-c\,C_m\right]$.
 
-These two equations describe \emph{free} flight, which is all of a flight except its two
-mechanically constrained phases. While the rocket is still on the launch rail
-(\autoref{sec:rail}) and while it hangs under a deployed recovery canopy (\autoref{sec:recovery}),
-the attitude state is frozen, $\omega_r=\varepsilon_r=0$, and \autoref{eq:eom_trans} is modified
---- projected onto the rail direction in the first case, given one additional inertial-frame force
-in the second. Both are written up with the models rather than here, because each needs its own
-constraint or force model to be stated first; the equations above are what they modify, and what
-they revert to.
+The mass $m(t)$, inertia $I(t)$ and centre of gravity $l_g(t)$ change as propellant burns
+(\autoref{sec:mass}). Earth rotation adds one term to \autoref{eq:eom_trans} and none to
+\autoref{eq:eom_rot} (\autoref{sec:noninertial}). \autoref{sec:analysis} expands both equations
+by hand.
 
-\subsubsection{Model inventory}\label{sec:eom_inventory}
-Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
-\autoref{eq:eom_rot_expanded} is either a state or is supplied by a model:
-\begin{itemize}
-    \item $m$, $I$ --- mass and moment of inertia, from the mass model (\autoref{sec:mass});
-    \item $g\hat{z}_g$ --- gravity, magnitude and direction (\autoref{sec:gravity});
-    \item $T$ --- thrust curve plus pressure correction (\autoref{sec:thrust});
-    \item $\theta_t$ --- thrust direction: can be controlled, for now a constant, ideally zero
-    (\autoref{sec:thrust});
-    \item $q$ --- from the atmosphere model, the state and the wind model, through $\rho$ and
-    $v_{rel}$ (\autoref{sec:atmosphere}, \autoref{sec:wind}, \autoref{sec:relwind});
-    \item $S$, $c$ --- reference area and reference length (\autoref{sec:aero});
-    \item $C_x$, $C_z$, $C_m$ --- aerodynamic coefficients (\autoref{sec:aero});
-    \item $l_t$, $r_t$, $l_p$, $l_g$, $r_g$ --- lengths (\autoref{sec:geometry}); $l_g(t)$ moves
-    with the mass model (\autoref{sec:mass}), and the position of $p$ is supplied together with the
-    coefficients (\autoref{sec:aero});
-    \item states --- $\theta_r$, $\omega_r$, $\varepsilon_r$ and $\vec{x}_r$, $\vec{v}_r$,
-    $\vec{a}_r$ (\autoref{sec:frames}); the equations deliver $\varepsilon_r$ and $\vec{a}_r$, the
-    rest is integrated;
-    \item and, outside free flight, the parachute (\autoref{sec:recovery}) and the launch rail
-    (\autoref{sec:rail}).
-\end{itemize}
-
-\subsection{Notation}\label{sec:notation}
-The table maps each symbol of this report to the identifier the simulator uses for it
-(\texttt{sim/} keeps its own names) and to the symbol used in earlier versions of this report.
-``Not stored'' means the code keeps only an arm relative to the centre of gravity, not the length
-from the nose tip; ``not implemented'' means the quantity appears in the report but not in the
-simulator.
-{\small
-\begin{longtable}{>{\raggedright\arraybackslash}p{2.6cm}
-                >{\raggedright\arraybackslash}p{2.0cm}
-                >{\raggedright\arraybackslash}p{4.1cm}
-                >{\raggedright\arraybackslash}p{4.4cm}
-                >{\raggedright\arraybackslash}p{1.5cm}}
-\hline
-\textbf{Report} & \textbf{Earlier doc} & \textbf{Code} & \textbf{Meaning} & \textbf{Units} \\
-\hline
-\endfirsthead
-\hline
-\textbf{Report} & \textbf{Earlier doc} & \textbf{Code} & \textbf{Meaning} & \textbf{Units} \\
-\hline
-\endhead
-\hline
-\endfoot
-\multicolumn{5}{l}{\textbf{Geometry and frames}} \\
-\hline
-$A$ & $A$ & --- & nose tip, origin of all lengths & --- \\
-$g$ & $B$ & --- & centre of gravity & --- \\
-$t$ & $C$ & --- & thrust application point & --- \\
-$p$ & $D$ & --- & aerodynamic reference point (centre of pressure) & --- \\
-$l_g$ & $l_B$ & \texttt{mass.cog\_position(m\_p, p)}; local \texttt{l\_B} in \texttt{sim/dynamics.py} (mass model only) & axial distance $A\to g$ & m \\
-$r_g$ & $u_B$ & \texttt{p.lengths.u\_B} & radial offset of $g$ & m \\
-$l_t$ & $l_C$ & not stored; $l_t-l_g$ = \texttt{p.lengths.l1 + p.lengths.l2} & axial distance $A\to t$ & m \\
-$r_t$ & $u_C$ & \texttt{p.lengths.u\_C} & radial offset of $t$ & m \\
-$l_p$ & $l_D$ & not stored; $l_p-l_g$ = \texttt{l1} (row below) & axial distance $A\to p$ & m \\
-$r_p\equiv0$ & $u_D\equiv0$ & --- & no radial offset of $p$, by definition & m \\
-$l_p-l_g$ & $l_1=l_D-l_B$ & \texttt{p.lengths.l1}; \texttt{aero.coefficients(\dots).l1} (varies under the table model) & arm $g\to p$, positive with $p$ aft & m \\
-$l_t-l_p$ & $l_2=l_C-l_D$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
-$\vec{gt}$, $\vec{gp}$ & $\vec{BC}$, $\vec{BD}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
-$\theta_t$ & $-\delta$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
-\hline
-\multicolumn{5}{l}{\textbf{Mass}} \\
-\hline
-$m$, $I$ & $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
-$m_r$ & $m_d$ less the casing & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
-$m_m(t)$ & $m_p$ (propellant only) & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
-$m_0$, $m_f$ & --- & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
-$\Delta t$ & --- & not implemented (no linear mass model) & burn duration (linear mass model) & s \\
-$\Delta m$ & --- & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
-$\mathrm{ISP}$ & $I_{sp}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
-$g_0$ & $g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
-$I_r$, $I_{r,g}$ & $I_d$ & \texttt{p.weight.I\_d} (dry assembly about its own centroid) & dry-rocket inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
-$I_m(t)$, $I_{m,g}(t)$ & $I_p(t)$ & \texttt{p.weight.I\_p\_spec}$\cdot m_p$ (propellant only) & motor inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
-$I_0$, $I_f$ & --- & \texttt{motor.I\_0}, \texttt{motor.I\_f} & $I_{m,g}$ at ignition, at burnout & $\mathrm{kg\,m^2}$ \\
-$l_{g,r}$, $r_{g,r}$ & $l_d$ & \texttt{p.weight.l\_d}; radial: not stored (constant \texttt{u\_B}) & dry-rocket centre of gravity (axial, radial) & m \\
-$l_{g,m}(t)$, $r_{g,m}(t)$ & $l_p$ (propellant) & \texttt{p.weight.l\_p} (fixed); radial: not stored & motor centre of gravity (axial, radial) & m \\
-$l_0$, $l_f$ & --- & \texttt{motor.l\_cog\_0}, \texttt{motor.l\_cog\_f} & $l_{g,m}$ at ignition, at burnout & m \\
-\hline
-\multicolumn{5}{l}{\textbf{Forces and aerodynamics}} \\
-\hline
-$S$ & $S$ & \texttt{p.aero.S} & aerodynamic reference area (same symbol in both) & $\mathrm{m^2}$ \\
-$c$ & $d_{ref}$ & \texttt{p.aero.d\_ref} & reference length of the pitching moment & m \\
-$C_x$, $C_z$, $C_m$ & $C_x$, $C_z$, $C_m$ ($C_A$, $C_N$) & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (constant model); fields of \texttt{aero.AeroCoeffs} & axial-force, normal-force, pitching-moment coefficients & --- \\
-$qSC_x$, $qSC_z$ & $A_x$, $A_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
-$qSc\,C_m$ & $A_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
-$S_k$, $c_k$, $C_{x,k}$, $C_{z,k}$, $C_{m,k}$, $pp_k$ & --- & not implemented & aero component $k$: reference area and length, coefficients, reference point & $\mathrm{m^2}$, m, ---, m \\
-$C_{x,0}$, $k$ & $c_{x,0}$, $1/(e\pi\lambda)$ & not implemented & drag polar $C_x=C_{x,0}+kC_z^2$ & --- \\
-$\partial C/\partial\alpha$, $\partial C/\partial M$, $\partial C/\partial Re$ & --- & only the $\alpha$ slope is in the code & linearized-model slopes & 1/rad, ---, --- \\
-$C_{z,\alpha}$, $C_{m,\alpha}$, $C_{m,q}$, $C_{z,0}$, $C_{m,0}$ & $c_{z,\alpha}$, $c_{m,\alpha}$, $c_{m,q}$, \dots & aero coefficient inputs (\texttt{c\_mq} column of the aero table, \dots) & coefficient slopes and offsets & 1/rad or --- \\
-\hline
-\multicolumn{5}{l}{\textbf{Thrust}} \\
-\hline
-$T$, $\vec{T}$ & $T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & thrust magnitude; vector in $\mathcal{F}_r$ & N \\
-$T_0(t)$ & $T_{ref}(t)$ & \texttt{thrust\_curve} (\texttt{T\_ref}) & reference (test-stand) thrust & N \\
-$p_0$ & $p_{ref}$ & \texttt{p.thrust.p\_ref} & ambient pressure during the static test & Pa \\
-$A_e$ & $A_e$ & \texttt{p.thrust.A\_e} & nozzle exit area & $\mathrm{m^2}$ \\
-\hline
-\multicolumn{5}{l}{\textbf{Atmosphere and wind}} \\
-\hline
-$p_{atm}$ & $p_{amb}$ & \texttt{air\_state(\dots).p} & ambient pressure & Pa \\
-$q$ & $q$ & \texttt{flow.q} & dynamic pressure & Pa \\
-$v_{rel}$, $\vec{v}_{rel}$ & $V$ & \texttt{flow.V} & airspeed; relative-wind vector & m/s \\
-$v_{rel,x}$, $v_{rel,z}$ & $u$, $w$ & --- & relative-velocity components in $\mathcal{F}_r$ & m/s \\
-$\alpha$ & $\alpha$ & \texttt{flow.alpha} & angle of attack & rad \\
-$w_{up}$ & --- & not implemented & updraft speed ($w_z=-w_{up}$) & m/s \\
-$v_{ref}$ & $V_{ref}$ & turbulence setting & fixed reference airspeed of the Dryden spectrum & m/s \\
-\hline
-\multicolumn{5}{l}{\textbf{States and integration}} \\
-\hline
-$\vec{y}=(x,z,v_x,$ $v_z,\theta_r,\omega_r,m)$ & $\vec{y}$ & \texttt{y[X,}\allowbreak\texttt{Z,}\allowbreak\texttt{VX,}\allowbreak\texttt{VZ,}\allowbreak\texttt{THETA,}\allowbreak\texttt{OMEGA,}\allowbreak\texttt{M]} & integrated state vector & m, m/s, rad, rad/s, kg \\
-$\theta_r$ & $\theta$ & \texttt{y[THETA]} & pitch angle & rad \\
-$\omega_r$ & $\omega$ & \texttt{y[OMEGA]} & pitch rate & rad/s \\
-$\varepsilon_r$ & $\mathrm{d}\omega/\mathrm{d}t$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{sim/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
-$\vec{x}_r$ & $\vec{x}=(x,z)$ & \texttt{y[X]}, \texttt{y[Z]} & position in $\mathcal{F}_0$ & m \\
-$\vec{v}_r$ & $\mathrm{d}\vec{x}/\mathrm{d}t$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity in $\mathcal{F}_0$ & m/s \\
-$\vec{v}_g$ & $\vec{v}_B$ & \texttt{y[VX]}, \texttt{y[VZ]} & CoG velocity (the same vector as $\vec{v}_r$) & m/s \\
-$v_x$, $v_z$ & $\mathrm{d}x/\mathrm{d}t$, $\mathrm{d}z/\mathrm{d}t$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity components in $\mathcal{F}_0$ & m/s \\
-$\vec{a}_r$ & $\mathrm{d}\vec{v}/\mathrm{d}t$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
-$m_{launch}$ & --- & \texttt{s0.m}; \texttt{p.weight.m} & liftoff mass $m(0)$ & kg \\
-$h$ & $dt$ & \texttt{p.solver.dt} & fixed RK4 step & s \\
-$\theta_{rail}$, $L_{rail}$, $s_{rail}$, $\hat{e}_{rail}$ & same & \texttt{p.site.rail\_angle\_deg}, \texttt{p.site.L\_rail}, \texttt{rail\_distance}, \texttt{\_e\_rail} & rail elevation, length, distance travelled, direction & rad, m, m, --- \\
-\hline
-\multicolumn{5}{l}{\textbf{Recovery and air brake}} \\
-\hline
-$S_{ch}$, $C_{D,ch}$, $\vec{F}_{ch}$, $v_{term}$ & $S_c$, $C_{D,c}$, $\vec{F}_c$, $V_{term}$ & \texttt{p.recovery.S}, \texttt{p.recovery.Cd}, \texttt{forces.}\allowbreak\texttt{parachute\_}\allowbreak\texttt{drag\_}\allowbreak\texttt{inertial} & canopy area, drag coefficient, drag force, terminal speed & $\mathrm{m^2}$, ---, N, m/s \\
-$F_b$ & $A_{brake}$ & \texttt{control.airbrake\_*} & air-brake axial force & N \\
-\hline
-\multicolumn{5}{l}{\textbf{Analysis}} \\
-\hline
-$\hat{\omega}=\omega_r c/(2v_{rel})$ & $\hat{q}$ & --- & non-dimensional pitch rate & --- \\
-$M_{\theta_t}=(l_g-l_t)\,T\sin\theta_t$ & $M_\delta$ & --- & misalignment disturbance torque & N\,m \\
-$s_i$ & $l_i$ & --- & position of a body point relative to the CoG ($C_{m,q}$ derivation) & m \\
-$M_\alpha$, $M_q$, $\omega_n$, $\zeta$ & same & --- & short-period parameters & $\mathrm{1/s^2}$, 1/s, rad/s, --- \\
-\end{longtable}
-}
-$A$ is only the nose tip, the reference area being $S$ ($A_e$, $A_f$, $A_m$ carry their own
-subscripts). Some letters carry two meanings and are told apart by context only: $g$ is both the
-centre of gravity and the gravitational acceleration, and as a subscript both the point ($l_g$,
-$r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$); $t$ as a point is likewise distinct
-from time $t$, and $h$ is the RK4 step in \autoref{sec:states} but the altitude elsewhere. The
-mass model of \autoref{sec:mass} uses the subscript $m$ for the motor and $r$ for the dry rocket,
-so $l_p$ is only the aerodynamic reference point; in the code \texttt{p.weight.l\_p} is the
-propellant centroid (the motor's $l_{g,m}$).
+These equations describe free flight; on the launch rail (\autoref{sec:rail}) and under a
+recovery canopy (\autoref{sec:recovery}) the attitude is frozen and \autoref{eq:eom_trans} is
+modified as described there.

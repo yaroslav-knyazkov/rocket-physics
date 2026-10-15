@@ -65,6 +65,26 @@
 
 \newpage
 \begin{aitext}
+\input{sections-ai/introduction}
+\end{aitext}
+
+\newpage
+\begin{aitext}
+\input{sections-ai/rocket-2d}
+\end{aitext}
+
+\newpage
+\begin{aitext}
+\input{sections-ai/models}
+\end{aitext}
+
+\newpage
+\begin{aitext}
+\input{sections-ai/analysis}
+\end{aitext}
+
+\newpage
+\begin{aitext}
 \section{Current assumptions}\label{sec:assumptions}
 This section collects, in one place, every simplification the current derivation and the
 simulator rely on. Each is expected to be relaxed in a later phase; the relevant model or backlog
@@ -136,21 +156,6 @@ choice'' at a glance.
     delivered intensity exact (\autoref{sec:backlog}); and there is no vertical component, for the
     same reason the mean profile has none.
 \end{itemize}
-\end{aitext}
-
-\newpage
-\begin{aitext}
-\input{sections-ai/rocket-2d}
-\end{aitext}
-
-\newpage
-\begin{aitext}
-\input{sections-ai/analysis}
-\end{aitext}
-
-\newpage
-\begin{aitext}
-\input{sections-ai/models}
 \end{aitext}
 
 \newpage
@@ -264,7 +269,19 @@ tell a missing derivation from a missing input.
     leaves the rail (\autoref{sec:rail}), and a recovery model with the canopy's own opening
     transient, inflation shock and pendulum swing under the risers, rather than the current
     instantaneous-deployment, frozen-attitude treatment (\autoref{sec:recovery}).
+    \item \textbf{Roll dynamics with a reaction wheel (2D).} A decoupled roll degree of freedom
+    about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}=\mathrm{d}\gamma_r/\mathrm{d}t$
+    and axial moment of inertia $I_x$. A reaction wheel applies a torque to the airframe with an
+    equal and opposite one on the wheel, whose speed and angular momentum saturate. Roll is also
+    damped and driven by the aerodynamics, through roll damping and the roll moment from fin cant.
+    \emph{Waiting on:} $I_x$ of the airframe, the wheel inertia and motor torque limits, the
+    aerodynamic roll coefficients, and a control law.
 \end{itemize}
+\end{aitext}
+
+\newpage
+\begin{aitext}
+\input{sections-ai/appendix}
 \end{aitext}
 
 \end{document}

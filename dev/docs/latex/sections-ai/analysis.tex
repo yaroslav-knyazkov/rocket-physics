@@ -20,10 +20,10 @@ equation of this section in its simplest form.
 
 \subsection{Forces}\label{sec:analysis_forces}
 The aerodynamic force is a body-axis quantity already; thrust is one too once its own axis is
-fixed relative to the body via $\mathcal{F}_t$ (\autoref{sec:forces}), and only weight has to be
+fixed relative to the body via $\hat{x}_t$ (\autoref{eq:thrust_frame}), and only weight has to be
 resolved. Recall the body axes in ground-frame components, \autoref{eq:body_axes_in_ground}, with
 $\theta_r$ measured from $\hat{x}_0$, positive nose-up --- the frame the simulator integrates $x,z$
-in (\autoref{sec:frames}). Weight acts along the
+in (\autoref{sec:rocket2d}). Weight acts along the
 \emph{local} vertical $\hat{z}_g(\varphi)=-\sin\varphi\,\hat{x}_0+\cos\varphi\,\hat{z}_0$, so
 \begin{equation}
     \vec{W}\cdot\hat{x}_r = -mg\sin(\theta_r+\varphi), \qquad
@@ -142,10 +142,9 @@ restoring moment just off the pad and again high up, where $q$ is small.
 
 Its sign is worth pinning down once. $l_t>l_g$ for any real rocket (the nozzle is aft of the
 centre of gravity), so $l_g-l_t<0$, and $\hat{z}_r$ points towards the rocket's belly
-(\autoref{sec:frames}). A positive $\theta_t$ tilts the thrust line towards $-\hat{z}_r$, i.e.\
+(\autoref{sec:conventions}). A positive $\theta_t$ tilts the thrust line towards $-\hat{z}_r$, i.e.\
 pushes the tail towards $-\hat{z}_r$ and pitches the nose \emph{down}, $M_{\theta_t}<0$; a
-negative $\theta_t$ pitches it up. (This is the old cant angle $\delta=-\theta_t$ with its sign
-absorbed: positive $\delta$ pitched the nose up.)
+negative $\theta_t$ pitches it up.
 
 $\theta_t$ is a constant, so $\partial M_{\theta_t}/\partial\alpha=0$, and \autoref{eq:dtheta_dalpha}
 --- the derivative the static margin of \autoref{eq:static_margin} is built on --- is untouched. A

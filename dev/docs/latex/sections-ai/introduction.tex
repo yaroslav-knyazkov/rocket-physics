@@ -1,0 +1,26 @@
+\section{Introduction}\label{sec:introduction}
+This report documents a simulator of rocket flight in the vertical plane, with room left for a
+later 3D extension, and the physics behind it. The simulator integrates a rigid rocket from the
+launch rail to landing, so that design choices --- motor, mass, aerodynamics, recovery --- can be
+compared by their effect on the trajectory. The report derives the equations the simulator solves
+and records the models and assumptions behind each term.
+
+Around the simulation core (\texttt{sim/}) sit the inputs and the tools that use it:
+\begin{itemize}
+    \item \textbf{Configurations and data.} Rocket, launch site, weather, motor and scenario
+    descriptions (\texttt{configs/}), with motor curves, aerodynamic tables and atmospheric
+    soundings under \texttt{data/}. The simulator itself is offline and deterministic; a sounding
+    can be fetched separately with \texttt{tools/fetch\_sounding.py}.
+    \item \textbf{Simulation and comparisons} (\texttt{run.py}): flies a scenario and compares
+    variants of it.
+    \item \sloppy\textbf{Applications} (\texttt{apps/}): motor selection (\texttt{run\_motor\_sweep.py}),
+    air-brake sizing (\texttt{run\_airbrake.py}), selection of CFD conditions
+    (\texttt{run\_cfd\_conditions.py}) and the mass--aerodynamics trade-off
+    (\texttt{run\_trade.py}).
+\end{itemize}
+
+The report is organised as follows. \autoref{sec:rocket2d} sets up the frames, forces and equations
+of motion; \autoref{sec:models} gives the interchangeable models behind each term;
+\autoref{sec:analysis} works the equations through by hand and derives the stability results.
+\autoref{sec:assumptions} lists the simplifications in force and \autoref{sec:backlog} what is left
+undone. The appendix holds the notation, the model inventory and the sign conventions.
