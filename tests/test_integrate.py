@@ -133,10 +133,13 @@ _TILT_PARAMS = Params(
 )
 _TILT_S0 = State(x=0.0, z=0.0, vx=50.0, vz=0.0, theta=math.radians(80.0), omega=0.0)
 
+# RK45 pins re-recorded 2026-10-15 (D-77, user-approved): scipy 1.18.1 /
+# numpy 2.5.4 move solve_ivp's RK45 result at round-off level (~1e-14
+# relative); the project's own rk4 path below is unchanged bit-for-bit.
 _TILT_PINNED = {
     "RK45": dict(
-        y_final=[634.8103836834275, -5.4817261840867104e-15, 59.61236937554152,
-                 19.52923203571373, -0.3106550930107851, -0.2986216972287503, 0.0],
+        y_final=[634.8103836834266, -1.970645868709653e-15, 59.61236937554136,
+                 19.52923203571372, -0.3106550930107802, -0.29862169722874565, 0.0],
         t_final=5.393359857760246,
         events={"apogee": 2.6382969670047016, "ground": 5.393359857760246,
                 "burnout": 1.9999999999955556},
@@ -165,12 +168,15 @@ _TILT_SOUNDING_PARAMS = Params(
     site=Site(h0_m=380.0),
 )
 
+# RK45 pins re-recorded 2026-10-15 (D-77, user-approved): scipy 1.18.1 /
+# numpy 2.5.4 move solve_ivp's RK45 result at round-off level (~1e-14
+# relative); the project's own rk4 path below is unchanged bit-for-bit.
 _TILT_SOUNDING_PINNED = {
     "RK45": dict(
-        y_final=[787.754688433039, 4.003741782554471e-15, 48.82342057638281,
-                 27.408071824539135, -0.5404909185805109, -0.13152735823982897, 0.0],
-        t_final=7.384917372272603,
-        events={"apogee": 3.4708868647803905, "ground": 7.384917372272603,
+        y_final=[787.7546884330618, 6.467049118441537e-15, 48.823420576382404,
+                 27.408071824539604, -0.5404909185805098, -0.1315273582393848, 0.0],
+        t_final=7.384917372272731,
+        events={"apogee": 3.470886864780414, "ground": 7.384917372272731,
                 "burnout": 1.9999999999955556},
     ),
     "rk4": dict(
