@@ -78,7 +78,7 @@ import dataclasses
 from pathlib import Path
 from typing import Any, Optional
 
-import configs
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR
 from apps.common.flight_stats import (
     FlightStats,
@@ -284,15 +284,14 @@ def save_overlay(runs: list[MotorRun], path: Path) -> None:
 
 
 def _demo_baseline() -> Params:
-    """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 69
-    (roadmap.md; `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4): a
-    one-line re-export of `configs.get("demo_75mm").params`, kept under
-    this name only because `tests/test_motor_selection.py` imports it
-    unedited (F11). The full provenance/rationale for these numbers now
-    lives once, in `configs/demo_75mm.py`'s own docstring -- the single
-    source of truth this function used to duplicate.
+    """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 86
+    (dev/docs/architecture-33-configs-one-demo.md SS33.4.3, D-79): a
+    one-line re-export of `apps.common.study_vehicle.CONFIG.params`, kept
+    under this name only because `tests/test_motor_selection.py` imports it
+    unedited (F11). The full provenance/rationale for these numbers lives
+    once, in `apps/common/study_vehicle.py`'s own docstring.
     """
-    return configs.get("demo_75mm").params
+    return study_vehicle.CONFIG.params
 
 
 def _demo_entries() -> list[MotorEntry]:
@@ -312,11 +311,11 @@ def main() -> None:
     the existing Step-61 tests that import it keep working bit-for-bit)."""
     from apps.motor_selection.motors import MOTORS
 
-    # Step 69: baseline + s0 both sourced from configs/demo_75mm.py (the
-    # same Config _demo_baseline() above re-exports .params from), so the
-    # demo vehicle's initial state stops being a second, separately
+    # Step 86: baseline + s0 both sourced from apps/common/study_vehicle.py
+    # (the same Config _demo_baseline() above re-exports .params from), so
+    # the study vehicle's initial state is not a second, separately
     # maintained literal.
-    cfg = configs.get("demo_75mm")
+    cfg = study_vehicle.CONFIG
     baseline = cfg.params
     s0 = cfg.s0
 

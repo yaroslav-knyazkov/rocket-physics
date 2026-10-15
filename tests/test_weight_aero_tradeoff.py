@@ -49,7 +49,7 @@ import math
 import numpy as np
 import pytest
 
-import configs
+from apps.common import study_vehicle
 from apps.common.flight_stats import flight_stats
 from apps.weight_aero_tradeoff.compare_configs import (
     ConfigRun,
@@ -73,7 +73,7 @@ from sim.params import replace as params_replace
 
 
 def _demo_cfg():
-    return configs.get("demo_75mm")
+    return study_vehicle.CONFIG
 
 
 def _small_axes(cfg, n=5):
@@ -488,20 +488,20 @@ def test_scenarios_variant_changes_exactly_its_named_fields():
 
 
 def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, capsys):
-    """`--config demo_75mm` (a single name, the default): prints the
-    ranked table for the baseline plus every `SCENARIOS` variant, and
-    writes both artifacts."""
+    """No `--config` (the default, the study vehicle): prints the ranked
+    table for the baseline plus every `SCENARIOS` variant, and writes
+    both artifacts."""
     import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
 
     monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
 
-    compare_main(["--config", "demo_75mm"])
+    compare_main([])
 
     out = capsys.readouterr().out
     assert "Config comparison" in out
-    assert "demo_75mm" in out
-    assert "demo_75mm+heavy_sleek" in out
-    assert "demo_75mm+light_draggy" in out
+    assert "study_75mm" in out
+    assert "study_75mm+heavy_sleek" in out
+    assert "study_75mm+light_draggy" in out
 
     csv_path = tmp_path / "config_comparison.csv"
     png_path = tmp_path / "config_comparison_overlay.png"

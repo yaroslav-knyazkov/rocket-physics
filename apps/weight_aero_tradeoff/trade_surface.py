@@ -104,6 +104,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from apps.common.cli import add_config_arg, resolve_config
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
@@ -395,9 +396,9 @@ def main(argv: "Optional[list[str]]" = None) -> None:
         description="App 5 mode (b): the weight-vs-aero trade surface and "
         "its iso-apogee exchange rate"
     )
-    add_config_arg(parser, default="demo_75mm")
+    add_config_arg(parser, default=None)
     args = parser.parse_args(argv)
-    cfg = resolve_config(args)
+    cfg = resolve_config(args, fallback=study_vehicle.CONFIG)
 
     axes = default_axes(cfg)
     n_runs = len(axes.mass_values) * len(axes.cda_values)
