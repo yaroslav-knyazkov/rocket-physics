@@ -40,14 +40,11 @@ register" instructions. Registration is the only place a name is bound:
 filename, so a name/filename mismatch is possible in principle --
 `tests/test_configs.py` pins that it cannot happen silently.
 
-`configs/scenarios/demo_75mm_highland.py` is one worked example of the
-whole point of this package: the **same, unmodified**
-`configs/rockets/demo_75mm.py` rocket piece, flown from a different
-site (`configs/sites/highland_1500m.py`, 1500 m MSL, a tilted rail) in
-different weather (`configs/weather/breezy_isa.py`, a steady analytic
-wind) -- one vehicle, two sites, zero duplication. Reading those three
-modules side by side is the fastest way to see what "start under the
-matching subpackage" buys you in practice.
+`configs/scenarios/demo.py` is the one registered worked example: a real
+motor (`configs/motors/cti_k570.py`) and an airframe with `Sections`
+(`configs/rockets/demo.py`), mass model on, at `origin_msl` /
+`isa_dry_calm`. Reading it next to the `_TEMPLATE_*` modules is the
+fastest way to see how the pieces compose.
 """
 
 from configs import rockets, scenarios, sites, weather

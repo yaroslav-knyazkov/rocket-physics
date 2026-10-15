@@ -9,8 +9,8 @@ which is the entire point of a reader that keeps the header instead of
 discarding it (SS32.2.1).
 
 This is the worked demo Step 81 builds a full scenario around, and one
-half of D-59's "isp" vs "endpoints" equivalence -- see `cti_k570_isp.py`,
-the same curve under the other mass model.
+half of D-59's "isp" vs "endpoints" equivalence -- the other half, the
+same curve under the "isp" mass model, is `tests/config_variants.py`.
 """
 
 from __future__ import annotations

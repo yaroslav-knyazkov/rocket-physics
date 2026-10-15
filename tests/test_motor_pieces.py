@@ -411,8 +411,7 @@ def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
     at all; Step 81 registers `demo` (`cti_k570`, "endpoints"),
     the gated case. So: re-import the whole `configs` tree from scratch,
     record every `sim.motor_file` call, and require that the only file
-    read is `cti_k570`'s own curve -- the four pre-phase seeds still read
-    nothing."""
+    read is `cti_k570`'s own curve -- no other motor file is read."""
     calls = []
 
     def _record(fn):
@@ -439,16 +438,10 @@ def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
     assert set(calls) == {cti_k570.MOTOR.thrust.motor_curve}
 
 
-def test_configs_names_after_step_81():
-    """SS32.1 / Step 81: Step 74's four names plus the one worked demo
-    that flies a real motor with the mass model on -- an intended,
-    user-visible change (`--list-configs` prints five names)."""
+def test_configs_names_after_step_91():
+    """Step 91 (D-78): the one worked demo, a real motor with the mass
+    model on, is the only registered config (`--list-configs` prints one
+    line)."""
     import configs
 
-    assert set(configs.names()) == {
-        "demo_75mm",
-        "demo_75mm_airbrake",
-        "demo_75mm_highland",
-        "demo",
-        "toy_05kg",
-    }
+    assert set(configs.names()) == {"demo"}

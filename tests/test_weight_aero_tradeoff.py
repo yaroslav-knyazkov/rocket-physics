@@ -523,11 +523,15 @@ def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
 
     monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
 
-    import configs.scenarios
-
     from tests import config_variants
 
-    monkeypatch.setitem(configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG)
+    # Patch the registry the app itself holds: tests/test_motor_pieces.py
+    # purges `configs.*` from sys.modules and re-imports it, so a fresh
+    # `import configs.scenarios` here can be a different module object
+    # from the one `compare_configs` imported at load time.
+    monkeypatch.setitem(
+        compare_configs_module.configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG
+    )
 
     compare_main(["--config", "demo,toy_05kg"])
 

@@ -95,7 +95,7 @@ class Config:
     """One complete, runnable scenario: the `Params`, the initial `State`,
     and where the numbers came from."""
 
-    name: str                  # registry key, e.g. "demo_75mm"
+    name: str                  # registry key, e.g. "demo"
     params: Params
     s0: State
     notes: str = ""            # provenance: source of the numbers, date, what it is for

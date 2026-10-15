@@ -17,22 +17,18 @@ DAG (SS31.5): `configs/__init__` -> `configs.scenarios` ->
 `configs.{rockets, sites, weather, motors}` -> `configs.schema` ->
 `sim.*`, with no edge back up.
 
-Four seed motors per D-73 (SS32.10): `placeholder` and `synthetic_large`
-(both `.csv`, `mass_model="none"`, the pass-through case every pre-Step-80
-scenario still uses), `cti_k570` and `cti_k570_isp` (the same real `.eng`
-curve, `"endpoints"` vs `"isp"` -- D-59's equivalence, directly
-comparable). `configs.motors._TEMPLATE_motor` imports cleanly (SS31.8 #6)
+One registered motor, `cti_k570` (the real `.eng` curve, "endpoints"
+mass model; Phase 2.16, Step 91, `dev/docs/architecture-33-configs-one-demo.md`
+SS33.2). `configs.motors._TEMPLATE_motor` imports cleanly (SS31.8 #6)
 but is deliberately never in `_MODULES` -- see that module's docstring,
 and never add it there.
 
-Nothing is wired into `assemble` by this step (Step 80 does that) --
-`configs.names()` and every existing scenario are unaffected.
 """
 
-from configs.motors import cti_k570, cti_k570_isp, placeholder, synthetic_large
+from configs.motors import cti_k570
 from configs.schema import Motor
 
-_MODULES = (placeholder, synthetic_large, cti_k570, cti_k570_isp)
+_MODULES = (cti_k570,)
 
 MOTORS: dict[str, Motor] = {m.MOTOR.name: m.MOTOR for m in _MODULES}
 

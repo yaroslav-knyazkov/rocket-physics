@@ -18,19 +18,13 @@ succeed -- so the file does not silently rot; pinned by
 Referencing pieces by import, once you have some registered, looks
 like this:
 
-    from configs.rockets.demo_75mm import ROCKET  # replace with your own once you have one
+    from configs.rockets.demo import ROCKET  # replace with your own once you have one
 
-`configs.rockets.demo_75mm` does not exist yet as of this step (Step
-72 only builds the four registries -- `rockets`' and `scenarios`' are
-still empty; Step 73 is what moves the seed rockets in) -- the import
-above is illustrative, a forward reference to the shape Step 73
-produces, **not working code today**. This template builds its
-placeholder rocket inline below instead, exactly so the file can still
-import cleanly before any real rocket piece exists; the motor, site and
-weather pieces below, however, really do exist already
-(`configs.motors.placeholder`, `configs.sites.origin_msl`,
-`configs.weather.isa_dry_calm`), so those three imports are live,
-working examples of the pattern.
+This template builds its placeholder rocket and motor inline below
+instead, so the file stays self-contained; the site and weather pieces
+below really exist (`configs.sites.origin_msl`,
+`configs.weather.isa_dry_calm`), so those two imports are live, working
+examples of the pattern.
 
 A flat, whole-`Config` scenario module -- one `Config(...)` literal
 with no `Rocket`/`Motor`/`LaunchSite`/`Weather`/`Scenario` pieces at
@@ -95,26 +89,31 @@ data-table model (see configs/rockets/_TEMPLATE_rocket.py).
 
 from __future__ import annotations
 
-from configs.motors.placeholder import MOTOR
-from configs.schema import Airframe, Rocket, Scenario
+from configs.schema import Airframe, Motor, Rocket, Scenario
 from configs.sites import origin_msl
 from configs.weather import isa_dry_calm
+from sim.params import Thrust
 
 # Normally you would import a registered rocket piece, e.g.:
-#     from configs.rockets.demo_75mm import ROCKET  # <-- replace with your own once you have one
-# `configs.rockets` has no registered rockets yet as of this step, so
-# this template builds a minimal placeholder inline instead. See
-# configs/rockets/_TEMPLATE_rocket.py for every field, with comments.
+#     from configs.rockets.demo import ROCKET  # <-- replace with your own once you have one
+# This template builds a minimal placeholder rocket and motor inline
+# instead. See configs/rockets/_TEMPLATE_rocket.py and
+# configs/motors/_TEMPLATE_motor.py for every field, with comments.
 _placeholder_rocket = Rocket(
     name="my_rocket",                  # REQ, - -- rename to match whatever rocket you actually use
     airframe=Airframe(m=1.5, I=0.08),  # REQ, Airframe group -- see _TEMPLATE_rocket.py for the full field set
+)
+
+_placeholder_motor = Motor(
+    name="my_motor",  # REQ, - -- rename to match whatever motor you actually use
+    thrust=Thrust(motor_curve="placeholder.csv"),  # REQ, Thrust group -- motor_curve names a file under data/motors/ (see _TEMPLATE_motor.py)
 )
 
 SCENARIO = Scenario(
     name="my_scenario",  # REQ, - -- registry key; rename to match the filename once you rename it
 
     rocket=_placeholder_rocket,    # REQ, Rocket piece -- your own Rocket, built inline or imported
-    motor=MOTOR,                   # REQ, Motor piece -- your own Motor, see configs/motors/_TEMPLATE_motor.py
+    motor=_placeholder_motor,      # REQ, Motor piece -- your own Motor, see configs/motors/_TEMPLATE_motor.py
     site=origin_msl.SITE,          # REQ, LaunchSite piece -- swap for your own LaunchSite once you have one
     weather=isa_dry_calm.WEATHER,  # REQ, Weather piece -- swap for your own Weather once you have one
 
