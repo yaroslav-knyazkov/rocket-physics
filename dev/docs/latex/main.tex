@@ -50,12 +50,20 @@
 \newcommand{\todo}[1]{%
     \textcolor{red}{(#1)}%
 }
+% AI-written text is blue; the author's own text stays black. The author reviews the document
+% part by part and turns a reviewed part black by removing its wrapper.
+%   \ai{...}               inline or multi-paragraph (\newcommand is \long by default)
+%   \begin{aitext}...\end{aitext}   whole sections / \input files
+% \todo stays red inside either: its own \textcolor overrides the surrounding blue.
+\newcommand{\ai}[1]{{\color{blue}#1}}
+\newenvironment{aitext}{\color{blue}}{}
 
 \begin{document}
 
 \tableofcontents
 
 \newpage
+\begin{aitext}
 \section{Current assumptions}\label{sec:assumptions}
 This section collects, in one place, every simplification the current derivation and the
 simulator rely on. Each is expected to be relaxed in a later phase; the relevant model or backlog
@@ -127,17 +135,25 @@ choice'' at a glance.
     delivered intensity exact (\autoref{sec:backlog}); and there is no vertical component, for the
     same reason the mean profile has none.
 \end{itemize}
+\end{aitext}
 
 \newpage
+\begin{aitext}
 \input{sections-ai/rocket-2d}
+\end{aitext}
 
 \newpage
+\begin{aitext}
 \input{sections-ai/analysis}
+\end{aitext}
 
 \newpage
+\begin{aitext}
 \input{sections-ai/models}
+\end{aitext}
 
 \newpage
+\begin{aitext}
 \section{Backlog and future work}\label{sec:backlog}
 The complement of \autoref{sec:assumptions}: that section records what the present model
 simplifies, this one what is deliberately left undone. Each entry says what the item is and ---
@@ -240,5 +256,6 @@ tell a missing derivation from a missing input.
     transient, inflation shock and pendulum swing under the risers, rather than the current
     instantaneous-deployment, frozen-attitude treatment (\autoref{sec:recovery}).
 \end{itemize}
+\end{aitext}
 
 \end{document}
