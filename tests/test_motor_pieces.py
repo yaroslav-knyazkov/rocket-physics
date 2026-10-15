@@ -404,42 +404,51 @@ def test_motor_is_frozen():
 # ----------------------------------------------------------------------
 
 
-def test_import_configs_performs_no_filesystem_access(monkeypatch):
-    """Every currently-registered scenario stays on `mass_model="none"`'s
-    pass-through path (case 0), which never reaches `sim.motor_file` --
-    so patching `load`/`records` to blow up and re-importing the whole
-    `configs` package tree from scratch must not trip them."""
+def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
+    """D-70 (a): `import configs` reads a motor file only for a motor with
+    `mass_model != "none"`. Until Step 81 every registered scenario was on
+    the `"none"` pass-through path (case 0) and the import touched no file
+    at all; Step 81 registers `demo_75mm_k570` (`cti_k570`, "endpoints"),
+    the gated case. So: re-import the whole `configs` tree from scratch,
+    record every `sim.motor_file` call, and require that the only file
+    read is `cti_k570`'s own curve -- the four pre-phase seeds still read
+    nothing."""
+    calls = []
 
-    def _boom(*args, **kwargs):
-        raise AssertionError("sim.motor_file touched during configs import")
+    def _record(fn):
+        def wrapper(arg):
+            calls.append(arg)
+            return fn(arg)
 
-    monkeypatch.setattr(motor_file, "load", _boom)
-    monkeypatch.setattr(motor_file, "records", _boom)
+        return wrapper
+
+    monkeypatch.setattr(motor_file, "load", _record(motor_file.load))
+    monkeypatch.setattr(motor_file, "records", _record(motor_file.records))
 
     for name in list(sys.modules):
         if name == "configs" or name.startswith("configs."):
             del sys.modules[name]
 
     import configs as fresh_configs
+    from configs.motors import cti_k570
 
-    assert set(fresh_configs.names()) == {
-        "demo_75mm",
-        "demo_75mm_airbrake",
-        "demo_75mm_highland",
-        "toy_05kg",
-    }
     for name in fresh_configs.names():
         fresh_configs.get(name)  # exercises assemble() for every registered scenario/config
 
+    assert calls, "demo_75mm_k570 is on the gated path and must read its motor file"
+    assert set(calls) == {cti_k570.MOTOR.thrust.motor_curve}
 
-def test_configs_names_unchanged_nothing_wired_up_yet():
-    """SS32.1: this step adds types and a function, nothing is wired up --
-    the registry is exactly Step 74's four names."""
+
+def test_configs_names_after_step_81():
+    """SS32.1 / Step 81: Step 74's four names plus the one worked demo
+    that flies a real motor with the mass model on -- an intended,
+    user-visible change (`--list-configs` prints five names)."""
     import configs
 
     assert set(configs.names()) == {
         "demo_75mm",
         "demo_75mm_airbrake",
         "demo_75mm_highland",
+        "demo_75mm_k570",
         "toy_05kg",
     }
