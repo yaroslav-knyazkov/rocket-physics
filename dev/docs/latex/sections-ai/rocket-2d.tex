@@ -1,7 +1,6 @@
 \section{Rocket 2D}\label{sec:rocket2d}
-This section uses the new notation. The sections after it,
-and the simulator code, still use the older symbols until they are converted;
-\autoref{sec:notation} maps one onto the other.
+\autoref{sec:notation} lists every symbol used in this report together with the identifier the
+simulator uses for it.
 
 \subsection{Frames}\label{sec:frames}
 \begin{itemize}
@@ -172,7 +171,7 @@ once the propellant model of \autoref{sec:mass} is active --- they become $m(t),
 centre of gravity $g$ itself travels as $l_g(t)$. Reinterpreting $\mathcal{F}_0$ as Earth-fixed
 rather than inertial adds one further translational term to \autoref{eq:eom_trans} and nothing at
 all to \autoref{eq:eom_rot} (\autoref{sec:noninertial}). \autoref{sec:analysis} expands these two
-equations by hand (still in the older notation, \autoref{sec:notation}).
+equations by hand.
 
 These two equations describe \emph{free} flight, which is all of a flight except its two
 mechanically constrained phases. While the rocket is still on the launch rail
@@ -207,19 +206,28 @@ Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
 \end{itemize}
 
 \subsection{Notation}\label{sec:notation}
-This section uses the new notation. The older notation is still used by the
-later sections until they are converted, and by the simulator code (\texttt{sim/}), whose
-identifiers are not renamed. The two map as follows; ``not stored'' means the code keeps only an
-arm relative to the centre of gravity, not the length from the nose tip.
-\begin{center}
-\small
-\begin{tabular}{>{\raggedright\arraybackslash}p{1.5cm}
-                >{\raggedright\arraybackslash}p{2.1cm}
-                >{\raggedright\arraybackslash}p{4.9cm}
-                >{\raggedright\arraybackslash}p{4.9cm}
-                >{\raggedright\arraybackslash}p{1.3cm}}
+The table maps each symbol of this report to the identifier the simulator uses for it
+(\texttt{sim/} keeps its own names) and to the symbol used in earlier versions of this report.
+``Not stored'' means the code keeps only an arm relative to the centre of gravity, not the length
+from the nose tip; ``not implemented'' means the quantity appears in the report but not in the
+simulator.
+{\small
+\begin{longtable}{>{\raggedright\arraybackslash}p{2.6cm}
+                >{\raggedright\arraybackslash}p{2.0cm}
+                >{\raggedright\arraybackslash}p{4.1cm}
+                >{\raggedright\arraybackslash}p{4.4cm}
+                >{\raggedright\arraybackslash}p{1.5cm}}
 \hline
-\textbf{Here} & \textbf{Older doc} & \textbf{Code} & \textbf{Meaning} & \textbf{Units} \\
+\textbf{Report} & \textbf{Earlier doc} & \textbf{Code} & \textbf{Meaning} & \textbf{Units} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Report} & \textbf{Earlier doc} & \textbf{Code} & \textbf{Meaning} & \textbf{Units} \\
+\hline
+\endhead
+\hline
+\endfoot
+\multicolumn{5}{l}{\textbf{Geometry and frames}} \\
 \hline
 $A$ & $A$ & --- & nose tip, origin of all lengths & --- \\
 $g$ & $B$ & --- & centre of gravity & --- \\
@@ -235,43 +243,86 @@ $l_p-l_g$ & $l_1=l_D-l_B$ & \texttt{p.lengths.l1}; \texttt{aero.coefficients(\do
 $l_t-l_p$ & $l_2=l_C-l_D$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
 $\vec{gt}$, $\vec{gp}$ & $\vec{BC}$, $\vec{BD}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
 $\theta_t$ & $-\delta$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
+\hline
+\multicolumn{5}{l}{\textbf{Mass}} \\
+\hline
 $m$, $I$ & $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
 $m_r$ & $m_d$ less the casing & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
 $m_m(t)$ & $m_p$ (propellant only) & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
 $m_0$, $m_f$ & --- & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
-$\Delta t$ & --- & not used (no linear mass model) & burn duration & s \\
+$\Delta t$ & --- & not implemented (no linear mass model) & burn duration (linear mass model) & s \\
 $\Delta m$ & --- & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
 $\mathrm{ISP}$ & $I_{sp}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
 $g_0$ & $g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
-$T_0(t)$ & $T_{ref}(t)$ & \texttt{thrust\_curve} lookup & reference (test-stand) thrust & N \\
 $I_r$, $I_{r,g}$ & $I_d$ & \texttt{p.weight.I\_d} (dry assembly about its own centroid) & dry-rocket inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
 $I_m(t)$, $I_{m,g}(t)$ & $I_p(t)$ & \texttt{p.weight.I\_p\_spec}$\cdot m_p$ (propellant only) & motor inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
 $I_0$, $I_f$ & --- & \texttt{motor.I\_0}, \texttt{motor.I\_f} & $I_{m,g}$ at ignition, at burnout & $\mathrm{kg\,m^2}$ \\
 $l_{g,r}$, $r_{g,r}$ & $l_d$ & \texttt{p.weight.l\_d}; radial: not stored (constant \texttt{u\_B}) & dry-rocket centre of gravity (axial, radial) & m \\
 $l_{g,m}(t)$, $r_{g,m}(t)$ & $l_p$ (propellant) & \texttt{p.weight.l\_p} (fixed); radial: not stored & motor centre of gravity (axial, radial) & m \\
 $l_0$, $l_f$ & --- & \texttt{motor.l\_cog\_0}, \texttt{motor.l\_cog\_f} & $l_{g,m}$ at ignition, at burnout & m \\
+\hline
+\multicolumn{5}{l}{\textbf{Forces and aerodynamics}} \\
+\hline
 $S$ & $S$ & \texttt{p.aero.S} & aerodynamic reference area (same symbol in both) & $\mathrm{m^2}$ \\
 $c$ & $d_{ref}$ & \texttt{p.aero.d\_ref} & reference length of the pitching moment & m \\
 $C_x$, $C_z$, $C_m$ & $C_x$, $C_z$, $C_m$ ($C_A$, $C_N$) & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (constant model); fields of \texttt{aero.AeroCoeffs} & axial-force, normal-force, pitching-moment coefficients & --- \\
 $qSC_x$, $qSC_z$ & $A_x$, $A_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
 $qSc\,C_m$ & $A_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
-$T$, $\vec{T}$ & $T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & thrust magnitude; vector in $\mathcal{F}_r$ & N \\
-$q$ & $q$ & \texttt{flow.q} & dynamic pressure & Pa \\
-$v_{rel}$ & $V$ & \texttt{flow.V} & airspeed & m/s \\
-$\alpha$ & $\alpha$ & \texttt{flow.alpha} & angle of attack & rad \\
-$\theta_r$ & $\theta$ & \texttt{y[THETA]} & pitch angle & rad \\
-$\omega_r$ & $\omega=\dot\theta$ & \texttt{y[OMEGA]} & pitch rate & rad/s \\
-$\varepsilon_r$ & $\ddot\theta$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{sim/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
-$\vec{x}_r$ & $\vec{x}=(x,z)$ & \texttt{y[X]}, \texttt{y[Z]} & position in $\mathcal{F}_0$ & m \\
-$\vec{v}_r$ & $\dot{\vec{x}}$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity in $\mathcal{F}_0$ & m/s \\
-$\vec{a}_r$ & $\ddot{\vec{x}}$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
+$S_k$, $c_k$, $C_{x,k}$, $C_{z,k}$, $C_{m,k}$, $pp_k$ & --- & not implemented & aero component $k$: reference area and length, coefficients, reference point & $\mathrm{m^2}$, m, ---, m \\
+$C_{x,0}$, $k$ & $c_{x,0}$, $1/(e\pi\lambda)$ & not implemented & drag polar $C_x=C_{x,0}+kC_z^2$ & --- \\
+$\partial C/\partial\alpha$, $\partial C/\partial M$, $\partial C/\partial Re$ & --- & only the $\alpha$ slope is in the code & linearized-model slopes & 1/rad, ---, --- \\
+$C_{z,\alpha}$, $C_{m,\alpha}$, $C_{m,q}$, $C_{z,0}$, $C_{m,0}$ & $c_{z,\alpha}$, $c_{m,\alpha}$, $c_{m,q}$, \dots & aero coefficient inputs (\texttt{c\_mq} column of the aero table, \dots) & coefficient slopes and offsets & 1/rad or --- \\
 \hline
-\end{tabular}
-\end{center}
-$A$ is now only the nose tip, the reference area being $S$ (and $A_e$, $A_f$, $A_m$ keep their
-own subscripts). Some letters still carry two meanings and are told apart by context only: $g$ is both the
+\multicolumn{5}{l}{\textbf{Thrust}} \\
+\hline
+$T$, $\vec{T}$ & $T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & thrust magnitude; vector in $\mathcal{F}_r$ & N \\
+$T_0(t)$ & $T_{ref}(t)$ & \texttt{thrust\_curve} (\texttt{T\_ref}) & reference (test-stand) thrust & N \\
+$p_0$ & $p_{ref}$ & \texttt{p.thrust.p\_ref} & ambient pressure during the static test & Pa \\
+$A_e$ & $A_e$ & \texttt{p.thrust.A\_e} & nozzle exit area & $\mathrm{m^2}$ \\
+\hline
+\multicolumn{5}{l}{\textbf{Atmosphere and wind}} \\
+\hline
+$p_{atm}$ & $p_{amb}$ & \texttt{air\_state(\dots).p} & ambient pressure & Pa \\
+$q$ & $q$ & \texttt{flow.q} & dynamic pressure & Pa \\
+$v_{rel}$, $\vec{v}_{rel}$ & $V$ & \texttt{flow.V} & airspeed; relative-wind vector & m/s \\
+$v_{rel,x}$, $v_{rel,z}$ & $u$, $w$ & --- & relative-velocity components in $\mathcal{F}_r$ & m/s \\
+$\alpha$ & $\alpha$ & \texttt{flow.alpha} & angle of attack & rad \\
+$w_{up}$ & --- & not implemented & updraft speed ($w_z=-w_{up}$) & m/s \\
+$v_{ref}$ & $V_{ref}$ & turbulence setting & fixed reference airspeed of the Dryden spectrum & m/s \\
+\hline
+\multicolumn{5}{l}{\textbf{States and integration}} \\
+\hline
+$\vec{y}=(x,z,v_x,$ $v_z,\theta_r,\omega_r,m)$ & $\vec{y}$ & \texttt{y[X,}\allowbreak\texttt{Z,}\allowbreak\texttt{VX,}\allowbreak\texttt{VZ,}\allowbreak\texttt{THETA,}\allowbreak\texttt{OMEGA,}\allowbreak\texttt{M]} & integrated state vector & m, m/s, rad, rad/s, kg \\
+$\theta_r$ & $\theta$ & \texttt{y[THETA]} & pitch angle & rad \\
+$\omega_r$ & $\omega$ & \texttt{y[OMEGA]} & pitch rate & rad/s \\
+$\varepsilon_r$ & $\mathrm{d}\omega/\mathrm{d}t$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{sim/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
+$\vec{x}_r$ & $\vec{x}=(x,z)$ & \texttt{y[X]}, \texttt{y[Z]} & position in $\mathcal{F}_0$ & m \\
+$\vec{v}_r$ & $\mathrm{d}\vec{x}/\mathrm{d}t$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity in $\mathcal{F}_0$ & m/s \\
+$\vec{v}_g$ & $\vec{v}_B$ & \texttt{y[VX]}, \texttt{y[VZ]} & CoG velocity (the same vector as $\vec{v}_r$) & m/s \\
+$v_x$, $v_z$ & $\mathrm{d}x/\mathrm{d}t$, $\mathrm{d}z/\mathrm{d}t$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity components in $\mathcal{F}_0$ & m/s \\
+$\vec{a}_r$ & $\mathrm{d}\vec{v}/\mathrm{d}t$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
+$m_{launch}$ & --- & \texttt{s0.m}; \texttt{p.weight.m} & liftoff mass $m(0)$ & kg \\
+$h$ & $dt$ & \texttt{p.solver.dt} & fixed RK4 step & s \\
+$\theta_{rail}$, $L_{rail}$, $s_{rail}$, $\hat{e}_{rail}$ & same & \texttt{p.site.rail\_angle\_deg}, \texttt{p.site.L\_rail}, \texttt{rail\_distance}, \texttt{\_e\_rail} & rail elevation, length, distance travelled, direction & rad, m, m, --- \\
+\hline
+\multicolumn{5}{l}{\textbf{Recovery and air brake}} \\
+\hline
+$S_{ch}$, $C_{D,ch}$, $\vec{F}_{ch}$, $v_{term}$ & $S_c$, $C_{D,c}$, $\vec{F}_c$, $V_{term}$ & \texttt{p.recovery.S}, \texttt{p.recovery.Cd}, \texttt{forces.}\allowbreak\texttt{parachute\_}\allowbreak\texttt{drag\_}\allowbreak\texttt{inertial} & canopy area, drag coefficient, drag force, terminal speed & $\mathrm{m^2}$, ---, N, m/s \\
+$F_b$ & $A_{brake}$ & \texttt{control.airbrake\_*} & air-brake axial force & N \\
+\hline
+\multicolumn{5}{l}{\textbf{Analysis}} \\
+\hline
+$\hat{\omega}=\omega_r c/(2v_{rel})$ & $\hat{q}$ & --- & non-dimensional pitch rate & --- \\
+$M_{\theta_t}=(l_g-l_t)\,T\sin\theta_t$ & $M_\delta$ & --- & misalignment disturbance torque & N\,m \\
+$s_i$ & $l_i$ & --- & position of a body point relative to the CoG ($C_{m,q}$ derivation) & m \\
+$M_\alpha$, $M_q$, $\omega_n$, $\zeta$ & same & --- & short-period parameters & $\mathrm{1/s^2}$, 1/s, rad/s, --- \\
+\end{longtable}
+}
+$A$ is only the nose tip, the reference area being $S$ ($A_e$, $A_f$, $A_m$ carry their own
+subscripts). Some letters carry two meanings and are told apart by context only: $g$ is both the
 centre of gravity and the gravitational acceleration, and as a subscript both the point ($l_g$,
-$r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$). The mass model of \autoref{sec:mass}
-no longer uses $p$ for the propellant (subscript $m$ for the motor, $r$ for the dry rocket), so
-$l_p$ is only the aerodynamic reference point; in the code \texttt{p.weight.l\_p} is still the
-propellant centroid (the motor's $l_{g,m}$). $t$ as a point is likewise distinct from time $t$.
+$r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$); $t$ as a point is likewise distinct
+from time $t$, and $h$ is the RK4 step in \autoref{sec:states} but the altitude elsewhere. The
+mass model of \autoref{sec:mass} uses the subscript $m$ for the motor and $r$ for the dry rocket,
+so $l_p$ is only the aerodynamic reference point; in the code \texttt{p.weight.l\_p} is the
+propellant centroid (the motor's $l_{g,m}$).

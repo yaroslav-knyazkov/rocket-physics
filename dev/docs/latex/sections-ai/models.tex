@@ -7,7 +7,9 @@ together with the mass it consumes and the centre-of-gravity travel that follows
 environment the last of them is computed from: the air (\autoref{sec:atmosphere}), its motion
 (\autoref{sec:wind}), the relative flow those two produce (\autoref{sec:relwind}), and finally the
 fictitious-force corrections that come from the frame rather than from any force at all
-(\autoref{sec:noninertial}). This ordering deliberately allows forward references: a model
+(\autoref{sec:noninertial}). The states subsection (\autoref{sec:states}) then collects what
+those equations are integrated over: the state vector, the initial conditions and the integrator.
+This ordering deliberately allows forward references: a model
 sometimes uses a quantity defined further down (\autoref{sec:thrust}'s pressure correction needs
 $p_{atm}$ from \autoref{sec:atmosphere}, and \autoref{sec:aero} needs $\rho$ and $q$ from
 \autoref{sec:atmosphere} and $\alpha$ from \autoref{sec:relwind}); every such symbol is
@@ -237,8 +239,8 @@ gravity) and the \emph{motor} (subscript $m$: casing and remaining propellant, w
 mass $m_{m}(t)$, centre of gravity $l_{g,m}(t)$ and moment of inertia $I_{m,g}(t)$ about its own
 centre of gravity). The subscript $g$ on $I_{r,g}$, $I_{m,g}$ says ``about that body's own centre
 of gravity''; the total quantities $m$, $l_g$, $I$ carry no body subscript. $t$ is time since
-ignition. (Here $p$ is no longer a propellant subscript: it names only the aerodynamic reference
-point, \autoref{sec:notation}.) $g_0=9.80665\,\mathrm{m/s^2}$ is the standard gravity, a fixed
+ignition. (The subscript $p$ is not used for the propellant: it names only the aerodynamic
+reference point, \autoref{sec:notation}.) $g_0=9.80665\,\mathrm{m/s^2}$ is the standard gravity, a fixed
 constant of the definition of specific impulse and unrelated to the local $g(h)$ of
 \autoref{sec:gravity}.
 
@@ -267,7 +269,7 @@ $\mathrm{ISP}$ (seconds). The propellant leaves at the rate that delivers exactl
 integrated alongside the equations of motion until $m_m$ reaches $m_f$. The minus sign is
 essential: the motor mass decreases. \autoref{eq:mass_linear}
 is negative automatically, and \autoref{eq:mass_isp} must agree with it in sign. $T_0(t)$ is the
-\emph{reference} thrust curve (the test-stand curve, $T_{ref}$ of \autoref{sec:thrust}), not the
+\emph{reference} thrust curve (the test-stand curve $T_0$ of \autoref{sec:thrust}), not the
 pressure-corrected $T=T_0(t)+A_e(p_0-p_{atm})$ of D-88. The reason is that $\mathrm{ISP}$ is
 defined from the stand measurement: it is the ratio of the stand thrust to the propellant weight
 flow, and the nozzle-exit pressure term is a change in the force delivered to the airframe, not in
@@ -280,10 +282,11 @@ pressure-corrected $T$, not from the bare $T_0(t)$; the two differ only when $A_
 $A_e=0$, so no current result changes). Decide whether the code should be switched to $T_0$, as
 derived here.}
 
-\paragraph{In the code.} Only the specific-impulse model is implemented (\texttt{motor.mass\_model}
-$\in\{$\texttt{"none"}, \texttt{"isp"}, \texttt{"endpoints"}$\}$; the last obtains $\mathrm{ISP}$ from
-$J/(\Delta m\,g_0)$ as above; \texttt{mass.isp\_from\_impulse}). There is no separate linear-in-time
-model of \autoref{eq:mass_linear}; $m(t)$ is the integrated state \texttt{y[M]}.
+\paragraph{In the code.} Only the specific-impulse model is implemented, selected by
+\texttt{motor.mass\_model} with the values \texttt{"none"}, \texttt{"isp"} and \texttt{"endpoints"};
+the last obtains $\mathrm{ISP}$ from $J/(\Delta m\,g_0)$ as above
+(\texttt{mass.isp\_from\_impulse}). There is no separate linear-in-time model of
+\autoref{eq:mass_linear}; $m(t)$ is the integrated state \texttt{y[M]}.
 \todo{linear mass model (\autoref{eq:mass_linear}) is not implemented in sim/.}
 
 \subsubsection{Centre of gravity}\label{sec:mass_cog}
@@ -293,7 +296,8 @@ The first moment of mass about the nose tip $A$ is additive:
     \quad\Longrightarrow\quad
     l_g(t) = \frac{l_{g,r}\,m_r + l_{g,m}(t)\,m_m(t)}{m(t)},
 \end{equation}
-the CoG distance from the nose, replacing the constant $l_B$ of \autoref{sec:geometry}. The same
+the CoG distance from the nose, which is the time-dependent form of the constant $l_g$ of
+\autoref{sec:geometry}. The same
 holds for the radial offset when it is not zero,
 \begin{equation}\label{eq:mass_cog_r}
     r_g(t)\,m(t) = r_{g,r}\,m_r + r_{g,m}(t)\,m_m(t).
@@ -337,7 +341,7 @@ with $I_{m,g}=I_0$ at $m_m=m_0$ and $I_f$ at $m_m=m_f$.
 
 \paragraph{Radial offsets.}
 \autoref{eq:mass_cog_r} and \autoref{eq:mass_dist} are the general forms. The rest of this document
-treats $r_g$ as a constant as-built input (the old $u_B$ of \autoref{sec:geometry}, zero by
+treats $r_g$ as a constant as-built input (\autoref{sec:geometry}, zero by
 default), and the code does the same: the mass model is purely axial (\texttt{mass.cog\_position},
 \texttt{mass.moment\_of\_inertia} take no radial argument) and \texttt{p.lengths.u\_B} is a constant.
 For $r_{g,r}=r_{g,m}=0$ the two agree; for a rocket with an off-axis dry-rocket CoG, $r_g(t)$ would
@@ -361,8 +365,8 @@ pitch-damping of \autoref{sec:analysis_dynamic} for a short, high-thrust motor.}
 two-lump composition of \texttt{configs/schema.py}: a casing lump and a propellant lump of mass
 $m_{prop}$ with a \emph{fixed} propellant centroid and $I_{prop}\propto$ remaining propellant mass.
 Equivalent to \autoref{eq:mass_cog}--\autoref{eq:mass_inertia_parts} with the dry body
-$m_d=m_r+m_f$ (airframe plus casing; \texttt{Weight.m\_d}, \texttt{l\_d}, \texttt{I\_d}) and the
-motor reduced to the propellant alone (\texttt{l\_p}, \texttt{I\_p\_spec}). The endpoint inputs
+the dry body of mass $m_r+m_f$ (airframe plus casing; \texttt{Weight.m\_d}, \texttt{l\_d},
+\texttt{I\_d}) and the motor reduced to the propellant alone (\texttt{l\_p}, \texttt{I\_p\_spec}). The endpoint inputs
 $l_0,l_f,I_0,I_f$ (\texttt{l\_cog\_0}, \texttt{l\_cog\_f}, \texttt{I\_0}, \texttt{I\_f}) are not
 used to interpolate linearly: they are inverted at assembly time into the fixed-centroid
 propellant lump, which reproduces $l_0,l_f,I_0,I_f$ at both ends but is not linear in between.
@@ -443,14 +447,6 @@ so $S_k,c_k$ generally differ between components and from the airframe's $S,c$.
 \todo{sim/ carries a single aerodynamic component (one $S,c$ and one coefficient set per airframe);
 \autoref{eq:aero_multi} is not implemented.}
 
-\paragraph{Notation.} $C_x\equiv C_A$ and $C_z\equiv C_N$. The axial/normal names $C_A,C_N$ are the
-ones the wind-tunnel/CFD convention --- and hence the coefficient tables and slope inputs of
-\autoref{sec:aero_coeffs}, and the backlog items of \autoref{sec:backlog} --- are written in, and
-they are kept there; $C_x,C_z,C_m$ is the one body-axis triple used wherever all three appear
-together as a set, as in the definitions above. Same quantities, two spellings, and no renaming of
-either: this is the same device the document already uses for $c_z\equiv C_N$ in
-\autoref{sec:aero_linearization} and \autoref{sec:analysis_stability}.
-
 $l_p-l_g$ is the axial distance from the centre of gravity $g$ to the aerodynamic reference point
 $p$ of \autoref{sec:geometry}, positive with $p$ aft, so that $\vec{gp}=-(l_p-l_g)\hat{x}_r$ and
 the caliber static margin of \autoref{sec:analysis_stability} is $\mathrm{SM}=(l_p-l_g)/c$.
@@ -509,12 +505,12 @@ the table model is a two-variable $(M,\alpha)$ table; $Re$ enters neither.}
     \item \textbf{Linearized}: a single linear slope in $\alpha$ about the zero-$\alpha$ condition,
     with the moment arm still fixed,
     \begin{equation} \label{eq:aero_linearized}
-        C_x = C_{A0}, \qquad C_z = C_{N\alpha}\alpha, \qquad C_m = C_{m\alpha}\alpha, \qquad l_p-l_g \text{ fixed}.
+        C_x = C_{x,0}, \qquad C_z = C_{z,\alpha}\alpha, \qquad C_m = C_{m,\alpha}\alpha, \qquad l_p-l_g \text{ fixed}.
     \end{equation}
     This is \autoref{eq:aero_general_linear} with $C_{z,0}=C_{m,0}=0$ and no $M$ or $Re$ slope.
     $M$-independent, and valid only for small $\alpha$ --- which an on-trajectory flight of a
     statically stable airframe mostly is. Implementation note: $C_z,C_m$ are evaluated as
-    $C_{N\alpha}\sin\alpha$, $C_{m\alpha}\sin\alpha$ in code (identical to the formula above for
+    $C_{z,\alpha}\sin\alpha$, $C_{m,\alpha}\sin\alpha$ in code (identical to the formula above for
     small $\alpha$, within $0.4\%$ at $8.6^\circ$) rather than the raw linear form. This is a
     numerical-robustness fix, not a different physical model:
     $\alpha=\operatorname{atan2}(w,u)$ is discontinuous at its own branch cut ($u<0$, $w$ crossing
@@ -548,7 +544,7 @@ line is the header, and every following line is one grid point $(M,\alpha)$:
 \texttt{C\_N} & normal-force coefficient ($C_z$) & --- \\
 \texttt{C\_m} & pitching-moment coefficient & --- \\
 \texttt{l1\_m} & arm $l_p-l_g$ from the centre of gravity to $p$, positive aft & m \\
-\texttt{c\_mq} & pitch-damping derivative $c_{m,q}$ (optional column) & --- \\
+\texttt{c\_mq} & pitch-damping derivative $C_{m,q}$ (optional column) & --- \\
 \hline
 \end{tabular}
 \end{center}
@@ -559,22 +555,22 @@ linear in $\alpha$, then linear blend across the $M$ bracket); nothing is extrap
 \texttt{Re} column and a trilinear interpolation. A long CSV (one row per grid point) is kept as the
 exchange format since it is what CFD post-processing scripts export most easily.}
 
-\paragraph{Pitch damping across the models.} The pitch-damping derivative $c_{m,q}$ ---
-\autoref{sec:analysis_dynamic}, which also owns its sign convention, positive $c_{m,q}$ being
+\paragraph{Pitch damping across the models.} The pitch-damping derivative $C_{m,q}$ ---
+\autoref{sec:analysis_dynamic}, which also owns its sign convention, positive $C_{m,q}$ being
 damping in this document's fixed sign of $\vec{A}_m$, the deliberate flip from the textbook sign --- is a
 property of the airframe, not of how the static coefficients above happen to be supplied. It
 therefore applies under all three models. Constant and Linearized both take it as a single constant
-input; Table takes it from an optional $c_{m,q}$ column when the table carries one and falls back
+input; Table takes it from an optional $C_{m,q}$ column when the table carries one and falls back
 to that same constant input when it does not. It enters as an additive contribution to $C_m$
 itself, exactly as \autoref{sec:analysis_dynamic} writes it, so \autoref{eq:aero_magnitudes} needs
 no modification: whichever model supplied the static $C_m$, it gains the further term
-$\hat{q}\,c_{m,q}$, with $\hat{q}=\omega_r c/(2v_{rel})$ the non-dimensional pitch rate.
+$\hat{\omega}\,C_{m,q}$, with $\hat{\omega}=\omega_r c/(2v_{rel})$ the non-dimensional pitch rate.
 Implementation note, of the same kind as $\sin\alpha$ above: the resulting moment contribution is
 evaluated in the equivalent product form
 \begin{equation} \label{eq:pitch_damping_moment}
-    qSc\,\hat{q}\,c_{m,q} = \tfrac14\rho v_{rel}Sc^2\,\omega_r\,c_{m,q},
+    qSc\,\hat{\omega}\,C_{m,q} = \tfrac14\rho v_{rel}Sc^2\,\omega_r\,C_{m,q},
 \end{equation}
-which never forms $\hat{q}$ and so never divides by $v_{rel}$ --- the same $v_{rel}=0$ at apogee that the
+which never forms $\hat{\omega}$ and so never divides by $v_{rel}$ --- the same $v_{rel}=0$ at apogee that the
 branch cut above is about would otherwise produce $0\cdot\infty$.
 
 The resulting force is resolved along the body axes directly --- \emph{not} rotated into the
@@ -586,7 +582,7 @@ coefficients themselves.
 What the Table model's database has to cover --- equally, what any future build-up replacing it
 would have to reproduce: angle of attack $\alpha$ (nonlinear at high $\alpha$ once flow
 separates), Mach number $M$ (compressibility, transonic/supersonic drag rise), Reynolds number
-$Re$ (boundary-layer state, viscous/skin-friction contribution to $C_A$), and geometry (fin
+$Re$ (boundary-layer state, viscous/skin-friction contribution to $C_x$), and geometry (fin
 planform and cant, body-fin interference, surface finish) --- introducing exactly the $Re,M$ of
 \autoref{sec:reynolds_mach}.
 \todo{expand once the CFD/data-extraction pipeline that populates this database is defined; a
@@ -596,27 +592,24 @@ entry point as an identity-by-default seam, with no non-identity variant registe
 the surface's geometry nor any deflection law is written down here; the one control surface that
 \emph{is} modelled, the air brake of \autoref{sec:airbrake}, deliberately does not use it, entering
 instead as a separate additive drag area that leaves $C_x,C_z,C_m,l_p-l_g$ untouched; pitch rate is
-covered above through $c_{m,q}$ as a constant or a table column, not as a function of $(\alpha,M)$
+covered above through $C_{m,q}$ as a constant or a table column, not as a function of $(\alpha,M)$
 in its own right; and, for 3D, other stuff}
 
 \subsubsection{Linearization of coefficients}\label{sec:aero_linearization}
 Coefficients can be linearised in $\alpha$ for the static-stability analysis of
 \autoref{sec:analysis_stability}:
 \begin{equation}
-    c_z = c_{z,0} + \alpha c_{z,\alpha},
+    C_z = C_{z,0} + \alpha\,C_{z,\alpha},
 \end{equation}
 \begin{equation}
-    c_m = c_{m,0} + \alpha c_{m,\alpha},
+    C_m = C_{m,0} + \alpha\,C_{m,\alpha},
 \end{equation}
-where $c_z\equiv C_z\equiv C_N$ and $c_m\equiv C_m$ (and, in the drag polar below,
-$c_x\equiv C_x\equiv C_A$): the lowercase form is kept purely because that is the historical
-notation of that section, not a different quantity --- one more spelling of the same three
-coefficients, on top of the $C_x\equiv C_A$, $C_z\equiv C_N$ bridge of the Force and moment
-subsection. Note also that this linearisation and the \textbf{Linearized} model of
+where $C_{z,\alpha}=\partial C_z/\partial\alpha$ and $C_{m,\alpha}=\partial C_m/\partial\alpha$ are the
+slopes and $C_{z,0}$, $C_{m,0}$ the offsets. Note that this linearisation and the \textbf{Linearized} model of
 \autoref{sec:aero_coeffs} are not the same statement: the former is an analysis device applied to
 whichever coefficients are in force, the latter is a choice of how to supply them ---
-\autoref{eq:aero_linearized} is exactly the two equations above with $c_{z,0}=c_{m,0}=0$, together
-with a constant $C_x=C_{A0}$ in place of any drag polar.
+\autoref{eq:aero_linearized} is exactly the two equations above with $C_{z,0}=C_{m,0}=0$, together
+with a constant $C_x=C_{x,0}$ in place of any drag polar.
 
 \paragraph{Optional drag polar.} Instead of supplying $C_x$ as an independent family, it can be
 tied to the normal-force coefficient through an induced-drag term,
@@ -634,7 +627,7 @@ misses flow separation and the Mach-number dependence of $k$ unless $C_{x,0}$ an
 themselves tabulated in $M$; and the axial force on a slender body at $\alpha$ is not purely
 induced drag.
 \todo{decide whether to adopt the drag polar (\autoref{eq:drag_polar}). sim/ does not have it:
-$C_x$ is constant, $C_{A0}$ or a table column.}
+$C_x$ is constant, $C_{x,0}$ or a table column.}
 
 \subsection{Atmosphere}\label{sec:atmosphere}
 Goal: given altitude $h$ (and, for the interpolated model, horizontal position), provide the local
@@ -902,16 +895,16 @@ hence in the aerodynamic force; it is not smoothed, since no source specifies a 
 
 The one-sided temporal power spectral densities are
 \begin{gather}
-    \Phi_u(\omega) = \sigma_u^2\,\frac{2L_u}{\pi V_{ref}}\,\frac{1}{1+\left(L_u\omega/V_{ref}\right)^2}
+    \Phi_u(\omega) = \sigma_u^2\,\frac{2L_u}{\pi v_{ref}}\,\frac{1}{1+\left(L_u\omega/v_{ref}\right)^2}
         \label{eq:dryden_psd_u} \\
-    \Phi_v(\omega) = \sigma_v^2\,\frac{L_v}{\pi V_{ref}}\,
-        \frac{1+3\left(L_v\omega/V_{ref}\right)^2}{\left[1+\left(L_v\omega/V_{ref}\right)^2\right]^2}
+    \Phi_v(\omega) = \sigma_v^2\,\frac{L_v}{\pi v_{ref}}\,
+        \frac{1+3\left(L_v\omega/v_{ref}\right)^2}{\left[1+\left(L_v\omega/v_{ref}\right)^2\right]^2}
         \label{eq:dryden_psd_v}
 \end{gather}
 both normalised so that $\int_0^\infty\Phi\,\mathrm{d}\omega=\sigma^2$ exactly. They are realised
 as a frozen random-phase sum over a log-spaced frequency grid $\{\omega_i\}$ with bin widths
 $\{\Delta\omega_i\}$ (periods from $600\,\mathrm{s}$, longer than any flight, down to
-$0.2\,\mathrm{s}$, which the break frequency $V_{ref}/L_u$ demands just off the pad):
+$0.2\,\mathrm{s}$, which the break frequency $v_{ref}/L_u$ demands just off the pad):
 \begin{equation} \label{eq:dryden_synthesis}
     k_i = \Phi(\omega_i)\Delta\omega_i, \qquad
     w_i = \sqrt{\frac{2k_i}{\sum_jk_j}}, \qquad
@@ -946,7 +939,7 @@ the 2D closure discards $w_y$ (\autoref{sec:assumptions}), so $v$ has no effect 
 this model integrates --- it is carried because it is half of what makes ``Dryden'' an honest
 label, and because the 6DOF work of \autoref{sec:backlog} picks it up unchanged.
 
-Two deliberate limitations, both named rather than hidden. First, $V_{ref}$ is a \emph{fixed input},
+Two deliberate limitations, both named rather than hidden. First, $v_{ref}$ is a \emph{fixed input},
 not the rocket's own relative airspeed $v_{rel}$ of \autoref{sec:relwind}: Dryden's temporal spectra
 describe what a vehicle flying at a constant airspeed through a frozen turbulence field measures,
 and this rocket's airspeed spans zero on the pad to supersonic at burnout. Driving the spectrum
@@ -955,8 +948,8 @@ the airspeed $v_{rel}$ at time $t$ is part of what the solver is still solving f
 right-hand side at arbitrary, repeated and rejected times, so a quantity that is not a function of
 $(t,\vec{y})$ alone destroys its step-size control and its reproducibility. The damage is bounded
 and worth stating precisely: after the renormalisation in \autoref{eq:dryden_synthesis} the
-prefactors cancel, so $V_{ref}$ and $L$ enter only through the ratio $L/V_{ref}$ --- a time, the
-eddy-crossing period. $V_{ref}$ therefore has \emph{no} effect on the delivered intensity, only on
+prefactors cancel, so $v_{ref}$ and $L$ enter only through the ratio $L/v_{ref}$ --- a time, the
+eddy-crossing period. $v_{ref}$ therefore has \emph{no} effect on the delivered intensity, only on
 where the spectrum's knee sits in frequency, i.e.\ whether the rocket meets 30-second swells or
 one-second buffets. The practical rule: set it to the airspeed over the part of the flight whose
 turbulence matters to the question being asked. Lifting this needs the sampled evaluation mode of
@@ -1247,22 +1240,22 @@ no hidden dynamical state of their own, which is what lets them be pure function
     scheme with relative tolerance $10^{-8}$ and absolute tolerance $10^{-10}$ on every component of
     $\vec{y}$, dense output on, and a time limit of $300\,\mathrm{s}$. Events (below) are located
     to solver tolerance by root finding on the dense output.
-    \item \textbf{Fixed-step classical Runge--Kutta 4}, a hand-written scheme with step $\Delta t$
+    \item \textbf{Fixed-step classical Runge--Kutta 4}, a hand-written scheme with step $h$
     (default $1\,\mathrm{ms}$):
     \begin{equation} \label{eq:rk4}
-        \vec{y}_{k+1}=\vec{y}_k+\frac{\Delta t}{6}\left(\vec{k}_1+2\vec{k}_2+2\vec{k}_3+\vec{k}_4\right),
+        \vec{y}_{k+1}=\vec{y}_k+\frac{h}{6}\left(\vec{k}_1+2\vec{k}_2+2\vec{k}_3+\vec{k}_4\right),
     \end{equation}
-    with $\vec{k}_1=\vec{f}(t_k,\vec{y}_k)$, $\vec{k}_{2,3}=\vec{f}\!\left(t_k+\tfrac{\Delta t}{2},
-    \vec{y}_k+\tfrac{\Delta t}{2}\vec{k}_{1,2}\right)$, $\vec{k}_4=\vec{f}(t_k+\Delta t,
-    \vec{y}_k+\Delta t\,\vec{k}_3)$ and $\vec{f}$ the right-hand side. It has no step control and no
+    with $\vec{k}_1=\vec{f}(t_k,\vec{y}_k)$, $\vec{k}_{2,3}=\vec{f}\!\left(t_k+\tfrac{h}{2},
+    \vec{y}_k+\tfrac{h}{2}\vec{k}_{1,2}\right)$, $\vec{k}_4=\vec{f}(t_k+h,
+    \vec{y}_k+h\,\vec{k}_3)$ and $\vec{f}$ the right-hand side. It has no step control and no
     event location: events are detected afterwards from sign changes between consecutive steps and
-    placed by linear interpolation inside the step, so they are accurate to about $\Delta t$. It is
+    placed by linear interpolation inside the step, so they are accurate to about $h$. It is
     the cross-check of the adaptive path, and the only one that supports the sampled-data mode of
     \autoref{sec:sampled}.
 \end{itemize}
 Both integrate the same right-hand side, so the two differ only in the numerical error.
 \todo{Document the cost/accuracy trade-off between the two integrators with a convergence
-study (error against $\Delta t$ and against tolerance).}
+study (error against $h$ and against tolerance).}
 
 \paragraph{Events.} Five events are watched; only the first ends the run. Each is a sign change of
 a scalar function of $(t,\vec{y})$:
@@ -1549,7 +1542,7 @@ Three requirements come with \autoref{eq:zoh}, and each is a consequence rather 
 \begin{enumerate}
     \item \textbf{Fixed-step integration, with $T_s$ an exact integer multiple of the step.} An
     adaptive step cannot honour a hold boundary, so this mode requires the fixed-step scheme, and
-    $T_s/\Delta t$ must be an integer so that every hold boundary falls exactly on a step boundary.
+    $T_s/h$ must be an integer so that every hold boundary falls exactly on a step boundary.
     A non-integer ratio is rejected rather than rounded, since rounding it would silently change
     the sample rate from the configured one.
     \item \textbf{The hold is constant across every stage of a substep.} Inside a tick the

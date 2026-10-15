@@ -11,6 +11,7 @@
 \usepackage{tikz}
 \usepackage{nomencl}
 \usepackage{array}
+\usepackage{longtable}
 \usepackage{pdflscape}
 \usepackage[export]{adjustbox}
 \usepackage[utf8]{inputenc}
@@ -113,7 +114,7 @@ choice'' at a glance.
     of length $L_{rail}$ constrains translation to one fixed direction and freezes $\theta_r$ until
     the rocket clears it, with no friction and no tip-off (\autoref{sec:rail}); a recovery canopy,
     once deployed at apogee or on a timer, adds a drag force opposing the inertial relative-wind
-    vector and likewise freezes $\theta$, modelling neither its own opening transient nor the
+    vector and likewise freezes $\theta_r$, modelling neither its own opening transient nor the
     body's pendulum swing underneath it (\autoref{sec:recovery}); and an air brake modulates axial
     drag during the unpowered coast, as a switchable extra drag area standing alone rather than a
     surface derived from an airframe --- the wing-body treatment of \autoref{sec:backlog} ---
@@ -182,14 +183,14 @@ tell a missing derivation from a missing input.
     \item \textbf{Wing-body aerodynamics: analytic CoP, airframe, air brake.} Replace the
     tabulated, linearized or constant coefficients of \autoref{sec:aero} with a wing-body
     (Barrowman-style) build-up. Conceptually: the nose, the body, and each fin each contribute
-    their own normal-force slope $C_{N\alpha,i}$ and their own centre-of-pressure location
+    their own normal-force slope $C_{z,\alpha,i}$ and their own centre-of-pressure location
     $X_i$ (a slender
     nose/body contributes a small, often near-zero net slope away from the nose in the classical
     linear treatment, aside from any boat-tail correction; each fin's contribution uses a
     corrected 2D lift-curve slope, an interference factor between fin and body, and an
     effective aspect ratio from its planform), and the assembly's centre of pressure is the
-    $C_{N\alpha}$-weighted average of the component locations,
-    $X_{cp}=\sum_iC_{N\alpha,i}X_i/\sum_iC_{N\alpha,i}$ --- so that $(l_p-l_g)(\alpha,M)$ is
+    $C_{z,\alpha}$-weighted average of the component locations,
+    $X_{cp}=\sum_iC_{z,\alpha,i}X_i/\sum_iC_{z,\alpha,i}$ --- so that $(l_p-l_g)(\alpha,M)$ is
     \emph{computed} from the airframe rather than read from a table, and an air brake enters as a
     switchable change to $C_x$ and to the CoP. That last point of entry is already fixed by the
     structure of \autoref{sec:aero}: whatever a control surface does, it does by perturbing
@@ -204,9 +205,9 @@ tell a missing derivation from a missing input.
     and fin planform (root/tip chord, span, sweep, thickness, count) --- which this document does
     not yet fix anywhere.
     \item \textbf{Dynamic stability, quantitatively.} The framework is now in the document
-    (\autoref{sec:analysis_dynamic}): a pitch-damping derivative $c_{m,q}$ linearises into a
+    (\autoref{sec:analysis_dynamic}): a pitch-damping derivative $C_{m,q}$ linearises into a
     damped short-period oscillator with natural frequency $\omega_n$ and damping ratio $\zeta$.
-    What is missing is a value or model for $c_{m,q}$ itself. \emph{Waiting on:} either a measured
+    What is missing is a value or model for $C_{m,q}$ itself. \emph{Waiting on:} either a measured
     value (forced-oscillation wind-tunnel testing, or unsteady CFD) or a full distributed-force
     derivation from the airframe geometry of the previous item.
     \item \textbf{Propellant grain geometry behind $I_{m,g}(t)$ and $l_{g,m}(t)$.} The physical
