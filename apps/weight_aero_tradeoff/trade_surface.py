@@ -1,6 +1,6 @@
 """apps/weight_aero_tradeoff/trade_surface.py -- App 5 mode (b): the 2-D
 weight-vs-aero trade surface and its exchange rate (Step 67, roadmap.md;
-docs/architecture-30-apps-4-5-and-configs.md SS30.7.1).
+dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.1).
 
 **What this answers.** "If a fairing change costs me N grams and saves me
 M cm^2 of C_dA, is it worth it?" -- the trade surface turns that into a

@@ -1,3 +1,5 @@
+> Архив: старый трекер до 2026-10-15, перенесён без изменений. Живой трекер — dev/PROJECT-STATUS.md.
+
 # Rocket Trajectory Simulation — Project Status
 
 ## Summary

@@ -1,5 +1,5 @@
 """Tests for the four piece-registry subpackages (Step 72,
-docs/architecture-31-config-separation.md SS31.5/SS31.7/SS31.8 #2, #3,
+dev/docs/architecture-31-config-separation.md SS31.5/SS31.7/SS31.8 #2, #3,
 #6).
 
 As of this step:

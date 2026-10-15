@@ -1,5 +1,5 @@
 """configs/sites/ -- the launch-site-piece registry (Step 72,
-docs/architecture-31-config-separation.md SS31.5).
+dev/docs/architecture-31-config-separation.md SS31.5).
 
 Same registry shape as `configs/__init__.py`: an explicit `_MODULES`
 tuple (never directory auto-discovery), `SITES` keyed off each

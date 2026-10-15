@@ -1,5 +1,5 @@
 """Tests for the Step 73 switch-over -- seeds split into pieces,
-`configs.get` delegates to `configs.scenarios` (`docs/architecture-31-
+`configs.get` delegates to `configs.scenarios` (`dev/docs/architecture-31-
 config-separation.md` SS31.7/SS31.8 items 5, 7, 8).
 
 The four pre-existing exact-equality pins in `tests/test_configs.py`

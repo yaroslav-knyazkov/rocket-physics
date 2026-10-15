@@ -1,5 +1,5 @@
 """apps/weight_aero_tradeoff/scenarios.py -- the default trade-surface
-grid (Step 67, roadmap.md; docs/architecture-30-apps-4-5-and-configs.md
+grid (Step 67, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md
 SS30.7.1).
 
 Per the project's D-23 convention (a Python literal, every number
@@ -73,7 +73,7 @@ def default_axes(cfg: Config) -> TradeAxes:
 
 
 # ----------------------------------------------------------------------
-# App 5 mode (a) (Step 68, roadmap.md; docs/architecture-30-apps-4-5-and-
+# App 5 mode (a) (Step 68, roadmap.md; dev/docs/architecture-30-apps-4-5-and-
 # configs.md SS30.7.2): named-scenario comparison inputs.
 # ----------------------------------------------------------------------
 

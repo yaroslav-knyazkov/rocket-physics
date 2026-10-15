@@ -1,5 +1,5 @@
 """configs/weather/_TEMPLATE_weather.py -- TEMPLATE, fill in your own
-numbers (Step 72, docs/architecture-31-config-separation.md SS31.5).
+numbers (Step 72, dev/docs/architecture-31-config-separation.md SS31.5).
 
 This file is a blank `Weather` piece: one flying day's air -- the
 atmosphere model, the sounding case it may read, and the wind, all in

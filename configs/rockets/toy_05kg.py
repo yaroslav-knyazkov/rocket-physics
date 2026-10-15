@@ -1,7 +1,7 @@
 """configs/rockets/toy_05kg.py -- the 0.5 kg / S=0.005 / C_x=0.5 placeholder
 vehicle (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved here and
-reduced to a `Rocket` at Step 73, `docs/architecture-31-config-separation.md`
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; moved here and
+reduced to a `Rocket` at Step 73, `dev/docs/architecture-31-config-separation.md`
 SS31.7).
 
 Copied number-for-number, including its justifying comments, from

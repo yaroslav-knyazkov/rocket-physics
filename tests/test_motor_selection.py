@@ -31,7 +31,7 @@ from sim.integrate import Result, run_sim
 from sim.params import Lengths, Params, Weight, replace as params_replace, with_solver
 from sim.state import State, X
 
-# Nominal total impulse per fixture (docs/architecture-29-motor-selection.md
+# Nominal total impulse per fixture (dev/docs/architecture-29-motor-selection.md
 # SS29.5's table; also pinned independently, against the raw-knot
 # trapezoid, in tests/test_thrust_curve.py).
 _NOMINAL_IMPULSE = {

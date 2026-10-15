@@ -1,5 +1,5 @@
 """configs/rockets/ -- the rocket-piece registry (Step 72,
-docs/architecture-31-config-separation.md SS31.5).
+dev/docs/architecture-31-config-separation.md SS31.5).
 
 Same registry shape as `configs/__init__.py`, one level down: an
 explicit `_MODULES` tuple (never directory auto-discovery -- a
@@ -16,7 +16,7 @@ the bottom of the import DAG (SS31.5): `configs/__init__` ->
 `configs.schema` -> `sim.*`, with no edge back up.
 
 `toy_05kg` and `demo_75mm` moved here at Step 73
-(`docs/architecture-31-config-separation.md` SS31.7), which is also what
+(`dev/docs/architecture-31-config-separation.md` SS31.7), which is also what
 first populates `names()`. `configs.rockets._TEMPLATE_rocket` imports
 cleanly (SS31.8 #6) but is deliberately never in `_MODULES` -- see that
 module's docstring.

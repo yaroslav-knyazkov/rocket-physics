@@ -1,5 +1,5 @@
 """apps/airbrake_sizing/targets.py -- the study input literal (D-23 style,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.6).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6).
 
 A target apogee is a *mission requirement*, not a property of the vehicle:
 the same `configs.demo_75mm_airbrake` gets re-solved against several

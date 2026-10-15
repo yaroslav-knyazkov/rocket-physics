@@ -1,5 +1,5 @@
 """Tests for apps/common/ (Step 64, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.5/SS30.8).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.5/SS30.8).
 
 `tests/test_motor_selection.py` must not be edited for this step (the
 ticket's own gate), so this is a new, separate file. Its one pinned check

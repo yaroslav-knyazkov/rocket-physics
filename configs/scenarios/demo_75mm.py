@@ -1,8 +1,8 @@
 """configs/scenarios/demo_75mm.py -- the architect's own synthetic 1.5 kg
 / 75 mm scenario (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.4; split into a
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4; split into a
 `Scenario` composing the `demo_75mm` rocket piece at Step 73,
-`docs/architecture-31-config-separation.md` SS31.7).
+`dev/docs/architecture-31-config-separation.md` SS31.7).
 
 The vehicle numbers (and the `thrust.motor_curve="placeholder.csv"`
 judgment call -- see that module's docstring) live in

@@ -1,8 +1,8 @@
 """configs/scenarios/demo_75mm_airbrake.py -- the airbrake-capable variant
 of demo_75mm, registered for App 4 (airbrake sizing, roadmap Step 66, not
 yet built) to default to (Step 63, roadmap.md,
-`docs/architecture-30-apps-4-5-and-configs.md` SS30.3/SS30.4; recomposed
-at Step 73, `docs/architecture-31-config-separation.md` SS31.7).
+`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.3/SS30.4; recomposed
+at Step 73, `dev/docs/architecture-31-config-separation.md` SS31.7).
 
 SS30.6 explains why there is nothing of substance for *this* module to
 carry beyond the vehicle itself: "The app [4] owns control.airbrake_*

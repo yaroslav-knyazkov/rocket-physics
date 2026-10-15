@@ -1,5 +1,5 @@
 """configs/weather/ -- the weather-piece registry (Step 72,
-docs/architecture-31-config-separation.md SS31.5, D-53).
+dev/docs/architecture-31-config-separation.md SS31.5, D-53).
 
 This is the user's *atmosphere* axis; it carries wind and the
 sounding case too, because a sounding measures both (SS31.3.3, F4).

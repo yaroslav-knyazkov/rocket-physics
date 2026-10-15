@@ -1,5 +1,5 @@
 """Tests for the four piece types and `assemble` (Step 71, roadmap.md,
-`docs/architecture-31-config-separation.md` SS31.4/SS31.8).
+`dev/docs/architecture-31-config-separation.md` SS31.4/SS31.8).
 
 Per SS31.8 #1 and #4: the structural one-owner guard for `assemble`'s
 `Params(...)` call (implemented both behaviorally -- assembling
