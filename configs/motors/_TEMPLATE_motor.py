@@ -1,11 +1,11 @@
-"""configs/motors/_TEMPLATE_motor.py -- TEMPLATE, fill in your own numbers
+r"""configs/motors/_TEMPLATE_motor.py -- TEMPLATE, fill in your own numbers
 (Phase 2.16, Step 79, dev/docs/architecture-32-motor-separation.md SS32.2.1).
 
 This file is a blank `Motor` piece: one motor installation -- its thrust
 curve, and its OWN mass / CoG / MOI history. Every field below is
 commented `# REQ|OPT, <unit/choices> -- <one line>`, the SS32.8
-documentation convention, written here first so Step 82's later pass has
-nothing left to do to this file.
+documentation convention. Fields the template leaves at their default are
+listed as commented-out lines -- uncomment one to set it.
 
 Geometry on a `Motor` is MOTOR-LOCAL: the origin is the motor's forward
 (nose-ward) face and distances are POSITIVE aft (SS32.5) -- the same
@@ -24,17 +24,18 @@ the file does not silently rot; pinned by
 `tests/test_config_registries.py` (SS31.8 #6).
 
 To use this template:
-  1. Fill in every `# <-- fill this in` field below with your own numbers.
+  1. Fill in every `# REQ` field below with your own numbers.
   2. Rename this file (and the `name="my_motor"` string below) to
      whatever you want your motor called.
   3. Add `from configs.motors import <your_module_name>` and one line
      to `configs/motors/__init__.py`'s `_MODULES` tuple.
 
-| field      | REQ/OPT | unit / choices           | default   | what it does |
-|------------|---------|---------------------------|-----------|--------------|
+### Motor
+| field      | REQ/OPT | unit / choices             | default   | what it does |
+|------------|---------|----------------------------|-----------|--------------|
 | name       | REQ     | -                          | --        | registry key; must equal the filename |
 | thrust     | REQ     | Thrust group               | Thrust()  | the curve file, nozzle exit area, reference pressure; owns `Params.thrust` whole |
-| mass_model | OPT     | none / isp / endpoints    | "none"    | which m(t) model; "none" = constant mass, every field below inert |
+| mass_model | OPT     | none \| isp \| endpoints   | "none"    | which m(t) model; "none" = constant mass, every field below inert |
 | m_total    | OPT     | kg                         | None      | loaded mass at ignition (.eng header field 6); None -> read from the file's header |
 | m_prop     | OPT     | kg                         | None      | propellant mass (.eng header field 5); None -> read from the file's header |
 | I_sp       | OPT     | s                          | None      | specific impulse; REQ when mass_model == "isp", ignored otherwise |
@@ -49,6 +50,13 @@ To use this template:
 | I_0        | OPT     | kg*m^2                     | None      | motor's own MOI at ignition, about its own CoG (endpoint form) |
 | I_f        | OPT     | kg*m^2                     | None      | motor's own MOI at burnout, about its own CoG (endpoint form) |
 | notes      | OPT     | -                          | ""        | provenance: vendor, datasheet, date, measured or estimated |
+
+### Thrust
+| field       | REQ/OPT | unit / choices            | default  | what it does |
+|-------------|---------|---------------------------|----------|--------------|
+| motor_curve | REQ     | filename under data/motors/ | ""     | thrust curve file; "<file>#<designation>" picks one record of a multi-record RASP library |
+| A_e         | OPT     | m^2                       | 0.0      | nozzle exit area; 0.0 = pressure correction inert |
+| p_ref       | OPT     | Pa                        | 101325.0 | ambient pressure the curve was measured at |
 """
 
 from __future__ import annotations
@@ -59,14 +67,17 @@ from sim.params import Thrust
 MOTOR = Motor(
     name="my_motor",  # REQ, - -- registry key; rename to match the filename once you rename it
 
-    thrust=Thrust(
-        motor_curve="placeholder.csv",  # <-- fill this in: a filename under data/motors/,
-        # optionally "<filename>#<designation>" for a multi-record RASP
+    thrust=Thrust(  # REQ, Thrust group -- owns Params.thrust whole: the curve file, nozzle exit area, reference pressure
+        # A filename under data/motors/, optionally
+        # "<filename>#<designation>" for a multi-record RASP
         # library (sim/motor_file.py). Either pick one of the existing
         # files (placeholder.csv, synthetic_small/medium_long/
         # medium_punchy/large.csv, Cesaroni_2060K570-17A.eng) or drop
         # your own curve into data/motors/ and name it here.
-    ),  # REQ, Thrust group -- owns Params.thrust whole: the curve file, nozzle exit area, reference pressure
+        motor_curve="placeholder.csv",  # REQ, filename under data/motors/ -- thrust curve; "" is not usable
+        # A_e=0.0,       # OPT, m^2 -- nozzle exit area; 0.0 = pressure correction inert
+        # p_ref=101325.0,  # OPT, Pa -- ambient pressure the curve was measured at
+    ),
 
     # --- which m(t) model is active (SS32.3.4) --------------------------
     mass_model="none",  # OPT, none | isp | endpoints -- "none" flies at constant mass (every field below inert)

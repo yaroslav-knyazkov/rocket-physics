@@ -69,7 +69,7 @@ class Thrust:
 @dataclass(frozen=True)
 class Lengths:                    # geometry, all nose-tip-referenced, metres
     l1: float = 0.0               # CoP(D) -> CoG(B)
-    l2: float = 0.0               # CoG -> thrust point(C) offset along the axis
+    l2: float = 0.0               # CoP(D) -> thrust point(C) distance along the axis
     u_B: float = 0.0              # lateral offset of the CoG
     u_C: float = 0.0              # lateral offset of the thrust point
     misalign_deg: float = 0.0     # fixed nozzle cant delta [deg]  (was thrust_misalign_deg)
