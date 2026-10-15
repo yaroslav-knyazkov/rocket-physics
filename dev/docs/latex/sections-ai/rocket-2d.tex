@@ -79,12 +79,12 @@ changes.
 Motion through the surrounding air produces an aerodynamic force, and, about a reference point $p$
 on the rocket (\autoref{sec:geometry}), an aerodynamic pitching moment:
 \begin{equation}
-    \vec{A}_f = -qA\left(C_x\hat{x}_r + C_z\hat{z}_r\right), \qquad
-    \vec{A}_m = -qAc\,C_m\hat{y}_r, \qquad
+    \vec{A}_f = -qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right), \qquad
+    \vec{A}_m = -qSc\,C_m\hat{y}_r, \qquad
     q = \tfrac12\rho v_{rel}^2,
 \end{equation}
 with $q$ the dynamic pressure, $\rho$ the air density, $v_{rel}$ the airspeed (the magnitude of
-the rocket's velocity relative to the air, \autoref{sec:relwind}), $A$ the aerodynamic reference
+the rocket's velocity relative to the air, \autoref{sec:relwind}), $S$ the aerodynamic reference
 area and $c$ the reference length. $C_x,C_z,C_m$ are the axial-force, normal-force and
 pitching-moment coefficients, defined in the body frame (\autoref{sec:aero}). The aerodynamic
 force and moment are \emph{always} these dynamic-pressure-scaled coefficient products, whichever
@@ -141,7 +141,7 @@ is immaterial and it can be set to zero.
 Substituting the forces of \autoref{sec:forces},
 \begin{equation}\label{eq:eom_trans_expanded}
     m\vec{a}_r = mg\hat{z}_g + T\left(\cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r\right)
-    - qA\left(C_x\hat{x}_r + C_z\hat{z}_r\right).
+    - qS\left(C_x\hat{x}_r + C_z\hat{z}_r\right).
 \end{equation}
 For the rotation, substitute \autoref{eq:arms} and use the $\hat{y}_r$ component of the cross
 product of two pitch-plane vectors,
@@ -153,18 +153,18 @@ $\left[(a_1,0,a_3)_r\times(b_1,0,b_3)_r\right]\cdot\hat{y}_r = a_3b_1-a_1b_3$:
        \nonumber\\
     &= \Bigl[T\,(l_g-l_t,\,0,\,r_g-r_t)_r\times(\cos\theta_t,\,0,\,-\sin\theta_t)_r
        \nonumber\\
-    &\qquad + qA\,(l_g-l_p,\,0,\,r_g)_r\times(-C_x,\,0,\,-C_z)_r
-       - qAc\,C_m\hat{y}_r\Bigr]\cdot\hat{y}_r
+    &\qquad + qS\,(l_g-l_p,\,0,\,r_g)_r\times(-C_x,\,0,\,-C_z)_r
+       - qSc\,C_m\hat{y}_r\Bigr]\cdot\hat{y}_r
        \nonumber\\
     &= T\left[(r_g-r_t)\cos\theta_t + (l_g-l_t)\sin\theta_t\right]
-       + qA\left[-r_gC_x + (l_g-l_p)C_z - c\,C_m\right]. \label{eq:eom_rot_expanded}
+       + qS\left[-r_gC_x + (l_g-l_p)C_z - c\,C_m\right]. \label{eq:eom_rot_expanded}
 \end{align}
 Each term reads off the geometry directly. The radial offset $r_g-r_t$ of the thrust point gives
 an arm to the axial thrust component $T\cos\theta_t$, and its axial offset $l_g-l_t$ an arm to the
 normal component $T\sin\theta_t$; in the same way $r_g$ is the arm of the axial aerodynamic force
-$qAC_x$ and $l_g-l_p$ that of the normal one $qAC_z$. For the aligned rocket,
+$qSC_x$ and $l_g-l_p$ that of the normal one $qSC_z$. For the aligned rocket,
 $r_g=r_t=\theta_t=0$, thrust drops out of the moment altogether and
-$I\varepsilon_r=qA\left[(l_g-l_p)C_z-c\,C_m\right]$.
+$I\varepsilon_r=qS\left[(l_g-l_p)C_z-c\,C_m\right]$.
 
 Moments are taken about the centre of gravity $g$, so weight contributes none:
 $\vec{gg}\times\vec{W}=0$, for whatever direction $\vec{W}$ points. $m$ and $I$ are not constants
@@ -194,7 +194,7 @@ Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
     (\autoref{sec:thrust});
     \item $q$ --- from the atmosphere model, the state and the wind model, through $\rho$ and
     $v_{rel}$ (\autoref{sec:atmosphere}, \autoref{sec:wind}, \autoref{sec:relwind});
-    \item $A$, $c$ --- reference area and reference length (\autoref{sec:aero});
+    \item $S$, $c$ --- reference area and reference length (\autoref{sec:aero});
     \item $C_x$, $C_z$, $C_m$ --- aerodynamic coefficients (\autoref{sec:aero});
     \item $l_t$, $r_t$, $l_p$, $l_g$, $r_g$ --- lengths (\autoref{sec:geometry}); $l_g(t)$ moves
     with the mass model (\autoref{sec:mass}), and the position of $p$ is supplied together with the
@@ -236,11 +236,11 @@ $l_t-l_p$ & $l_2=l_C-l_D$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
 $\vec{gt}$, $\vec{gp}$ & $\vec{BC}$, $\vec{BD}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
 $\theta_t$ & $-\delta$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
 $m$, $I$ & $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
-$A$ & $S$ & \texttt{p.aero.S} & aerodynamic reference area & $\mathrm{m^2}$ \\
+$S$ & $S$ & \texttt{p.aero.S} & aerodynamic reference area (same symbol in both) & $\mathrm{m^2}$ \\
 $c$ & $d_{ref}$ & \texttt{p.aero.d\_ref} & reference length of the pitching moment & m \\
 $C_x$, $C_z$, $C_m$ & $C_x$, $C_z$, $C_m$ ($C_A$, $C_N$) & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (constant model); fields of \texttt{aero.AeroCoeffs} & axial-force, normal-force, pitching-moment coefficients & --- \\
-$qAC_x$, $qAC_z$ & $A_x$, $A_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
-$qAc\,C_m$ & $A_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
+$qSC_x$, $qSC_z$ & $A_x$, $A_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
+$qSc\,C_m$ & $A_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
 $T$, $\vec{T}$ & $T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & thrust magnitude; vector in $\mathcal{F}_r$ & N \\
 $q$ & $q$ & \texttt{flow.q} & dynamic pressure & Pa \\
 $v_{rel}$ & $V$ & \texttt{flow.V} & airspeed & m/s \\
@@ -254,8 +254,8 @@ $\vec{a}_r$ & $\ddot{\vec{x}}$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acc
 \hline
 \end{tabular}
 \end{center}
-Some letters now carry two meanings and are told apart by context only: $A$ is both the nose
-tip and the reference area (and $A_e$, $A_f$, $A_m$ keep their own subscripts); $g$ is both the
+$A$ is now only the nose tip, the reference area being $S$ (and $A_e$, $A_f$, $A_m$ keep their
+own subscripts). Some letters still carry two meanings and are told apart by context only: $g$ is both the
 centre of gravity and the gravitational acceleration, and as a subscript both the point ($l_g$,
 $r_g$) and the gravity frame ($\mathcal{F}_g$, $\hat{z}_g$); and $p$ as a subscript is both the
 aerodynamic reference point here ($l_p$) and the propellant in the mass model of
