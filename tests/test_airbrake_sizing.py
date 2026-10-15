@@ -17,7 +17,6 @@ import math
 import numpy as np
 import pytest
 
-import configs
 from apps.airbrake_sizing import solve_cda
 from apps.airbrake_sizing.solve_cda import (
     AirbrakeSpec,
@@ -30,13 +29,14 @@ from apps.airbrake_sizing.solve_cda import (
     solve_airbrake,
 )
 from apps.airbrake_sizing.targets import SPECS
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from sim import control
 from sim.integrate import Result
 from sim.params import replace as params_replace
 from sim.state import VZ
 
-_CFG = configs.get("demo_75mm_airbrake")
+_CFG = study_vehicle.CONFIG
 
 # ----------------------------------------------------------------------
 # Monotonicity (the premise the whole method rests on, F6/F18) + round-trip

@@ -23,66 +23,16 @@ import pytest
 import configs
 import configs.rockets
 import configs.scenarios
+from apps.common import study_vehicle
 from apps.motor_selection.compare_motors import _demo_baseline
-from configs.motors.cti_k570_isp import MOTOR as _CTI_K570_ISP_MOTOR
 from configs.rockets import demo_75mm_k570
 from configs.schema import Config, Scenario
 from configs.sites import origin_msl
 from configs.weather import isa_dry_calm
 from sim.integrate import run_sim
 from sim.state import M
+from tests import config_variants
 from tests.test_configs import _toy_05kg_literal
-
-# ----------------------------------------------------------------------
-# demo_75mm_airbrake: today's `derive({})` relation, now a composition
-# identity (SS31.7's "What each seed becomes" table).
-# ----------------------------------------------------------------------
-
-
-def test_demo_75mm_airbrake_params_equal_demo_75mm_params():
-    assert configs.get("demo_75mm_airbrake").params == configs.get("demo_75mm").params
-
-
-# ----------------------------------------------------------------------
-# notes-string pins -- byte-for-byte identical to the pre-split flat
-# `Config` literals, because `--list-configs` and App 5's comparison
-# table print their first line (SS31.7).
-# ----------------------------------------------------------------------
-
-
-def test_toy_05kg_notes_pin_exactly():
-    assert configs.get("toy_05kg").notes == (
-        "run.py's / App 2's historical placeholder scenario: a generic "
-        "small model-rocket scale, unchanged since Step 1/Step 4."
-    )
-
-
-def test_demo_75mm_notes_pin_exactly():
-    assert configs.get("demo_75mm").notes == (
-        "The architect's own synthetic 1.5 kg / 75 mm vehicle. Deliberately "
-        "NOT run.py's 0.5 kg toy scenario: 338 N*s (the largest new fixture) "
-        "on 0.5 kg gives an ideal delta-v of ~676 m/s (~Mach 2), where a "
-        "constant C_x = 0.5 is not a defensible aerodynamic model and the "
-        "ISA extrapolation ceiling starts to matter. 1.5 kg keeps every "
-        "fixture subsonic (largest motor: ideal delta-v ~225 m/s before "
-        "gravity/drag losses, <~ Mach 0.7) while still leaving the smallest "
-        "motor just barely flyable -- itself informative. C_z = C_m = 0.0 "
-        "makes this a vertical, attitude-frozen 1-D shot, the same "
-        "simplification run.py and App 2 already carry, appropriate for a "
-        "motor comparison (one variable at a time) and, per SS29.4.1/F5, "
-        "the reason the ascent window is mandatory."
-    )
-
-
-def test_demo_75mm_airbrake_notes_pin_exactly():
-    assert configs.get("demo_75mm_airbrake").notes == (
-        "demo_75mm, unchanged, registered under its own name as App 4's "
-        "(airbrake sizing) default vehicle. No control.airbrake_* override "
-        "lives here: the app owns that group entirely at solve time "
-        "(architecture-30 SS30.6), and the target apogee is a study input "
-        "carried in apps/airbrake_sizing/targets.py, not a vehicle property."
-    )
-
 
 # ----------------------------------------------------------------------
 # get_scenario -- the one additive API (SS31.6).
@@ -90,9 +40,10 @@ def test_demo_75mm_airbrake_notes_pin_exactly():
 
 
 def test_get_scenario_demo_75mm_returns_the_composition():
-    scenario = configs.get_scenario("demo_75mm")
+    scenario = configs.get_scenario("demo_75mm_k570")
     assert isinstance(scenario, Scenario)
-    assert scenario.rocket.name == "demo_75mm"
+    assert scenario.rocket.name == "demo_75mm_k570"
+    assert scenario.motor.name == "cti_k570"
     assert scenario.site.name == "origin_msl"
     assert scenario.weather.name == "isa_dry_calm"
 
@@ -107,7 +58,7 @@ def test_get_scenario_returns_none_for_a_flat_config_only_module(monkeypatch):
     registers through the scenario registry's own keying logic, and
     `get_scenario` returns `None` for it rather than raising."""
     flat_config = Config(name="_test_flat_scenario", params=_demo_baseline(),
-                          s0=configs.get("demo_75mm").s0, notes="a flat test module")
+                          s0=study_vehicle.CONFIG.s0, notes="a flat test module")
     flat_module = types.SimpleNamespace(
         __name__="configs.scenarios._test_flat_scenario",
         CONFIG=flat_config,
@@ -137,8 +88,8 @@ def test_demo_75mm_rocket_groups_equal_demo_baseline():
     strengthening: it now tests the composition's output (the derived
     `weight`, and `thrust` sourced from `Scenario.motor`), not a piece's
     raw field."""
-    rocket = configs.rockets.get("demo_75mm")
-    params = configs.get("demo_75mm").params
+    rocket = study_vehicle.ROCKET
+    params = study_vehicle.CONFIG.params
     baseline = _demo_baseline()
     assert params.weight == baseline.weight
     assert rocket.lengths == baseline.lengths
@@ -149,8 +100,8 @@ def test_demo_75mm_rocket_groups_equal_demo_baseline():
 def test_toy_05kg_rocket_groups_equal_toy_05kg_literal():
     """See `test_demo_75mm_rocket_groups_equal_demo_baseline`'s docstring
     -- same Step-80 retargeting of `weight`/`thrust`."""
-    rocket = configs.rockets.get("toy_05kg")
-    params = configs.get("toy_05kg").params
+    rocket = config_variants.TOY_05KG_ROCKET
+    params = config_variants.TOY_05KG.params
     literal = _toy_05kg_literal()
     assert params.weight == literal.weight
     assert rocket.lengths == literal.lengths
@@ -172,6 +123,14 @@ def test_every_registered_scenario_flies(name):
     assert result.events["apogee"] is not None
 
 
+@pytest.mark.parametrize("cfg", config_variants.ALL, ids=lambda c: c.name)
+def test_every_test_variant_flies(cfg):
+    """Keeps flight coverage of the tilted rail + analytic wind that the
+    registry parametrisation used to give (Step 88, SS33.3.2)."""
+    result = run_sim(cfg.params, cfg.s0)
+    assert result.events["apogee"] is not None
+
+
 # ----------------------------------------------------------------------
 # Step 74 (SS31.12): demo_75mm_highland -- the same rocket piece flown
 # from a different site, in different weather. Note:
@@ -187,8 +146,8 @@ def test_demo_75mm_highland_rocket_groups_equal_demo_75mm():
     """The proof that one vehicle now serves two sites with zero
     duplication -- the user's original request reduced to one
     assertion (SS31.12)."""
-    highland = configs.get("demo_75mm_highland")
-    baseline = configs.get("demo_75mm")
+    highland = config_variants.HIGHLAND
+    baseline = study_vehicle.CONFIG
     assert highland.params.weight == baseline.params.weight
     assert highland.params.lengths == baseline.params.lengths
     assert highland.params.thrust == baseline.params.thrust
@@ -200,11 +159,11 @@ def test_demo_75mm_highland_s0_theta_derives_from_the_tilted_rail():
     other registered scenario's rail sits at the `Site` default
     (90.0 deg, reproducing `math.pi / 2` exactly, SS31.2 F6);
     `highland_1500m`'s rail is tilted to 85.0 deg."""
-    assert configs.get("demo_75mm_highland").s0.theta == math.radians(85.0)
+    assert config_variants.HIGHLAND.s0.theta == math.radians(85.0)
 
 
 def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
-    cfg = configs.get("demo_75mm_highland")
+    cfg = config_variants.HIGHLAND
     assert cfg.params.site.h0_m == 1500.0
     assert cfg.params.wind.model == "analytic"
 
@@ -282,7 +241,7 @@ def test_demo_75mm_k570_isp_and_endpoints_motors_agree_on_apogee():
     scenario_isp = Scenario(
         name="_test_demo_75mm_k570_isp",
         rocket=demo_75mm_k570.ROCKET,
-        motor=_CTI_K570_ISP_MOTOR,
+        motor=config_variants.CTI_K570_ISP,
         site=origin_msl.SITE,
         weather=isa_dry_calm.WEATHER,
     )

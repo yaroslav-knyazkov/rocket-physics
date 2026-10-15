@@ -23,6 +23,7 @@ from configs.schema import Config, Variant
 from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
+from tests import config_variants
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,11 +67,11 @@ def _demo_75mm_s0() -> State:
 
 
 def test_toy_05kg_params_pin_run_py_literal_exactly():
-    assert configs.get("toy_05kg").params == _toy_05kg_literal()
+    assert config_variants.TOY_05KG.params == _toy_05kg_literal()
 
 
 def test_toy_05kg_s0_pins_run_py_literal_exactly():
-    assert configs.get("toy_05kg").s0 == _toy_05kg_s0()
+    assert config_variants.TOY_05KG.s0 == _toy_05kg_s0()
 
 
 def test_demo_75mm_params_pin_demo_baseline_exactly():

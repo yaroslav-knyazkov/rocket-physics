@@ -523,10 +523,16 @@ def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
 
     monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
 
-    compare_main(["--config", "demo_75mm,toy_05kg"])
+    import configs.scenarios
+
+    from tests import config_variants
+
+    monkeypatch.setitem(configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG)
+
+    compare_main(["--config", "demo_75mm_k570,toy_05kg"])
 
     out = capsys.readouterr().out
-    assert "demo_75mm" in out
+    assert "demo_75mm_k570" in out
     assert "toy_05kg" in out
     assert "heavy_sleek" not in out
     assert "light_draggy" not in out

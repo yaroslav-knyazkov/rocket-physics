@@ -43,6 +43,7 @@ import configs.sites
 import configs.weather
 from configs.schema import Airframe, Sections, _weight_from_pieces
 from sim.params import Atmosphere, Site, Soundings, Wind
+from tests import config_variants
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _G0 = 9.80665
@@ -118,7 +119,7 @@ def test_scenarios_registry_is_populated_by_step_73():
     Step 74 added a fourth)."""
     assert configs.scenarios._MODULES != ()
     assert configs.scenarios.SCENARIOS != {}
-    assert {"toy_05kg", "demo_75mm", "demo_75mm_airbrake"} <= set(configs.scenarios.names())
+    assert {"demo_75mm_k570"} <= set(configs.scenarios.names())
     with pytest.raises(KeyError):
         configs.scenarios.get("anything")
 
@@ -220,7 +221,7 @@ def test_cti_k570_and_cti_k570_isp_compositions_agree_d59_equivalence():
     sections = Sections(l_motor_aft=1.0)
 
     w_endpoints = _weight_from_pieces(airframe, sections, configs.motors.get("cti_k570"), _G0)
-    w_isp = _weight_from_pieces(airframe, sections, configs.motors.get("cti_k570_isp"), _G0)
+    w_isp = _weight_from_pieces(airframe, sections, config_variants.CTI_K570_ISP, _G0)
 
     for field in ("m", "m_d", "l_d", "I_d", "I_sp"):
         a = getattr(w_endpoints, field)
