@@ -580,45 +580,45 @@
         {
           "step": 85,
           "title": "D-76: assemble() задаёт s0.m",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 86,
           "title": "study vehicle в apps/common (D-79)",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 87,
           "title": "Apps 3/5 отвергают базу с масс-моделью (D-82)",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 88,
           "title": "тесты перестают читать удаляемые записи",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 89,
           "title": "демо называется demo (D-80)",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 90,
           "title": "run.py, App 2, App 4 летают на demo",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 91,
           "title": "удалить всё, что заменяет demo",
-          "status": "not-started"
+          "status": "done"
         },
         {
           "step": 92,
           "title": "предупреждение Mach > 0.8 (D-83)",
-          "status": "not-started"
+          "status": "done"
         }
       ],
-      "next": "Steps 85-92 (architecture-33) по очереди, затем аппрув мержа.",
+      "next": "Фикс знака осевой аэросилы + парашют демо (D-91, architecture-34), затем аппрув мержа.",
       "pending_user": [
         "Аппрув мержа feature/motor-config-separation → develop (после чистки configs/, Steps 85+)"
       ],
@@ -1305,6 +1305,13 @@
       "question": "LaTeX: знак угла тяги θ_t",
       "choice": "утверждено пользователем: как в заметках, x̂_t = cosθ_t x̂_r − sinθ_t ẑ_r; в таблице соответствия θ_t = −δ (код не меняется)",
       "stage": "latex"
+    },
+    {
+      "id": "D-91",
+      "date": "2026-10-15",
+      "question": "Осевая аэросила в моделях constant/linearized всегда направлена вдоль оси корпуса: при полёте хвостом вперёд (демо падает без парашюта, нос вверх) «сопротивление» разгоняет вниз — энергия растёт 58→312 кДж/кг, удар 874 м/с при пределе свободного падения 341 м/с",
+      "choice": "утверждено пользователем: исправить знак (осевая сила против относительного потока) + парашют на апогее для демо; затронутые пины перезаписать списком. Дизайн — architecture-34",
+      "stage": "2.16"
     }
   ],
   "deferred_decisions": [
