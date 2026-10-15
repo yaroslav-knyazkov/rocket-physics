@@ -513,7 +513,7 @@
     {
       "id": "2.16",
       "name": "Phase 2.16 — отделение конфигурации мотора (motor-config-separation)",
-      "status": "in-progress — Steps 75-83 готовы на ветке, ждёт ревью и аппрува мержа",
+      "status": "in-progress — Steps 75-96 готовы на ветке (501/501), ждёт аппрува мержа в develop",
       "dates": "≤ 2026-10-15 … (точная дата старта не записана)",
       "branch": "feature/motor-config-separation",
       "design_doc": "dev/docs/architecture-32-motor-separation.md (на ветке feature/motor-config-separation)",
@@ -620,25 +620,34 @@
         {
           "step": 93,
           "title": "знак осевой аэросилы: × f(α) (D-92..D-94a)",
-          "status": "not-started"
+          "status": "done",
+          "commit": "9920e35"
         },
         {
           "step": 94,
           "title": "защита 0.1 с от срабатывания парашюта на столе (D-94b)",
-          "status": "not-started"
+          "status": "done",
+          "commit": "558981a"
         },
         {
           "step": 95,
           "title": "парашют демо + устаревшие комментарии (D-97)",
-          "status": "not-started"
+          "status": "done",
+          "commit": "f821e76"
+        },
+        {
+          "step": 96,
+          "title": "App 4: сходимость корня с запасом на выпуклой кривой апогея",
+          "commit": "33a2e64",
+          "status": "done"
         }
       ],
-      "next": "Steps 93-95 (architecture-34), затем аппрув мержа.",
+      "next": "Аппрув пользователя: мерж feature/motor-config-separation → develop (и по желанию develop → master).",
       "pending_user": [
-        "Аппрув мержа feature/motor-config-separation → develop (после чистки configs/, Steps 85+)"
+        "Аппрув мержа feature/motor-config-separation → develop"
       ],
       "handoff": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt — сохранённый диалог прошлой сессии",
-      "tests": "485/485 после перепина D-77",
+      "tests": "501/501",
       "design_doc_2": "dev/docs/architecture-33-configs-one-demo.md (чистка configs/, Steps 85-92)"
     },
     {
