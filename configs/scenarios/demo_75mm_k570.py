@@ -13,8 +13,6 @@ not this scenario's own motor) -- at `origin_msl`/`isa_dry_calm`, the same
 
 from __future__ import annotations
 
-import dataclasses
-
 from configs.motors.cti_k570 import MOTOR
 from configs.rockets import demo_75mm_k570
 from configs.schema import Config, Scenario
@@ -35,22 +33,5 @@ SCENARIO = Scenario(
     ),
 )
 
-# `_pad_state` (configs/schema.py) does not yet set the derived `s0.m`
-# from the composed `weight.m` -- an open backlog item
-# (dev/docs/architecture-32-motor-separation.md SS32.10, "backlog candidates
-# this phase opens": "s0.m derived from weight.m"). Every scenario
-# registered so far leaves `m_d=None`, so `y[M]` is never read and
-# `s0.m`'s harmless `0.0` default never mattered; this is the first
-# scenario whose mass model is ON, so it is also the first that needs
-# the initial state's own mass populated, or integration starts the
-# propellant mass at a large negative number instead of `weight.m`
-# (SS32.3.3 point 2: `Weight.m` is the loaded, t=0 vehicle mass). Patched
-# here, locally -- not in `configs/schema.py`, out of this ticket's
-# boundaries -- by taking `_pad_state`'s own derived `s0` (rail-angle
-# theta included) and filling in the one field it leaves at its default.
-# `State` is a `NamedTuple` (`sim/state.py`), not a dataclass, so its own
-# `._replace` does the job -- `dataclasses.replace` only applies to `_config`.
-_config = SCENARIO.config
-CONFIG: Config = dataclasses.replace(
-    _config, s0=_config.s0._replace(m=_config.params.weight.m)
-)
+# `assemble` seeds `s0.m` from the composed `weight.m` (D-76).
+CONFIG: Config = SCENARIO.config

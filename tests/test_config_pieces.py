@@ -270,3 +270,74 @@ def test_scenario_is_frozen():
     )
     with pytest.raises(dataclasses.FrozenInstanceError):
         sc.name = "changed"
+
+
+# ----------------------------------------------------------------------
+# D-76 -- assemble() seeds s0.m from the composed mass (Step 85)
+# ----------------------------------------------------------------------
+
+
+def _mass_on_motor() -> Motor:
+    """An "isp" motor with every mass field explicit (the K570 file is only read for its curve)."""
+    return Motor(
+        name="mass_on",
+        thrust=Thrust(motor_curve="Cesaroni_2060K570-17A.eng"),
+        mass_model="isp",
+        I_sp=180.0,
+        m_total=1.0,
+        m_prop=0.4,
+        length=0.5,
+        diameter=0.05,
+        l_case=0.2,
+        l_prop=0.3,
+        I_case=0.002,
+        I_prop0=0.001,
+    )
+
+
+def _mass_scenario(motor: Motor, **kwargs) -> Scenario:
+    return Scenario(
+        name="mass_scenario",
+        rocket=Rocket(
+            name="rocket",
+            airframe=Airframe(m=1.2, I=0.03, l=0.3),
+            sections=Sections(l_motor_fwd=0.5),
+        ),
+        motor=motor,
+        site=LaunchSite(name="site"),
+        weather=Weather(name="weather"),
+        **kwargs,
+    )
+
+
+def test_mass_on_derived_s0_gets_the_composed_mass():
+    config = _mass_scenario(_mass_on_motor()).config
+    assert config.params.weight.m_d is not None
+    assert config.s0.m == config.params.weight.m
+    assert config.s0.m > 0.0
+
+
+def test_mass_on_explicit_s0_without_m_is_filled():
+    explicit = State(x=1.0, z=-2.0, vx=3.0, vz=4.0, theta=0.123, omega=0.5)
+    config = _mass_scenario(_mass_on_motor(), s0=explicit).config
+    assert config.s0.m == config.params.weight.m
+    assert config.s0._replace(m=0.0) == explicit
+
+
+def test_mass_on_explicit_s0_with_nonzero_m_is_kept():
+    explicit = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=1.0, omega=0.0, m=2.5)
+    config = _mass_scenario(_mass_on_motor(), s0=explicit).config
+    assert config.s0.m == 2.5
+
+
+def test_mass_model_switched_on_by_override_fills_s0_from_overridden_params():
+    sc = _mass_scenario(_minimal_motor(), overrides={"weight.m_d": 0.8, "weight.m": 1.5})
+    config = sc.config
+    assert config.params.weight.m_d == 0.8
+    assert config.s0.m == 1.5
+
+
+def test_mass_off_s0_mass_stays_zero():
+    config = _mass_scenario(_minimal_motor()).config
+    assert config.params.weight.m_d is None
+    assert config.s0.m == 0.0

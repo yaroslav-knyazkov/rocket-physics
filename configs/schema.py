@@ -361,6 +361,10 @@ def assemble(sc: Scenario) -> Config:
     #     would re-create F5's foot-gun inside the mechanism that
     #     advertises fixing it.
     s0 = sc.s0 if sc.s0 is not None else _pad_state(p.site)
+    # (4) D-76: with the mass model on, the integrator reads mass from y[M], not
+    #     weight.m (sim/dynamics.py) -- start it at the composed launch mass.
+    if p.weight.m_d is not None and s0.m == 0.0:
+        s0 = s0._replace(m=p.weight.m)
     return Config(name=sc.name, params=p, s0=s0, notes=sc.notes)
 
 

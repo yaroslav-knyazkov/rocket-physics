@@ -15,7 +15,6 @@ already in the suite (SS31.8 #8), and every registered scenario still
 flying (SS31.8 #5).
 """
 
-import dataclasses
 import math
 import types
 
@@ -288,11 +287,6 @@ def test_demo_75mm_k570_isp_and_endpoints_motors_agree_on_apogee():
         weather=isa_dry_calm.WEATHER,
     )
     cfg_isp = scenario_isp.config
-    # SS32.10 backlog ("s0.m derived from weight.m", not yet implemented
-    # in `configs/schema.py::_pad_state`): same local patch
-    # `configs/scenarios/demo_75mm_k570.py` applies to its own `CONFIG`,
-    # needed here too since this scenario is built ad hoc, not registered.
-    cfg_isp = dataclasses.replace(cfg_isp, s0=cfg_isp.s0._replace(m=cfg_isp.params.weight.m))
 
     result_endpoints = run_sim(cfg_endpoints.params, cfg_endpoints.s0)
     result_isp = run_sim(cfg_isp.params, cfg_isp.s0)
