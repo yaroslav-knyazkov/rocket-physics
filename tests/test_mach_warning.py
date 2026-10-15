@@ -25,13 +25,13 @@ def test_demo_run_warns_with_peak_mach_time_and_model():
     assert len([w for w in rec if issubclass(w.category, MachRangeWarning)]) == 1
 
 
-def test_demo_peak_mach_is_supersonic():
+def test_demo_peak_mach_is_the_ascent_peak():
     cfg = _demo()
     with pytest.warns(MachRangeWarning):
         result = run_sim(cfg.params, cfg.s0)
     m, t = peak_mach(result)
-    assert 2.0 < m < 3.0
-    assert 0.0 < t <= result.events["ground"]  # peak is the ballistic descent (~Mach 2.57 at impact); ascent peak is ~Mach 1.73
+    assert 1.7 < m < 1.8
+    assert 0.0 < t <= result.events["burnout"]  # peak is the powered ascent (~Mach 1.75 at t=3.2 s); tail-first descent no longer runs away (D-91)
 
 
 def test_subsonic_study_vehicle_does_not_warn():

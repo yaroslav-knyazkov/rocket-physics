@@ -221,6 +221,9 @@ def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
     A_x = flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
     A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p, hold)
+    # Step 93 (D-94a): the brake is a body-axis axial drag too, so it follows
+    # the same flow-direction factor as `C_x` (architecture-34 SS34.3).
+    A_brake *= aero.axial_flow_factor(flow.alpha)
     return np.array([-(A_x + A_brake), -A_z])
 
 

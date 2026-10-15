@@ -987,3 +987,31 @@ def test_parachute_timer_trigger_deploys_independent_of_trajectory_apogee():
     assert math.isclose(r_rk4.events["parachute_deploy"], 2.0, abs_tol=2e-3)
     assert r_rk4.events["apogee"] is not None
     assert r_rk4.events["apogee"] > 2.0 + 1e-3
+
+
+def test_demo_descent_without_recovery_is_dissipative_not_free_fall_faster():
+    """Step 93 (D-91): tail-first axial drag opposes the motion, so the
+    unpowered tail-first descent loses specific energy (and impact speed is
+    below the drag-free bound) instead of blowing up."""
+    import warnings
+
+    import configs
+    from sim.mach_warning import MachRangeWarning
+    from sim.params import replace as params_replace
+
+    cfg = configs.get("demo")
+    p = params_replace(cfg.params, {"recovery.model": "none"})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", MachRangeWarning)
+        r = run_sim(p, cfg.s0)
+    g = 9.80665
+    t_b, t_a, t_g = r.events["burnout"], r.events["apogee"], r.events["ground"]
+    assert t_a is not None and t_g is not None
+    vx, vz, z = r.y[VX], r.y[VZ], r.y[Z]
+    e = 0.5 * (vx**2 + vz**2) - g * z  # z is down-positive
+    after = r.t >= t_b
+    de = np.diff(e[after])
+    assert de.max() < 1e-6 * e[after].max() + 1e-6  # non-increasing (round-off slack)
+    h_apogee = -z[np.argmin(np.abs(r.t - t_a))]
+    v_impact = float(np.hypot(vx[-1], vz[-1]))
+    assert v_impact < math.sqrt(2.0 * g * h_apogee)

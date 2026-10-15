@@ -930,3 +930,52 @@ def test_pitch_damping_now_applies_under_constant_regime_too():
     assert not np.array_equal(dydt_zero, dydt_damped)
     assert math.isclose(dydt_damped[OMEGA] - dydt_zero[OMEGA], -expected_A_m_shift / p_zero.weight.I, rel_tol=1e-12)
 
+
+
+# ----------------------------------------------------------------------
+# Step 93 (Phase 2.16, D-91, D-94a): tail-first axial force opposes the flow.
+# ----------------------------------------------------------------------
+
+
+def _axial_params(model, **ctl):
+    from sim.params import Control
+
+    return Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(model=model, S=0.005, d_ref=0.08, C_x=0.75, C_A0=0.75),
+        control=Control(**ctl),
+    )
+
+
+def _axial_force(p, vz, theta=math.pi / 2):
+    y = np.array(State(x=0.0, z=0.0, vx=0.0, vz=vz, theta=theta, omega=0.0))
+    flow = flow_state(10.0, y, p)
+    return flow, aero_force_body(10.0, y, p, flow)
+
+
+def test_axial_force_is_nose_ward_when_flying_tail_first():
+    for model in ("constant", "linearized"):
+        p = _axial_params(model)
+        flow0, f0 = _axial_force(p, vz=-60.0)   # alpha = 0 (see Step 55 test above)
+        flow1, f1 = _axial_force(p, vz=+60.0)   # reversed flow
+        assert math.isclose(flow0.alpha, 0.0, abs_tol=1e-9)
+        assert abs(abs(flow1.alpha) - math.pi) < 1e-9
+        assert f0[0] < 0.0   # nose-first: drag along -x_r
+        assert f1[0] > 0.0   # tail-first: drag along +x_r (toward the nose)
+        assert math.isclose(f1[0], -f0[0], rel_tol=1e-9)
+
+
+def test_airbrake_term_flips_tail_first():
+    p0 = _axial_params("constant")
+    pb = _axial_params(
+        "constant", airbrake_model="full", airbrake_trigger="after_time",
+        airbrake_deploy_time=0.0, airbrake_Cd=1.2, airbrake_S_max=0.01,
+    )
+    for vz in (-60.0, +60.0):
+        flow, f_base = _axial_force(p0, vz)
+        _, f_brake = _axial_force(pb, vz)
+        extra = f_brake[0] - f_base[0]
+        expected = -flow.q * 1.2 * 0.01 * aero.axial_flow_factor(flow.alpha)
+        assert math.isclose(extra, expected, rel_tol=1e-9)
+    assert (_axial_force(pb, +60.0)[1][0] - _axial_force(p0, +60.0)[1][0]) > 0.0
