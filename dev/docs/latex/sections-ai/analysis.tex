@@ -1,267 +1,170 @@
 \section{Analytical analysis}\label{sec:analysis}
-This section works through the full configuration space of the pitching moment --- thrust on or
-off, thrust axis aligned or misaligned --- and the static and dynamic stability results that hang
-off it. Throughout, an acceleration component such as $\vec{a}_r\cdot\hat{x}_r$ is the
-acceleration $\vec{a}_r$ resolved along the body axes $\hat{x}_r,\hat{z}_r$ at the current instant
---- \emph{not} a derivative taken within the rotating frame $\mathcal{F}_r$ itself (which would
-additionally need that frame's own rotation-coupling terms). The equations below are therefore
-just $\sum\vec{F}\cdot\hat{x}_r$, $\sum\vec{F}\cdot\hat{z}_r$ of \autoref{eq:eom_trans}, expanded,
-and \autoref{eq:eom_rot} with the geometry substituted in; they are
-the same equations as \autoref{eq:eom_trans_expanded} and \autoref{eq:eom_rot_expanded}, worked
-through case by case.
+This section works through the pitching moment --- thrust on or off, thrust axis aligned or
+misaligned --- and the static and dynamic stability results that follow. An acceleration component
+such as $\vec{a}_r\cdot\hat{x}_r$ is the acceleration resolved along the body axes at the current
+instant, not a derivative taken inside the rotating frame $\mathcal{F}_r$.
 
-Two model-level quantities appear in the equations below and are worth naming up front, because
-both are zero by default and both reduce this section to its simplest form when they are: the
-thrust angle $\theta_t$, which is zero for an
-ideally aligned nozzle, and the gravity-direction rotation angle $\varphi=x/R_e$, which is zero at the launch point and stays zero for the
-whole flight if the local vertical is frozen there. Setting $\theta_t=\varphi=0$ recovers every
-equation of this section in its simplest form.
+Two inputs are zero by default and reduce everything below to its simplest form: the thrust angle
+$\theta_t$ and the gravity-direction rotation $\varphi=x/R_e$, which stays zero if the local
+vertical is frozen at the launch point.
 
 \subsection{Forces}\label{sec:analysis_forces}
-The aerodynamic force is a body-axis quantity already; thrust is one too once its own axis is
-fixed relative to the body via $\hat{x}_t$ (\autoref{eq:thrust_frame}), and only weight has to be
-resolved. Recall the body axes in ground-frame components, \autoref{eq:body_axes_in_ground}, with
-$\theta_r$ measured from $\hat{x}_0$, positive nose-up --- the frame the simulator integrates $x,z$ in. Weight acts along the
-\emph{local} vertical $\hat{z}_g(\varphi)=-\sin\varphi\,\hat{x}_0+\cos\varphi\,\hat{z}_0$, so
+Aerodynamic force and thrust are already body-axis quantities, so only weight has to be resolved.
+Weight acts along the local vertical $\hat{z}_g(\varphi)=-\sin\varphi\,\hat{x}_0+\cos\varphi\,
+\hat{z}_0$, so with \autoref{eq:body_axes_in_ground}
 \begin{equation}
     \vec{W}\cdot\hat{x}_r = -mg\sin(\theta_r+\varphi), \qquad
-    \vec{W}\cdot\hat{z}_r = +mg\cos(\theta_r+\varphi),
+    \vec{W}\cdot\hat{z}_r = +mg\cos(\theta_r+\varphi).
 \end{equation}
-i.e.\ the downrange rotation of gravity enters the body-axis force balance as nothing more than a
-shift of the pitch angle, $\theta_r\to\theta_r+\varphi$. That is the whole of its effect, and it is
-worth reading once: $\theta_r+\varphi$ is exactly the rocket's pitch above the \emph{local} horizon,
-which dips below the launch-site horizontal by $\varphi$ at downrange distance $x=R_e\varphi$.
-Adding thrust and the aerodynamic force,
+The downrange rotation of gravity thus enters only as a shift of the pitch angle,
+$\theta_r\to\theta_r+\varphi$: the pitch above the \emph{local} horizon. Adding thrust and the
+aerodynamic force,
 \begin{align}
     m\,\vec{a}_r\cdot\hat{x}_r &= -mg\sin(\theta_r+\varphi) + T\cos\theta_t - qSC_x \label{eq:analytic_force_x}\\
     m\,\vec{a}_r\cdot\hat{z}_r &= mg\cos(\theta_r+\varphi) - T\sin\theta_t - qSC_z \label{eq:analytic_force_z}
 \end{align}
-The two limiting attitudes fix the signs, taking $\varphi=\theta_t=0$ for the check. Nose straight
-up ($\theta_r=90^\circ$): weight is purely axial and purely retarding,
-$m\,\vec{a}_r\cdot\hat{x}_r=-mg+T-qSC_x$, with no normal component at all. Nose horizontal
-($\theta_r=0$): $\hat{z}_r\equiv\hat{z}_g$, weight is purely normal,
-$m\,\vec{a}_r\cdot\hat{z}_r=mg-qSC_z$, and does not oppose the thrust in the slightest.
-
-A third check fixes the sign of $\varphi$. Flying level in the launch frame ($\theta_r=0$) at
-downrange $x>0$, \autoref{eq:analytic_force_x} gives $m\,\vec{a}_r\cdot\hat{x}_r=-mg\sin\varphi<0$:
-gravity has acquired a component that \emph{retards} the downrange motion. It should have --- the
-Earth's centre sits below the launch point, so from a point downrange of it the pull is tilted
-backwards, against the flight direction. At $x=10\,\mathrm{km}$ this is $g\varphi\approx
-1.5\times10^{-2}\,\mathrm{m/s^2}$, and it grows linearly with downrange distance.
+Sign checks, with $\varphi=\theta_t=0$. Nose straight up ($\theta_r=90^\circ$): weight is purely
+axial, $m\,\vec{a}_r\cdot\hat{x}_r=-mg+T-qSC_x$. Nose horizontal ($\theta_r=0$): weight is purely
+normal, $m\,\vec{a}_r\cdot\hat{z}_r=mg-qSC_z$. For $\varphi$, flying level at downrange $x>0$ gives
+$m\,\vec{a}_r\cdot\hat{x}_r=-mg\sin\varphi<0$: the Earth's centre lies below and behind the
+rocket, so the pull is tilted against the flight direction. At $x=10\,\mathrm{km}$ this is
+$g\varphi\approx1.5\times10^{-2}\,\mathrm{m/s^2}$.
 
 \subsection{Moment}\label{sec:analysis_moment}
-Substituting $\vec{gt}=-\vec{Ag}+\vec{At}$ and $\vec{gp}=-\vec{Ag}+\vec{Ap}$ from
-\autoref{eq:arms} into \autoref{eq:eom_rot}, with $r_p\equiv0$,
-$\hat{x}_r\times\hat{z}_r=-\hat{y}_r$, and the general thrust vector $\vec{T}=T\cos\theta_t\,
-\hat{x}_r-T\sin\theta_t\,\hat{z}_r$ of \autoref{eq:thrust_frame}:
+Substituting the arms of \autoref{eq:arms} into \autoref{eq:eom_rot}, with $\hat{x}_r\times
+\hat{z}_r=-\hat{y}_r$ and the thrust vector of \autoref{eq:thrust_frame}:
 \begin{equation} \label{eq:moment_full}
     I\varepsilon_r = (r_g - r_t)T\cos\theta_t + (l_g - l_t)T\sin\theta_t
                      - r_g\,qSC_x + (l_g - l_p)\,qSC_z - qSc\,C_m
 \end{equation}
-which is \autoref{eq:eom_rot_expanded} term for term. Each term reads off the geometry directly.
-Thrust acts at $t$, whose displacement from the CoG is
-$\vec{gt}=(l_g-l_t)\hat{x}_r+(r_g-r_t)\hat{z}_r$: its radial offset $r_g-r_t$ gives an arm to the
-\emph{axial} thrust component $T\cos\theta_t$, and its axial offset $l_g-l_t$ gives an arm to the
-\emph{normal} thrust component, of magnitude $T\sin\theta_t$. The aerodynamic force acts at $p$, so
-the axial arm $l_g-l_p$ carries its normal component $qSC_z$ and the radial arm $r_g$ carries its
-axial component $qSC_x$. Weight does not appear here at all, and cannot: moments are taken about
-the centre of gravity $g$, so $\vec{gg}\times\vec{W}=0$ for \emph{every} orientation of $\vec{W}$
---- rotating the local vertical is therefore a purely translational correction, exactly like the
-Coriolis term (a body force distributed in proportion to mass has its resultant at the CoG).
+Thrust acts at $t$, displaced from the CoG by $\vec{gt}=(l_g-l_t)\hat{x}_r+(r_g-r_t)\hat{z}_r$:
+the radial offset gives an arm to the axial thrust component $T\cos\theta_t$, the axial offset an
+arm to the normal component $T\sin\theta_t$. The aerodynamic force acts at $p$: the axial arm
+$l_g-l_p$ carries $qSC_z$ and the radial arm $r_g$ carries $qSC_x$. Weight does not appear, since
+$\vec{gg}\times\vec{W}=0$ for every orientation of $\vec{W}$. Rotating the local vertical is
+therefore a purely translational correction, like the Coriolis term.
 
-$l_t$ is a live quantity here in a way it is not for on-axis thrust. An on-axis thrust
-$\vec{T}=T\hat{x}_r$ applied at a point whose displacement from the CoG has axial part
-$(l_g-l_t)\hat{x}_r$ contributes $(l_g-l_t)T\,\hat{x}_r\times\hat{x}_r=0$ from that part: sliding
-the application point forward or aft along the axis changes nothing, because the force is parallel
-to the displacement it would act through. Only the radial offset $r_t$ survives in that case.
-Once $\theta_t\neq0$ the thrust has a component normal to $\hat{x}_r$, and a normal force
-\emph{does} care how far along the axis it is applied --- hence the second term of
-\autoref{eq:moment_full}, and hence the axial position of the nozzle mattering for the moment.
+For on-axis thrust, $\vec{T}=T\hat{x}_r$, sliding the application point along the axis changes
+nothing: the force is parallel to the displacement. Only $r_t$ survives. Once $\theta_t\neq0$ the
+normal component does care how far along the axis it acts, hence the second term.
 
-\autoref{eq:moment_full} specialises four ways, and the following subsections take them in turn.
-Throughout, \emph{aligned} is shorthand for the on-axis geometry $r_g=r_t=0$ \emph{and}
-$\theta_t=0$; $r_g,r_t,\theta_t$ are all carried as ordinary constant inputs, so setting all three to zero
-recovers this case exactly.
+\autoref{eq:moment_full} specialises four ways; \emph{aligned} means $r_g=r_t=\theta_t=0$.
 \begin{center}
 \begin{tabular}{l l l}
  & \textbf{aligned} ($\theta_t=0$) & \textbf{misaligned} ($\theta_t\neq0$) \\
-\textbf{no thrust} ($T=0$) & \autoref{eq:moment_nothrust} & identical --- $T=0$ scales $\theta_t$ away \\
+\textbf{no thrust} ($T=0$) & \autoref{eq:moment_nothrust} & identical --- $T=0$ removes $\theta_t$ \\
 \textbf{with thrust} ($T>0$) & \autoref{eq:moment_aligned} & \autoref{eq:moment_misaligned} \\
 \end{tabular}
 \end{center}
-Only three of the four cells are distinct, and only one of them is new.
 
 \subsubsection{No thrust: coast and descent}\label{sec:analysis_nothrust}
-The coast and descent phases are worth isolating from the boost phase. Setting $T=0$ drops the
-thrust term and leaves the airframe's purely aerodynamic behaviour, free of any dependence on the
-motor's thrust level or on where the thrust acts --- so whatever stability it shows is a property
-of the geometry and the aerodynamic coefficients alone, not of the motor:
+Setting $T=0$ leaves the airframe's purely aerodynamic behaviour, independent of the motor:
 \begin{equation} \label{eq:moment_nothrust}
     I\varepsilon_r = -r_g\,qSC_x + (l_g - l_p)\,qSC_z - qSc\,C_m.
 \end{equation}
-Thrust misalignment is physically irrelevant in this case rather than merely neglected: $T=0$
-multiplies both $\cos\theta_t$ and $\sin\theta_t$ out of \autoref{eq:moment_full}, so the two
-right-hand columns of the table above collapse onto one another exactly, for any $\theta_t$
-whatever. It is stated rather than passed over silently because it is the reason the
-static-stability result below --- which is built on this case --- needs no revision when the
-misalignment model is switched on.
+Since $T=0$ removes both thrust terms, misalignment is irrelevant here, and the static-stability
+result below, built on this case, needs no revision when it is switched on.
 
 \subsubsection{With thrust, aligned}\label{sec:analysis_aligned}
-If the thrust axis and the body axis are aligned ($r_g=r_t=0$, $\theta_t=0$), the equation turns
-into
+With $r_g=r_t=0$ and $\theta_t=0$,
 \begin{equation} \label{eq:moment_aligned}
     I\varepsilon_r = (l_g - l_p)\,qSC_z - qSc\,C_m.
 \end{equation}
-With the centre of gravity and the nozzle both on the body axis and the thrust along it, the first
-two terms of \autoref{eq:moment_full} vanish together, the remaining radial arm $r_g$ of
-\autoref{eq:moment_nothrust} vanishes too, and the pitching behaviour reduces to the normal force
-acting through the arm $l_g-l_p$ against the airframe's own pitching moment. The notable feature
-of this case is what is \emph{missing}: the motor. Thrust has dropped out of the pitching equation
-entirely, so an aligned rocket's attitude dynamics are the same during boost as during coast,
-however large $T$ is --- not as an approximation, but as an exact consequence of the geometry it
-is given.
+Thrust has dropped out exactly: an aligned rocket's attitude dynamics are the same during boost
+as during coast, however large $T$ is.
 
 \subsubsection{With thrust, misaligned}\label{sec:analysis_misaligned}
-With the nozzle canted by a small fixed $\theta_t$ and the geometry otherwise on-axis
-($r_g=r_t=0$):
+With the nozzle canted by a small fixed $\theta_t$ and the geometry otherwise on-axis,
 \begin{equation} \label{eq:moment_misaligned}
     I\varepsilon_r = \underbrace{(l_g - l_t)T\sin\theta_t}_{M_{\theta_t}}
                      + (l_g - l_p)\,qSC_z - qSc\,C_m.
 \end{equation}
-The new term $M_{\theta_t}$ is the point of modelling $\theta_t$ at all, and it behaves quite
-unlike everything else in this section. Every other contribution to $\varepsilon_r$ is aerodynamic
-and therefore vanishes with $q$ and with $\alpha$; $M_{\theta_t}$ does not. It survives
-$C_z=C_m=0$, it survives $\alpha=0$, and it survives $q=0$. For as long as the motor burns, the
-airframe carries a built-in disturbance torque proportional to the thrust it is producing ---
-largest, in absolute terms, exactly at the thrust peak, and largest \emph{relative} to the
-restoring moment just off the pad and again high up, where $q$ is small.
+Unlike every aerodynamic term, $M_{\theta_t}$ survives $q=0$ and $\alpha=0$: while the motor burns,
+the airframe carries a disturbance torque proportional to the thrust. Its sign: $l_t>l_g$ for any
+real rocket, so $l_g-l_t<0$. A positive $\theta_t$ pushes the tail towards $-\hat{z}_r$ and pitches
+the nose \emph{down}, $M_{\theta_t}<0$; a negative $\theta_t$ pitches it up.
 
-Its sign is worth pinning down once. $l_t>l_g$ for any real rocket (the nozzle is aft of the
-centre of gravity), so $l_g-l_t<0$, and $\hat{z}_r$ points towards the rocket's belly
-in the rocket frame. A positive $\theta_t$ tilts the thrust line towards $-\hat{z}_r$, i.e.\
-pushes the tail towards $-\hat{z}_r$ and pitches the nose \emph{down}, $M_{\theta_t}<0$; a
-negative $\theta_t$ pitches it up.
-
-$\theta_t$ is a constant, so $\partial M_{\theta_t}/\partial\alpha=0$, and \autoref{eq:dtheta_dalpha}
---- the derivative the static margin of \autoref{eq:static_margin} is built on --- is untouched. A
-misalignment adds a constant \emph{offset} to $\varepsilon_r$, not a slope: it shifts the
-equilibrium the airframe settles at, without changing whether that equilibrium is stable.
-Concretely, setting $\varepsilon_r=0$ in \autoref{eq:moment_misaligned} with the linearised
-coefficients of \autoref{eq:aero_linearised} gives the trim angle of attack,
+Since $\partial M_{\theta_t}/\partial\alpha=0$, the stability derivative of
+\autoref{eq:dtheta_dalpha} is untouched: misalignment shifts the equilibrium without changing
+whether it is stable. Setting $\varepsilon_r=0$ with the linearised coefficients of
+\autoref{eq:aero_linearised} and $C_{z,0}=C_{m,0}=0$ gives the trim angle of attack,
 \begin{equation} \label{eq:alpha_trim}
     \alpha_{trim} = -\frac{M_{\theta_t}}{I\,\partial\varepsilon_r/\partial\alpha}
         = \frac{-(l_g - l_t)T\sin\theta_t}
-               {qS\bigl[(l_g - l_p)C_{z,\alpha} - c\,C_{m,\alpha}\bigr]},
+               {qS\bigl[(l_g - l_p)C_{z,\alpha} - c\,C_{m,\alpha}\bigr]}.
 \end{equation}
-taking $C_{z,0}=C_{m,0}=0$ for a body of revolution. A statically stable airframe has a negative
-denominator (\autoref{eq:dtheta_dalpha}), so $\alpha_{trim}$ carries the sign of $M_{\theta_t}$: the
-rocket does not diverge, it flies slightly nose-off the relative wind, at a constant small angle
-whose normal force then curves the trajectory. That curvature, not a tumble, is the observable
-consequence of a manufacturing-grade misalignment on a stable rocket.
+A stable airframe has a negative denominator, so $\alpha_{trim}$ carries the sign of
+$M_{\theta_t}$: the rocket flies at a small constant angle off the relative wind, whose normal
+force curves the trajectory, rather than tumbling. $\alpha_{trim}\propto T/q$ grows without bound
+just after ignition and in any high-altitude burn, and as the static margin tends to zero --- the
+physical reason launch rails exist.
 
-Two limits are worth reading off \autoref{eq:alpha_trim} rather than discovering in a run.
-$\alpha_{trim}\propto T/q$, so it blows up wherever there is thrust without dynamic pressure:
-immediately after ignition, and during any high-altitude burn. And it blows up outright as the
-static margin approaches zero, since the denominator is $I$ times \autoref{eq:dtheta_dalpha} --- a
-marginally stable rocket has no authority to trim against even a tiny built-in torque. Neither
-limit is a defect of the model; both are the physical reason launch rails exist.
-
-The radial offsets $r_g,r_t$ sit alongside $\theta_t$ in
-\autoref{eq:moment_full} on exactly the same footing --- constant inputs, not yet exercised in
-this section's worked cases, which all set $r_g=r_t=0$ to isolate $\theta_t$ on its own.
-Re-running this section with $r_g,r_t\neq0$ is a direct substitution into
-\autoref{eq:moment_full}, adding a further constant offset $(r_g-r_t)T\cos\theta_t-r_g\,qSC_x$
-alongside $M_{\theta_t}$; it is not carried through here only because there is no case yet where
-isolating it separately from $\theta_t$ is useful. A \emph{commanded}, time-varying gimbal
-$\theta_t(t)$ driven by a control law remains future work.
+The radial offsets $r_g,r_t$ enter \autoref{eq:moment_full} on the same footing as $\theta_t$,
+adding the constant offset $(r_g-r_t)T\cos\theta_t-r_g\,qSC_x$; the worked cases set them to zero
+to isolate $\theta_t$. A commanded, time-varying $\theta_t(t)$ remains future work.
 
 \subsection{Static stability}\label{sec:analysis_stability}
-Static stability is a steady measure of the rocket's stability against a disturbance in angle of
-attack $\alpha$. Use the no-thrust, axis-aligned case --- \autoref{eq:moment_nothrust} with
-$r_g=0$, which is the same right-hand side as \autoref{eq:moment_aligned} (with
-$r_g=r_t=\theta_t=0$ the thrust contributes nothing). Before the analysis, expand and
-linearise $C_z,C_m$, which enter through $qSC_z$ and $qSc\,C_m$ with
+Static stability asks whether a disturbance in the angle of attack $\alpha$ produces a restoring
+moment. Take the no-thrust aligned case, \autoref{eq:moment_nothrust} with $r_g=0$, and linearise
+the coefficients,
 \begin{equation} \label{eq:aero_linearised}
     C_z = C_{z,0} + \alpha\,C_{z,\alpha}, \qquad
-    C_m = C_{m,0} + \alpha\,C_{m,\alpha},
+    C_m = C_{m,0} + \alpha\,C_{m,\alpha}.
 \end{equation}
-where $q$ is dynamic pressure, $C_z,C_m$ the normal-force and pitching-moment coefficients, and
-$S,c$ the reference area and length.
-By taking the partial derivative of the angular acceleration with respect to $\alpha$, we expect
-$\partial\varepsilon_r/\partial\alpha<0$: a disturbance in $\alpha$ should produce an angular
-acceleration that reduces it, i.e.\ the rocket stabilises the trajectory rather than diverging
-from it. The expansion and derivative give
+Stability requires $\partial\varepsilon_r/\partial\alpha<0$: a disturbance must produce an angular
+acceleration that reduces it. The derivative is
 \begin{equation} \label{eq:dtheta_dalpha}
     \frac{\partial \varepsilon_r}{\partial \alpha} = \frac{qS}{I}\biggl[(l_g - l_p)C_{z,\alpha} - c\,C_{m,\alpha}\biggr],
 \end{equation}
-which is negative, provided $C_{z,\alpha}>0$ (the normal force grows with angle of attack --- the
-normal case, and the only one in which dividing through by $C_{z,\alpha}$ preserves the sense of
-the inequality), when the static margin satisfies
+negative for $C_{z,\alpha}>0$ (the normal case) when
 \begin{equation} \label{eq:static_margin}
     l_g - l_p < c\,\frac{C_{m,\alpha}}{C_{z,\alpha}}.
 \end{equation}
-Both lengths are measured from the nose tip $A$, so $l_g-l_p$ is
-\emph{negative} exactly when the aerodynamic reference point $p$ sits aft of the centre of gravity
-$g$ --- the familiar ``centre of pressure behind centre of gravity'' rule. In the limiting case
-where $p$ is the centre of pressure itself, $C_{m,\alpha}=0$ by definition and
-\autoref{eq:static_margin} collapses to precisely that rule.
+Both lengths are measured from the nose, so $l_g-l_p<0$ exactly when $p$ sits aft of $g$ --- the
+familiar ``centre of pressure behind centre of gravity'' rule, which is what
+\autoref{eq:static_margin} reduces to when $p$ is the centre of pressure itself, $C_{m,\alpha}=0$.
+In this report's sign of $\vec{A}_m$, a positive $C_{m,\alpha}$ is stabilising, the opposite of
+the textbook $C_{m,\alpha}<0$.
 
-\paragraph{Static margin, in calibers.} $l_g-l_p$ is a dimensional length and, on its own, not
-comparable between airframes of different size. The rocketry convention is instead to report the
-static margin non-dimensionally, divided by the reference length $c$ (the body diameter),
-and with a sign flipped so that a \emph{stable} rocket gets a \emph{positive} number:
+\paragraph{Static margin, in calibers.} The rocketry convention divides the arm by the reference
+length and flips the sign so that a stable rocket gets a positive number:
 \begin{equation}
-    \mathrm{SM} = \frac{l_p-l_g}{c},
+    \mathrm{SM} = \frac{l_p-l_g}{c}.
 \end{equation}
-using the arm $l_p-l_g$ as defined. $\mathrm{SM}>0$ now
-matches the familiar caliber convention directly: the CoP sits $\mathrm{SM}$ body-diameters aft of
-the CoG for a stable rocket, and \autoref{eq:static_margin} is equivalent to
-$\mathrm{SM}>-C_{m,\alpha}/C_{z,\alpha}$.
+The CoP then sits $\mathrm{SM}$ body diameters aft of the CoG, and \autoref{eq:static_margin} is
+equivalent to $\mathrm{SM}>-C_{m,\alpha}/C_{z,\alpha}$.
 
 \subsubsection{Dynamic stability}\label{sec:analysis_dynamic}
-Everything above is a \emph{static} criterion: it asks only whether a disturbance in $\alpha$
-produces a restoring moment, not what the resulting oscillation actually does next. That question
-needs a fourth coefficient, the \textbf{pitch-damping derivative} $C_{m,q}$, the sensitivity of the
-pitching-moment coefficient to a non-dimensional pitch rate $\hat{\omega}=\omega_r c/(2v_{rel})$:
+The static criterion does not say what the resulting oscillation does. That needs the
+\textbf{pitch-damping derivative} $C_{m,q}$, the sensitivity of $C_m$ to the non-dimensional pitch
+rate $\hat{\omega}=\omega_r c/(2v_{rel})$:
 \begin{equation}
     C_m = C_{m,0} + \alpha\,C_{m,\alpha} + \hat{\omega}\,C_{m,q}.
 \end{equation}
-$C_{m,q}$ arises purely from the body's own rotation, exactly as its name suggests. When the
-rocket rotates about the centre of gravity at rate $\omega_r$, every point on the body picks up an
-extra velocity $\omega_r\hat{y}_r\times\vec{s}_i$ relative to the CoG, where $\vec{s}_i$ is its
-position relative to the CoG; a point a distance $s_i$ aft of the CoG therefore sees a local angle
-of attack that differs from the CoG's own $\alpha$ by $\Delta\alpha_i\approx+\omega_r s_i/v_{rel}$.
-Fins mounted well aft of the CoG --- exactly where a stable airframe puts its stabilising surfaces
---- see the largest such shift, and integrating the resulting change in the local normal-force
-distribution against the moment arm produces a moment proportional to $\omega_r$: a true
-\emph{damping} term, present even when $\alpha$ itself is zero.
-Note the sign convention here is the \emph{opposite} of the usual aerospace one: this document
-fixed positive $qSc\,C_m$ (and hence positive $C_m$) to pitch the nose \emph{down}
-($\vec{A}_m=-qSc\,C_m\hat{y}_r$ feeding $I\varepsilon_r=\dots-qSc\,C_m$),
-which is why \autoref{eq:dtheta_dalpha} already needs $C_{m,\alpha}>0$, not the textbook
-$C_{m,\alpha}<0$, for static stability. The same flip applies here: a conventional, aft-finned,
-statically stable airframe has $C_{m,q}>0$ in this document's convention --- a positive (nose-up)
-pitch rate then produces an \emph{additional} positive (nose-down) moment contribution, opposing
-the rotation that caused it.
+It comes from the body's own rotation. A point a distance $s_i$ aft of the CoG moves relative to
+the CoG with velocity $\omega_r\hat{y}_r\times\vec{s}_i$ and sees a local angle of attack shifted
+by $\Delta\alpha_i\approx+\omega_r s_i/v_{rel}$. Fins well aft see the largest shift, and the
+resulting normal-force change against its arm gives a moment proportional to $\omega_r$, present
+even at $\alpha=0$.
 
-With this term, \autoref{eq:moment_aligned} linearises to
+With the sign of $\vec{A}_m$ used here, a positive $C_m$ pitches the nose \emph{down}. A
+statically stable, aft-finned airframe therefore has $C_{m,q}>0$: a positive (nose-up) pitch rate
+produces an additional positive (nose-down) moment, opposing the rotation.
+
+Linearising \autoref{eq:moment_aligned} with this term (and $C_{z,0}=C_{m,0}=0$),
 \begin{equation}
     I\varepsilon_r = qS(l_g-l_p)C_{z,\alpha}\,\alpha - qSc\,C_{m,\alpha}\,\alpha
         - \frac{qSc^2}{2v_{rel}}C_{m,q}\,\omega_r,
 \end{equation}
-(again taking $C_{z,0}=C_{m,0}=0$), which separates into a restoring (``stiffness'') term and a
-damping term,
+which separates into a stiffness term and a damping term,
 \begin{equation}
     M_\alpha \equiv \frac{\partial\varepsilon_r}{\partial\alpha}
         = \frac{qS}{I}\bigl[(l_g-l_p)C_{z,\alpha}-c\,C_{m,\alpha}\bigr], \qquad
-    M_q \equiv \frac{qSc^2}{2v_{rel}I}C_{m,q},
+    M_q \equiv \frac{qSc^2}{2v_{rel}I}C_{m,q}.
 \end{equation}
-where $M_\alpha$ is exactly \autoref{eq:dtheta_dalpha}, negative for a statically stable airframe,
-and $M_q$ is positive precisely when $C_{m,q}>0$ (the damping sign of this document's convention,
-above).
-Taking the short-period approximation --- the flight-path angle changes slowly enough over one
-oscillation that $\mathrm{d}\alpha/\mathrm{d}t\approx\mathrm{d}\theta_r/\mathrm{d}t=\omega_r$ ---
-gives a standard damped-oscillator equation for the angle-of-attack perturbation,
+$M_\alpha$ is negative for a statically stable airframe and $M_q$ is positive for $C_{m,q}>0$. In
+the short-period approximation the flight-path angle changes slowly over one oscillation, so
+$\mathrm{d}\alpha/\mathrm{d}t\approx\omega_r$ and
 \begin{equation}
     \frac{\mathrm{d}^2\alpha}{\mathrm{d}t^2} + M_q\frac{\mathrm{d}\alpha}{\mathrm{d}t} - M_\alpha\alpha = 0,
 \end{equation}
@@ -269,10 +172,7 @@ with natural frequency and damping ratio
 \begin{equation}
     \omega_n = \sqrt{-M_\alpha}, \qquad \zeta = \frac{M_q}{2\omega_n} = \frac{M_q}{2\sqrt{-M_\alpha}},
 \end{equation}
-valid only when $M_\alpha<0$ (statically stable); if it is not, the disturbance grows rather than
-oscillates, and $\omega_n,\zeta$ are not meaningful. This is the framework the dynamic-stability
-question needs; it is not yet quantitative, because no \emph{value} of $C_{m,q}$ is available.
-Getting that number requires either a measured
-value (forced-oscillation wind-tunnel testing, or an unsteady CFD run) or a full distributed-force
-derivation from the airframe's own geometry along the lines sketched above; neither is done here.
+valid only for $M_\alpha<0$; otherwise the disturbance grows rather than oscillates. The framework
+is not yet quantitative because no value of $C_{m,q}$ is available: it needs a measured value
+(forced-oscillation tests or unsteady CFD) or a distributed-force derivation from the airframe.
 \todo{needs a value or model for $C_{m,q}$ before this subsection is quantitative}

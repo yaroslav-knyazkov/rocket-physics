@@ -3,11 +3,10 @@ What is deliberately left undone, and what has to exist before each item can be 
 \begin{itemize}
     \item \textbf{Commanded gimbal control.} A time-varying $\theta_t(t)$ driven by a control law;
     a 3D item, since steering needs an out-of-plane degree of freedom. \emph{Waiting on:} a
-    guidance objective, actuator limits, a sensor model, and the 3D model. The drag-modulating air
-    brake is a different loop, already implemented in 2D with a proportional law; a sampled-data
-    law with integral or derivative memory, running on the zero-order-hold mode, is still unwritten
-    (signal, gains, saturation and anti-windup). The brake also has no retraction condition and no
-    rate limit.
+    guidance objective, actuator limits, a sensor model, and the 3D model. The air brake is a
+    different loop, implemented in 2D with a proportional law; a law with integral or derivative
+    memory on the zero-order-hold mode (signal, gains, saturation, anti-windup) is unwritten, as
+    are brake retraction and a rate limit.
     \item \textbf{Wing-body aerodynamics.} Replace the constant, linearized and table
     coefficient models with a Barrowman-style build-up: each of nose, body and fins contributes a
     normal-force slope $C_{z,\alpha,i}$ at a location $X_i$, and the centre of pressure is the
@@ -35,10 +34,10 @@ What is deliberately left undone, and what has to exist before each item can be 
     \item \textbf{Refined rail and recovery.} Rail friction and a tip-off transient; a canopy
     opening transient, inflation shock and pendulum swing.
     \item \textbf{Roll dynamics with a reaction wheel (2D).} A decoupled roll degree of freedom
-    about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}=\mathrm{d}\gamma_r/\mathrm{d}t$
-    and axial moment of inertia $I_x$. A reaction wheel applies a torque to the airframe with an
-    equal and opposite one on the wheel, whose speed and angular momentum saturate. Roll is also
-    damped and driven by the aerodynamics, through roll damping and the roll moment from fin cant.
+    about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}$ and axial moment of inertia
+    $I_x$. A reaction wheel torques the airframe with an equal and opposite torque on the wheel,
+    whose speed and angular momentum saturate. Roll is also damped and driven aerodynamically
+    (roll damping, roll moment from fin cant).
     \emph{Waiting on:} $I_x$ of the airframe, the wheel inertia and motor torque limits, the
     aerodynamic roll coefficients, and a control law.
 \end{itemize}

@@ -1,9 +1,8 @@
 \appendix
 \section{Notation}\label{sec:notation}
-The table maps each symbol of this report to the identifier the simulator uses for it
-(\texttt{sim/} keeps its own names). ``Not stored'' means the code keeps only an arm relative to
-the centre of gravity, not the length from the nose tip; ``not implemented'' means the quantity
-appears in the report but not in the simulator.
+The table maps each symbol to the identifier the simulator uses. ``Not stored'': the code keeps
+only an arm relative to the centre of gravity; ``not implemented'': the quantity appears in the
+report but not in the simulator.
 {\small
 \begin{longtable}{>{\raggedright\arraybackslash}p{3.0cm}
                 >{\raggedright\arraybackslash}p{4.9cm}
@@ -42,6 +41,7 @@ $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\
 $m_r$ & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
 $m_m(t)$ & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
 $m_0$, $m_f$ & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
+$\dot m_m$ & \texttt{dydt[M]} in \texttt{sim/dynamics.py} (the state $m$ follows it) & motor mass flow, negative & kg/s \\
 $\Delta t$ & not implemented (no linear mass model) & burn duration (linear mass model) & s \\
 $\Delta m$ & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
 $\mathrm{ISP}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
@@ -110,13 +110,11 @@ $s_i$ & --- & position of a body point relative to the CoG ($C_{m,q}$ derivation
 $M_\alpha$, $M_q$, $\omega_n$, $\zeta$ & --- & short-period parameters & $\mathrm{1/s^2}$, 1/s, rad/s, --- \\
 \end{longtable}
 }
-Some letters carry two meanings and are told apart by context only: $g$ is both the centre of
-gravity and the gravitational acceleration, and as a subscript both the point ($l_g$, $r_g$) and
-the gravity direction ($\hat{z}_g$); $t$ as a point is distinct from time $t$, and $h$ is the RK4
-step in \autoref{sec:states} but the altitude elsewhere. The mass model of \autoref{sec:mass} uses
-the subscript $m$ for the motor and $r$ for the dry rocket, so $l_p$ is only the aerodynamic
-reference point; in the code \texttt{p.weight.l\_p} is the propellant centroid (the motor's
-$l_{g,m}$).
+Some letters carry two meanings, told apart by context: $g$ is the centre of gravity, the
+gravitational acceleration, and as a subscript both the point ($l_g$, $r_g$) and the gravity
+direction ($\hat{z}_g$); $t$ as a point differs from time $t$; $h$ is the RK4 step in
+\autoref{sec:states} but the altitude elsewhere. $l_p$ is only the aerodynamic reference point; in
+the code \texttt{p.weight.l\_p} is the propellant centroid (the motor's $l_{g,m}$).
 
 \section{Model inventory}\label{sec:eom_inventory}
 Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
@@ -132,11 +130,9 @@ Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
     \item $S$, $c$ --- reference area and reference length (\autoref{sec:aero});
     \item $C_x$, $C_z$, $C_m$ --- aerodynamic coefficients (\autoref{sec:aero});
     \item $l_t$, $r_t$, $l_p$, $l_g$, $r_g$ --- lengths (\autoref{sec:geometry}); $l_g(t)$ moves
-    with the mass model (\autoref{sec:mass}), and the position of $p$ is supplied together with the
-    coefficients (\autoref{sec:aero});
-    \item states --- $\theta_r$, $\omega_r$, $\varepsilon_r$ and $\vec{x}_r$, $\vec{v}_r$,
-    $\vec{a}_r$ (\autoref{sec:frames}); the equations deliver $\varepsilon_r$ and $\vec{a}_r$, the
-    rest is integrated;
+    with the mass model, and the position of $p$ comes with the coefficients;
+    \item states --- $\theta_r$, $\omega_r$, $\vec{x}_r$, $\vec{v}_r$ are integrated, the equations
+    deliver $\varepsilon_r$ and $\vec{a}_r$ (\autoref{sec:states});
     \item and, outside free flight, the parachute (\autoref{sec:recovery}) and the launch rail
     (\autoref{sec:rail}).
 \end{itemize}
@@ -148,9 +144,8 @@ Signs and axes in one place; the rest of the report follows them.
     for $\mathcal{F}_r$), $\hat{z}$ points down (towards the belly for $\mathcal{F}_r$), and $\hat{y}$
     completes the right-handed triad, $\hat{x}\times\hat{y}=\hat{z}$; $\hat{y}$ is out of the pitch
     plane, to the right of the downrange direction.
-    \item \textbf{Pitch.} $\theta_r$ is measured from $\hat{x}_0$, positive nose-up;
-    $\omega_r=\mathrm{d}\theta_r/\mathrm{d}t$ and $\varepsilon_r$ share its sign (rotation about
-    $\hat{y}_r$).
+    \item \textbf{Pitch.} $\theta_r$ is measured from $\hat{x}_0$, positive nose-up; $\omega_r$
+    and $\varepsilon_r$ share its sign (rotation about $+\hat{y}_r$).
     \item \textbf{Lengths.} $l$ is measured from the nose tip $A$ positive aft, so a point sits at
     $-l\,\hat{x}_r$; the radial offset $r$ is along $-\hat{z}_r$, so it sits at $-r\,\hat{z}_r$.
     \item \textbf{Moments} are taken about the centre of gravity $g$, positive about $+\hat{y}_r$
@@ -160,8 +155,9 @@ Signs and axes in one place; the rest of the report follows them.
     $\theta_r$ tilts the nose, and pitches the nose down through a nozzle aft of $g$.
     \item \textbf{Aerodynamics.} $\vec{A}_f=-qS\left(C_x\hat{x}_r+C_z\hat{z}_r\right)$ and
     $\vec{A}_m=-qSc\,C_m\hat{y}_r$, so positive $C_x$ and $C_z$ oppose motion along $+\hat{x}_r$
-    and $+\hat{z}_r$ respectively, and positive $C_m$ gives a moment about $-\hat{y}_r$, i.e.\
-    nose-down.
+    and $+\hat{z}_r$, and positive $C_m$ pitches the nose \emph{down}. This is the opposite of the
+    usual aerospace sign: here static stability needs $C_{m,\alpha}>0$ and a damping
+    $C_{m,q}>0$, as in the simulator, which applies $-qSc\,C_m$ to the pitch moment.
     \item \textbf{Units.} SI throughout; angles are radians internally and degrees in the
     configuration files.
 \end{itemize}
