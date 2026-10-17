@@ -14,6 +14,8 @@ Line refs: models.tex (M), other-dynamics.tex (O), appendix.tex (A), main.tex. A
 10. Compile: `~/AppData/Local/Programs/tectonic/tectonic.exe main.tex` (tectonic not on PATH). 0 errors, 0 undefined refs, 0 overfull; main.pdf written in place. Underfull-only warnings remain in the bibliography.
 11. Vertical wind (M ~sec:vertical_wind): itemize of orographic lift / thermal updraft / measured balloon profile, each with its own `\restodo`; "Neither fits ..." dropped; `\simtodo` w_z = 0 in all tiers.
 
+Round 7b: user approved Models and Other dynamics models. All `aitext` wrappers removed from models.tex (11) and the other-dynamics `\input` wrapper in main.tex (other-dynamics.tex had none); both now render black, todo macros kept. backlog.tex: new blue item "Model extensions for 3D" (nested itemize, one line per model). Recompiled: 0 errors, 0 undefined, 0 overfull.
+
 Other changes: sample period in sec:sampled renamed T_s -> tau_s (clash with thrust side force T_s).
 
 Open points

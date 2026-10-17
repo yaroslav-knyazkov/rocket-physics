@@ -47,4 +47,16 @@ What is deliberately left undone, and what has to exist before each item can be 
     (roll damping, roll moment from fin cant).
     \emph{Waiting on:} $I_x$ of the airframe, the wheel inertia and motor torque limits, the
     aerodynamic roll coefficients, and a control law.
+    \item \textbf{Model extensions for 3D.} What each model needs beyond the pitch plane:
+    \begin{itemize}
+        \item gravity: the full vector field, not only the in-plane direction $\hat{z}_g$;
+        \item thrust: the $\hat{y}_t$ component of the line of thrust and the motor roll torque;
+        \item mass: the full inertia tensor, with products of inertia and the off-axis centre of gravity;
+        \item aerodynamics: side-force, yaw- and roll-moment coefficients as functions of sideslip
+        $\beta$ as well as $\alpha$;
+        \item wind and turbulence: the lateral mean-wind component and the Dryden $v$ and $w$ components;
+        \item Earth rotation: the full Coriolis vector, with $\vec{\Omega}$ resolved along the trajectory;
+        \item rail, recovery and air brake: the rail constraint with lateral tip-off, canopy drag and
+        riser pendulum in 3D, and a brake that also yaws or rolls the airframe.
+    \end{itemize}
 \end{itemize}
