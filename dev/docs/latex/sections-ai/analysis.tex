@@ -109,8 +109,11 @@ moment. Take the no-thrust aligned case, \autoref{eq:moment_nothrust} with $r_g=
 the coefficients,
 \begin{equation} \label{eq:aero_linearised}
     C_z = C_{z,0} + \alpha\,C_{z,\alpha}, \qquad
-    C_m = C_{m,0} + \alpha\,C_{m,\alpha}.
+    C_m = C_{m,0} + \alpha\,C_{m,\alpha},
 \end{equation}
+with slopes $C_{z,\alpha}=\partial C_z/\partial\alpha$, $C_{m,\alpha}=\partial C_m/\partial\alpha$ and
+offsets $C_{z,0}$, $C_{m,0}$. This is an analysis device applied to whichever coefficients are in
+force; the Linearized model (\autoref{sec:aero_coeffs}) is its form in $\alpha$, $M$ and $Re$.
 Stability requires $\partial\varepsilon_r/\partial\alpha<0$: a disturbance must produce an angular
 acceleration that reduces it. The derivative is
 \begin{equation} \label{eq:dtheta_dalpha}

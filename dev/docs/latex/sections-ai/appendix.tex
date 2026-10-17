@@ -60,7 +60,7 @@ $C_x$, $C_z$, $C_m$ & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (consta
 $qSC_x$, $qSC_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
 $qSc\,C_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
 $S_k$, $c_k$, $C_{x,k}$, $C_{z,k}$, $C_{m,k}$, $pp_k$ & not implemented & aero component $k$: reference area and length, coefficients, reference point & $\mathrm{m^2}$, m, ---, m \\
-$C_{x,0}$, $k$ & not implemented & drag polar $C_x=C_{x,0}+kC_z^2$ & --- \\
+$C_{x,0}$, $C_{x,\alpha^2}$ & not implemented & axial coefficient at $\alpha=0$ and its $\alpha^2$ coefficient & ---, 1/rad$^2$ \\
 $\partial C/\partial\alpha$, $\partial C/\partial M$, $\partial C/\partial Re$ & only the $\alpha$ slope is in the code & linearized-model slopes & 1/rad, ---, --- \\
 $C_{z,\alpha}$, $C_{m,\alpha}$, $C_{m,q}$, $C_{z,0}$, $C_{m,0}$ & aero coefficient inputs (\texttt{c\_mq} column of the aero table, \dots) & coefficient slopes and offsets & 1/rad or --- \\
 \hline
@@ -162,7 +162,8 @@ Signs and axes in one place; the rest of the report follows them.
 \end{itemize}
 
 \section{Constants}\label{sec:constants}
-WGS84 ellipsoid constants used by the ellipsoidal gravity model, and the standard gravity.
+WGS84 ellipsoid constants used by the ellipsoidal gravity model, the standard gravity and the ISA
+layer table.
 \begin{center}
 \small
 \begin{tabular}{l l l l}
@@ -178,4 +179,24 @@ $k$ & $0.00193185265241$ & --- & Somigliana constant \\
 $g_0$ & $9.80665$ & $\mathrm{m/s^2}$ & standard gravity \\
 \hline
 \end{tabular}
+\end{center}
+
+ISA layers of the atmosphere model (\autoref{sec:atmosphere}), with base geopotential altitude
+$H_b$, lapse rate $L$, base temperature and pressure $T_b, p_b$:
+\begin{center}
+\small
+\begin{tabular}{l c c c c}
+\hline
+Layer & $H_b$ [m] & $L$ [K/m] & $T_b$ [K] & $p_b$ [Pa] \\
+\hline
+troposphere  & 0     & $-0.0065$ & 288.15 & 101325   \\
+tropopause   & 11000 & $0$       & 216.65 & 22632.06 \\
+stratosphere & 20000 & $+0.0010$ & 216.65 & 5474.889 \\
+stratosphere & 32000 & $+0.0028$ & 228.65 & 868.0187 \\
+stratopause  & 47000 & $0$       & 270.65 & 110.9063 \\
+mesosphere   & 51000 & $-0.0028$ & 270.65 & 66.93887 \\
+mesosphere   & 71000 & $-0.0020$ & 214.65 & 3.956420 \\
+\hline
+\end{tabular}
+\captionof{table}{ISA layers.}\label{tab:isa_layers}
 \end{center}
