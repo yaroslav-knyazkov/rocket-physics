@@ -106,3 +106,35 @@ Items that already exist only as a `\todo` in `models.tex` (not in backlog/assum
 - **Convention/symmetry property tests** — mirroring (`χ → χ+180°`, wind sign, `θ_t → −θ_t`, `r_g → −r_g`) must mirror `x` and `θ_r`; unit checks on every config field · cheap guard for the sign convention the project relies on · S · no.
 - **Run diagnostics** — one warnings list per run: `t_max` reached, table envelope exceeded, static margin < 1 cal at any time, `v_exit` low, chute deployed while ascending · turns silent failure modes into visible ones · S · no.
 
+
+## Planned sub-apps — proposals
+
+### Rocket manager
+
+- **Material and finish database** — density/roughness tables per component, feeding the constructor's mass properties and the skin-friction drag · removes hand-typed masses and a guessed roughness · M · no.
+- **Stability-margin check** — static margin in calibres from constructor geometry, with a warning below 1 cal at any burn time · catches an unstable build before a flight is simulated · S · no.
+- **Export to the aero-table format** — constructor/aero-model output written in the `data/` table layout, with the input variables (M, Re, α) chosen in the manager · one route from geometry to the existing table model · M · no.
+
+### Motor manager
+
+- **ThrustCurve.org / `.eng` import** — read and validate published curves, show total impulse and burn time against the catalogue values · avoids hand-copied thrust points · S · no.
+- **Impulse and burn-time scatter** — per-motor spread parameters for Monte-Carlo (impulse ±, burn time ±, grain temperature) · dispersion input for the dispersion framework below · S · no.
+- **Mass and CG history plots** — motor mass, CG and inertia against time, with a consistency check against the propellant mass · makes the motor's moving mass visible and checkable · S · no.
+
+### Recovery manager
+
+- **Descent-rate and drift calculator** — terminal velocity and downrange drift from canopy area, $C_D$, mass and the wind profile · fast sizing without a full flight · S · no.
+- **Opening-shock estimate** — peak load from an inflation-time/opening-force factor model, with force per shroud line · first structural number for line and riser selection · M · no.
+- **Riser spring–damper option** — elastic riser with damping, as the first step to the coupled rocket–canopy model · prerequisite of the backlog item on rocket and parachute dynamics · L · backlog: yes.
+
+### Weather manager
+
+- **Sounding fetch and quality checks** — fetch, then flag gaps, non-monotonic altitude, unphysical shear and lapse rate · bad soundings currently pass silently · M · no.
+- **Launch-window go/no-go** — wind, ceiling and shear limits evaluated on the profile, with a pass/fail table · turns the weather data into a launch decision · S · no.
+- **Profile comparison** — overlay of several soundings or forecast hours, with spread of the winds aloft · shows how much the weather uncertainty matters · S · no.
+
+### Site designer
+
+- **Rail tip-off** — rail-exit transient from button spacing, clearance and exit speed · links the site to the dynamics item in the backlog · M · backlog: yes.
+- **Launch-angle optimiser for wind** — rail elevation and azimuth that minimise the landing offset in a given wind · standard range-safety practice · M · no.
+- **Landing-zone map** — dispersion ellipse over a map with exclusion zones · the form in which range safety reviews a flight · L · no.

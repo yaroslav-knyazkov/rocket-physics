@@ -19,6 +19,38 @@ Around the simulation core (\texttt{sim/}) sit the inputs and the tools that use
     (\texttt{run\_trade.py}).
 \end{itemize}
 
+Planned sub-applications, each managing one group of inputs; configurations keep only data, and the
+interface presents the models:
+\begin{itemize}
+    \item \textbf{Rocket manager.}
+    \begin{itemize}
+        \item \emph{Rocket constructor}, similar to OpenRocket: produces the dry-rocket parameters
+        ($m_r$, $l_{g,r}$, $I_{r,g}$, \dots). They can be overwritten by CAD or measured dry
+        values, or entered directly without the constructor.
+        \item \emph{Rocket aerodynamics}: choose the model (constant, linearized, lookup table)
+        and the input variables of the coefficients ($M$, $Re$, $\alpha$, \dots).
+    \end{itemize}
+    \item \textbf{Motor manager.}
+    \begin{itemize}
+        \item Thrust-data import, and whether the pressure-correction model is applied.
+        \item Motor mass retriever: all specifications, as for the dry rocket, with graphs of
+        their change over time.
+    \end{itemize}
+    \item \textbf{Recovery manager.}
+    \begin{itemize}
+        \item Parachute design for different shapes and sizes, with aerodynamic data.
+        \item Structural data, e.g.\ the force per shroud line.
+        \item Optionally, a spring--damper model of the riser.
+    \end{itemize}
+    \item \textbf{Weather manager.} Choose, analyse and manage weather data: atmosphere and wind.
+    \item \textbf{Site designer.} Launch-site altitude above the Earth's centre, optionally a
+    ground-height model, and above all the rail.
+\end{itemize}
+
+Text in blue is unreviewed. Two kinds of to-do mark open work:
+\simtodo{implemented in the report, not yet in the simulator} and
+\restodo{needs research before it can be written down}.
+
 The report is organised as follows. \autoref{sec:rocket2d} sets up the frames, forces and equations
 of motion; \autoref{sec:models} gives the interchangeable models behind each term;
 \autoref{sec:analysis} works the equations through by hand and derives the stability results.

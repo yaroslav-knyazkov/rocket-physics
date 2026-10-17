@@ -1,14 +1,14 @@
 \section{Models}\label{sec:models}
 Each subsection gives the interchangeable models behind one term of the equations of motion: the
 three forces (gravity, thrust with its mass, aerodynamics), the environment they depend on
-(atmosphere, wind, relative flow), the Earth-rotation correction, and the integration. The last
+(atmosphere, wind, relative flow), the random disturbances, the Earth-rotation correction, and the integration. The last
 four subsections --- launch rail, recovery, air brake and sampled-data mode --- modify the
 equations rather than supply a term, and are off by default.
 
 \subsection{Gravity}\label{sec:gravity}
 This subsection supplies the weight $\vec{W}=mg\hat{z}_g$: the magnitude $g$ and the direction
 $\hat{z}_g$ (down, along the local vertical), chosen independently. Below, $h$ is the altitude above
-the surface and $R_e$ the Earth's mean radius.
+the surface and $R_e$ the Earth's mean radius; \autoref{sec:position_altitude} defines the altitudes.
 
 \subsubsection{Magnitude}
 \begin{itemize}
@@ -19,11 +19,29 @@ the surface and $R_e$ the Earth's mean radius.
     constants from \autoref{sec:constants}.
 \end{itemize}
 \begin{gather}
-    g(h)=g_0\left(\frac{R_e}{R_e+h}\right)^2 \qquad \text{(radial)} \\
+    g(r)=g_0\left(\frac{R_e}{r}\right)^2 \qquad \text{(radial)} \\
     \gamma_0(\phi) = \gamma_e\frac{1+k\sin^2\phi}{\sqrt{1-e^2\sin^2\phi}} \\
     g(\phi, h) = \gamma_0\left[1 - \frac{2}{a_e}\left(1+f+m-2f\sin^2\phi\right)h + \frac{3}{a_e^2}h^2\right].
 \end{gather}
 The ellipsoidal magnitude already contains the centrifugal part of the Earth's rotation.
+
+\paragraph{Radius in the radial model.} Here $r=|\vec{Og}|$ is the distance from the Earth's
+centre $O$ to the rocket's centre of gravity $g$, and $R_e$ is a constant. At launch
+\begin{equation}
+    r(0)=R_0=R_e+h_0+h_{g,0},
+\end{equation}
+with $h_0$ the launch-site altitude above the mean Earth radius and $h_{g,0}$ the height of the
+initial centre of gravity above the ground (on the pad or rail), so that the initial position of
+$g$ relative to $O$ is consistent with the site. Later, $r=R_0+(\text{height gained})$, to first
+order in the curvature. The local radius of the real Earth is not constant: it varies with
+latitude, $R(\phi)\approx a_e(1-f\sin^2\phi)$, by $0.3\%$ between equator and pole, which is
+$0.7\%$ in $g$; the ellipsoidal model above accounts for it. Ground-height models (terrain or
+geoid undulation) could replace $h_0$ and the flat ground by a position-dependent surface, as an
+option.
+\todo{sim/ uses a constant $R_e=6371\,\mathrm{km}$ and evaluates the radial $g$ at
+$R_e+h_{AGL}$, with $h_{AGL}$ measured from the launch position of the centre of gravity: neither
+$h_0$ nor $h_{g,0}$ enters the radial magnitude (the ellipsoidal one does include $h_0$, through
+the altitude above mean sea level). The centre of gravity starts at the origin, so $h_{g,0}=0$.}
 
 \subsubsection{Direction}
 \begin{itemize}
@@ -61,9 +79,22 @@ so $\vartheta=x/R_\chi$, i.e.\ \autoref{eq:zhat_g_rotated} with $R_e\to R_\chi$.
 \todo{this differs from the exact normal at third order in $\vartheta$, because $R_n$ keeps
 changing with latitude along the track.}
 
-\paragraph{Position relative to $O$ and true altitude.} The non-parallel models need the altitude
-$h_{true}$ over the curved ground, which the altitude-dependent models use in place of $-z$. The
-arc angle and the ground point under the rocket are
+\subsubsection{Vector field (magnitude + direction)}
+A single model may supply $g$ and $\hat{z}_g$ together, as a vector field
+$\vec{g}(\vec{x},t)$, so that $\vec{W}=m\vec{g}$. The most useful candidates:
+\begin{itemize}
+    \item \textbf{Point mass:} $\vec{g}=-GM\,\vec{r}/r^3$, the inverse-square field.
+    \item \textbf{J2 zonal:} point mass plus the oblateness term $J_2$.
+    \item \textbf{Spherical-harmonic geopotential}, e.g.\ EGM2008, to a chosen degree and order.
+    \item \textbf{Local gravity anomaly} from gravimetry data, added to a reference field.
+\end{itemize}
+\todo{none of these exists in sim/; only the separate magnitude and direction models are
+implemented.}
+
+\subsubsection{Position relative to $O$ and true altitude}\label{sec:position_altitude}
+The non-parallel models need the altitude $h_{true}$ over the curved ground, which the
+altitude-dependent models use in place of $-z$. The arc angle and the ground point under the
+rocket are
 \begin{gather}
     \varphi = \frac{x}{R_e}, \label{eq:phi_downrange}\\
     \vec{O^*P}(\varphi) = R_e\sin\varphi\,\hat{x}_0 + R_e(1-\cos\varphi)\,\hat{z}_0,
@@ -75,13 +106,20 @@ and the altitude is the offset of the rocket from that point along $-\hat{z}_g$,
         = x\sin\varphi - z\cos\varphi - R_e(1-\cos\varphi).
 \end{equation}
 For small $\varphi$, $h_{true}\approx x^2/2R_e-z$. Impact is $h_{true}=0$ instead of $z=0$. For the
-ellipsoid, $R_e\to R_\chi$.
+ellipsoid, $R_e\to R_\chi$. Replacing $R_e$ by $R_0$ would change the angles by a relative
+$h_0/R_e$, below $10^{-3}$ for a site under $6\,\mathrm{km}$, so $R_e$ is kept.
 
-\subsubsection{Vector field (magnitude + direction)}
-A single model may supply $g$ and $\hat{z}_g$ together, as a vector field
-$\vec{g}(\vec{x},t)$ from a gridded dataset, so that $\vec{W}=m\vec{g}$.
-\todo{no vector-field gravity model exists in sim/; only the separate magnitude and direction
-models are implemented.}
+Which position matters depends on the question asked of the flight:
+\begin{itemize}
+    \item \textbf{Relative to the launch point} (downrange $x$, height above the site): apogee,
+    recovery and reporting.
+    \item \textbf{Above mean sea level or the geoid:} atmosphere and regulations.
+    \item \textbf{From the Earth's centre, $r=R_e+h_0+\dots$:} gravity.
+    \item \textbf{Height above the local curved ground, $h_{true}$:} impact and terrain clearance.
+\end{itemize}
+The simulator integrates $(x,z)$ relative to the launch point and reports the height above the
+ground $h_{true}$ (equal to $-z$ for parallel gravity). The atmosphere uses $h_{true}+h_0$, the
+wind shear $h_{true}$.
 
 \subsection{Thrust}\label{sec:thrust}
 \subsubsection{Magnitude}
@@ -108,7 +146,7 @@ which rises with altitude by at most $A_ep_0$ in vacuum; $A_e=0$ recovers $T_0(t
 default $A_e=0$ switches the correction off.}
 
 \subsubsection{Direction}
-The line of thrust may differ from the nose axis by a small angle $\theta_t$. Its unit vector
+The line of thrust may differ from the nose axis by an angle $\theta_t$. Its unit vector
 $\hat{x}_t$ follows from $\hat{x}_r$ exactly as $\hat{x}_r$ does from $\hat{x}_0$:
 \begin{equation}\label{eq:thrust_frame}
     \hat{x}_t = \cos\theta_t\,\hat{x}_r - \sin\theta_t\,\hat{z}_r, \qquad
@@ -584,7 +622,7 @@ tier), provide the wind velocity $\vec{v}_w$ in $\mathcal{F}_0$. The aerodynamic
 see the air only through $\vec{v}_{rel} = \vec{v}_r - \vec{v}_w$. The tiers mirror the atmosphere:
 \begin{enumerate}
     \item \textbf{Simple analytic model}: constant wind plus an altitude-dependent shear profile,
-    with an optional, separately selected turbulence term.
+    with an optional turbulence term (\autoref{sec:noise}).
     \item \textbf{Real data} (one sounding): a measured or forecast profile $\vec{v}_w(h)$ at one
     location and time, or an average for that location.
     \item \textbf{Real data across multiple stations}: profiles from several locations,
@@ -611,16 +649,56 @@ $w_y$ is computed and discarded: crosswind weathercocking needs a full 6DOF mode
 $h$ is the altitude above the local ground and $n\approx1/7$ the shear exponent (open terrain;
 lower for smoother, up to $\sim0.4$ for rougher terrain). It is valid within the surface layer only
 --- the lowest few hundred metres to 1--2\,km --- above which the sounding tiers apply. This is the
-\emph{mean} profile; the fluctuation about it is a separate model.
+\emph{mean} profile; the fluctuation about it is in \autoref{sec:noise}.
 
 \paragraph{Sounding / field.} The same measured $(u,v)$ profiles and interpolation as the
 atmosphere, projected through the formula above; never interpolated as $(W,\psi)$, since direction
 wraps at $360^\circ$.
 
+\subsubsection{Vertical wind}\label{sec:vertical_wind}
+All tiers return horizontal wind only ($w_z=0$). The structure admits a vertical component:
+$\vec{v}_w=w_x\hat{x}_0+w_z\hat{z}_0$, so an updraft of speed $w_{up}$ is $w_z=-w_{up}$ and changes
+$\vec{v}_{rel}$, hence $v_{rel}$ and $\alpha$, directly. It matters most where $v_{rel}$ is small
+(near the pad, around apogee, under canopy), since it rotates the relative wind by about
+$w_{up}/v_{rel}$. Two families exist for deriving it: (1) terrain-slope orographic lift,
+$w\approx\vec{v}_h\cdot\nabla h_{terrain}$, which needs a terrain elevation model; (2) thermal
+updraft parameterisations from the soaring literature, which need surface heat-flux or insolation
+data. Neither fits the current data pipeline without a new data source, so this is left
+unimplemented pending research.
+
+\subsection{Noise and disturbances}\label{sec:noise}
+Two random effects perturb the flight about the deterministic models: the motor's thrust and the
+air's motion. Both are optional and off by default.
+
+\subsubsection{Thrust noise}
+Even a perfectly aligned motor does not push exactly along its axis. The flow through the nozzle
+produces a small side force and a roll torque, from
+\begin{itemize}
+    \item asymmetry of the jet and of the flow through the throat;
+    \item flow separation in the nozzle;
+    \item combustion instability and chamber-pressure oscillation;
+    \item swirl in the exhaust.
+\end{itemize}
+The effect is random and usually a small fraction of $T$. A stochastic side-force term models it,
+\begin{equation}
+    F_{side}(t)=\kappa\,T(t)\,\xi(t),
+\end{equation}
+with $\kappa$ the intensity as a fraction of thrust and $\xi(t)$ a zero-mean unit-variance random
+process with a correlation time $\tau_c$; the roll torque is modelled the same way.
+\todo{not implemented; $\kappa$, $\tau_c$ and the roll-torque level need test-stand data.}
+
+\subsubsection{Atmospheric disturbances}\label{sec:atmos_noise}
+Two kinds of information about the air must be kept apart. The \emph{mean} profiles of wind and
+temperature come from soundings: they are measurable and, for a given flight, deterministic.
+\emph{Turbulence and gusts} are short-term and stochastic. A sounding does not contain them; only
+their statistics --- the intensity $\sigma$ and the length scale $L$ --- can be measured or
+modelled, while each realisation is random. The mean wind of \autoref{sec:wind} is therefore
+perturbed by a fluctuation drawn from those statistics.
+
 \paragraph{Turbulence.} A fluctuation added to the analytic mean profile, selected independently.
 Two variants: \textbf{none} (default, exactly zero) and \textbf{Dryden}, the
 MIL-F-8785C/MIL-HDBK-1797 horizontal turbulence spectrum. It applies to the analytic tier only; a
-sounding is already a measurement of the real field.
+sounding supplies a measured mean profile, to which no synthetic fluctuation is added.
 
 Scale length and intensity come from the spec's low-altitude formulas, written in feet, so
 $h_{ft}=h/0.3048$ is formed once, with $h$ the altitude above ground clamped at zero, and the band
@@ -696,17 +774,6 @@ whose turbulence matters. Lifting this needs the sampled evaluation mode and a f
 Second, there is no vertical component, as for the mean profile. At $h=0$ the low formula gives
 $L=0$ and the spectrum has zero energy while $\sigma$ stays finite; the perturbation is taken as
 exactly zero there.
-
-\subsubsection{Vertical wind}\label{sec:vertical_wind}
-All tiers return horizontal wind only ($w_z=0$). The structure admits a vertical component:
-$\vec{v}_w=w_x\hat{x}_0+w_z\hat{z}_0$, so an updraft of speed $w_{up}$ is $w_z=-w_{up}$ and changes
-$\vec{v}_{rel}$, hence $v_{rel}$ and $\alpha$, directly. It matters most where $v_{rel}$ is small
-(near the pad, around apogee, under canopy), since it rotates the relative wind by about
-$w_{up}/v_{rel}$. Two families exist for deriving it: (1) terrain-slope orographic lift,
-$w\approx\vec{v}_h\cdot\nabla h_{terrain}$, which needs a terrain elevation model; (2) thermal
-updraft parameterisations from the soaring literature, which need surface heat-flux or insolation
-data. Neither fits the current data pipeline without a new data source, so this is left
-unimplemented pending research.
 
 \subsection{Relative wind and angle of attack}\label{sec:relwind}
 Let $\vec{v}_w$ be the wind velocity relative to $\mathcal{F}_0$ (a model output). The rocket's

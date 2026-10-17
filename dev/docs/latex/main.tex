@@ -51,6 +51,13 @@
 \newcommand{\todo}[1]{%
     \textcolor{red}{(#1)}%
 }
+% Two kinds of to-do, visually distinct from each other and from the blue AI text:
+%   \simtodo{...}  implemented in the paper, not yet in the simulator (dark red, "sim:")
+%   \restodo{...}  needs research first (orange, "research:")
+\definecolor{simtodocolor}{RGB}{170,0,0}
+\definecolor{restodocolor}{RGB}{230,120,0}
+\newcommand{\simtodo}[1]{\textcolor{simtodocolor}{(sim: #1)}}
+\newcommand{\restodo}[1]{\textcolor{restodocolor}{(research: #1)}}
 % AI-written text is blue; the author's own text stays black. The author reviews the document
 % part by part and turns a reviewed part black by removing its wrapper.
 %   \ai{...}               inline or multi-paragraph (\newcommand is \long by default)
@@ -69,9 +76,7 @@
 \end{aitext}
 
 \newpage
-\begin{aitext}
 \input{sections-ai/rocket-2d}
-\end{aitext}
 
 \newpage
 \begin{aitext}

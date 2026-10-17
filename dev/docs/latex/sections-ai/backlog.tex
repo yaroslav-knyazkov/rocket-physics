@@ -31,8 +31,13 @@ What is deliberately left undone, and what has to exist before each item can be 
     \item \textbf{State-coupled turbulence.} A Dryden filter driven by the true airspeed, carrying
     its own state on the sampled mode. \emph{Waiting on:} its discretisation, and whether per-tick
     noise makes results depend on the sample rate.
-    \item \textbf{Refined rail and recovery.} Rail friction and a tip-off transient; a canopy
-    opening transient, inflation shock and pendulum swing.
+    \item \textbf{Rail--rocket dynamics, in detail.} Derive the reaction (normal) forces at the
+    rail buttons and the friction they cause, and the tip-off transient at rail exit. \emph{Waiting
+    on:} button positions, clearances and a friction coefficient.
+    \item \textbf{Rocket and parachute dynamics, in detail.} A coupled two-body model: pendulum
+    motion (wobble) of the rocket under the canopy, riser elasticity, and the canopy opening
+    transient with its inflation shock. \emph{Waiting on:} canopy and riser data, and the
+    attitude degree of freedom under canopy.
     \item \textbf{Roll dynamics with a reaction wheel (2D).} A decoupled roll degree of freedom
     about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}$ and axial moment of inertia
     $I_x$. A reaction wheel torques the airframe with an equal and opposite torque on the wheel,
