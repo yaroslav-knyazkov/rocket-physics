@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-10-15",
+  "updated": "2026-10-17",
   "active_modules": [
     "architect",
     "developer"
@@ -514,140 +514,7 @@
       "id": "2.16",
       "name": "Phase 2.16 — отделение конфигурации мотора (motor-config-separation)",
       "status": "done",
-      "dates": "≤ 2026-10-15 … (точная дата старта не записана)",
-      "branch": "feature/motor-config-separation",
-      "design_doc": "dev/docs/architecture-32-motor-separation.md (на ветке feature/motor-config-separation)",
-      "steps": [
-        {
-          "step": 75,
-          "title": "sim/mass.py",
-          "commit": "6224d97",
-          "status": "done"
-        },
-        {
-          "step": 76,
-          "title": "sim/motor_file.py",
-          "commit": "134e4f2",
-          "status": "done"
-        },
-        {
-          "step": 77,
-          "title": "Weight.I_p_spec",
-          "commit": "d509e25",
-          "status": "done"
-        },
-        {
-          "step": 78,
-          "title": "schema: Motor/Airframe/Sections",
-          "commit": "c4b8bb9",
-          "status": "done"
-        },
-        {
-          "step": 79,
-          "title": "реестр configs/motors",
-          "commit": "89fe8ea",
-          "status": "done"
-        },
-        {
-          "step": 80,
-          "title": "переключение: Scenario получает часть Motor",
-          "commit": "f85da38",
-          "status": "done"
-        },
-        {
-          "step": 81,
-          "title": "рабочий пример demo_75mm_k570 (реальный CTI K570, масс-модель включена)",
-          "commit": "9650679",
-          "status": "done — доделан после WIP 3789a3c; 2 устаревших инварианта Step 78 в test_motor_pieces.py переформулированы под D-70(a)"
-        },
-        {
-          "step": 82,
-          "title": "документация полей шаблонов: REQ|OPT, единицы/варианты, описание + таблицы",
-          "status": "done — 5 шаблонов, tests/test_template_docs.py (15 тестов), поведение не изменено (AST идентичен)",
-          "commit": "eabc83b"
-        },
-        {
-          "step": 83,
-          "title": "data/ README: что за файл и кто его читает; ничего не удалено (D-72a)",
-          "status": "done",
-          "commit": "0d5e82b"
-        },
-        {
-          "step": 84,
-          "title": "синхронизация LaTeX",
-          "status": "deferred — решение пользователя 2026-10-15: LaTeX не править"
-        },
-        {
-          "step": 85,
-          "title": "D-76: assemble() задаёт s0.m",
-          "status": "done"
-        },
-        {
-          "step": 86,
-          "title": "study vehicle в apps/common (D-79)",
-          "status": "done"
-        },
-        {
-          "step": 87,
-          "title": "Apps 3/5 отвергают базу с масс-моделью (D-82)",
-          "status": "done"
-        },
-        {
-          "step": 88,
-          "title": "тесты перестают читать удаляемые записи",
-          "status": "done"
-        },
-        {
-          "step": 89,
-          "title": "демо называется demo (D-80)",
-          "status": "done"
-        },
-        {
-          "step": 90,
-          "title": "run.py, App 2, App 4 летают на demo",
-          "status": "done"
-        },
-        {
-          "step": 91,
-          "title": "удалить всё, что заменяет demo",
-          "status": "done"
-        },
-        {
-          "step": 92,
-          "title": "предупреждение Mach > 0.8 (D-83)",
-          "status": "done"
-        },
-        {
-          "step": 93,
-          "title": "знак осевой аэросилы: × f(α) (D-92..D-94a)",
-          "status": "done",
-          "commit": "9920e35"
-        },
-        {
-          "step": 94,
-          "title": "защита 0.1 с от срабатывания парашюта на столе (D-94b)",
-          "status": "done",
-          "commit": "558981a"
-        },
-        {
-          "step": 95,
-          "title": "парашют демо + устаревшие комментарии (D-97)",
-          "status": "done",
-          "commit": "f821e76"
-        },
-        {
-          "step": 96,
-          "title": "App 4: сходимость корня с запасом на выпуклой кривой апогея",
-          "commit": "33a2e64",
-          "status": "done"
-        }
-      ],
-      "next": "—",
-      "merged": "2026-10-17 в develop (50c2fa3), 501/501 после мержа с feature/latex-notes (16c5dba)",
-      "pending_user": [],
-      "handoff": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt — сохранённый диалог прошлой сессии",
-      "tests": "501/501",
-      "design_doc_2": "dev/docs/architecture-33-configs-one-demo.md (чистка configs/, Steps 85-92)"
+      "archived": true
     },
     {
       "id": "3",
@@ -1736,6 +1603,60 @@
   "notes": "Личный инструмент, один пользователь, своя реализация на Python (без RocketPy). Одна ступень — один коммит, полный прогон тестов после каждой. LaTeX (dev/docs/latex/) — спецификация физики, правит пользователь.",
   "archive": {
     "file": "dev/status-archive.json",
-    "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/)."
+    "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
+    "generated": "2026-10-17",
+    "stages_archived": 1,
+    "decisions_archived": 0,
+    "legacy_keys_archived": [
+      "active_modules",
+      "artifacts",
+      "completed_steps",
+      "complexity",
+      "current_stage",
+      "decisions",
+      "flagged_issues",
+      "flagged_issues_step19",
+      "git_flow",
+      "milestone_step6",
+      "notes",
+      "phase1_status",
+      "phase2_10_completed_steps",
+      "phase2_10_milestone_complete",
+      "phase2_11_rewrite",
+      "phase2_12_motor_selection",
+      "phase2_13_apps_configs",
+      "phase2_14_latex_sync",
+      "phase2_15_config_separation",
+      "phase2_5_completed_steps",
+      "phase2_5_scope",
+      "phase2_5_step36_completed",
+      "phase2_5_step37_completed",
+      "phase2_5_step37_prep",
+      "phase2_6_completed_steps",
+      "phase2_6_doc_pass",
+      "phase2_7_completed_steps",
+      "phase2_7_doc_pass",
+      "phase2_7_milestone_complete",
+      "phase2_7_steps41_42_recovery_note",
+      "phase2_8_completed_steps",
+      "phase2_8_milestone_complete",
+      "phase2_9_completed_steps",
+      "phase2_9_milestone_complete",
+      "phase2_completed_steps",
+      "phase2_decisions",
+      "phase2_milestone_complete",
+      "phase2_scope",
+      "phase2_step15_skipped",
+      "phase2_step25_completed",
+      "phase2_step26_completed",
+      "phase2_step27_completed",
+      "phase3_progress",
+      "project",
+      "report_finalization_pass",
+      "sign_convention_fix_pre_step25",
+      "stages",
+      "step24_skipped",
+      "step26_network_approved"
+    ]
   }
 }
