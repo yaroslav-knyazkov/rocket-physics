@@ -11,12 +11,14 @@ Around the simulation core (\texttt{sim/}) sit the inputs and the tools that use
     descriptions (\texttt{configs/}), with motor curves, aerodynamic tables and atmospheric
     soundings under \texttt{data/}. The simulator itself is offline and deterministic; a sounding
     can be fetched separately with \texttt{tools/fetch\_sounding.py}.
-    \item \textbf{Simulation and comparisons} (\texttt{run.py}): flies a scenario and compares
-    variants of it.
-    \item \sloppy\textbf{Applications} (\texttt{apps/}): motor selection (\texttt{run\_motor\_sweep.py}),
-    air-brake sizing (\texttt{run\_airbrake.py}), selection of CFD conditions
-    (\texttt{run\_cfd\_conditions.py}) and the mass--aerodynamics trade-off
-    (\texttt{run\_trade.py}).
+    \item \textbf{Output applications:}
+    \begin{itemize}
+        \item single simulation (2D or 3D);
+        \item motor sweep;
+        \item CFD input conditions (output);
+        \item mass--aerodynamics trade-off (weight and so on; can live under the same CFD tab);
+        \item and, more specific, air-brake sizing.
+    \end{itemize}
 \end{itemize}
 
 Planned sub-applications, each managing one group of inputs; configurations keep only data, and the
@@ -29,6 +31,9 @@ interface presents the models:
         values, or entered directly without the constructor.
         \item \emph{Rocket aerodynamics}: choose the model (constant, linearized, lookup table)
         and the input variables of the coefficients ($M$, $Re$, $\alpha$, \dots).
+        \item \emph{Wing-body aerodynamics approximation}: approximate the rocket's aerodynamics
+        by a component build-up, with the drag of each component taken from research or
+        semi-empirical data; components may be neglected.
     \end{itemize}
     \item \textbf{Motor manager.}
     \begin{itemize}
@@ -49,7 +54,8 @@ interface presents the models:
 
 Text in blue is unreviewed. Two kinds of to-do mark open work:
 \simtodo{implemented in the report, not yet in the simulator} and
-\restodo{needs research before it can be written down}.
+\restodo{needs research before it can be written down}. Framed boxes marked ``Figure (planned)''
+describe figures yet to be made.
 
 The report is organised as follows. \autoref{sec:rocket2d} sets up the frames, forces and equations
 of motion; \autoref{sec:models} gives the interchangeable models behind each term;

@@ -58,6 +58,12 @@
 \definecolor{restodocolor}{RGB}{230,120,0}
 \newcommand{\simtodo}[1]{\textcolor{simtodocolor}{(sim: #1)}}
 \newcommand{\restodo}[1]{\textcolor{restodocolor}{(research: #1)}}
+% \figtodo{...} marks a planned figure: a framed teal box stating the type, content and source.
+\newcommand{\figtodo}[1]{%
+    \par\medskip\noindent
+    \fcolorbox{teal}{teal!8}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+        \raggedright\small\color{teal!60!black}\textbf{Figure (planned):} #1}}%
+    \par\medskip}
 % AI-written text is blue; the author's own text stays black. The author reviews the document
 % part by part and turns a reviewed part black by removing its wrapper.
 %   \ai{...}               inline or multi-paragraph (\newcommand is \long by default)
@@ -79,9 +85,8 @@
 \input{sections-ai/rocket-2d}
 
 \newpage
-\begin{aitext}
+% models.tex marks its not-yet-approved subsections with aitext itself
 \input{sections-ai/models}
-\end{aitext}
 
 \newpage
 \begin{aitext}

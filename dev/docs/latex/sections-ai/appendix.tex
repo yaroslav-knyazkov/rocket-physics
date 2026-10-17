@@ -42,7 +42,6 @@ $m_r$ & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d}
 $m_m(t)$ & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
 $m_0$, $m_f$ & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
 $\dot m_m$ & \texttt{dydt[M]} in \texttt{sim/dynamics.py} (the state $m$ follows it) & motor mass flow, negative & kg/s \\
-$\Delta t$ & not implemented (no linear mass model) & burn duration (linear mass model) & s \\
 $\Delta m$ & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
 $\mathrm{ISP}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
 $g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
