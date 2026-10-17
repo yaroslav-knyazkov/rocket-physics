@@ -153,3 +153,22 @@ Counts: SIM 12, RESEARCH 17, DOC 1, RESOLVED 3 (total 33). template.tex is not `
 10. **Radial gravity radius** (paper `sec:gravity`: r = R_0 + height gained, R_0 = R_e + h_0 + h_g0) vs code `R_e + h_AGL`
     (`gravity.py` L79-80); already a \todo (models:41), listed for completeness. Naming: paper "Ellipsoidal" = code
     `gravity.direction="elliptical"` / `gravity.model="wgs84"`.
+
+## Round 7 additions (2026-10-17)
+
+Paper: Dryden/vertical wind in `sec:atmos_noise`, `sec:vertical_wind`; air brake in `sec:airbrake` (now in `other-dynamics.tex`).
+
+- **Dryden `w` missing.** Code `wind._dryden_turbulence` (L180) returns `(u, v)` only; the spec's vertical component `w`
+  (in-plane in 2D; MIL-F-8785C low altitude `L_w = h`, `sigma_w = 0.1 W20`, PSD of the form of `Phi_v`) is absent.
+  Paper: `\simtodo` in `sec:atmos_noise`.
+- **Dryden `v` has no 2D effect.** `w_y` is discarded by the 2D closure, so the code's `v` never reaches the trajectory;
+  only `u` (projected) acts. Paper states it.
+- **Air-brake representation.** Code `forces.aero_force_body` L223-227: additive axial term
+  `A_brake = q Cd_b S_max f_b`, times `axial_flow_factor(alpha)`; no `C_z`/`C_m` contribution, no own component, no
+  `f_b` table axis. Paper `sec:airbrake`: two variants (own component in the multi-component build-up; whole-rocket tables
+  with `f_b` axis), neither implemented; the additive term is the paper's simplest case, `Delta C_x = C_{D,b} S_b f_b / S`.
+- **Omega frame.** Code resolves Omega once at the launch site in F0 (`rotation.py`) while gravity may follow the rotated
+  `z_g`; effect ~3e-6 of Coriolis at 10 km. Paper: `\simtodo` in `sec:noninertial`.
+- **Vertical wind.** All tiers return `w_z = 0`. Paper: `\simtodo` + three `\restodo` in `sec:vertical_wind`.
+- **Thrust side-force noise** `T_s = kappa T xi z_t` and **motor roll torque**: not in code (already a `\restodo`).
+- **Recovery force symbol.** Paper renamed `F_ch` to `R_ch` (code `forces.parachute_drag_inertial`, unchanged).

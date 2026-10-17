@@ -70,6 +70,10 @@ $T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & t
 $T_0(t)$ & \texttt{thrust\_curve} (\texttt{T\_ref}) & reference (test-stand) thrust & N \\
 $p_0$ & \texttt{p.thrust.p\_ref} & ambient pressure during the static test & Pa \\
 $A_e$ & \texttt{p.thrust.A\_e} & nozzle exit area & $\mathrm{m^2}$ \\
+$\hat{z}_t$ & --- & thrust-frame normal (\autoref{eq:thrust_frame}) & --- \\
+$\vec{T}_s$, $\kappa$, $\xi(t)$, $\tau_c$ & not implemented & random side force of the thrust, its intensity (fraction of $T$), unit random process, correlation time & N, ---, ---, s \\
+$\rho_{pr}$, $a_b$, $n$ & not implemented & propellant density, burn-rate coefficient and exponent ($r=a_bp_c^{\,n}$) & $\mathrm{kg/m^3}$, m/s$\cdot$Pa$^{-n}$, --- \\
+$l_e$ & not stored; $\approx l_t-l_g$ & arm from $g$ to the nozzle exit (jet damping) & m \\
 \hline
 \multicolumn{4}{l}{\textbf{Atmosphere and wind}} \\
 \hline
@@ -98,8 +102,13 @@ $\theta_{rail}$, $L_{rail}$, $s_{rail}$, $\hat{e}_{rail}$ & \texttt{p.site.rail\
 \hline
 \multicolumn{4}{l}{\textbf{Recovery and air brake}} \\
 \hline
-$S_{ch}$, $C_{D,ch}$, $\vec{F}_{ch}$, $v_{term}$ & \texttt{p.recovery.S}, \texttt{p.recovery.Cd}, \texttt{forces.}\allowbreak\texttt{parachute\_}\allowbreak\texttt{drag\_}\allowbreak\texttt{inertial} & canopy area, drag coefficient, drag force, terminal speed & $\mathrm{m^2}$, ---, N, m/s \\
-$F_b$ & \texttt{control.airbrake\_*} & air-brake axial force & N \\
+$S_{ch}$, $C_{D,ch}$, $\vec{R}_{ch}$, $v_{term}$ & \texttt{p.recovery.S}, \texttt{p.recovery.Cd}, \texttt{forces.}\allowbreak\texttt{parachute\_}\allowbreak\texttt{drag\_}\allowbreak\texttt{inertial} & canopy area, drag coefficient, recovery (canopy drag) force, terminal speed & $\mathrm{m^2}$, ---, N, m/s \\
+$(C_DS)_{sys}$ & not implemented & combined drag area of rocket and canopy (lumped descent) & $\mathrm{m^2}$ \\
+$f_b$ & \texttt{control.}\allowbreak\texttt{airbrake\_}\allowbreak\texttt{deploy\_}\allowbreak\texttt{fraction} & air-brake deployment fraction & --- \\
+$S_b$, $C_{D,b}$ & \texttt{p.control.airbrake\_S\_max}, \texttt{airbrake\_Cd} & air-brake area at full deployment, drag coefficient & $\mathrm{m^2}$, --- \\
+$F_b$ & \texttt{forces.aero\_force\_body} (\texttt{A\_brake}) & air-brake axial force & N \\
+$c_b$, $C_{x,b}$, $C_{z,b}$, $C_{m,b}$, $pp_b$ & not implemented & air-brake as an aerodynamic component: reference length, coefficients, reference point & m, ---, m \\
+$\tau_s$, $f_s$ & sampling setting & sample period and rate of the sampled mode & s, Hz \\
 \hline
 \multicolumn{4}{l}{\textbf{Analysis}} \\
 \hline
@@ -125,15 +134,17 @@ Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
     \item $\theta_t$ --- thrust direction: can be controlled, for now a constant, ideally zero
     (\autoref{sec:thrust});
     \item $q$ --- from the atmosphere model, the state and the wind model, through $\rho$ and
-    $v_{rel}$ (\autoref{sec:atmosphere}, \autoref{sec:wind}, \autoref{sec:relwind});
+    $v_{rel}$ (\autoref{sec:atmosphere}, \autoref{sec:wind}; \autoref{sec:relwind} in
+    \autoref{sec:aero});
     \item $S$, $c$ --- reference area and reference length (\autoref{sec:aero});
     \item $C_x$, $C_z$, $C_m$ --- aerodynamic coefficients (\autoref{sec:aero});
     \item $l_t$, $r_t$, $l_p$, $l_g$, $r_g$ --- lengths (\autoref{sec:geometry}); $l_g(t)$ moves
     with the mass model, and the position of $p$ comes with the coefficients;
     \item states --- $\theta_r$, $\omega_r$, $\vec{x}_r$, $\vec{v}_r$ are integrated, the equations
     deliver $\varepsilon_r$ and $\vec{a}_r$ (\autoref{sec:states});
-    \item and, outside free flight, the parachute (\autoref{sec:recovery}) and the launch rail
-    (\autoref{sec:rail}).
+    \item and, outside free flight, the parachute $\vec{R}_{ch}$ (\autoref{sec:recovery}), the air
+    brake (\autoref{sec:airbrake}) and the launch rail (\autoref{sec:rail}), all in
+    \autoref{sec:other_dynamics}.
 \end{itemize}
 
 \section{Conventions}\label{sec:conventions}
