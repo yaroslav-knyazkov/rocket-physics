@@ -513,7 +513,7 @@
     {
       "id": "2.16",
       "name": "Phase 2.16 — отделение конфигурации мотора (motor-config-separation)",
-      "status": "in-progress — Steps 75-96 готовы на ветке (501/501), ждёт аппрува мержа в develop",
+      "status": "done",
       "dates": "≤ 2026-10-15 … (точная дата старта не записана)",
       "branch": "feature/motor-config-separation",
       "design_doc": "dev/docs/architecture-32-motor-separation.md (на ветке feature/motor-config-separation)",
@@ -642,10 +642,9 @@
           "status": "done"
         }
       ],
-      "next": "Аппрув пользователя: мерж feature/motor-config-separation → develop (и по желанию develop → master).",
-      "pending_user": [
-        "Аппрув мержа feature/motor-config-separation → develop"
-      ],
+      "next": "—",
+      "merged": "2026-10-17 в develop (50c2fa3), 501/501 после мержа с feature/latex-notes (16c5dba)",
+      "pending_user": [],
       "handoff": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt — сохранённый диалог прошлой сессии",
       "tests": "501/501",
       "design_doc_2": "dev/docs/architecture-33-configs-one-demo.md (чистка configs/, Steps 85-92)"
@@ -1460,6 +1459,15 @@
       "choice": "пользователь: боковая сила тяги — вектор T_s = κTξ ẑ_t; крен-момент мотора — упоминание + restodo (Knauber: пики до ~163 Н·м на SCOUT, метода прогноза нет); v_rel и α — в раздел аэродинамики; Dryden сокращён, добавлен simtodo на вертикальную компоненту w (MIL-F-8785C: L_w = h, σ_w = 0.1·W20; в 2D v не влияет); «Checks» и абзац о рассогласовании Ω удалены → simtodo (решение оркестратора: эффект ~3e-6 от Кориолиса, естественно решается в 3D/ECEF); рельс, спасение, аэротормоз — новый раздел Other dynamics models (other-dynamics.tex); сила парашюта — R_ch (P занято точкой); сосредоточенная модель спуска (ΣC_D S) как вариант; аэротормоз — часть аэродинамики ракеты (компонент build-up или таблица C(M, α, f_b)); вертикальный ветер — 3 модели restodo (орография, термики, шар с 3-осевым ПВД). Период дискретизации T_s → τ_s. Коммит b7d3169",
       "author": "user + orchestrator",
       "stage": "latex"
+    },
+    {
+      "id": "D-108",
+      "date": "2026-10-17",
+      "question": "Приёмка LaTeX: Models + Other dynamics; мерж веток в develop",
+      "choice": "пользователь: разделы Models и Other dynamics models приняты целиком (чёрные, 0e72e4c); в бэклог — расширения моделей для 3D. Мерж обеих веток в develop (feature/motor-config-separation → 50c2fa3, feature/latex-notes → 16c5dba), 501/501, запушено. Следующая фаза 2.17 — приведение симулятора к статье (feature/sim-paper-alignment, план в dev/docs/architecture-35-paper-alignment.md); цели пользователя: перебор моторов для 2-й конфигурации, макс. спецификация аэротормоза для 2 конфигураций, старт проектирования регулятора",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.17"
     }
   ],
   "deferred_decisions": [
