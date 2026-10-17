@@ -276,27 +276,28 @@ radial term to the parallel-axis distance; the code keeps $r_g$ (\texttt{u\_B}) 
 the radial term. Exact for $r\equiv0$, the default}
 
 \begin{aitext}
-\paragraph{Variable-mass terms.} Two terms of the rotational equation are neglected. The exhaust
-leaving the nozzle carries angular momentum, which acts as a damping (jet-damping) moment
-$\approx-|\dot m_m|\,(l_t-l_g)^2\,\omega_r$; and the changing inertia adds $\omega_r\,
-\mathrm{d}I/\mathrm{d}t$. The equation of motion used is simply $I(t)\,\varepsilon_r=\sum M$.
-Relative to the aerodynamic pitch damping the jet damping is negligible for large missiles
-\cite{kowal,dtic}, but it can be comparable at low speed for a short, high-thrust motor. The lever
-arm of the jet term is not agreed between authors (throat, exit or mass-flow centre).
-\restodo{size of the dropped terms for the project's motors, from their $|\dot m_m|$, $l_t-l_g$
-and $C_{m,q}$}
+\paragraph{Variable-mass terms.} The exhaust carries angular momentum out of the rocket, which acts
+as a damping (jet-damping) moment \cite{vanderha}. With $I\,\varepsilon_r$ (not
+$\mathrm{d}(I\omega_r)/\mathrm{d}t$) on the left, the $\omega_r\,\mathrm{d}I/\mathrm{d}t$ terms drop
+out and the planar equation is
+\begin{equation} \label{eq:jet_damping}
+    I\,\varepsilon_r = \sum M - |\dot m_m|\,l_e^2\,\omega_r,
+\end{equation}
+with $l_e\approx l_t-l_g$ the distance from the centre of gravity to the nozzle exit. The lever arm
+is disputed in the literature (exit, throat, mass-flow centre) \cite{vanderha}. Aerodynamic damping
+dominates except at low speed and high mass flow \cite{kowal,dtic}; RASAero and RockSim include jet
+damping.
+\simtodo{the jet-damping term of \autoref{eq:jet_damping} is not in the simulator; $I\,\varepsilon_r=\sum M$}
+\restodo{lever arm of the jet term, and the size of the term for the project's motors, from their
+$|\dot m_m|$, $l_t-l_g$ and $C_{m,q}$}
 \end{aitext}
 \simtodo{the motor is a fixed-centroid propellant lump whose centre of gravity and inertia agree
 with the linear models (\autoref{eq:mass_l_linear}, \autoref{eq:mass_I_linear}) only at ignition
 and burnout}
 \begin{aitext}
-\restodo{propellant grain geometry: grain family and receding web behind $m_m(t)$, $l_{g,m}(t)$ and
-$I_{m,g}(t)$}
-\end{aitext}
-\begin{aitext}
 A mechanism (for instance a deployable surface) is a moving rigid sub-body: it enters
-\autoref{eq:mass_cog} and \autoref{eq:mass_inertia} with its own time-dependent position, and adds
-the $\omega_r\,\mathrm{d}I/\mathrm{d}t$ term above.
+\autoref{eq:mass_cog} and \autoref{eq:mass_inertia} with its own time-dependent position, and makes
+$\mathrm{d}I/\mathrm{d}t$ non-zero.
 \restodo{no documented treatment of time-dependent mass properties from deployables found in
 OpenRocket, RockSim or RASAero}
 \end{aitext}
@@ -308,6 +309,32 @@ volume), centre of gravity $l_i$ and own inertia $I_i$:
     m_r=\sum_i m_i, \qquad l_{g,r}=\frac{\sum_i m_il_i}{m_r}, \qquad
     I_{r,g}=\sum_i\left(I_i+m_i(l_i-l_{g,r})^2\right).
 \end{equation}
+
+\begin{aitext}
+\subsubsection{Propellant grain geometry}\label{sec:mass_grain}
+A solid motor's $m_m(t)$, $l_{g,m}(t)$ and $I_{m,g}(t)$ follow from the receding grain. The
+propellant burns normal to its surface at the rate $r=a_b\,p_c^{\,n}$ ($n<1$ for stable burning),
+and the burning area $A_b$ over the throat area $A_t$ is $K_n=A_b/A_t$. Equating the mass generated,
+$\rho_{pr}A_b\,a_bp_c^{\,n}$, to the mass discharged, $p_cA_t/c^*$, gives
+\begin{equation} \label{eq:grain_pressure}
+    p_c = \left(a_b\,\rho_{pr}\,c^*K_n\right)^{1/(1-n)}, \qquad
+    \dot m_m = -\rho_{pr}A_b\,r,
+\end{equation}
+with $\rho_{pr}$ the propellant density and $c^*$ the characteristic velocity \cite{nakka}. The web
+regression $\mathrm{d}x/\mathrm{d}t=r$ is integrated until the web is consumed. For $N$ BATES
+segments (outer surface inhibited, bore diameter $d=d_0+2x$, length $L=L_0-2x$, outer diameter $D$):
+\begin{equation} \label{eq:grain_bates}
+    A_b(x) = N\left[\tfrac{\pi}{2}\left(D^2-d^2\right) + \pi\,d\,L\right],
+\end{equation}
+with the maximum at $x=(L_0-2d_0)/6$. A segment has mass $m=\rho_{pr}\tfrac{\pi}{4}(D^2-d^2)L$ and
+inertias $I_{ax}=\tfrac18 m(D^2+d^2)$, $I_{tr}=\tfrac{m}{12}\bigl[\tfrac34(D^2+d^2)+L^2\bigr]$ about
+its own centre. Both ends regress equally, so each segment's centre of gravity stays fixed; the
+stack follows from the segment masses and the parallel-axis theorem. The simulator would need
+$a_b$, $n$, $\rho_{pr}$, $c^*$, the segment geometry and the throat and exit areas \cite{openmotor}.
+\simtodo{the simulator has no grain model; $m_m(t)$ follows the thrust curve}
+\restodo{star and finocyl grains have no closed form; openMotor regresses them numerically by
+level-set / fast-marching \cite{openmotor}}
+\end{aitext}
 
 \begin{aitext}
 \subsection{Aerodynamics}\label{sec:aero}
@@ -353,6 +380,34 @@ through zero between $85^\circ$ and $95^\circ$ so that the force does not jump. 
 \autoref{eq:aero_magnitudes} $C_x$ stands for $f\,C_x$. The factor also multiplies the air-brake
 force (\autoref{eq:airbrake_force}); a table that itself covers $|\alpha|>90^\circ$ is used as it
 is.
+\simtodo{$f(\alpha)$ fixes only the sign of the axial force, with a linear ramp near $90^\circ$;
+the magnitude law of \autoref{eq:cx_full} is not implemented}
+
+\paragraph{Large angles of attack.} CFD and wind-tunnel tables will not cover the full $\alpha$
+range, and the drag \emph{magnitude}, not only its sign, changes with $\alpha$. Jorgensen's
+semi-empirical model for bodies of revolution \cite{jorgensen} scales the axial coefficient and adds
+a viscous crossflow term to the normal force,
+\begin{equation} \label{eq:cx_full}
+    C_x(\alpha) = \begin{cases}
+        C_x(0)\cos^2\alpha, & 0\le\alpha\le90^\circ, \\
+        C_x(180^\circ)\cos^2(180^\circ-\alpha), & 90^\circ<\alpha\le180^\circ,
+    \end{cases}
+\end{equation}
+\begin{equation} \label{eq:cz_crossflow}
+    C_z = \frac{S_{base}}{S}\sin2\alpha\,\cos\frac{\alpha}{2}
+        + \eta\,C_{d,n}\,\frac{S_p}{S}\sin^2\alpha,
+\end{equation}
+with $S_{base}$ the base area, $S_p$ the planform area, $\eta$ the finite-length factor (ratio of
+the drag of a finite cylinder to that of an infinite one) and $C_{d,n}$ the crossflow drag
+coefficient, evaluated at $M\sin\alpha$ and $Re\sin\alpha$ ($1.2$ at low crossflow Mach number).
+The first term of \autoref{eq:cz_crossflow} is slender-body potential flow, the second is the
+viscous crossflow. The method is verified mainly up to about $20^\circ$, and over the full range
+only at a few Mach numbers \cite{jorgensen}. In practice the table is used at small $\alpha$ and a
+semi-empirical model beyond the table's range, as in OpenRocket and RASAero
+\cite{ortech,rasaerom}.
+\restodo{blending the table with the large-angle model at the table's edge is not standardised in
+the literature found; the sign convention of $C_z$ for $\alpha>90^\circ$ is to be taken from
+\cite{jorgensen}}
 
 \subsubsection{Dynamic pressure}
 \begin{equation}
@@ -416,9 +471,9 @@ $C_{m,q}$,
 \begin{equation} \label{eq:pitch_damping_moment}
     \vec{A}_m = -qSc\left(C_m + C_{m,q}\,\hat{\omega}\right)\hat{y}_r,
 \end{equation}
-and $C_{m,q}>0$ for a damped rocket in this sign convention. It is a constant or tabulated against
-$M$; no linearization in $\alpha$ is needed at small $\alpha$.
-\restodo{confirm that $C_{m,q}$ is taken constant or as a function of $M$ alone in the literature}
+and $C_{m,q}>0$ damps in this sign convention. A component build-up makes $C_{m,q}$ depend on
+Mach number, and in general on $\alpha$ and Mach number: Missile DATCOM tabulates
+$C_{m,q}(\alpha,M)$ \cite{datcom}.
 
 The Table database has to cover $\alpha$, $M$, $Re$ and the geometry (fin planform and cant,
 body--fin interference, surface finish).
