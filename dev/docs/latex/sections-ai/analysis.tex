@@ -172,7 +172,15 @@ with natural frequency and damping ratio
 \begin{equation}
     \omega_n = \sqrt{-M_\alpha}, \qquad \zeta = \frac{M_q}{2\omega_n} = \frac{M_q}{2\sqrt{-M_\alpha}},
 \end{equation}
-valid only for $M_\alpha<0$; otherwise the disturbance grows rather than oscillates. The framework
-is not yet quantitative because no value of $C_{m,q}$ is available: it needs a measured value
-(forced-oscillation tests or unsteady CFD) or a distributed-force derivation from the airframe.
-\restodo{needs a value or model for $C_{m,q}$ before this subsection is quantitative}
+valid only for $M_\alpha<0$; otherwise the disturbance grows rather than oscillates.
+
+The distributed-force argument above gives an estimate. A component $i$ with normal-force slope
+$C_{z,\alpha,i}$ (referred to $S$) at a distance $s_i$ from the CoG adds a moment proportional to
+$\omega_r s_i^2/v_{rel}$, and equating the sum with the $C_{m,q}$ term gives
+\begin{equation}
+    C_{m,q} \approx \frac{2}{c^2}\sum_i C_{z,\alpha,i}\,s_i^2 ,
+\end{equation}
+positive in this report's sign convention. OpenRocket uses a different estimate, from the cross-flow
+drag of the rotating body and fins \cite{ortech}.
+\restodo{a value of $C_{m,q}$ for the project's airframe: the component slopes $C_{z,\alpha,i}$, or
+a measured value (forced-oscillation tests or unsteady CFD)}

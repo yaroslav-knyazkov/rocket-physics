@@ -86,12 +86,14 @@ A single model may supply $g$ and $\hat{z}_g$ together, as a vector field
 $\vec{g}(\vec{x},t)$, so that $\vec{W}=m\vec{g}$. The radial model above is already the point-mass
 field; the refinements are
 \begin{itemize}
-    \item \textbf{J2:} the second zonal harmonic (oblateness), a latitude-dependent correction of
-    about $0.1$--$0.3\%$ of $g$.
-    \item \textbf{Spherical-harmonic geopotential} (EGM2008), to a chosen degree and order, with
-    local anomalies folded in: what a truncated global model misses.
+    \item \textbf{J2:} the second zonal harmonic (oblateness), $J_2=1.0826\times10^{-3}$. With the
+    Earth's rotation it changes $g$ by $\approx0.53\%$ from equator to pole; the altitude effect is
+    $\approx-0.3\%$ at $10\,\mathrm{km}$ (free-air gradient $-3.086\times10^{-6}\,\mathrm{s^{-2}}$).
+    \item \textbf{Spherical-harmonic geopotential} (EGM2008 \cite{pavlis}), to a chosen degree and
+    order, with local anomalies folded in: what a truncated global model misses.
 \end{itemize}
-Both are negligible for a rocket flying below $10\,\mathrm{km}$.
+The ellipsoidal magnitude above already contains the latitude variation; the remaining terms are
+negligible for a rocket flying below $10\,\mathrm{km}$.
 \simtodo{neither exists; only the separate magnitude and direction models are implemented}
 
 \subsubsection{Position relative to $O$ and true altitude}\label{sec:position_altitude}
@@ -209,13 +211,15 @@ $\mathrm{ISP}$ (seconds). The propellant leaves at the rate that delivers exactl
 \end{equation}
 integrated until $m_m$ reaches $m_f$. It uses the \emph{reference} curve $T_0(t)$, not the
 pressure-corrected $T$, because $\mathrm{ISP}$ is defined from the stand measurement; the exit
-pressure term changes the force on the airframe, not the propellant consumption. If $\mathrm{ISP}$
+pressure term changes the force on the airframe, not the propellant consumption: the mass flow of
+a choked nozzle is set by the chamber conditions and the throat area, not by the ambient pressure
+\cite{sutton}. If $\mathrm{ISP}$
 is not given, the effective value $\mathrm{ISP}=J/(\Delta m\,g_0)$, with $J=\int T_0\,\mathrm{d}t$
 and $\Delta m=m_0-m_f$, makes the integrated mass flow remove exactly $\Delta m$; the mass then
-decreases in proportion to the delivered impulse.
-\restodo{the code computes the mass flow from the pressure-corrected $T$, not from the bare
-$T_0(t)$; the two differ only when $A_e\neq0$ (default $A_e=0$). Decide whether the code should
-use $T_0$, as derived here.}
+decreases in proportion to the delivered impulse, which is the model used by OpenRocket and
+RocketPy \cite{ordev,hpr}.
+\simtodo{the mass flow is computed from the pressure-corrected $T$, not from the bare $T_0(t)$; the
+two differ only when $A_e\neq0$ (default $A_e=0$)}
 
 \figtodo{Plot (simulator output, a named demo scenario): total mass $m(t)$, centre of gravity
 $l_g(t)$ and moment of inertia $I(t)$ over the burn.}
@@ -271,20 +275,30 @@ the radial term. Exact for $r\equiv0$, the default}
 \paragraph{Variable-mass terms.} Two terms of the rotational equation are neglected. The exhaust
 leaving the nozzle carries angular momentum, which acts as a damping (jet-damping) moment
 $\approx-|\dot m_m|\,(l_t-l_g)^2\,\omega_r$; and the changing inertia adds $\omega_r\,
-\mathrm{d}I/\mathrm{d}t$. The equation of motion used is simply $I(t)\,\varepsilon_r=\sum M$. For
-$|\dot m_m|\sim0.1$--$1\,\mathrm{kg/s}$ and $l_t-l_g\approx0.5\,\mathrm{m}$ the jet damping is of
-order $0.01$--$0.3\,\mathrm{N\,m}$ per $\mathrm{rad/s}$.
-\restodo{estimate the size of the dropped terms against the pitch damping for a short,
-high-thrust motor}
+\mathrm{d}I/\mathrm{d}t$. The equation of motion used is simply $I(t)\,\varepsilon_r=\sum M$.
+Relative to the aerodynamic pitch damping the jet damping is negligible for large missiles
+\cite{kowal,dtic}, but it can be comparable at low speed for a short, high-thrust motor. The lever
+arm of the jet term is not agreed between authors (throat, exit or mass-flow centre).
+\restodo{size of the dropped terms for the project's motors, from their $|\dot m_m|$, $l_t-l_g$
+and $C_{m,q}$}
 \simtodo{the motor is a fixed-centroid propellant lump whose centre of gravity and inertia agree
 with the linear models (\autoref{eq:mass_l_linear}, \autoref{eq:mass_I_linear}) only at ignition
 and burnout}
 \restodo{propellant grain geometry: grain family and receding web behind $m_m(t)$, $l_{g,m}(t)$ and
 $I_{m,g}(t)$}
-\restodo{change of mass or moment of inertia due to mechanisms (e.g.\ deployable surfaces) is not
-covered above}
-\restodo{estimate the dry-rocket inputs $m_r$, $l_{g,r}$, $I_{r,g}$ from components
-(OpenRocket-style) instead of entering them by hand}
+A mechanism (for instance a deployable surface) is a moving rigid sub-body: it enters
+\autoref{eq:mass_cog} and \autoref{eq:mass_inertia} with its own time-dependent position, and adds
+the $\omega_r\,\mathrm{d}I/\mathrm{d}t$ term above.
+\restodo{no documented treatment of time-dependent mass properties from deployables found in
+OpenRocket, RockSim or RASAero}
+
+\paragraph{Dry-rocket inputs from components.} As in OpenRocket \cite{orguide}, the dry-rocket
+inputs can be built from the components $i$, each with mass $m_i$ (measured, or density times
+volume), centre of gravity $l_i$ and own inertia $I_i$:
+\begin{equation}
+    m_r=\sum_i m_i, \qquad l_{g,r}=\frac{\sum_i m_il_i}{m_r}, \qquad
+    I_{r,g}=\sum_i\left(I_i+m_i(l_i-l_{g,r})^2\right).
+\end{equation}
 
 \end{aitext}
 
@@ -344,7 +358,12 @@ the angle of attack $\alpha$ come from the relative-flow model.
 The coefficients $C_x,C_z,C_m$ and the centre of pressure $l_p$ are not derived from the airframe's
 shape; they are supplied. They depend on the angle of attack $\alpha$, the Mach number $M$ and the
 Reynolds number $Re$ (\autoref{sec:reynolds_mach}).
-\restodo{further input variables, e.g.\ the pitch rate, to be added from research}
+The pitch rate enters through the non-dimensional $\hat{\omega}=\omega_rc/(2v_{rel})$. The rate of
+change of the angle of attack is in practice lumped with it, since forced-oscillation tests and CFD
+give only the sum of the two derivatives \cite{cobalt}. Power-on or power-off (base drag) and surface
+roughness enter as discrete or parametric inputs, i.e.\ extra table axes or offsets
+\cite{rasaerom}; accelerations are not used as inputs in standard practice
+\cite{datcom,rasaerom}.
 Three interchangeable models supply them, selected per run, in order of increasing fidelity; $C$
 stands for any of $C_x,C_z,C_m$.
 \begin{itemize}
@@ -353,11 +372,13 @@ stands for any of $C_x,C_z,C_m$.
     \begin{equation}
         C = C_0
     \end{equation}
-    \item \textbf{Linearized}, about a reference condition in $\alpha$, $M$ and $Re$, with $l_p$
-    fixed; valid for small $\alpha$.
+    \item \textbf{Linearized}, about a reference condition in $\alpha$, $M$, $Re$ and the
+    non-dimensional pitch rate, with $l_p$ fixed; valid for small $\alpha$. The derivatives with
+    respect to $\hat{\omega}$ are $C_{m,q}$ and $C_{z,q}$.
     \begin{equation} \label{eq:aero_general_linear}
-        C(\alpha,M,Re) = C_0 + \alpha\frac{\partial C}{\partial\alpha} + M\frac{\partial C}{\partial M}
-            + Re\frac{\partial C}{\partial Re}
+        C(\alpha,M,Re,\hat{\omega}) = C_0 + \alpha\frac{\partial C}{\partial\alpha}
+            + M\frac{\partial C}{\partial M} + Re\frac{\partial C}{\partial Re}
+            + \hat{\omega}\frac{\partial C}{\partial\hat{\omega}}
     \end{equation}
     \item \textbf{Lookup table}: tabulated over $(\alpha,M)$ from CFD or wind-tunnel data and
     interpolated at run time. The table gives the centre of pressure $l_p$ from the nose, not the
@@ -394,8 +415,10 @@ A control surface (air brake, aileron, \dots) has a defined point of entry: a co
 perturbing $C_x,C_z,C_m$ or $l_p$. The air brake does not use it and enters instead as a
 separate additive drag area. Pitch rate enters through $C_{m,q}$ as a constant or a table entry,
 not as a function of $(\alpha,M)$ in its own right.
-\restodo{expand once the CFD/data-extraction pipeline that populates this database is defined;
-neither the control surface's geometry nor any deflection law is written down}
+A deflection angle is then one more table axis, as in Missile DATCOM, which tabulates over $\alpha$,
+Mach number, altitude, sideslip and fin deflections \cite{datcom}.
+\restodo{project definitions, not literature: the CFD/data-extraction pipeline that populates the
+database, the control surface's geometry and its deflection law}
 
 \subsubsection{Linearization of coefficients}\label{sec:aero_linearization}
 For the static-stability analysis the coefficients are linearised in $\alpha$,
@@ -420,8 +443,12 @@ family less to tabulate and an axial force consistent with the normal force. The
 for attached flow, is parabolic in $C_z$, misses flow separation and the Mach dependence of $k$
 unless $C_{x,0}$ and $k$ are tabulated in $M$, and the axial force on a slender body at $\alpha$ is
 not purely induced drag.
-\restodo{decide whether to adopt the drag polar (\autoref{eq:drag_polar}); the code does not have
-it: $C_x$ is constant, $C_{x,0}$ or a table column}
+Caution: for a body of revolution the drag is the body-axis pair rotated into wind axes,
+$D=N\sin\alpha+A\cos\alpha$ \cite{ortech}, which for small $\alpha$ already gives
+$C_D=C_A+C_N^2/C_{N,\alpha}$; if $C_x$ is the body-axis axial coefficient, as here, adding
+$kC_z^2$ on top would count this part twice.
+\restodo{decision: adopt the drag polar (\autoref{eq:drag_polar}) or not, and in which axes; the
+code does not have it ($C_x$ is constant, $C_{x,0}$ or a table column)}
 
 \end{aitext}
 
@@ -662,7 +689,12 @@ The effect is random and usually a small fraction of $T$. A stochastic side-forc
 \end{equation}
 with $\kappa$ the intensity as a fraction of thrust and $\xi(t)$ a zero-mean unit-variance random
 process with a correlation time $\tau_c$; the roll torque is modelled the same way.
-\restodo{not implemented; $\kappa$, $\tau_c$ and the roll-torque level need test-stand data}
+For large solid motors the thrust-vector misalignment is quoted as a fraction of a degree
+($0.1^\circ$ to $0.5^\circ$, i.e.\ $\kappa\approx\tan\delta\approx2\times10^{-3}$ to
+$9\times10^{-3}$), and its time structure is a random, nearly constant bias plus short transients
+at ignition and tail-off rather than a stationary process \cite{knauber}.
+\restodo{not implemented; $\tau_c$ and the roll-torque level are not in the literature found, and
+the values above are for large upper-stage motors, not small motors: need test-stand data}
 
 \subsubsection{Atmospheric disturbances}\label{sec:atmos_noise}
 Two kinds of information about the air must be kept apart. The \emph{mean} profiles of wind and
@@ -928,8 +960,7 @@ state vector has dimension seven,
 with $z$ and $v_z$ positive \emph{down}. $m$ is read only when the variable-mass model is on;
 otherwise $m$ and $I$ are fixed and $\dot m=0$. The right-hand side has three modes, selected in
 this order: on the rail, under canopy, otherwise free flight.
-\restodo{the mass flow is computed from $T$ (with the nozzle-exit pressure term), not from the
-reference thrust $T_0$ as here; decide which is intended, see the mass model}
+The mass flow is that of the specific-impulse model (\autoref{sec:mass_mass}).
 
 \paragraph{Initial conditions.} The default start is at rest on the pad, at ignition, with the nose
 along the rail:
@@ -992,7 +1023,8 @@ finalised; hence the same condition appears twice, as a predicate that acts and 
 reports.
 The apogee event is the launch-frame $v_z$ crossing, not the maximum of the true altitude above a
 curved ground.
-\restodo{redefining apogee is a separate modelling decision}
+\restodo{decision: keep the launch-frame $v_z$ crossing, or redefine apogee as the maximum of the
+true altitude over curved ground}
 
 \end{aitext}
 
@@ -1033,12 +1065,13 @@ $L_{rail}$ and the distance $s_{rail}$ along it.}
 \paragraph{Exit and reverse motion.} $L_{rail}=0$ is the default and the off switch. Past rail
 exit ($s_{rail}\geq L_{rail}$) the free-flight equations apply again, with no transition term.
 Nothing holds the rocket on the pad before thrust exceeds weight.
-\restodo{no pad contact: if the thrust along the rail is below the weight component,
-\autoref{eq:rail_constraint} gives a negative $\vec{a}_r\cdot\hat{e}_{rail}$ and the rocket slides
-\emph{backwards} down the rail ($s_{rail}<0$) until thrust catches up. A real pad reacts weight
-until lift-off; the fix is to clamp $\vec{a}_r\cdot\hat{e}_{rail}\geq0$ while $s_{rail}\leq0$ and
-$\vec{v}_r\cdot\hat{e}_{rail}\leq0$, which would change existing results for low
-thrust-to-weight starts}
+If the thrust along the rail is below the weight component, \autoref{eq:rail_constraint} gives a
+negative $\vec{a}_r\cdot\hat{e}_{rail}$ and the rocket slides \emph{backwards} down the rail
+($s_{rail}<0$) until thrust catches up. A real pad reacts weight until lift-off, and RASAero II
+corrected exactly this case \cite{rasaerorel}. The fix is to clamp $\vec{a}_r\cdot\hat{e}_{rail}\geq0$
+while $s_{rail}\leq0$ and $\vec{v}_r\cdot\hat{e}_{rail}\leq0$.
+\restodo{decision: adopt the clamp; it would change existing results for low thrust-to-weight
+starts}
 The key output is the rail-exit speed $|\vec{v}_r|$, which decides whether wind can tip the
 airframe before it can weathercock. There is no rail friction, flex or tip-off: the transverse and
 rotational freedoms are restored instantly at $s_{rail}=L_{rail}$.
@@ -1060,10 +1093,9 @@ Freezing is chosen over an artificial damping term, which would need a time cons
 fixes.
 \simtodo{the Coriolis term is dropped in the code under canopy, although it is included on the rail
 and in free flight}
-\restodo{in the code only $\mathrm{d}\theta_r/\mathrm{d}t$ and $\mathrm{d}\omega_r/\mathrm{d}t$ are
-set to zero, so the stored $\omega_r$ keeps its non-zero value at deployment and the link
-$\omega_r=\mathrm{d}\theta_r/\mathrm{d}t$ is broken under canopy; the reported pitch rate is then
-meaningless after deployment. Decide whether to reset it to zero}
+\restodo{decision, no literature: in the code only $\mathrm{d}\theta_r/\mathrm{d}t$ and
+$\mathrm{d}\omega_r/\mathrm{d}t$ are set to zero, so the stored $\omega_r$ keeps its non-zero value
+at deployment and the reported pitch rate is meaningless under canopy. Reset it to zero?}
 
 \paragraph{Deployment.} A function of the state, not of a detected event: either a timer,
 $t\geq t_{dep}$, or apogee, taken as $v_z>0$ (descending, $z$ being positive down). The latter is
@@ -1105,10 +1137,13 @@ attitude replaces the pendulum swing under the risers.
 \figtodo{Plot (simulator output, a named demo scenario): altitude and vertical speed against time
 through deployment, with the terminal speed $v_{term}$ of \autoref{eq:chute_terminal} as a
 reference line.}
-\restodo{neglected: the opening transient (drag area growing from zero over an inflation time),
-the opening-shock load on the airframe and shock cord, a reefed or two-stage (drogue and main)
-sequence, the pendulum and coning motion of the body under the risers, and the added-mass effect of
-the air carried with the canopy}
+Neglected, with the place to look them up in Knacke \cite{knacke}: the opening transient (drag area
+growing from zero over an inflation time, ch.\ 5.4.3--5.4.4), the opening-shock load on the airframe
+and shock cord (5.4.6), a reefed (5.6) or two-stage drogue and main sequence (ch.\ 7), the pendulum
+and coning motion of the body under the risers (5.3), and the added-mass effect of the air carried
+with the canopy. Knacke's rules come from large canopies ($Re\sim10^7$) and under-predict the
+opening force and the inflation time of small ones \cite{jatm}.
+\restodo{added-mass effect of the canopy: no source found}
 
 \end{aitext}
 
