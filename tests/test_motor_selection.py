@@ -534,3 +534,21 @@ if __name__ == "__main__":
     test_motors_module_small_and_large_get_distinct_casings()
     test_compare_motors_end_to_end_with_mixed_overrides()
     print("All tests passed!")
+
+
+def test_mass_model_on_baseline_is_refused_before_any_integration(monkeypatch):
+    """D-82: App 3 is a constant-mass study; a mass-on baseline (the
+    integrator reads mass from y[M]) is refused before any `run_sim`."""
+    import configs
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called for a mass-on baseline")
+
+    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+
+    cfg = configs.get("demo")
+    assert cfg.params.weight.m_d is not None
+    with pytest.raises(ValueError, match="mass model on"):
+        compare_motors(
+            [MotorEntry(name="ok", motor_curve="synthetic_small.csv")], cfg.params, cfg.s0
+        )

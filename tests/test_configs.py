@@ -17,11 +17,13 @@ from pathlib import Path
 import pytest
 
 import configs
+from apps.common import study_vehicle
 from apps.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Config, Variant
 from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
+from tests import config_variants
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +44,17 @@ def _toy_05kg_s0() -> State:
     return State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
 
 
+def _study_75mm_literal() -> Params:
+    """The study vehicle's numbers (apps/common/study_vehicle.py), typed out
+    independently here so the pin below is a real one, not a tautology."""
+    return Params(
+        weight=Weight(m=1.5, I=0.08),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        thrust=Thrust(motor_curve="placeholder.csv"),
+        aero=Aero(S=0.00442, d_ref=0.075, l_ref=0.75, C_x=0.5, C_z=0.0, C_m=0.0),
+    )
+
+
 def _demo_75mm_s0() -> State:
     """`compare_motors.main()`'s own literal (identical to
     `tests/test_motor_selection.py`'s `_s0()`)."""
@@ -54,19 +67,20 @@ def _demo_75mm_s0() -> State:
 
 
 def test_toy_05kg_params_pin_run_py_literal_exactly():
-    assert configs.get("toy_05kg").params == _toy_05kg_literal()
+    assert config_variants.TOY_05KG.params == _toy_05kg_literal()
 
 
 def test_toy_05kg_s0_pins_run_py_literal_exactly():
-    assert configs.get("toy_05kg").s0 == _toy_05kg_s0()
+    assert config_variants.TOY_05KG.s0 == _toy_05kg_s0()
 
 
 def test_demo_75mm_params_pin_demo_baseline_exactly():
-    assert configs.get("demo_75mm").params == _demo_baseline()
+    assert study_vehicle.CONFIG.params == _study_75mm_literal()
+    assert _demo_baseline() == _study_75mm_literal()
 
 
 def test_demo_75mm_s0_pins_compare_motors_main_literal_exactly():
-    assert configs.get("demo_75mm").s0 == _demo_75mm_s0()
+    assert study_vehicle.CONFIG.s0 == _demo_75mm_s0()
 
 
 # ----------------------------------------------------------------------
@@ -106,7 +120,7 @@ def test_get_unknown_name_raises_keyerror_listing_every_name():
 
 
 def test_derive_changes_exactly_the_named_fields():
-    base = configs.get("demo_75mm")
+    base = study_vehicle.CONFIG
     derived = base.derive(
         name="demo_75mm_heavier",
         overrides={"weight.m": 2.0, "aero.C_x": 0.6},
@@ -131,7 +145,7 @@ def test_derive_changes_exactly_the_named_fields():
 
 
 def test_derive_inherits_s0_unless_overridden():
-    base = configs.get("demo_75mm")
+    base = study_vehicle.CONFIG
     derived = base.derive(name="demo_75mm_x", overrides={"weight.m": 2.0})
     assert derived.s0 == base.s0
 
@@ -142,7 +156,7 @@ def test_derive_inherits_s0_unless_overridden():
 
 
 def test_derive_does_not_mutate_the_original():
-    base = configs.get("demo_75mm")
+    base = study_vehicle.CONFIG
     base_params_before = base.params
     base_s0_before = base.s0
     base_name_before = base.name
@@ -162,7 +176,7 @@ def test_derive_does_not_mutate_the_original():
 
 
 def test_variant_apply_equals_config_with_variant():
-    base = configs.get("demo_75mm")
+    base = study_vehicle.CONFIG
     variant = Variant(
         name="heavier",
         overrides={"weight.m": 2.0},
@@ -173,8 +187,8 @@ def test_variant_apply_equals_config_with_variant():
     via_apply = variant.apply(base)
 
     assert via_with_variant == via_apply
-    assert via_with_variant.name == "demo_75mm+heavier"
-    assert via_apply.name == "demo_75mm+heavier"
+    assert via_with_variant.name == "study_75mm+heavier"
+    assert via_apply.name == "study_75mm+heavier"
 
 
 # ----------------------------------------------------------------------
@@ -202,8 +216,8 @@ def _run_fresh_interpreter(code: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_import_configs_demo_75mm_first_has_no_circular_import():
-    _run_fresh_interpreter("import configs.scenarios.demo_75mm\nprint(configs.scenarios.demo_75mm.CONFIG.name)\n")
+def test_import_configs_demo_first_has_no_circular_import():
+    _run_fresh_interpreter("import configs.scenarios.demo\nprint(configs.scenarios.demo.CONFIG.name)\n")
 
 
 def test_import_configs_package_first_has_no_circular_import():
@@ -229,26 +243,26 @@ _COMPARE_MOTORS_PY = (
 ).read_text()
 
 
-def test_run_py_sources_its_scenario_from_configs_get_toy_05kg():
-    assert 'configs.get("toy_05kg")' in _RUN_PY
+def test_run_py_sources_its_scenario_from_configs_get_demo():
+    assert 'configs.get("demo")' in _RUN_PY
     # The former in-place literal is gone, not just duplicated.
     assert "Weight(" not in _RUN_PY
     assert "math.pi / 2" not in _RUN_PY
 
 
-def test_select_conditions_py_sources_its_scenario_from_configs_get_toy_05kg():
-    assert 'configs.get("toy_05kg")' in _SELECT_CONDITIONS_PY
+def test_select_conditions_py_sources_its_scenario_from_configs_get_demo():
+    assert 'configs.get("demo")' in _SELECT_CONDITIONS_PY
     assert "Weight(" not in _SELECT_CONDITIONS_PY
     assert "math.pi / 2" not in _SELECT_CONDITIONS_PY
 
 
-def test_demo_baseline_is_a_one_line_reexport_of_configs_get_demo_75mm():
-    assert 'return configs.get("demo_75mm").params' in _COMPARE_MOTORS_PY
+def test_demo_baseline_is_a_one_line_reexport_of_the_study_vehicle():
+    assert 'return study_vehicle.CONFIG.params' in _COMPARE_MOTORS_PY
     # The former in-place literal (its own Weight/Lengths/Thrust/Aero
     # construction) is gone from this module entirely now.
     assert "Weight(m=1.5" not in _COMPARE_MOTORS_PY
 
 
-def test_compare_motors_main_also_sources_s0_from_configs_get_demo_75mm():
-    assert 'configs.get("demo_75mm")' in _COMPARE_MOTORS_PY
+def test_compare_motors_main_also_sources_s0_from_the_study_vehicle():
+    assert 'study_vehicle.CONFIG' in _COMPARE_MOTORS_PY
     assert "math.pi / 2" not in _COMPARE_MOTORS_PY

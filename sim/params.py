@@ -52,6 +52,11 @@ class Weight:
     l_p: float = 0.0
     I_d: float = 0.0
     I_sp: float = 0.0
+    I_p_spec: Optional[float] = None  # propellant MOI per unit mass about its own centroid [m^2]
+                                       # ("radius of gyration squared"), i.e. the propellant's own
+                                       # specific moment of inertia about its own centroid, per unit
+                                       # mass. None -> fall back to the pre-Step-77 placeholder
+                                       # (I_d/m_d) -- bit-for-bit unchanged when left None.
 
 
 @dataclass(frozen=True)
@@ -64,7 +69,7 @@ class Thrust:
 @dataclass(frozen=True)
 class Lengths:                    # geometry, all nose-tip-referenced, metres
     l1: float = 0.0               # CoP(D) -> CoG(B)
-    l2: float = 0.0               # CoG -> thrust point(C) offset along the axis
+    l2: float = 0.0               # CoP(D) -> thrust point(C) distance along the axis
     u_B: float = 0.0              # lateral offset of the CoG
     u_C: float = 0.0              # lateral offset of the thrust point
     misalign_deg: float = 0.0     # fixed nozzle cant delta [deg]  (was thrust_misalign_deg)

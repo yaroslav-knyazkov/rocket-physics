@@ -104,6 +104,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from apps.common.cli import add_config_arg, resolve_config
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
@@ -214,7 +215,18 @@ def build_surface(cfg: Config, axes: TradeAxes) -> TradeSurface:
     pre-flight, rather than on the first grid point -- the same
     fail-fast reasoning `compare_motors.compare_motors`'s own pre-flight
     pass applies.
+
+    Raises `ValueError` (D-82) if `cfg.params.weight.m_d is not None`: with
+    the mass model on the integrator reads mass from `y[M]`, so the swept
+    `weight.m` is inert and the mass axis would come out flat (F3).
     """
+    if cfg.params.weight.m_d is not None:
+        raise ValueError(
+            f"config {cfg.name!r}: mass model is on (weight.m_d="
+            f"{cfg.params.weight.m_d!r}); the integrator reads mass from "
+            "y[M], so the swept weight.m is inert and the mass axis would "
+            "be flat (F3). App 5 is a constant-mass study."
+        )
     if cfg.params.aero.S == 0.0:
         raise ValueError(
             f"config {cfg.name!r}: aero.S == 0.0 -- the C_dA axis is swept "
@@ -395,9 +407,9 @@ def main(argv: "Optional[list[str]]" = None) -> None:
         description="App 5 mode (b): the weight-vs-aero trade surface and "
         "its iso-apogee exchange rate"
     )
-    add_config_arg(parser, default="demo_75mm")
+    add_config_arg(parser, default=None)
     args = parser.parse_args(argv)
-    cfg = resolve_config(args)
+    cfg = resolve_config(args, fallback=study_vehicle.CONFIG)
 
     axes = default_axes(cfg)
     n_runs = len(axes.mass_values) * len(axes.cda_values)

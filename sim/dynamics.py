@@ -107,11 +107,15 @@ default) or `p.parachute_S == 0.0` (also the default) are independent off
 switches: `forces.parachute_deployed` returns `False`/the chute force is
 zero, so this branch is bit-for-bit unreachable or inert, reproducing every
 prior step.
+
+Step 75 (dev/docs/architecture-32-motor-separation.md SS32.3): the mass model
+(propellant mass, CoG position, moment of inertia) moved to sim/mass.py,
+the one place `weight`'s dispatch now lives.
 """
 
 import numpy as np
 
-from sim import aero, forces, thrust_curve
+from sim import aero, forces, mass, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
@@ -129,45 +133,14 @@ def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
     return -(a_x * b_z - a_z * b_x)
 
 
-def _propellant_mass(m: float, p) -> float:
-    """m_p(t) = m(t) - m_d (main.tex SSModels > Mass and moment of inertia),
-    clamped at 0. The adaptive solver overshoots the true burnout
-    zero-crossing by a floating-point sliver on either side (the same
-    reason `integrate.py`'s `_burnout_event` needs its own epsilon shift)
-    -- a stray negative `m_p` right after burnout would flip the sign of
-    every term below instead of just settling at the dry-mass endpoint.
-    """
-    return max(m - p.weight.m_d, 0.0)
-
-
-def _cog_position(m_p: float, p) -> float:
-    """l_B(t): mass-weighted centroid of the two-lumped-mass model -- dry
-    structure (mass m_d, fixed centroid l_d) and remaining propellant
-    (mass m_p, centroid l_p) -- main.tex SSModels > Mass and moment of
-    inertia.
-    """
-    return (p.weight.m_d * p.weight.l_d + m_p * p.weight.l_p) / (p.weight.m_d + m_p)
-
-
-def _moment_of_inertia(m_p: float, l_B: float, p) -> float:
-    """I(t): parallel-axis theorem, dry structure + remaining propellant,
-    each shifted from its own centroid to the instantaneous CoG l_B(t)
-    (main.tex SSModels > Mass and moment of inertia):
-
-        I(t) = I_d + m_d*(l_B-l_d)^2 + I_p(t) + m_p*(l_B-l_p)^2
-
-    `I_p(t)`, the remaining propellant's own moment of inertia about its
-    own centroid, is main.tex's own placeholder `\\todo` ("uniform
-    density, fixed shape" until the grain geometry is known) -- taken
-    proportional to `m_p(t)` via the dry structure's own specific moment
-    of inertia `I_d/m_d` (i.e. propellant assumed to have the same
-    mass-normalised MOI/radius of gyration as the dry structure): the
-    simplest closed form that needs no geometry constant beyond the four
-    this step introduces (`m_d, l_d, l_p, I_d`). Revisit once real grain
-    geometry is available (main.tex's own note).
-    """
-    I_p = (p.weight.I_d / p.weight.m_d) * m_p
-    return p.weight.I_d + p.weight.m_d * (l_B - p.weight.l_d) ** 2 + I_p + m_p * (l_B - p.weight.l_p) ** 2
+# Step 75: the mass model itself moved to sim/mass.py (module docstring
+# above). These three names stay bound here -- not re-implemented, just
+# re-exported -- solely because tests/test_dynamics.py imports them
+# directly by their old private names; this step's module/file boundary
+# forbids editing that test file, so the aliases are what keeps it green.
+_propellant_mass = mass.propellant_mass
+_cog_position = mass.cog_position
+_moment_of_inertia = mass.moment_of_inertia
 
 
 def _e_rail(p) -> np.ndarray:
@@ -260,9 +233,9 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
         dm_dt = 0.0
     else:
         m = y[M]
-        m_p = _propellant_mass(m, p)
-        l_B = _cog_position(m_p, p)
-        I = _moment_of_inertia(m_p, l_B, p)
+        m_p = mass.propellant_mass(m, p)
+        l_B = mass.cog_position(m_p, p)
+        I = mass.moment_of_inertia(m_p, l_B, p)
         dm_dt = -thrust_curve.thrust(t, y, p) / (p.weight.I_sp * p.g0)
 
     a_i = F_i / m

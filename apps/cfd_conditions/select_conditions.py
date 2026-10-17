@@ -195,12 +195,11 @@ def save_conditions_csv(conditions: list[WeightedCondition], path: Path) -> None
 
 
 def main() -> None:
-    # Step 69: sourced from configs/toy_05kg.py (byte-equal to this
-    # module's own historical in-place literal, pinned by
-    # tests/test_configs.py since Step 63) instead of an inline Params/
-    # State construction -- the same small-model-rocket placeholder
-    # scenario run.py uses, now a single source of truth shared with it.
-    cfg = configs.get("toy_05kg")
+    # Step 90 (dev/docs/architecture-33-configs-one-demo.md SS33.4.2): the
+    # one demo (configs/scenarios/demo.py), the same scenario run.py uses.
+    # Its ascent reaches supersonic Mach (selected rows span ~0.5-1.7;
+    # peak ~1.75), which is what a K-class demo honestly produces (D-83).
+    cfg = configs.get("demo")
     params = cfg.params
     state0 = cfg.s0
     result = run_sim(params, state0)

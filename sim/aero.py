@@ -90,6 +90,29 @@ from typing import NamedTuple
 
 import numpy as np
 
+# Step 93 (Phase 2.16, D-91/D-92, architecture-34 SS34.3): half-width of the
+# nose-first plateau of the axial flow-direction factor.
+_COS_ALPHA0 = float(np.cos(np.radians(85.0)))
+
+
+def axial_flow_factor(alpha: float) -> float:
+    """Flow-direction factor of the axial force, `f = clip(cos(alpha) /
+    cos(85 deg), -1, +1)` (D-92). Exactly `1.0` for `|alpha| <= 85 deg`
+    (nose-first flight is bit-for-bit unchanged), `0` at `+-90 deg`, `-1`
+    for `|alpha| >= 95 deg`: the axial force then points toward the nose,
+    i.e. against the motion of a tail-first vehicle (architecture-34 SS34.3).
+    """
+    return min(1.0, max(-1.0, float(np.cos(alpha)) / _COS_ALPHA0))
+
+
+def _table_axial_factor(table: "_AeroTable", alpha: float) -> float:
+    """D-93: apply `axial_flow_factor` to a table's `C_A` only when its alpha
+    grid stays strictly inside (-90, +90) deg; a table that covers reversed
+    flow is authoritative and is not flipped a second time."""
+    if table.alpha[0] > -np.pi / 2 and table.alpha[-1] < np.pi / 2:
+        return axial_flow_factor(alpha)
+    return 1.0
+
 
 class _AeroTable(NamedTuple):
     M: np.ndarray       # (n_M,), ascending
@@ -230,9 +253,14 @@ def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     `aero_moment_y`, exactly like the other two models. What is frozen
     under this model is the *coefficients*, not the resulting force: the
     force itself still varies over the flight through `q = 0.5*rho*V^2`.
+
+    Step 93 (D-91, architecture-34 SS34.3): `C_x` is a constant *magnitude*
+    whose sign follows the flow, `C_x * axial_flow_factor(alpha)` -- tail-
+    first, the axial force opposes the motion instead of accelerating it.
+    `C_z`/`C_m` are deliberately unchanged (D-95).
     """
     return AeroCoeffs(
-        C_x=p.aero.C_x,
+        C_x=p.aero.C_x * axial_flow_factor(alpha),
         C_z=p.aero.C_z,
         C_m=p.aero.C_m,
         C_mq=p.aero.c_mq,
@@ -276,9 +304,13 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     physical point `u = w = 0`; that is inherent to using an angle at all
     and is not, and cannot be, "fixed" -- `sin(alpha)` only ensures
     nothing built from it blows up there.
+
+    Step 93 (D-91, architecture-34 SS34.3): `C_x = C_A0 *
+    axial_flow_factor(alpha)`, so the axial force opposes the flow
+    tail-first (bit-for-bit unchanged for `|alpha| <= 85 deg`).
     """
     return AeroCoeffs(
-        C_x=p.aero.C_A0,
+        C_x=p.aero.C_A0 * axial_flow_factor(alpha),
         C_z=p.aero.C_N_alpha * np.sin(alpha),
         C_m=p.aero.C_m_alpha * np.sin(alpha),
         C_mq=p.aero.c_mq,
@@ -308,6 +340,11 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     F2) where `dynamics.py`'s CoP-arm lookup and `forces.py`'s force/
     moment lookup could independently disagree about whether a table was
     in effect.
+
+    Step 93 (D-91/D-93, architecture-34 SS34.3): `C_A` is multiplied by
+    `axial_flow_factor(alpha)` iff the table's alpha grid stays inside
+    (-90, +90) deg (`_table_axial_factor`); a table covering reversed flow
+    is authoritative and used as is.
     """
     table = _load_table(p.aero.table)
     if table.C_mq is not None:
@@ -315,7 +352,7 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     else:
         C_mq = p.aero.c_mq
     return AeroCoeffs(
-        C_x=_table_lookup(table, alpha, M, table.C_A),
+        C_x=_table_lookup(table, alpha, M, table.C_A) * _table_axial_factor(table, alpha),
         C_z=_table_lookup(table, alpha, M, table.C_N),
         C_m=_table_lookup(table, alpha, M, table.C_m),
         C_mq=C_mq,

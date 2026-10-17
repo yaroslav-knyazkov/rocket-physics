@@ -23,7 +23,7 @@ import textwrap
 
 import pytest
 
-from configs.schema import Config, LaunchSite, Rocket, Scenario, Weather, assemble
+from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
 from sim.params import (
     Aero,
     Atmosphere,
@@ -43,20 +43,42 @@ from sim.state import State
 
 
 def _minimal_rocket(name: str = "rocket") -> Rocket:
-    return Rocket(name=name, weight=Weight(m=1.0, I=0.01))
+    return Rocket(name=name, airframe=Airframe(m=1.0, I=0.01))
+
+
+def _minimal_motor(name: str = "motor") -> Motor:
+    return Motor(name=name)
 
 
 def _non_default_rocket() -> Rocket:
     """Every group non-default, so assembling this rocket can prove each
-    one actually travelled from `Rocket` into `Params` (SS31.8 #1)."""
+    one actually travelled from `Rocket` into `Params` (SS31.8 #1).
+
+    `weight`/`thrust` moved off `Rocket` at Step 80 -- `_non_default_motor()`
+    below covers `thrust`'s non-default case now; `weight` is DERIVED by
+    `assemble`, not sourced from `Rocket` at all (SS32.3), so it is
+    exercised by `_non_default_scenario`'s composed `Params.weight`
+    instead of by a `Rocket` field."""
     return Rocket(
         name="non_default_rocket",
-        weight=Weight(m=2.5, I=0.2),
+        airframe=Airframe(m=2.5, I=0.2),
         lengths=Lengths(l1=0.3, l2=0.4, u_B=0.01, u_C=0.02, misalign_deg=1.0),
-        thrust=Thrust(motor_curve="motor.csv", A_e=0.001, p_ref=90000.0),
         aero=Aero(model="linearized", S=0.01, d_ref=0.1, C_A0=0.05),
         recovery=Recovery(model="deploy", trigger="timer", deploy_time=5.0, Cd=1.0, S=1.0),
         control=Control(airbrake_model="proportional", airbrake_kp=0.5, airbrake_Cd=1.2, airbrake_S_max=0.01),
+        sections=Sections(L_total=1.0, l_nose=0.2, l_fin_root_fwd=0.6, l_fin_root_aft=0.7),
+    )
+
+
+def _non_default_motor() -> Motor:
+    """`Scenario.motor`'s non-default fixture (Step 80) -- mirrors
+    `_non_default_rocket()`'s style. `mass_model` stays `"none"` (every
+    existing seed's path, SS32.3.3 case 0) so assembling this motor
+    still exercises the pass-through, not the full mass-model
+    composition -- that is `tests/test_motor_pieces.py`'s job."""
+    return Motor(
+        name="non_default_motor",
+        thrust=Thrust(motor_curve="motor.csv", A_e=0.001, p_ref=90000.0),
     )
 
 
@@ -80,6 +102,7 @@ def _non_default_scenario() -> Scenario:
     return Scenario(
         name="non_default_scenario",
         rocket=_non_default_rocket(),
+        motor=_non_default_motor(),
         site=_non_default_site(),
         weather=_non_default_weather(),
         gravity=Gravity(model="wgs84", direction="radial", earth_rotation=True),
@@ -156,6 +179,7 @@ def test_override_applies_before_s0_is_derived():
     sc = Scenario(
         name="override_test",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),  # default rail_angle_deg == 90.0
         weather=Weather(name="weather"),
         overrides={"site.rail_angle_deg": 85.0},
@@ -173,6 +197,7 @@ def test_s0_none_with_default_90_degree_rail_is_exactly_pi_over_2():
     sc = Scenario(
         name="default_rail",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
     )
@@ -184,6 +209,7 @@ def test_explicit_s0_is_passed_through_untouched():
     sc = Scenario(
         name="explicit_s0",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site", site=Site(rail_angle_deg=45.0)),
         weather=Weather(name="weather"),
         s0=explicit_s0,
@@ -200,6 +226,7 @@ def test_scenario_config_returns_config_with_the_scenarios_own_name_and_notes():
     sc = Scenario(
         name="my_scenario",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
         notes="test notes for my_scenario",
@@ -237,8 +264,80 @@ def test_scenario_is_frozen():
     sc = Scenario(
         name="scenario",
         rocket=_minimal_rocket(),
+        motor=_minimal_motor(),
         site=LaunchSite(name="site"),
         weather=Weather(name="weather"),
     )
     with pytest.raises(dataclasses.FrozenInstanceError):
         sc.name = "changed"
+
+
+# ----------------------------------------------------------------------
+# D-76 -- assemble() seeds s0.m from the composed mass (Step 85)
+# ----------------------------------------------------------------------
+
+
+def _mass_on_motor() -> Motor:
+    """An "isp" motor with every mass field explicit (the K570 file is only read for its curve)."""
+    return Motor(
+        name="mass_on",
+        thrust=Thrust(motor_curve="Cesaroni_2060K570-17A.eng"),
+        mass_model="isp",
+        I_sp=180.0,
+        m_total=1.0,
+        m_prop=0.4,
+        length=0.5,
+        diameter=0.05,
+        l_case=0.2,
+        l_prop=0.3,
+        I_case=0.002,
+        I_prop0=0.001,
+    )
+
+
+def _mass_scenario(motor: Motor, **kwargs) -> Scenario:
+    return Scenario(
+        name="mass_scenario",
+        rocket=Rocket(
+            name="rocket",
+            airframe=Airframe(m=1.2, I=0.03, l=0.3),
+            sections=Sections(l_motor_fwd=0.5),
+        ),
+        motor=motor,
+        site=LaunchSite(name="site"),
+        weather=Weather(name="weather"),
+        **kwargs,
+    )
+
+
+def test_mass_on_derived_s0_gets_the_composed_mass():
+    config = _mass_scenario(_mass_on_motor()).config
+    assert config.params.weight.m_d is not None
+    assert config.s0.m == config.params.weight.m
+    assert config.s0.m > 0.0
+
+
+def test_mass_on_explicit_s0_without_m_is_filled():
+    explicit = State(x=1.0, z=-2.0, vx=3.0, vz=4.0, theta=0.123, omega=0.5)
+    config = _mass_scenario(_mass_on_motor(), s0=explicit).config
+    assert config.s0.m == config.params.weight.m
+    assert config.s0._replace(m=0.0) == explicit
+
+
+def test_mass_on_explicit_s0_with_nonzero_m_is_kept():
+    explicit = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=1.0, omega=0.0, m=2.5)
+    config = _mass_scenario(_mass_on_motor(), s0=explicit).config
+    assert config.s0.m == 2.5
+
+
+def test_mass_model_switched_on_by_override_fills_s0_from_overridden_params():
+    sc = _mass_scenario(_minimal_motor(), overrides={"weight.m_d": 0.8, "weight.m": 1.5})
+    config = sc.config
+    assert config.params.weight.m_d == 0.8
+    assert config.s0.m == 1.5
+
+
+def test_mass_off_s0_mass_stays_zero():
+    config = _mass_scenario(_minimal_motor()).config
+    assert config.params.weight.m_d is None
+    assert config.s0.m == 0.0

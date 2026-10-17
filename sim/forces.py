@@ -221,6 +221,9 @@ def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
     A_x = flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
     A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p, hold)
+    # Step 93 (D-94a): the brake is a body-axis axial drag too, so it follows
+    # the same flow-direction factor as `C_x` (architecture-34 SS34.3).
+    A_brake *= aero.axial_flow_factor(flow.alpha)
     return np.array([-(A_x + A_brake), -A_z])
 
 
@@ -289,6 +292,10 @@ def parachute_deployed(t: float, y: np.ndarray, p) -> bool:
     # mid-boost on an unstable trajectory) would arm deployment early. Not a
     # concern for the nominal trajectories this project models; documented
     # here rather than guarded against, the same standing as B11.
+    # Step 94 (D-94b): same 0.1 s pad guard as `_apogee_event` -- a rest start
+    # with T(0) < mg sags tail-first for ~ms (vz > 0) and must not arm the chute.
+    if t < 0.1:
+        return False
     return y[VZ] > 0.0
 
 

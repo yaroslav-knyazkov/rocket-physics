@@ -30,13 +30,14 @@ from apps.airbrake_sizing.solve_cda import (
     solve_airbrake,
 )
 from apps.airbrake_sizing.targets import SPECS
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from sim import control
 from sim.integrate import Result
 from sim.params import replace as params_replace
 from sim.state import VZ
 
-_CFG = configs.get("demo_75mm_airbrake")
+_CFG = study_vehicle.CONFIG
 
 # ----------------------------------------------------------------------
 # Monotonicity (the premise the whole method rests on, F6/F18) + round-trip
@@ -295,24 +296,25 @@ def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
 
 
 # ----------------------------------------------------------------------
-# End to end: all four named SPECS against demo_75mm_airbrake
+# End to end: all four named SPECS against the demo
 # ----------------------------------------------------------------------
 
 
-def test_end_to_end_against_demo_75mm_airbrake_for_every_named_spec():
+def test_end_to_end_against_demo_for_every_named_spec():
     """Runs every spec in targets.SPECS against the app's own default
-    vehicle and writes both artifacts. No apogee value is pinned here by
+    vehicle (SPECS are sized for the demo, Step 90) and writes both artifacts. No apogee value is pinned here by
     design (roadmap.md Step 66) -- this is a smoke/wiring test, the
     numbers are reported in the developer's own step report."""
+    cfg = configs.get("demo")
     ensure_dir(OUTPUT_DIR)
     csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
     png_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
 
     for name, spec in SPECS.items():
         if spec.solve_for == "none":
-            sol = evaluate_airbrake(spec.cda_bounds[1], _CFG, spec)
+            sol = evaluate_airbrake(spec.cda_bounds[1], cfg, spec)
         else:
-            sol = solve_airbrake(_CFG, spec)
+            sol = solve_airbrake(cfg, spec)
 
         assert sol.n_sim_runs >= 1
         assert sol.trigger == spec.trigger
@@ -321,3 +323,16 @@ def test_end_to_end_against_demo_75mm_airbrake_for_every_named_spec():
         save_overlay(sol, png_path)
         assert csv_path.exists() and csv_path.stat().st_size > 0
         assert png_path.exists() and png_path.stat().st_size > 0
+
+
+def test_named_apogee_target_specs_converge_with_margin():
+    """Step 96: the named apogee-target specs reach the 1e-2 m acceptance
+    with margin (brentq's xtol is derived from the acceptance, not a fixed
+    constant that only just fit)."""
+    from apps.airbrake_sizing.targets import SPECS
+
+    for name in ("burnout_3850m", "timer_3850m", "when_to_pop"):
+        spec = SPECS[name]
+        sol = solve_airbrake(configs.get("demo"), spec)
+        assert sol.reachable and sol.converged, name
+        assert abs(sol.apogee_m - spec.target_apogee_m) < 5.0e-3, name

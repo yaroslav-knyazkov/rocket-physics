@@ -462,7 +462,9 @@ def run_sim(p, s0: State) -> Result:
         )
 
     if method == "rk4":
-        return _run_rk4(p, s0, t_max, dt, sample_rate_hz)
+        result = _run_rk4(p, s0, t_max, dt, sample_rate_hz)
+        _warn_if_mach_blind(result)
+        return result
 
     y0 = np.array(s0, dtype=float)
 
@@ -484,10 +486,20 @@ def run_sim(p, s0: State) -> Result:
     t_rail_exit = sol.t_events[3][0] if len(sol.t_events[3]) else None
     t_parachute_deploy = sol.t_events[4][0] if len(sol.t_events[4]) else None
 
-    return Result(
+    result = Result(
         t=sol.t,
         y=sol.y,
         events={"apogee": t_apogee, "ground": t_ground, "burnout": t_burnout, "rail_exit": t_rail_exit, "parachute_deploy": t_parachute_deploy},
         raw=sol,
         params=p,
     )
+    _warn_if_mach_blind(result)
+    return result
+
+
+def _warn_if_mach_blind(result: Result) -> None:
+    """Step 92 (D-83): pure diagnostic, never alters `result`. Imported
+    lazily -- `sim.mach_warning` pulls in `sim.flow`."""
+    from sim.mach_warning import warn_if_mach_blind
+
+    warn_if_mach_blind(result, stacklevel=4)

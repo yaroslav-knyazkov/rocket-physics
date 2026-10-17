@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Optional
 
 import configs
+from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Config
@@ -224,7 +225,7 @@ def _parse_config_names(spec: str) -> "list[str]":
     return names
 
 
-def _resolve_configs(spec: str) -> "list[Config]":
+def _resolve_configs(spec: "Optional[str]") -> "list[Config]":
     """A single name resolves to a *baseline*: compared against every
     `apps.weight_aero_tradeoff.scenarios.SCENARIOS` variant applied to it
     (plus the baseline itself) -- the default, SCENARIOS-driven use of
@@ -233,11 +234,22 @@ def _resolve_configs(spec: str) -> "list[Config]":
     justifies this mode existing at all (module docstring, SS30.7.2):
     candidates differing by more than a weight/C_dA delta against one
     baseline."""
+    from apps.weight_aero_tradeoff.scenarios import SCENARIOS
+
+    if spec is None:
+        # no --config: the app's own constant-mass study vehicle (D-79)
+        baseline = study_vehicle.CONFIG
+        return [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
     names = _parse_config_names(spec)
     if len(names) == 1:
         baseline = configs.get(names[0])
-        from apps.weight_aero_tradeoff.scenarios import SCENARIOS
-
+        if baseline.params.weight.m_d is not None:
+            raise ValueError(
+                f"config {baseline.name!r}: mass model is on (weight.m_d="
+                f"{baseline.params.weight.m_d!r}); the integrator reads mass "
+                "from y[M], so the SCENARIOS variants' weight.m overrides "
+                "would be inert (F3). App 5 is a constant-mass study."
+            )
         return [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
     return [configs.get(name) for name in names]
 
@@ -253,9 +265,10 @@ def main(argv: "Optional[list[str]]" = None) -> None:
     )
     parser.add_argument(
         "--config",
-        default="demo_75mm",
+        default=None,
         metavar="NAME[,NAME,...]",
-        help="a single registry name (default: 'demo_75mm') is a "
+        help="omitted (default): the app's constant-mass study vehicle "
+        "(apps/common/study_vehicle.py) as baseline. A single registry name is a "
         "baseline: compares it against every SCENARIOS variant "
         "(apps/weight_aero_tradeoff/scenarios.py) applied to it, plus "
         "the baseline itself. Two or more comma-separated registry "

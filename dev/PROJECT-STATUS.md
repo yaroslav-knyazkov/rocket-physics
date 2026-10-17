@@ -24,7 +24,7 @@
 
 ## 6. ⏳ Ожидает решения / аппрува
 
-- **Phase 2.16 (motor-config-separation), ветка `feature/motor-config-separation`** — после доделки Step 81 (`demo_75mm_k570`, WIP-коммит `3789a3c`) и Steps 82-83: ревью пользователя и аппрув мержа в `develop`. Перед мержем откатить WIP-правки LaTeX из `3789a3c` (решение пользователя 2026-10-15). Дизайн — `dev/docs/architecture-32-motor-separation.md` (есть только на ветке).
+- **Phase 2.16 (motor-config-separation), ветка `feature/motor-config-separation`** — Steps 75-83 готовы (485/485 тестов), Step 84 (LaTeX) отложен. D-56…D-73 и D-76 утверждены 2026-10-15. Идёт чистка `configs/` до шаблона + одного демо (D-78, Steps 85+), затем аппрув мержа в `develop`.
 - **Step 30 (3D вращательная динамика) заблокирован** — ждёт ревью пользователем `dev/docs/latex/research/3d_equations_of_motion.md`; открытая развилка — осевой момент инерции `I_a` (значения по умолчанию нет).
 - **Локальная компиляция LaTeX** — `dev/docs/latex/main.tex` ни разу не собирался (в среде нет pdflatex/latexmk); пользователю собрать локально (два прохода ради `\autoref`) и просмотреть.
 - **Уточнить: `develop` → `master`** — `master` последний раз догнан до `7167c45` (Phases 2.13-2.14); перенос Phase 2.15 (и затем 2.16) в `master` в памяти не зафиксирован.

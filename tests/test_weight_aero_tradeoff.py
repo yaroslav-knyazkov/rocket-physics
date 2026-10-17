@@ -49,7 +49,7 @@ import math
 import numpy as np
 import pytest
 
-import configs
+from apps.common import study_vehicle
 from apps.common.flight_stats import flight_stats
 from apps.weight_aero_tradeoff.compare_configs import (
     ConfigRun,
@@ -73,7 +73,7 @@ from sim.params import replace as params_replace
 
 
 def _demo_cfg():
-    return configs.get("demo_75mm")
+    return study_vehicle.CONFIG
 
 
 def _small_axes(cfg, n=5):
@@ -488,20 +488,20 @@ def test_scenarios_variant_changes_exactly_its_named_fields():
 
 
 def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, capsys):
-    """`--config demo_75mm` (a single name, the default): prints the
-    ranked table for the baseline plus every `SCENARIOS` variant, and
-    writes both artifacts."""
+    """No `--config` (the default, the study vehicle): prints the ranked
+    table for the baseline plus every `SCENARIOS` variant, and writes
+    both artifacts."""
     import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
 
     monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
 
-    compare_main(["--config", "demo_75mm"])
+    compare_main([])
 
     out = capsys.readouterr().out
     assert "Config comparison" in out
-    assert "demo_75mm" in out
-    assert "demo_75mm+heavy_sleek" in out
-    assert "demo_75mm+light_draggy" in out
+    assert "study_75mm" in out
+    assert "study_75mm+heavy_sleek" in out
+    assert "study_75mm+light_draggy" in out
 
     csv_path = tmp_path / "config_comparison.csv"
     png_path = tmp_path / "config_comparison_overlay.png"
@@ -523,10 +523,20 @@ def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
 
     monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
 
-    compare_main(["--config", "demo_75mm,toy_05kg"])
+    from tests import config_variants
+
+    # Patch the registry the app itself holds: tests/test_motor_pieces.py
+    # purges `configs.*` from sys.modules and re-imports it, so a fresh
+    # `import configs.scenarios` here can be a different module object
+    # from the one `compare_configs` imported at load time.
+    monkeypatch.setitem(
+        compare_configs_module.configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG
+    )
+
+    compare_main(["--config", "demo,toy_05kg"])
 
     out = capsys.readouterr().out
-    assert "demo_75mm" in out
+    assert "demo" in out
     assert "toy_05kg" in out
     assert "heavy_sleek" not in out
     assert "light_draggy" not in out
@@ -584,3 +594,33 @@ def test_mode_a_agrees_with_mode_b_trade_surface_at_shared_points():
         assert apogee_mode_a is not None
         assert not np.isnan(apogee_mode_b)
         assert apogee_mode_a == pytest.approx(apogee_mode_b, rel=0.01), (i, cda, m)
+
+
+# ----------------------------------------------------------------------
+# D-82: the constant-mass study refuses a mass-model-on baseline
+# ----------------------------------------------------------------------
+
+
+def test_build_surface_refuses_mass_model_on_config(monkeypatch):
+    import configs
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called for a mass-on config")
+
+    monkeypatch.setattr("apps.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
+
+    cfg = configs.get("demo")
+    with pytest.raises(ValueError, match="mass model is on"):
+        build_surface(cfg, default_axes(cfg))
+
+
+def test_compare_single_name_baseline_refuses_mass_model_on_config(monkeypatch):
+    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("run_sim must not be called for a mass-on baseline")
+
+    monkeypatch.setattr(compare_configs_module, "run_sim", _must_not_be_called)
+
+    with pytest.raises(ValueError, match="mass model is on"):
+        compare_main(["--config", "demo"])

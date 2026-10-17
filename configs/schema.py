@@ -35,7 +35,13 @@ its single `Params(...)` call is pinned, structurally, against
 `{f.name for f in dataclasses.fields(Params)}` by
 `tests/test_config_pieces.py` (SS31.8 #1), so a thirteenth `Params`
 group would fail that test loudly instead of silently taking its
-default in every scenario.
+default in every scenario. Amended at Step 80 (D-57,
+`dev/docs/architecture-32-motor-separation.md` SS32.2.3/SS32.3.3): `weight`
+is now the one DERIVED group -- a function of two disjoint-field-set
+inputs, `Rocket.airframe` (+ `Rocket.sections`) and `Scenario.motor`,
+composed by `_weight_from_pieces`, not a merge with a precedence rule.
+Every other group keeps its single owning piece unchanged, and `thrust`
+moves from `Rocket` to `Scenario.motor`.
 
 The import rule above now also applies to pieces: piece modules do
 `from configs.schema import Rocket`, **never** `from configs import
@@ -52,6 +58,8 @@ import dataclasses
 import math
 from typing import Any
 
+from sim import mass
+from sim import motor_file
 from sim.params import Aero
 from sim.params import Atmosphere
 from sim.params import Control
@@ -76,6 +84,9 @@ __all__ = [
     "Weather",
     "Scenario",
     "assemble",
+    "Airframe",
+    "Sections",
+    "Motor",
 ]
 
 
@@ -84,7 +95,7 @@ class Config:
     """One complete, runnable scenario: the `Params`, the initial `State`,
     and where the numbers came from."""
 
-    name: str                  # registry key, e.g. "demo_75mm"
+    name: str                  # registry key, e.g. "demo"
     params: Params
     s0: State
     notes: str = ""            # provenance: source of the numbers, date, what it is for
@@ -132,6 +143,117 @@ class Variant:
 
 
 # ----------------------------------------------------------------------
+# Phase 2.16 (dev/docs/architecture-32-motor-separation.md SS32.2, SS32.3):
+# `Airframe`, `Sections`, `Motor` -- the pieces the motor's own mass/CoG/
+# MOI history is split out into -- and the assembly-time composition
+# `_weight_from_pieces` (below `assemble`) that turns them (plus
+# `Rocket`'s other groups, unchanged) into the one `Weight` the engine
+# consumes. Added standalone and unwired at Step 78; wired up at Step 80,
+# where `Rocket` gained `airframe`/`sections` (replacing `weight`/
+# `thrust`) and `Scenario` gained `motor`, and `assemble` started calling
+# `_weight_from_pieces` instead of reading `sc.rocket.weight` directly.
+# Defined here, ahead of `Rocket`, because `Rocket.sections`' default
+# factory needs the `Sections` class object to already exist.
+# ----------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class Airframe:
+    """The vehicle WITHOUT its motor: structure, nose, fins, recovery
+    hardware, avionics, ballast -- one rigid lump.
+
+    Deliberately NOT called "dry": in this project "dry" (`Weight.m_d`)
+    has always meant "without propellant, casing included", and these
+    numbers exclude the motor entirely. B25 replaces this lump with a
+    per-section mass distribution; until then it is two measured numbers,
+    plus a third (`l`) once a mass-modelled motor is fitted.
+
+    `l` is a station: POSITIVE, measured aft of the nose tip A (SS32.5).
+    """
+
+    m: float  # REQ, kg      -- airframe mass, motor excluded
+    I: float  # REQ, kg*m^2  -- pitch MOI about the airframe's OWN CoG (`l`)
+    l: float | None = None  # OPT, m -- airframe CoG station aft of A; REQ
+    #                                   whenever the paired Motor has
+    #                                   mass_model != "none"
+
+
+@dataclasses.dataclass(frozen=True)
+class Sections:
+    """Named airframe stations, every one a POSITIVE distance aft of the
+    nose tip A (rocket-2d.tex SSGeometry; SS32.5 restates the convention).
+
+    Exactly ONE field is read by any code today -- `l_motor_fwd` (or
+    `l_motor_aft`), which places the motor for the SS32.3 composition.
+    Everything else is documentation with a structure: the landing spot
+    for B25's per-section mass distribution, and the provenance for
+    `Lengths.l1`/`l2`, which stay authoritative and are NOT derived from
+    these (D-68) -- this step does not implement that derivation, it only
+    states the non-goal here.
+    """
+
+    L_total: float = 0.0  # OPT, m -- overall length, nose tip to tail
+    l_nose: float = 0.0  # OPT, m -- nose cone length == station of the nose/body joint
+    l_fin_root_fwd: float = 0.0  # OPT, m -- fin root leading-edge station
+    l_fin_root_aft: float = 0.0  # OPT, m -- fin root trailing-edge station
+    l_motor_fwd: float | None = None  # OPT, m -- station of the motor's FORWARD face
+    l_motor_aft: float | None = None  # OPT, m -- station of the motor's AFT face; the
+    #                                              forward face resolves to
+    #                                              l_motor_aft - motor.length
+    tubes: tuple[tuple[str, float], ...] = ()  # OPT -- ((name, aft-end station m), ...), informational
+    notes: str = ""  # OPT -- where these dimensions came from
+
+
+@dataclasses.dataclass(frozen=True)
+class Motor:
+    """One motor installation: its thrust curve, and its OWN mass / CoG /
+    MOI history (SS32.3).
+
+    Geometry is MOTOR-LOCAL: the origin is the motor's forward
+    (nose-ward) face and distances are POSITIVE aft, the same sense the
+    airframe uses from the nose tip A (SS32.5). That is what makes one
+    motor reusable across airframes -- the rocket supplies the mounting
+    station (`Sections.l_motor_fwd`), the motor never knows where it is
+    installed.
+
+    Every `None` below means "derive it": from the motor file's own
+    header if it has one (`.eng`/`.rasp`), otherwise from the
+    uniform-cylinder defaults in SS32.3.3. A `.csv` curve carries no
+    header, so a `.csv` motor with `mass_model != "none"` must spell the
+    masses out.
+    """
+
+    name: str  # REQ, registry key, e.g. "cti_k570"
+    thrust: Thrust = dataclasses.field(default_factory=Thrust)  # REQ in practice; owns Params.thrust whole
+
+    # --- which m(t) model is active (SS32.3.4) --------------------------
+    mass_model: str = "none"  # OPT, none | isp | endpoints; "none" = constant-mass flight
+
+    # --- masses ---------------------------------------------------------
+    m_total: float | None = None  # OPT, kg  -- loaded mass at ignition  (.eng header field 6)
+    m_prop: float | None = None  # OPT, kg  -- propellant mass          (.eng header field 5)
+    I_sp: float | None = None  # OPT, s   -- specific impulse; REQ when mass_model == "isp"
+
+    # --- the motor's own geometry, motor-local, positive aft -------------
+    length: float | None = None  # OPT, m -- overall length   (.eng header field 3, mm)
+    diameter: float | None = None  # OPT, m -- casing diameter  (.eng header field 2, mm)
+    l_case: float | None = None  # OPT, m -- casing centroid;      None -> length/2
+    l_prop: float | None = None  # OPT, m -- propellant centroid;  None -> length/2
+    I_case: float | None = None  # OPT, kg*m^2 -- casing MOI about its own centroid;  None -> uniform cylinder
+    I_prop0: float | None = None  # OPT, kg*m^2 -- propellant MOI about its own centroid at t=0;
+    #                                              None -> uniform cylinder
+
+    # --- the user's endpoint parameterisation, SS32.3.5 (an alternative
+    #     to l_prop / I_prop0 above; give one form OR the other) ---------
+    l_cog_0: float | None = None  # OPT, m      -- motor-local CoG at ignition
+    l_cog_f: float | None = None  # OPT, m      -- motor-local CoG at burnout
+    I_0: float | None = None  # OPT, kg*m^2 -- motor's own MOI at ignition, about its own CoG
+    I_f: float | None = None  # OPT, kg*m^2 -- motor's own MOI at burnout,  about its own CoG
+
+    notes: str = ""  # OPT -- provenance: vendor, datasheet, date, measured or estimated
+
+
+# ----------------------------------------------------------------------
 # Step 71 (architecture-31-config-separation.md SS31.4): the four piece
 # types, and the `assemble` function that composes them into a `Config`.
 # ----------------------------------------------------------------------
@@ -139,16 +261,23 @@ class Variant:
 
 @dataclasses.dataclass(frozen=True)
 class Rocket:
-    """One vehicle: airframe, motor installation, aerodynamics, and the
-    recovery/control hardware bolted to it (SS31.3.1)."""
+    """One airframe: structure, geometry, aerodynamics, and the
+    recovery/control hardware bolted to it -- but NOT its motor (SS32.1).
+
+    Changed at Step 80 (`dev/docs/architecture-32-motor-separation.md`
+    SS32.2.3): `weight: Weight` -> `airframe: Airframe` (the
+    `Params.weight` group is now DERIVED by `assemble` from this piece
+    plus the `Scenario.motor` piece, SS32.3); `thrust: Thrust` REMOVED
+    (the `Motor` piece owns it now); `sections: Sections` added.
+    """
 
     name: str
-    weight: Weight  # the only required group
+    airframe: Airframe  # the only required group
     lengths: Lengths = dataclasses.field(default_factory=Lengths)
-    thrust: Thrust = dataclasses.field(default_factory=Thrust)
     aero: Aero = dataclasses.field(default_factory=Aero)
     recovery: Recovery = dataclasses.field(default_factory=Recovery)
     control: Control = dataclasses.field(default_factory=Control)
+    sections: Sections = dataclasses.field(default_factory=Sections)
     notes: str = ""
 
 
@@ -176,12 +305,14 @@ class Weather:
 
 @dataclasses.dataclass(frozen=True)
 class Scenario:
-    """One named combination of a rocket, a site and a day's weather, plus
-    the run-level groups nobody reuses by name (SS31.3.2). `.config`
-    assembles it into the ordinary `Config` every tool already takes."""
+    """One named combination of a rocket, a MOTOR, a site and a day's
+    weather, plus the run-level groups nobody reuses by name (SS31.3.2).
+    `.config` assembles it into the ordinary `Config` every tool already
+    takes."""
 
     name: str
     rocket: Rocket
+    motor: Motor  # NEW at Step 80, required -- SS32.1, D-58
     site: LaunchSite
     weather: Weather
     gravity: Gravity = dataclasses.field(default_factory=Gravity)
@@ -197,15 +328,20 @@ class Scenario:
 
 
 def assemble(sc: Scenario) -> Config:
-    """SS31.4. Exactly one owner per `Params` group -- no merge, no
-    precedence rule, no partial groups. The keyword set below is
-    `dataclasses.fields(Params)` exactly (pinned by test, SS31.8 #1)."""
+    """SS31.4, amended by SS32.3/D-57. Exactly one owner per `Params`
+    group, with ONE named exception: `weight` is DERIVED from two pieces
+    with disjoint field sets (`Rocket.airframe`/`Rocket.sections` +
+    `Scenario.motor`) by `_weight_from_pieces` below -- a function of two
+    inputs, not a merge with a precedence rule, so no field can come from
+    two places (the property D-49 actually protects). The keyword set
+    below is still `dataclasses.fields(Params)` exactly (pinned by test,
+    SS31.8 #1) -- this change moves *sources*, not keywords."""
     # (1) gather groups from the pieces -- one keyword per group, each
     #     sourced from exactly one owning piece
     p = Params(
-        weight=sc.rocket.weight,
+        weight=_weight_from_pieces(sc.rocket.airframe, sc.rocket.sections, sc.motor, sc.g0),  # DERIVED, SS32.3
         lengths=sc.rocket.lengths,
-        thrust=sc.rocket.thrust,
+        thrust=sc.motor.thrust,  # owner moved: Rocket -> Motor (Step 80)
         aero=sc.rocket.aero,
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,
@@ -225,6 +361,10 @@ def assemble(sc: Scenario) -> Config:
     #     would re-create F5's foot-gun inside the mechanism that
     #     advertises fixing it.
     s0 = sc.s0 if sc.s0 is not None else _pad_state(p.site)
+    # (4) D-76: with the mass model on, the integrator reads mass from y[M], not
+    #     weight.m (sim/dynamics.py) -- start it at the composed launch mass.
+    if p.weight.m_d is not None and s0.m == 0.0:
+        s0 = s0._replace(m=p.weight.m)
     return Config(name=sc.name, params=p, s0=s0, notes=sc.notes)
 
 
@@ -239,4 +379,152 @@ def _pad_state(site: Site) -> State:
         vz=0.0,
         theta=math.radians(site.rail_angle_deg),
         omega=0.0,
+    )
+
+
+def _weight_from_pieces(airframe: Airframe, sections: Sections, motor: Motor, g0: float) -> Weight:
+    """SS32.3. Compose the airframe lump and the motor's own lumps into
+    the one `Params.weight` group the engine consumes (D-56, D-57).
+
+    Signature note, deliberate: takes `(airframe, sections, motor, g0)`,
+    NOT `(rocket, motor, g0)` -- so it works unchanged against both
+    today's `Rocket` (no `airframe`/`sections` fields yet) and the
+    Step-80 `Rocket` (which will have them); Step 80's `assemble` calls
+    this as `_weight_from_pieces(sc.rocket.airframe, sc.rocket.sections,
+    sc.motor, sc.g0)`. Recorded here so Step 80 does not need to
+    re-derive the rationale.
+
+    Four cases, in this order (SS32.3.3):
+
+    (0) `motor.mass_model == "none"` -- PASS-THROUGH, and an explicit
+        early return rather than `combine()` of one lump (F4 --
+        `combine()` is not an exact identity even for a single lump): the
+        airframe's own numbers ARE the vehicle's, the mass model stays
+        off, and every pre-Step-80 config comes out bit-for-bit.
+    (1) resolve the motor's own numbers: header fields from
+        `sim.motor_file.load(motor.thrust.motor_curve)` for every field
+        left `None` on `motor` (D-67) -- an explicit `Motor` field always
+        overrides the file -- then geometry defaults (`l_case`/`l_prop`
+        -> `length/2`, `I_case`/`I_prop0` -> the uniform-cylinder default),
+        OR the exact SS32.3.5 endpoint inversion when the motor gives
+        `l_cog_0`/`l_cog_f`/`I_0`/`I_f` instead of `l_prop`/`I_prop0`
+        directly.
+    (2) place the motor: motor-local stations become nose-tip stations by
+        adding `l_fwd = sections.l_motor_fwd` (or
+        `sections.l_motor_aft - motor.length`). Raises, naming the two
+        fields, if neither or both of `l_motor_fwd`/`l_motor_aft` are
+        given; raises, naming the field, if `airframe.l is None` -- both
+        only while `mass_model != "none"`.
+    (3) compose with `sim.mass.Lump`/`combine` and emit the five
+        mass-model `Weight` fields.
+
+    Six properties of this function (SS32.3.3), each one load-bearing:
+
+    1. Pass-through is bit-for-bit, by construction (case 0 above).
+    2. `m`/`I` are the composed values at t=0, i.e. the loaded (wet)
+       vehicle -- `Weight.m`/`I`'s meaning all along. `m_d`/`l_d`/`I_d`
+       are the composed DRY assembly (airframe + casing) -- same meaning
+       as before, different provenance: they used to be typed in by
+       hand, now they are computed.
+    3. `l_p` is a nose-tip station, exactly like `l_d` -- safe because
+       every consumer reads it only as a difference (F6).
+    4. This function runs once per scenario, at import (assembly time),
+       not once per RHS evaluation -- F2's two-body reduction is what
+       makes that true.
+    5. It touches the filesystem only when `mass_model != "none"` (D-70):
+       every existing seed stays on the "none" pass-through path, which
+       never calls `sim.motor_file`.
+    6. Its two preconditions (above, case (2)) raise with a message
+       naming the offending field, not a bare `TypeError` from `None +
+       float`.
+    """
+    if motor.mass_model == "none":
+        # (0) PASS-THROUGH -- explicit early return, not combine() of one
+        # lump (F4): the airframe's own numbers ARE the vehicle's.
+        return Weight(m=airframe.m, I=airframe.I)
+
+    # (1) resolve the motor's own numbers ---------------------------------
+    # Touches the filesystem (D-70) -- only reached when mass_model !=
+    # "none".
+    record = motor_file.load(motor.thrust.motor_curve)
+
+    m_total = motor.m_total if motor.m_total is not None else record.m_total
+    m_prop = motor.m_prop if motor.m_prop is not None else record.m_prop
+    length = motor.length if motor.length is not None else record.length
+    diameter = motor.diameter if motor.diameter is not None else record.diameter
+    m_c = m_total - m_prop  # the casing's own mass, m_f in SS32.3.5's notation
+
+    if motor.l_cog_0 is not None:
+        # The user's endpoint parameterisation (SS32.3.5) -- inverted,
+        # once, at assembly time, into the (l_case, l_prop, I_case,
+        # I_prop0) this function needs everywhere else. Exact algebra,
+        # re-derived from mass-weighted centroid + parallel axis:
+        #   l_cog_f = l_case                           (only casing left at burnout)
+        #   l_cog_0 = (m_c*l_case + m_prop*l_prop) / m_total
+        #     => l_prop = (m_total*l_cog_0 - m_c*l_cog_f) / (m_total - m_c)
+        #   I_f = I_case
+        #   I_0 = I_case + m_c*(l_cog_0-l_case)^2 + I_prop0 + m_prop*(l_cog_0-l_prop)^2
+        #     => I_prop0 = I_0 - I_f - m_c*(l_cog_0-l_cog_f)^2 - m_prop*(l_cog_0-l_prop)^2
+        l_case = motor.l_cog_f
+        l_prop = (m_total * motor.l_cog_0 - m_c * motor.l_cog_f) / (m_total - m_c)
+        I_case = motor.I_f
+        I_prop0 = (
+            motor.I_0
+            - motor.I_f
+            - m_c * (motor.l_cog_0 - motor.l_cog_f) ** 2
+            - m_prop * (motor.l_cog_0 - l_prop) ** 2
+        )
+    else:
+        l_case = motor.l_case if motor.l_case is not None else length / 2.0
+        l_prop = motor.l_prop if motor.l_prop is not None else length / 2.0
+        I_case = (
+            motor.I_case
+            if motor.I_case is not None
+            else mass.uniform_cylinder_I(m_c, length, diameter)
+        )
+        I_prop0 = (
+            motor.I_prop0
+            if motor.I_prop0 is not None
+            else mass.uniform_cylinder_I(m_prop, length, diameter)
+        )
+
+    # (2) place the motor: motor-local stations -> nose-tip stations -----
+    fwd_given = sections.l_motor_fwd is not None
+    aft_given = sections.l_motor_aft is not None
+    if fwd_given == aft_given:
+        raise ValueError(
+            "exactly one of sections.l_motor_fwd / sections.l_motor_aft "
+            "must be given when motor.mass_model != 'none' (got "
+            f"l_motor_fwd={sections.l_motor_fwd!r}, l_motor_aft={sections.l_motor_aft!r})"
+        )
+    l_fwd = sections.l_motor_fwd if fwd_given else sections.l_motor_aft - length
+
+    if airframe.l is None:
+        raise ValueError(
+            "airframe.l is required when motor.mass_model != 'none' (got airframe.l=None)"
+        )
+
+    # (3) compose ----------------------------------------------------------
+    airframe_lump = mass.Lump(m=airframe.m, l=airframe.l, I=airframe.I)
+    casing_lump = mass.Lump(m=m_c, l=l_fwd + l_case, I=I_case)
+    prop_lump = mass.Lump(m=m_prop, l=l_fwd + l_prop, I=I_prop0)
+
+    dry = mass.combine(airframe_lump, casing_lump)  # static -- F2
+
+    if motor.mass_model == "isp":
+        I_sp = motor.I_sp
+    else:  # "endpoints" -- SS32.3.4, D-59
+        I_sp = mass.isp_from_impulse(record.total_impulse, m_prop, g0)
+
+    wet = mass.combine(dry, prop_lump)  # t=0 only, for m and I
+
+    return Weight(
+        m=wet.m,
+        I=wet.I,
+        m_d=dry.m,
+        l_d=dry.l,
+        I_d=dry.I,
+        l_p=prop_lump.l,
+        I_sp=I_sp,
+        I_p_spec=(prop_lump.I / prop_lump.m) if prop_lump.m else None,
     )

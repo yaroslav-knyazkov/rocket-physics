@@ -575,3 +575,76 @@ def test_coefficients_is_identity_for_the_default_control_model():
         assert aero.coefficients(t, y, p, flow) is sentinel
     finally:
         aero._AERO_MODELS["linearized"] = original
+
+
+# ----------------------------------------------------------------------
+# Step 93 (Phase 2.16, D-91..D-93): the axial coefficient follows the flow
+# direction -- f(alpha) = clip(cos(alpha)/cos(85 deg), -1, 1).
+# ----------------------------------------------------------------------
+
+
+def test_axial_flow_factor_is_one_inside_85_deg_exactly():
+    for deg in (0.0, 10.0, -30.0, 80.0, 85.0, -85.0):
+        assert aero.axial_flow_factor(math.radians(deg)) == 1.0
+
+
+def test_axial_flow_factor_zero_at_90_and_minus_one_beyond_95():
+    assert abs(aero.axial_flow_factor(math.pi / 2)) < 1e-12
+    assert abs(aero.axial_flow_factor(-math.pi / 2)) < 1e-12
+    for deg in (95.0, -95.0, 120.0, 180.0, -180.0):
+        assert aero.axial_flow_factor(math.radians(deg)) == -1.0
+
+
+def test_axial_flow_factor_is_continuous_across_the_ramp():
+    prev = aero.axial_flow_factor(math.radians(84.0))
+    for deg in np.linspace(84.0, 96.0, 1201)[1:]:
+        cur = aero.axial_flow_factor(math.radians(deg))
+        assert abs(cur - prev) < 3e-3  # slope <= 11.5/rad * 0.01 deg step
+        prev = cur
+
+
+def _tail_first_params(**aero_kw):
+    return Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(S=0.005, d_ref=0.08, **aero_kw),
+    )
+
+
+def test_constant_and_linearized_axial_coefficient_flips_tail_first():
+    pc = _tail_first_params(model="constant", C_x=0.75)
+    pl = _tail_first_params(model="linearized", C_A0=0.6)
+    assert aero.C_A(math.pi, 0.3, pc) == -0.75
+    assert aero.C_A(0.0, 0.3, pc) == 0.75
+    assert aero.C_A(math.pi, 0.3, pl) == -0.6
+    assert aero.C_A(0.0, 0.3, pl) == 0.6
+
+
+def test_example_table_axial_coefficient_flips_at_180_deg():
+    p = _tail_first_params(model="table", table="example.csv")
+    nose = aero.C_A(0.0, 0.5, p)
+    # example.csv spans +-10 deg, so np.interp clamps at 180 deg to the edge value.
+    tail = aero.C_A(math.pi, 0.5, p)
+    edge = aero.C_A(math.radians(10.0), 0.5, p)
+    assert nose > 0.0
+    assert tail == -edge
+
+
+def test_full_range_table_is_authoritative_and_not_flipped():
+    test_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "aero", "test_full_range_table.csv"
+    )
+    with open(test_path, "w") as f:
+        f.write("# test fixture: alpha grid reaches reversed flow\n")
+        f.write("alpha_deg,M,C_A,C_N,C_m,l1_m\n")
+        for a, ca in ((-180, -0.4), (0, 0.3), (180, -0.4)):
+            f.write(f"{a},0.5,{ca},0.0,0.0,0.28\n")
+            f.write(f"{a},1.0,{ca},0.0,0.0,0.35\n")
+    try:
+        p = _tail_first_params(model="table", table="test_full_range_table.csv")
+        assert aero.C_A(math.pi, 0.5, p) == -0.4  # table value, no second flip
+        assert aero.C_A(0.0, 0.5, p) == 0.3
+    finally:
+        aero._load_table.cache_clear()
+        if os.path.exists(test_path):
+            os.remove(test_path)

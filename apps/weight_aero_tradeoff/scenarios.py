@@ -12,10 +12,10 @@ in `trade_surface.py`.
 - The **C_dA axis is relative**: `[0.5, 1.5] x` whatever config's own
   baseline `C_dA = aero.S * aero.C_x` happens to be. This is what makes
   the default grid "bracket the baseline" (SS30.7.1) for *any* `--config`
-  the app is pointed at, not just `demo_75mm` -- a config with a very
+  the app is pointed at, not just the study vehicle (`apps/common/study_vehicle.py`) -- a config with a very
   different C_dA still gets a box centred on its own value.
 - The **mass axis is an absolute literal**, `[1.0, 2.5] kg`: it is F10's
-  measured band around `demo_75mm`'s own 1.5 kg baseline, the same way
+  measured band around the study vehicle's own 1.5 kg baseline, the same way
   `apps/motor_selection/motors.py`'s motor list is specific to that one
   demo airframe rather than derived from whatever config is loaded. A
   vehicle with a very different mass scale (a 50 kg vehicle, say) would
@@ -30,7 +30,7 @@ in `trade_surface.py`.
 11x11 (121 grid points) because that is what F10 measured: smooth,
 strictly monotone decreasing along both axes over this exact box, 121
 runs in ~5.75 s (47.5 ms/run) on the architect's own measurement. This
-tree's own measured wall-clock against `demo_75mm`'s registered
+tree's own measured wall-clock against the study vehicle's
 `"placeholder.csv"` motor is higher (~39 s / ~320 ms per grid point,
 Step 67 developer report) -- `run_sim` itself is still ~45 ms/run, in
 line with F10, but `apps.common.flight_stats.flight_stats`'s own
@@ -52,7 +52,7 @@ from configs.schema import Config, Variant
 _CDA_LOW_MULT = 0.5
 _CDA_HIGH_MULT = 1.5
 
-# Mass axis: F10's measured absolute band around demo_75mm's 1.5 kg baseline.
+# Mass axis: F10's measured absolute band around the study vehicle's 1.5 kg baseline.
 _MASS_LOW_KG = 1.0
 _MASS_HIGH_KG = 2.5
 
@@ -78,7 +78,7 @@ def default_axes(cfg: Config) -> TradeAxes:
 # ----------------------------------------------------------------------
 
 # Each `Variant` below is a *literal, absolute-value* override against
-# `demo_75mm`'s own baseline (`weight.m=1.5 kg`, `aero.C_x=0.5` at
+# the study vehicle's own baseline (`weight.m=1.5 kg`, `aero.C_x=0.5` at
 # `aero.S=0.00442 m^2`), applied via `Variant.apply`/`Config.with_variant`
 # -- the same "literal tuned to one demo vehicle's own scale" convention
 # `default_axes`'s own mass band already uses above (not a relative delta

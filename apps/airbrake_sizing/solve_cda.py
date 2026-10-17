@@ -30,9 +30,9 @@ including SS30.6.1) and SS30.2's F1-F8/F15-F19.
   *onset* latch -- backlog B19.
 - **No descent-braking study.** `"after_apogee"` cannot be an apogee-sizing
   trigger (F19: the objective is flat by construction, the trigger fires
-  only strictly after apogee) and this project's post-apogee physics is
-  not yet trustworthy either (frozen nose-up attitude, body-axis drag
-  accelerating a tail-first fall -- roadmap B17/B23). `evaluate_airbrake`
+  only strictly after apogee). Descent physics is sound since the
+  axial-drag sign fix (Step 93, D-91; B17 closed), but a descent objective
+  is not built yet (roadmap B23). `evaluate_airbrake`
   is the report-only path for that trigger; `solve_airbrake` refuses it
   outright, loudly, without running a search.
 
@@ -111,9 +111,8 @@ _AFTER_APOGEE_REFUSAL = (
     "the apogee is independent of C_dA_airbrake by construction (measured "
     "flat to 2.4e-3 m across C_dA in [0, 10] m^2, i.e. solver noise; "
     "architecture-30-apps-4-5-and-configs.md F19). Call evaluate_airbrake "
-    "for a report-only flight instead, and note that this project's descent "
-    "physics is not yet trustworthy for a post-apogee brake (roadmap "
-    "B17/B23)."
+    "for a report-only flight instead; a descent-rate objective for a "
+    "post-apogee brake is not built yet (roadmap B23)."
 )
 
 
@@ -320,13 +319,36 @@ def _solve_scalar(
             result_open=result_open,
         )
 
+    evals: "list[tuple[float, float]]" = []
+
     def f(x: float) -> float:
         nonlocal n_runs
         n_runs += 1
         apogee_x, _, _ = objective(x)
+        evals.append((x, apogee_x - target))
         return apogee_x - target
 
+    # Step 96: the apogee residual at the root is ~ |local slope| * xtol, and
+    # the local slope can be orders of magnitude above the chord slope over
+    # the bounds (apogee(C_dA) is strongly convex: ~6.7e5 m/m^2 near the
+    # root vs ~4.6e2 m/m^2 on the chord for the demo), so a fixed xtol that
+    # fits one vehicle misses the acceptance on another. Refine instead:
+    # after the first brentq, measure the local slope on the tight bracket
+    # it leaves, and re-run on that bracket with xtol <= 1% of the
+    # acceptance / slope (~100x margin on the 1e-2 m acceptance). `xtol`
+    # (the spec's `xtol_m2`) stays as an upper cap on the refined tolerance.
     root = brentq(f, lo, hi, xtol=xtol)
+    below = [(x, v) for x, v in evals if v < 0.0]
+    above = [(x, v) for x, v in evals if v > 0.0]
+    if below and above:
+        # the evaluated points nearest the root on each side of the sign change
+        xa, fa = min(below + above, key=lambda xv: (abs(xv[0] - root), xv[0]))
+        opp = above if fa < 0.0 else below
+        xb, fb = min(opp, key=lambda xv: abs(xv[0] - root))
+        slope = abs((fb - fa) / (xb - xa))
+        xtol_fine = min(xtol, 0.01 * _APOGEE_CONVERGED_ATOL_M / slope)
+        if abs(xb - xa) > xtol_fine:
+            root = brentq(f, min(xa, xb), max(xa, xb), xtol=xtol_fine)
     root_apogee, root_result, root_params = objective(root)
     n_runs += 1   # step 5's final confirmation run, kept separate from brentq's own internal evaluations
     converged = abs(root_apogee - target) <= _APOGEE_CONVERGED_ATOL_M
@@ -627,7 +649,7 @@ def save_overlay(sol: AirbrakeSolution, path: Path) -> None:
 def main(argv: "list[str] | None" = None) -> None:
     """`python run_airbrake.py` / `python -m apps.airbrake_sizing.solve_cda`.
     Runs one named spec from `targets.SPECS` (`--spec`, default the main
-    burnout solve) against `--config` (default `demo_75mm_airbrake`),
+    burnout solve) against `--config` (default `demo`),
     prints the SS30.6 report, writes `output/airbrake_sizing.csv` and
     `output/airbrake_sizing_overlay.png`. `--list-configs` lists every
     registered vehicle; running every named spec in one go is the test
@@ -635,7 +657,7 @@ def main(argv: "list[str] | None" = None) -> None:
     from apps.airbrake_sizing.targets import SPECS
 
     parser = argparse.ArgumentParser(description=__doc__)
-    add_config_arg(parser, default="demo_75mm_airbrake")
+    add_config_arg(parser, default="demo")
     parser.add_argument(
         "--spec",
         default=next(iter(SPECS)),

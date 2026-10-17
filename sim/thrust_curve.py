@@ -23,15 +23,24 @@ where `T_ref(t)` is the raw curve lookup above, `p_amb` comes from
 fields. `A_e` defaults to 0.0, which makes the correction term exactly
 0.0 and reproduces Step 14's `T_ref(t)` bit-for-bit regardless of
 `p_ref`.
+
+Step 76 (architecture-32-motor-separation.md SS32.4): file formats and
+header metadata now live in `sim/motor_file.py`, which `_load_motor_curve`
+delegates to. `motor_curve` may still name a plain `.csv` (one record, no
+metadata, unchanged byte for byte) or now also an `.eng`/`.rasp` RASP-format
+file (optionally `"<filename>#<designation>"` to pick one record out of a
+multi-record library); either way `_load_motor_curve` returns the same
+`(times, thrusts)` shape it always has. A RASP record whose first data row
+has `t > 0` gets an explicit `(0.0, 0.0)` point prepended by the RASP
+reader -- see `sim/motor_file.py`'s docstring -- so `.eng`/`.rasp` curves
+never fire the motor before their own data says it ignites.
 """
 
-import csv
 import functools
-import os
 
 import numpy as np
 
-from sim import atmosphere
+from sim import atmosphere, motor_file
 
 # ----------------------------------------------------------------------
 # Internal caching helpers
@@ -40,41 +49,18 @@ from sim import atmosphere
 
 @functools.lru_cache(maxsize=None)
 def _load_motor_curve(curve_name: str) -> tuple[np.ndarray, np.ndarray]:
-    """Read `data/motors/<curve_name>.csv` and return (times, thrust).
-
-    The CSV is expected to have a comment/header line (starting with #)
-    and then two columns: time [s], thrust [N].  Whitespace is allowed.
-    Returns two 1D np.ndarray, sorted by time, with no duplicate times.
+    """Step 76: delegates to `sim.motor_file.load`, which now owns every
+    format (`.csv`, `.eng`, `.rasp`) and the optional `#designation`
+    fragment. For a `.csv` this is the same sort/de-duplicate/float path
+    as before, moved into `sim/motor_file.py` verbatim -- the arrays
+    handed to `np.interp` are bit-identical to pre-Step-76 behaviour.
+    Kept `@functools.lru_cache`'d here too (on top of `motor_file.load`'s
+    own cache) so a cache-clear of one module can't silently un-cache the
+    other and so this function's cost model doesn't depend on which module
+    happens to still be imported.
     """
-    # Build absolute path from the repository root (this file's parent
-    # directory is <repo>/sim/, so we go up one level to get the repo root).
-    repo_root = os.path.dirname(os.path.dirname(__file__))
-    csv_path = os.path.join(repo_root, "data", "motors", curve_name)
-
-    times = []
-    thrusts = []
-    with open(csv_path, newline="") as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if not row or row[0].strip().startswith("#"):
-                continue
-            # Allow extra columns (e.g. units) – we only need the first two.
-            t_str, f_str = row[0], row[1]
-            times.append(float(t_str))
-            thrusts.append(float(f_str))
-
-    if not times:
-        raise ValueError(f"No data found in motor curve '{curve_name}'")
-
-    # Sort by time and remove duplicates (keep first occurrence)
-    order = np.argsort(times)
-    times = np.array(times)[order]
-    thrusts = np.array(thrusts)[order]
-    _, unique_idx = np.unique(times, return_index=True)
-    times = times[unique_idx]
-    thrusts = thrusts[unique_idx]
-
-    return times, thrusts
+    rec = motor_file.load(curve_name)
+    return rec.times, rec.thrusts
 
 
 # ----------------------------------------------------------------------

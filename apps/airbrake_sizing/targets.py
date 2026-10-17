@@ -2,24 +2,21 @@
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6).
 
 A target apogee is a *mission requirement*, not a property of the vehicle:
-the same `configs.demo_75mm_airbrake` gets re-solved against several
+the same default vehicle (`configs.demo`) gets re-solved against several
 targets, so these `AirbrakeSpec`s live here, not in `configs/`.
 
-Numbers below are sized against `configs.demo_75mm_airbrake` as it is
-actually registered (Step 63): `demo_75mm` unchanged, flying
-`thrust.motor_curve="placeholder.csv"` (162.75 N*s on 1.5 kg), **not** the
-`synthetic_large.csv` swap `apps/motor_selection/motors.py` applies for its
-own "I large" entry. SS30.2's F6/F7/F18/F19 tables were measured against
-that heavier-motor swap (brake-closed apogee ~996.75 m, hence the
-precedent's "650 m (65%)" and "deploy_time=4 s" illustrations) -- flown on
-`demo_75mm_airbrake` as registered, the brake-closed apogee is instead
-~372 m (`placeholder.csv`'s own, much smaller, impulse), so copying 650 m
-verbatim would make the two solving specs below report "unreachable"
-against this app's own default vehicle, which demonstrates nothing. This
-file therefore follows `configs/demo_75mm_airbrake.py`'s own docstring
-("a target apogee ~65% of the brake-closed apogee") against the *actual*
-registered brake-closed apogee, not the F6/F18 measurement vehicle's —
-flagged in the Step 66 developer report as a judgment call.
+Numbers below are sized against `configs.demo` (Phase 2.16, Step 90,
+dev/docs/architecture-33-configs-one-demo.md SS33.4.4): a real Cesaroni
+K570 on a 54 mm airframe, mass model ON. Its brake-closed apogee is
+~5947 m, burnout at 3.59 s, brake-closed apogee time ~29.6 s, so the
+targets follow the precedent's own convention (F7: "~65% of the
+brake-closed apogee"): 3850 m. The earlier 372 m / 9.19 s / burnout-2.0 s
+narrative belonged to the former constant-mass `demo_75mm_airbrake`
+vehicle, which is gone. NOTE (D-83): the demo's aero model is
+`"constant"` and the flight is supersonic, so these are wiring/behaviour
+numbers, not credible drag predictions. The demo now carries a main
+canopy at apogee (Step 95, D-97), so `descent_demo` below descends under it
+(and its brake) to `t_max` instead of falling ballistically.
 
 The four named specs (SS30.6.1's table, the one of each kind that table
 distinguishes):
@@ -31,27 +28,24 @@ from apps.airbrake_sizing.solve_cda import AirbrakeSpec
 
 SPECS: "dict[str, AirbrakeSpec]" = {
     # The main case: size the brake for an apogee target, deployed at
-    # burnout (t=2.0 s on this vehicle). 240 m is ~65% of the brake-closed
-    # apogee (~372 m, measured against configs.demo_75mm_airbrake as
-    # registered) -- the precedent's own target-selection convention
-    # (F7: "65% of the brake-closed apogee"), just computed against this
-    # app's actual default vehicle rather than the heavier F6/F18 swap.
-    "burnout_240m": AirbrakeSpec(target_apogee_m=240.0, trigger="after_burnout"),
-    # Timer-triggered avionics: same target, brake popped 4 s after launch
-    # (burnout is at t=2.0 s, apogee at ~9.19 s brake-closed, so 4 s sits
+    # burnout (t=3.59 s on this vehicle). 3850 m is ~65% of the
+    # brake-closed apogee (~5947 m, measured against configs.demo).
+    "burnout_3850m": AirbrakeSpec(target_apogee_m=3850.0, trigger="after_burnout"),
+    # Timer-triggered avionics: same target, brake popped 8 s after launch
+    # (burnout is at t=3.59 s, apogee at ~29.6 s brake-closed, so 8 s sits
     # comfortably in the post-burnout, pre-apogee window).
-    "timer_240m": AirbrakeSpec(target_apogee_m=240.0, trigger="after_time", deploy_time_s=4.0),
+    "timer_3850m": AirbrakeSpec(target_apogee_m=3850.0, trigger="after_time", deploy_time_s=8.0),
     # The mirror solve (F18): the brake is already built -- C_dA =
-    # 0.01171 m^2 is this same target's own "burnout_240m" answer, carried
-    # here as a degenerate (lo == hi) cda_bounds pair -- WHEN do I pop it?
-    # deploy_time_bounds=(0, 8) brackets the root comfortably below the
-    # brake-closed apogee time (~9.19 s), avoiding F18's flat tail.
+    # 0.0016 m^2 is this same target's own "burnout_3850m" answer (2 s.f.),
+    # carried here as a degenerate (lo == hi) cda_bounds pair -- WHEN do I
+    # pop it? deploy_time_bounds=(0, 25) brackets the root comfortably below
+    # the brake-closed apogee time (~29.6 s), avoiding F18's flat tail.
     "when_to_pop": AirbrakeSpec(
-        target_apogee_m=240.0,
+        target_apogee_m=3850.0,
         trigger="after_time",
         solve_for="deploy_time",
-        cda_bounds=(0.01171, 0.01171),
-        deploy_time_bounds=(0.0, 8.0),
+        cda_bounds=(0.0016, 0.0016),
+        deploy_time_bounds=(0.0, 25.0),
     ),
     # Report-only (F19): a post-apogee brake cannot be sized against an
     # apogee target -- the objective is flat by construction. target_apogee_m
