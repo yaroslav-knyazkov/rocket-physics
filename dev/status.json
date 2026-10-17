@@ -1428,6 +1428,14 @@
       "choice": "пользователь: Introduction; порядок Intro → Rocket 2D → Models → Analysis → Assumptions → Backlog → Appendix (Notation без старого столбца, Inventory, Conventions, Constants); фреймы только F_0/F_r (O — точка, F_0 в O*); ссылки только в одну сторону; меньше текста; ṁ вместо dm/dt; roll + reaction wheel в бэклог. Знак A_m — пользователь делегировал («если считаешь нужным — меняй»); оркестратор: оставлен A_m = −qSc·C_m ŷ_r, т.к. код (sim/forces.py) использует ту же конвенцию (C_m>0 пикирующий), смена противоречила бы коду и пинам; конвенция прописана в Conventions; вопрос таблицы — B31. Коммиты 1ee9079, 14a717b, 063698a",
       "author": "user + orchestrator",
       "stage": "latex"
+    },
+    {
+      "id": "D-104",
+      "date": "2026-10-17",
+      "question": "LaTeX review round 4",
+      "choice": "пользователь: Rocket 2D принят (снят синий); в Introduction — планируемые под-приложения (rocket/motor/recovery/weather manager, site designer); раздел Noise and disturbances; R_0 = R_e + h_0 (+ высота ЦМ); блок «положение относительно O / истинная высота» после vector field; todo разделены на \\simtodo (в отчёте, нет в симе) и \\restodo (нужно исследование); то, что есть в коде, но нет в отчёте, — в code-vs-paper.md. Коммиты a7699c1, c9ac083",
+      "author": "user",
+      "stage": "latex"
     }
   ],
   "deferred_decisions": [
