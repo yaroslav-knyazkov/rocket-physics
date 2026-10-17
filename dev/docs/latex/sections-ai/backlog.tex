@@ -1,0 +1,62 @@
+\section{Backlog and future work}\label{sec:backlog}
+What is deliberately left undone, and what has to exist before each item can be written down.
+\begin{itemize}
+    \item \textbf{Commanded gimbal control.} A time-varying $\theta_t(t)$ driven by a control law;
+    a 3D item, since steering needs an out-of-plane degree of freedom. \emph{Waiting on:} a
+    guidance objective, actuator limits, a sensor model, and the 3D model. The air brake is a
+    different loop, implemented in 2D with a proportional law; a law with integral or derivative
+    memory on the zero-order-hold mode (signal, gains, saturation, anti-windup) is unwritten, as
+    are brake retraction and a rate limit.
+    \item \textbf{Wing-body aerodynamics.} Replace the constant, linearized and table
+    coefficient models with a Barrowman-style build-up: each of nose, body and fins contributes a
+    normal-force slope $C_{z,\alpha,i}$ at a location $X_i$, and the centre of pressure is the
+    weighted average $X_{cp}=\sum_iC_{z,\alpha,i}X_i/\sum_iC_{z,\alpha,i}$, so that $l_p-l_g$ is
+    computed rather than read from a table. A Mach correction is needed beyond low subsonic speed.
+    \emph{Waiting on:} an actual airframe --- nose shape, body diameter and length, fin planform.
+    \item \textbf{Dynamic stability, quantitatively.} The damped short-period framework exists;
+    the value of $C_{m,q}$ does not. \emph{Waiting on:} a measured value (forced-oscillation
+    tests or unsteady CFD) or a distributed-force derivation from the airframe.
+    \item \textbf{Propellant grain geometry} behind $I_{m,g}(t)$ and $l_{g,m}(t)$: choose a grain
+    family and its dimensions, from which $A_b(w)$, $l_{g,m}(t)$ and $I_{m,g}(t)$ follow by
+    integration.
+    \item \textbf{Component-based mass properties} of the dry rocket, built from nose cone, tubes,
+    fins and internal parts with their densities. \emph{Waiting on:} the airframe geometry and a
+    materials table.
+    \item \textbf{Vertical wind.} Terrain-slope orographic lift or a convective parameterisation;
+    each needs a data source the project does not have. On hold pending research.
+    \item \textbf{CFD pipeline} for $C_x,C_z,C_m$: the run matrix or wind-tunnel campaign that
+    populates the aerodynamic table for a specific airframe.
+    \item \textbf{Implementation appendix} --- the simulator's algorithms (integrator stepping,
+    event location, table interpolation, \dots) documented from the code.
+    \item \textbf{Out-of-plane motion}: crosswind weathercocking and the lateral Coriolis
+    deflection, both lifted by a full 6DOF model.
+    \item \textbf{State-coupled turbulence.} A Dryden filter driven by the true airspeed, carrying
+    its own state on the sampled mode. \emph{Waiting on:} its discretisation, and whether per-tick
+    noise makes results depend on the sample rate.
+    \item \textbf{Rail--rocket dynamics, in detail.} Derive the reaction (normal) forces at the
+    rail buttons and the friction they cause, and the tip-off transient at rail exit. \emph{Waiting
+    on:} button positions, clearances and a friction coefficient.
+    \item \textbf{Rocket and parachute dynamics, in detail.} A coupled two-body model: pendulum
+    motion (wobble) of the rocket under the canopy, riser elasticity, and the canopy opening
+    transient with its inflation shock. \emph{Waiting on:} canopy and riser data, and the
+    attitude degree of freedom under canopy.
+    \item \textbf{Roll dynamics with a reaction wheel (2D).} A decoupled roll degree of freedom
+    about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}$ and axial moment of inertia
+    $I_x$. A reaction wheel torques the airframe with an equal and opposite torque on the wheel,
+    whose speed and angular momentum saturate. Roll is also damped and driven aerodynamically
+    (roll damping, roll moment from fin cant).
+    \emph{Waiting on:} $I_x$ of the airframe, the wheel inertia and motor torque limits, the
+    aerodynamic roll coefficients, and a control law.
+    \item \textbf{Model extensions for 3D.} What each model needs beyond the pitch plane:
+    \begin{itemize}
+        \item gravity: the full vector field, not only the in-plane direction $\hat{z}_g$;
+        \item thrust: the $\hat{y}_t$ component of the line of thrust and the motor roll torque;
+        \item mass: the full inertia tensor, with products of inertia and the off-axis centre of gravity;
+        \item aerodynamics: side-force, yaw- and roll-moment coefficients as functions of sideslip
+        $\beta$ as well as $\alpha$;
+        \item wind and turbulence: the lateral mean-wind component and the Dryden $v$ and $w$ components;
+        \item Earth rotation: the full Coriolis vector, with $\vec{\Omega}$ resolved along the trajectory;
+        \item rail, recovery and air brake: the rail constraint with lateral tip-off, canopy drag and
+        riser pendulum in 3D, and a brake that also yaws or rolls the airframe.
+    \end{itemize}
+\end{itemize}

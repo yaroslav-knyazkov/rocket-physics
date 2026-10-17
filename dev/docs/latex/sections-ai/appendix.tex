@@ -1,0 +1,213 @@
+\appendix
+\section{Notation}\label{sec:notation}
+The table maps each symbol to the identifier the simulator uses. ``Not stored'': the code keeps
+only an arm relative to the centre of gravity; ``not implemented'': the quantity appears in the
+report but not in the simulator.
+{\small
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.0cm}
+                >{\raggedright\arraybackslash}p{4.9cm}
+                >{\raggedright\arraybackslash}p{5.0cm}
+                >{\raggedright\arraybackslash}p{2.0cm}}
+\hline
+\textbf{Symbol} & \textbf{Code identifier} & \textbf{Meaning} & \textbf{Units} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Symbol} & \textbf{Code identifier} & \textbf{Meaning} & \textbf{Units} \\
+\hline
+\endhead
+\hline
+\endfoot
+\multicolumn{4}{l}{\textbf{Geometry and frames}} \\
+\hline
+$A$ & --- & nose tip, origin of all lengths & --- \\
+$g$ & --- & centre of gravity & --- \\
+$t$ & --- & thrust application point & --- \\
+$p$ & --- & aerodynamic reference point (centre of pressure) & --- \\
+$l_g$ & \texttt{mass.cog\_position(m\_p, p)}; local \texttt{l\_B} in \texttt{sim/dynamics.py} (mass model only) & axial distance $A\to g$ & m \\
+$r_g$ & \texttt{p.lengths.u\_B} & radial offset of $g$ & m \\
+$l_t$ & not stored; $l_t-l_g$ = \texttt{p.lengths.l1 + p.lengths.l2} & axial distance $A\to t$ & m \\
+$r_t$ & \texttt{p.lengths.u\_C} & radial offset of $t$ & m \\
+$l_p$ & not stored; $l_p-l_g$ = \texttt{l1} (row below) & axial distance $A\to p$ & m \\
+$r_p\equiv0$ & --- & no radial offset of $p$, by definition & m \\
+$l_p-l_g$ & \texttt{p.lengths.l1}; \texttt{aero.coefficients(\dots).l1} (varies under the table model) & arm $g\to p$, positive with $p$ aft & m \\
+$l_t-l_p$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
+$\vec{gt}$, $\vec{gp}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
+$\theta_t$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
+\hline
+\multicolumn{4}{l}{\textbf{Mass}} \\
+\hline
+$m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
+$m_r$ & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
+$m_m(t)$ & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
+$m_0$, $m_f$ & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
+$\dot m_m$ & \texttt{dydt[M]} in \texttt{sim/dynamics.py} (the state $m$ follows it) & motor mass flow, negative & kg/s \\
+$\Delta m$ & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
+$\mathrm{ISP}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
+$g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
+$I_r$, $I_{r,g}$ & \texttt{p.weight.I\_d} (dry assembly about its own centroid) & dry-rocket inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
+$I_m(t)$, $I_{m,g}(t)$ & \texttt{p.weight.I\_p\_spec}$\cdot m_p$ (propellant only) & motor inertia about $g$; about its own centre of gravity & $\mathrm{kg\,m^2}$ \\
+$I_0$, $I_f$ & \texttt{motor.I\_0}, \texttt{motor.I\_f} & $I_{m,g}$ at ignition, at burnout & $\mathrm{kg\,m^2}$ \\
+$l_{g,r}$, $r_{g,r}$ & \texttt{p.weight.l\_d}; radial: not stored (constant \texttt{u\_B}) & dry-rocket centre of gravity (axial, radial) & m \\
+$l_{g,m}(t)$, $r_{g,m}(t)$ & \texttt{p.weight.l\_p} (fixed); radial: not stored & motor centre of gravity (axial, radial) & m \\
+$l_0$, $l_f$ & \texttt{motor.l\_cog\_0}, \texttt{motor.l\_cog\_f} & $l_{g,m}$ at ignition, at burnout & m \\
+\hline
+\multicolumn{4}{l}{\textbf{Forces and aerodynamics}} \\
+\hline
+$S$ & \texttt{p.aero.S} & aerodynamic reference area & $\mathrm{m^2}$ \\
+$c$ & \texttt{p.aero.d\_ref} & reference length of the pitching moment & m \\
+$C_x$, $C_z$, $C_m$ & \texttt{p.aero.C\_x}, \texttt{C\_z}, \texttt{C\_m} (constant model); fields of \texttt{aero.AeroCoeffs} & axial-force, normal-force, pitching-moment coefficients & --- \\
+$qSC_x$, $qSC_z$ & \texttt{forces.aero\_force\_body} returns $(-A_x,-A_z)$ & aerodynamic force components & N \\
+$qSc\,C_m$ & \texttt{forces.aero\_moment\_y} returns $-A_m$ & aerodynamic pitching moment & N\,m \\
+$S_k$, $c_k$, $C_{x,k}$, $C_{z,k}$, $C_{m,k}$, $pp_k$ & not implemented & aero component $k$: reference area and length, coefficients, reference point & $\mathrm{m^2}$, m, ---, m \\
+$C_{x,0}$, $C_{x,\alpha^2}$ & not implemented & axial coefficient at $\alpha=0$ and its $\alpha^2$ coefficient & ---, 1/rad$^2$ \\
+$\partial C/\partial\alpha$, $\partial C/\partial M$, $\partial C/\partial Re$ & only the $\alpha$ slope is in the code & linearized-model slopes & 1/rad, ---, --- \\
+$C_{z,\alpha}$, $C_{m,\alpha}$, $C_{m,q}$, $C_{z,0}$, $C_{m,0}$ & aero coefficient inputs (\texttt{c\_mq} column of the aero table, \dots) & coefficient slopes and offsets & 1/rad or --- \\
+\hline
+\multicolumn{4}{l}{\textbf{Thrust}} \\
+\hline
+$T$, $\vec{T}$ & \texttt{thrust\_curve.thrust}; \texttt{forces.thrust\_body} & thrust magnitude; vector in $\mathcal{F}_r$ & N \\
+$T_0(t)$ & \texttt{thrust\_curve} (\texttt{T\_ref}) & reference (test-stand) thrust & N \\
+$p_0$ & \texttt{p.thrust.p\_ref} & ambient pressure during the static test & Pa \\
+$A_e$ & \texttt{p.thrust.A\_e} & nozzle exit area & $\mathrm{m^2}$ \\
+$\hat{z}_t$ & --- & thrust-frame normal (\autoref{eq:thrust_frame}) & --- \\
+$\vec{T}_s$, $\kappa$, $\xi(t)$, $\tau_c$ & not implemented & random side force of the thrust, its intensity (fraction of $T$), unit random process, correlation time & N, ---, ---, s \\
+$\rho_{pr}$, $a_b$, $n$ & not implemented & propellant density, burn-rate coefficient and exponent ($r=a_bp_c^{\,n}$) & $\mathrm{kg/m^3}$, m/s$\cdot$Pa$^{-n}$, --- \\
+$l_e$ & not stored; $\approx l_t-l_g$ & arm from $g$ to the nozzle exit (jet damping) & m \\
+\hline
+\multicolumn{4}{l}{\textbf{Atmosphere and wind}} \\
+\hline
+$p_{atm}$ & \texttt{air\_state(\dots).p} & ambient pressure & Pa \\
+$q$ & \texttt{flow.q} & dynamic pressure & Pa \\
+$v_{rel}$, $\vec{v}_{rel}$ & \texttt{flow.V} & airspeed; relative-wind vector & m/s \\
+$v_{rel,x}$, $v_{rel,z}$ & --- & relative-velocity components in $\mathcal{F}_r$ & m/s \\
+$\alpha$ & \texttt{flow.alpha} & angle of attack & rad \\
+$w_{up}$ & not implemented & updraft speed ($w_z=-w_{up}$) & m/s \\
+$v_{ref}$ & turbulence setting & fixed reference airspeed of the Dryden spectrum & m/s \\
+\hline
+\multicolumn{4}{l}{\textbf{States and integration}} \\
+\hline
+$\vec{y}=(x,z,v_x,$ $v_z,\theta_r,\omega_r,m)$ & \texttt{y[X,}\allowbreak\texttt{Z,}\allowbreak\texttt{VX,}\allowbreak\texttt{VZ,}\allowbreak\texttt{THETA,}\allowbreak\texttt{OMEGA,}\allowbreak\texttt{M]} & integrated state vector & m, m/s, rad, rad/s, kg \\
+$\theta_r$ & \texttt{y[THETA]} & pitch angle & rad \\
+$\omega_r$ & \texttt{y[OMEGA]} & pitch rate & rad/s \\
+$\varepsilon_r$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{sim/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
+$\vec{x}_r$ & \texttt{y[X]}, \texttt{y[Z]} & position in $\mathcal{F}_0$ & m \\
+$\vec{v}_r$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity in $\mathcal{F}_0$ & m/s \\
+$\vec{v}_g$ & \texttt{y[VX]}, \texttt{y[VZ]} & CoG velocity (the same vector as $\vec{v}_r$) & m/s \\
+$v_x$, $v_z$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity components in $\mathcal{F}_0$ & m/s \\
+$\vec{a}_r$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
+$m_{launch}$ & \texttt{s0.m}; \texttt{p.weight.m} & liftoff mass $m(0)$ & kg \\
+$h$ & \texttt{p.solver.dt} & fixed RK4 step & s \\
+$\theta_{rail}$, $L_{rail}$, $s_{rail}$, $\hat{e}_{rail}$ & \texttt{p.site.rail\_angle\_deg}, \texttt{p.site.L\_rail}, \texttt{rail\_distance}, \texttt{\_e\_rail} & rail elevation, length, distance travelled, direction & rad, m, m, --- \\
+\hline
+\multicolumn{4}{l}{\textbf{Recovery and air brake}} \\
+\hline
+$S_{ch}$, $C_{D,ch}$, $\vec{R}_{ch}$, $v_{term}$ & \texttt{p.recovery.S}, \texttt{p.recovery.Cd}, \texttt{forces.}\allowbreak\texttt{parachute\_}\allowbreak\texttt{drag\_}\allowbreak\texttt{inertial} & canopy area, drag coefficient, recovery (canopy drag) force, terminal speed & $\mathrm{m^2}$, ---, N, m/s \\
+$(C_DS)_{sys}$ & not implemented & combined drag area of rocket and canopy (lumped descent) & $\mathrm{m^2}$ \\
+$f_b$ & \texttt{control.}\allowbreak\texttt{airbrake\_}\allowbreak\texttt{deploy\_}\allowbreak\texttt{fraction} & air-brake deployment fraction & --- \\
+$S_b$, $C_{D,b}$ & \texttt{p.control.airbrake\_S\_max}, \texttt{airbrake\_Cd} & air-brake area at full deployment, drag coefficient & $\mathrm{m^2}$, --- \\
+$F_b$ & \texttt{forces.aero\_force\_body} (\texttt{A\_brake}) & air-brake axial force & N \\
+$c_b$, $C_{x,b}$, $C_{z,b}$, $C_{m,b}$, $pp_b$ & not implemented & air-brake as an aerodynamic component: reference length, coefficients, reference point & m, ---, m \\
+$\tau_s$, $f_s$ & sampling setting & sample period and rate of the sampled mode & s, Hz \\
+\hline
+\multicolumn{4}{l}{\textbf{Analysis}} \\
+\hline
+$\hat{\omega}=\omega_r c/(2v_{rel})$ & --- & non-dimensional pitch rate & --- \\
+$M_{\theta_t}=(l_g-l_t)\,T\sin\theta_t$ & --- & misalignment disturbance torque & N\,m \\
+$s_i$ & --- & position of a body point relative to the CoG ($C_{m,q}$ derivation) & m \\
+$M_\alpha$, $M_q$, $\omega_n$, $\zeta$ & --- & short-period parameters & $\mathrm{1/s^2}$, 1/s, rad/s, --- \\
+\end{longtable}
+}
+Some letters carry two meanings, told apart by context: $g$ is the centre of gravity, the
+gravitational acceleration, and as a subscript both the point ($l_g$, $r_g$) and the gravity
+direction ($\hat{z}_g$); $t$ as a point differs from time $t$; $h$ is the RK4 step in
+\autoref{sec:states} but the altitude elsewhere. $l_p$ is only the aerodynamic reference point; in
+the code \texttt{p.weight.l\_p} is the propellant centroid (the motor's $l_{g,m}$).
+
+\section{Model inventory}\label{sec:eom_inventory}
+Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and
+\autoref{eq:eom_rot_expanded} is either a state or is supplied by a model:
+\begin{itemize}
+    \item $m$, $I$ --- mass and moment of inertia, from the mass model (\autoref{sec:mass});
+    \item $g\hat{z}_g$ --- gravity, magnitude and direction (\autoref{sec:gravity});
+    \item $T$ --- thrust curve plus pressure correction (\autoref{sec:thrust});
+    \item $\theta_t$ --- thrust direction: can be controlled, for now a constant, ideally zero
+    (\autoref{sec:thrust});
+    \item $q$ --- from the atmosphere model, the state and the wind model, through $\rho$ and
+    $v_{rel}$ (\autoref{sec:atmosphere}, \autoref{sec:wind}; \autoref{sec:relwind} in
+    \autoref{sec:aero});
+    \item $S$, $c$ --- reference area and reference length (\autoref{sec:aero});
+    \item $C_x$, $C_z$, $C_m$ --- aerodynamic coefficients (\autoref{sec:aero});
+    \item $l_t$, $r_t$, $l_p$, $l_g$, $r_g$ --- lengths (\autoref{sec:geometry}); $l_g(t)$ moves
+    with the mass model, and the position of $p$ comes with the coefficients;
+    \item states --- $\theta_r$, $\omega_r$, $\vec{x}_r$, $\vec{v}_r$ are integrated, the equations
+    deliver $\varepsilon_r$ and $\vec{a}_r$ (\autoref{sec:states});
+    \item and, outside free flight, the parachute $\vec{R}_{ch}$ (\autoref{sec:recovery}), the air
+    brake (\autoref{sec:airbrake}) and the launch rail (\autoref{sec:rail}), all in
+    \autoref{sec:other_dynamics}.
+\end{itemize}
+
+\section{Conventions}\label{sec:conventions}
+Signs and axes in one place; the rest of the report follows them.
+\begin{itemize}
+    \item \textbf{Frames.} $\hat{x}$ points forward (downrange for $\mathcal{F}_0$, along the nose
+    for $\mathcal{F}_r$), $\hat{z}$ points down (towards the belly for $\mathcal{F}_r$), and $\hat{y}$
+    completes the right-handed triad, $\hat{x}\times\hat{y}=\hat{z}$; $\hat{y}$ is out of the pitch
+    plane, to the right of the downrange direction.
+    \item \textbf{Pitch.} $\theta_r$ is measured from $\hat{x}_0$, positive nose-up; $\omega_r$
+    and $\varepsilon_r$ share its sign (rotation about $+\hat{y}_r$).
+    \item \textbf{Lengths.} $l$ is measured from the nose tip $A$ positive aft, so a point sits at
+    $-l\,\hat{x}_r$; the radial offset $r$ is along $-\hat{z}_r$, so it sits at $-r\,\hat{z}_r$.
+    \item \textbf{Moments} are taken about the centre of gravity $g$, positive about $+\hat{y}_r$
+    (nose-up is positive $\theta_r$).
+    \item \textbf{Thrust angle.} $\hat{x}_t=\cos\theta_t\,\hat{x}_r-\sin\theta_t\,\hat{z}_r$
+    (\autoref{eq:thrust_frame}): positive $\theta_t$ tilts the thrust line the way positive
+    $\theta_r$ tilts the nose, and pitches the nose down through a nozzle aft of $g$.
+    \item \textbf{Aerodynamics.} $\vec{A}_f=-qS\left(C_x\hat{x}_r+C_z\hat{z}_r\right)$ and
+    $\vec{A}_m=-qSc\,C_m\hat{y}_r$, so positive $C_x$ and $C_z$ oppose motion along $+\hat{x}_r$
+    and $+\hat{z}_r$, and positive $C_m$ pitches the nose \emph{down}. This is the opposite of the
+    usual aerospace sign: here static stability needs $C_{m,\alpha}>0$ and a damping
+    $C_{m,q}>0$, as in the simulator, which applies $-qSc\,C_m$ to the pitch moment.
+    \item \textbf{Units.} SI throughout; angles are radians internally and degrees in the
+    configuration files.
+\end{itemize}
+
+\section{Constants}\label{sec:constants}
+WGS84 ellipsoid constants used by the ellipsoidal gravity model, the standard gravity and the ISA
+layer table.
+\begin{center}
+\small
+\begin{tabular}{l l l l}
+\hline
+\textbf{Symbol} & \textbf{Value} & \textbf{Units} & \textbf{Meaning} \\
+\hline
+$a_e$ & $6378137$ & m & equatorial radius \\
+$f$ & $1/298.257223563$ & --- & flattening \\
+$e^2$ & $0.00669437999013$ & --- & first eccentricity squared \\
+$m$ & $0.00344978650684$ & --- & $\Omega^2a_e^2b_e/GM$ (rotation-to-gravity ratio) \\
+$\gamma_e$ & $9.7803253359$ & $\mathrm{m/s^2}$ & normal gravity at the equator \\
+$k$ & $0.00193185265241$ & --- & Somigliana constant \\
+$g_0$ & $9.80665$ & $\mathrm{m/s^2}$ & standard gravity \\
+\hline
+\end{tabular}
+\end{center}
+
+ISA layers of the atmosphere model (\autoref{sec:atmosphere}), with base geopotential altitude
+$H_b$, lapse rate $L$, base temperature and pressure $T_b, p_b$:
+\begin{center}
+\small
+\begin{tabular}{l c c c c}
+\hline
+Layer & $H_b$ [m] & $L$ [K/m] & $T_b$ [K] & $p_b$ [Pa] \\
+\hline
+troposphere  & 0     & $-0.0065$ & 288.15 & 101325   \\
+tropopause   & 11000 & $0$       & 216.65 & 22632.06 \\
+stratosphere & 20000 & $+0.0010$ & 216.65 & 5474.889 \\
+stratosphere & 32000 & $+0.0028$ & 228.65 & 868.0187 \\
+stratopause  & 47000 & $0$       & 270.65 & 110.9063 \\
+mesosphere   & 51000 & $-0.0028$ & 270.65 & 66.93887 \\
+mesosphere   & 71000 & $-0.0020$ & 214.65 & 3.956420 \\
+\hline
+\end{tabular}
+\captionof{table}{ISA layers.}\label{tab:isa_layers}
+\end{center}
