@@ -1,0 +1,29 @@
+# Aero table v2 sibling of example.csv (Step 99, Phase 2.17, architecture-35
+# SS35.4.3, D-110/D-111). Same synthetic placeholder numbers as example.csv,
+# expressed in the v2 format:
+#   - the CoP is given as a station from the nose tip, l_p_m [m] (not as the
+#     CoP-to-CoG arm l1_m), so the arm follows the moving CoG:
+#     arm = l_p_m - l_g(t). Values here are example.csv's l1_m + 0.9 m, i.e.
+#     they reproduce example.csv's arms for a CoG station l_g = 0.9 m
+#     (Lengths.l_g = 0.9 with the mass model off).
+#   - C_m is declared in the textbook ("standard") convention: negative slope
+#     = statically stable. The loader flips it to the code's convention
+#     (positive C_m = nose-down), so this table is restoring in flight.
+#     example.csv itself is unchanged (backlog B31: its C_m has the textbook
+#     sign but is read in the code convention).
+#
+# cm_convention: standard
+#
+# Grid: alpha_deg in {-10, 0, 10}, M in {0.5, 1.0, 2.0} -- 9 rows.
+#
+# Format: alpha_deg,M,C_A,C_N,C_m,l_p_m
+alpha_deg,M,C_A,C_N,C_m,l_p_m
+-10,0.5,0.35,-0.5236,0.0873,1.18
+0,0.5,0.30,0.0,0.0,1.18
+10,0.5,0.35,0.5236,-0.0873,1.18
+-10,1.0,0.60,-0.6981,0.1396,1.25
+0,1.0,0.55,0.0,0.0,1.25
+10,1.0,0.60,0.6981,-0.1396,1.25
+-10,2.0,0.45,-0.4363,0.0524,1.22
+0,2.0,0.40,0.0,0.0,1.22
+10,2.0,0.45,0.4363,-0.0524,1.22

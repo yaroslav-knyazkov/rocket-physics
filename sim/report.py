@@ -13,10 +13,12 @@ builder layer (`Result` -> `Figure`, no I/O, no printing). This module is
 the layer above it.
 """
 
+import warnings
 from pathlib import Path
 
 import numpy as np
 
+from sim import aero
 from sim.flow import flow_state
 from sim.gravity import altitude_agl
 from sim.integrate import run_sim
@@ -62,6 +64,76 @@ def flight_summary(result, p) -> dict:
         max_q=max_q,
         impact_time=impact_time,
     )
+
+
+def static_margin_cal(result, p, t_grid=None):
+    """Static margin series in calibres, `(t, margin)` with
+    `margin(t) = l1(t) / d_ref` -- `l1` is the CoP-to-CoG arm the dynamics
+    uses (`aero.coefficients(...).l1`), i.e. `(l_p - l_g(t)) / d_ref` for an
+    `l_p`/`l_p_m` config (Step 99, architecture-35 SS35.4.3), evaluated on the
+    flight's own `(alpha, M)`. Defaults to a 400-point grid over the flight.
+    """
+    if p.aero.d_ref <= 0.0:
+        raise ValueError("static_margin_cal needs Aero.d_ref > 0")
+    t, y = _flight_grid(result, t_grid)
+    margin = np.empty(t.size)
+    for i, ti in enumerate(t):
+        flow = flow_state(ti, y[:, i], p)
+        margin[i] = aero.coefficients(ti, y[:, i], p, flow).l1 / p.aero.d_ref
+    return t, margin
+
+
+def _flight_grid(result, t_grid):
+    if t_grid is None:
+        impact = result.events["ground"]
+        t_end = impact if impact is not None else result.t[-1]
+        t_grid = np.linspace(0.0, t_end, 400)
+    t = np.asarray(t_grid, dtype=float)
+    return t, result.raw.sol(t)
+
+
+_CM_SLOPE_STEP = np.radians(0.5)
+
+
+def cm_slope_series(result, p, t_grid=None):
+    """`(t, dC_m/dalpha)` in the code's convention (positive slope =
+    restoring), central difference about the flight's own `(alpha, M)`."""
+    t, y = _flight_grid(result, t_grid)
+    slope = np.empty(t.size)
+    for i, ti in enumerate(t):
+        flow = flow_state(ti, y[:, i], p)
+        hi = aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p)
+        lo = aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p)
+        slope[i] = (hi - lo) / (2.0 * _CM_SLOPE_STEP)
+    return t, slope
+
+
+def stability_check(result, p, t_grid=None) -> dict:
+    """Static-stability diagnostic (Step 99, D-111): warns (`UserWarning`) when
+    the static margin goes negative (CoP ahead of the CoG) or when the pitching-
+    moment slope has the destabilising sign in the code's convention (e.g. a
+    table whose declared `# cm_convention:` is wrong). Returns
+    `{min_margin_cal, min_cm_slope, stable}`; `stable` is False if either warned.
+    """
+    _, margin = static_margin_cal(result, p, t_grid)
+    _, slope = cm_slope_series(result, p, t_grid)
+    min_margin = float(margin.min())
+    min_slope = float(slope.min())
+    stable = True
+    if min_margin < 0.0:
+        stable = False
+        warnings.warn(
+            f"unstable: static margin reaches {min_margin:.3f} cal (CoP ahead of the CoG)",
+            UserWarning, stacklevel=2,
+        )
+    if min_slope < -1e-9:  # tolerance: finite-difference rounding on flat segments
+        stable = False
+        warnings.warn(
+            f"unstable: dC_m/dalpha = {min_slope:.4g} < 0 in the code convention "
+            "(positive C_m is nose-down) -- check the table's `# cm_convention:`",
+            UserWarning, stacklevel=2,
+        )
+    return dict(min_margin_cal=min_margin, min_cm_slope=min_slope, stable=stable)
 
 
 def sweep(base_params: Params, path: str, values, s0: State) -> dict:

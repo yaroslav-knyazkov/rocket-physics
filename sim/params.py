@@ -75,6 +75,8 @@ class Lengths:                    # geometry, all nose-tip-referenced, metres
     u_B: float = 0.0              # lateral offset of the CoG
     u_C: float = 0.0              # lateral offset of the thrust point
     misalign_deg: float = 0.0     # fixed nozzle cant delta [deg]  (was thrust_misalign_deg)
+    l_g: float = 0.0              # CoG station from the nose [m], used only with an Aero.l_p / l_p_m CP and the
+                                  # mass model OFF (Step 99); with the mass model on the CoG comes from sim/mass.py
 
 
 @dataclass(frozen=True)
@@ -96,6 +98,13 @@ class Aero:
     table: str = ""               # file under data/aero/      (was aero_table)
     # all three models
     c_mq: float = 0.0             # pitch-damping derivative [-]
+    # Step 99 (D-111): CP station from the nose [m] for the constant/linearized models
+    # (arm = l_p - CoG(t)); 0.0 = off, Lengths.l1 is the arm. A table carries its own l_p_m column.
+    l_p: float = 0.0
+    # C_m sign convention of the constant/linearized coefficients: "code" (positive C_m = nose-down,
+    # restoring for a positive slope) | "standard" (textbook, restoring = negative slope; flipped on use).
+    # A table declares its own via a `# cm_convention:` header line.
+    cm_convention: str = "code"
 
 
 @dataclass(frozen=True)

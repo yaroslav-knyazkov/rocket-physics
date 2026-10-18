@@ -58,6 +58,7 @@ import dataclasses
 import math
 from typing import Any
 
+from sim import aero
 from sim import mass
 from sim import motor_file
 from sim.params import Aero
@@ -366,6 +367,9 @@ def assemble(sc: Scenario) -> Config:
     # (2) the scenario's own last word, dotted paths over the whole tree
     if sc.overrides:
         p = params_replace(p, sc.overrides)  # sim.params.replace, SS29 F1
+    # (2b) Step 99: fail-fast on the aero v2 options (CP station needs a CoG
+    #      station and zero cant; known C_m convention) -- a no-op for legacy configs.
+    aero.validate(p)
     # (3) s0 AFTER overrides -- so an overridden rail angle moves the
     #     initial attitude with it (F5, D-51); getting this order backwards
     #     would re-create F5's foot-gun inside the mechanism that

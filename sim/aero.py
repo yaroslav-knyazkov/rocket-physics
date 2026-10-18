@@ -61,6 +61,15 @@ docstring for why an absent column falls back to `Params.aero.c_mq`
 rather than to a literal zero everywhere; every table committed before
 Step 44 lacks it, so this must not change any existing table's behaviour.
 
+Step 99 (Phase 2.17, architecture-35 SS35.4.3, D-110/D-111): table v2. Exactly
+one of `l1_m` (legacy arm CoP->CoG) or `l_p_m` (CoP station from the nose; the
+arm is `l_p_m - l_g(t)` with `l_g` from `sim/mass.py`, or `Lengths.l_g` with the
+mass model off) must be present. A `# cm_convention: code|standard` header line
+(default `code`) declares the sign of `C_m`; `standard` is flipped on load.
+The thrust-point arm keeps its legacy `-(l1 + l2)` expression, so a station
+config must have `misalign_deg == 0` (`validate`). `data/aero/example.csv` is
+unchanged; `example_v2.csv` is its v2 sibling.
+
 Interpolation, in both dimensions, matches this project's established
 "hold the edge value, never extrapolate" convention (`thrust_curve.py`
 holds the first/zero value outside its time range; `soundings.py` holds
@@ -86,9 +95,19 @@ differently-shaped function.
 
 import functools
 import os
+import re
 from typing import NamedTuple
 
 import numpy as np
+
+from sim import mass
+from sim.state import M as _IDX_M
+
+# Step 99 (D-111): C_m sign conventions. "code" = the simulator's (positive C_m is
+# nose-down, so a restoring moment has a positive dC_m/dalpha); "standard" = textbook
+# (restoring = negative slope), converted to "code" at load/use.
+CM_CONVENTIONS = ("code", "standard")
+_CM_CONVENTION_RE = re.compile(r"^#\s*cm_convention\s*:\s*(\S+)\s*$")
 
 # Step 93 (Phase 2.16, D-91/D-92, architecture-34 SS34.3): half-width of the
 # nose-first plateau of the axial flow-direction factor.
@@ -120,8 +139,9 @@ class _AeroTable(NamedTuple):
     C_A: np.ndarray     # (n_M, n_alpha)
     C_N: np.ndarray     # (n_M, n_alpha)
     C_m: np.ndarray     # (n_M, n_alpha)
-    l1: np.ndarray      # (n_M, n_alpha), CoP-to-CoG distance [m]
+    l1: "np.ndarray | None"   # (n_M, n_alpha), CoP-to-CoG distance [m]; None for a v2 (`l_p_m`) table
     C_mq: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative, or None when the column is absent
+    l_p: "np.ndarray | None" = None  # (n_M, n_alpha), CoP station from the nose [m]; None for a legacy (`l1_m`) table
 
 
 @functools.lru_cache(maxsize=None)
@@ -136,12 +156,29 @@ def _load_table(name: str) -> _AeroTable:
     path = os.path.join(repo_root, "data", "aero", name)
 
     data_lines = []
+    cm_convention = "code"
+    seen_convention = False
     with open(path) as f:
         for line in f:
             stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped:
+                continue
+            if stripped.startswith("#"):
+                m_conv = _CM_CONVENTION_RE.match(stripped)
+                if m_conv:
+                    if seen_convention:
+                        raise ValueError(
+                            f"Aero table '{name}': cm_convention declared more than once"
+                        )
+                    seen_convention = True
+                    cm_convention = m_conv.group(1)
                 continue
             data_lines.append(line)
+    if cm_convention not in CM_CONVENTIONS:
+        raise ValueError(
+            f"Aero table '{name}': unknown cm_convention {cm_convention!r} "
+            f"(expected one of {CM_CONVENTIONS})"
+        )
 
     if not data_lines:
         raise ValueError(f"Aero table '{name}' has no data rows")
@@ -155,7 +192,19 @@ def _load_table(name: str) -> _AeroTable:
     C_A_col = data["C_A"].astype(float)
     C_N_col = data["C_N"].astype(float)
     C_m_col = data["C_m"].astype(float)
-    l1_col = data["l1_m"].astype(float)
+    if cm_convention == "standard":  # D-111: textbook sign -> the code's (positive = nose-down)
+        C_m_col = -C_m_col
+    # Step 99 (D-110/D-111): exactly one arm column -- `l1_m` (legacy CoP-to-CoG arm)
+    # xor `l_p_m` (CoP station from the nose; the arm is then l_p_m - CoG(t)).
+    has_l1 = "l1_m" in data.dtype.names
+    has_lp = "l_p_m" in data.dtype.names
+    if has_l1 == has_lp:
+        raise ValueError(
+            f"Aero table '{name}': give exactly one of the columns 'l1_m' and "
+            f"'l_p_m' (got {'both' if has_l1 else 'neither'})"
+        )
+    l1_col = data["l1_m"].astype(float) if has_l1 else None
+    l_p_col = data["l_p_m"].astype(float) if has_lp else None
     # Step 44 (architecture.md SS24.4): the c_mq column is optional -- every
     # table committed before this step lacks it, so "absent -> None" (and
     # _table_coeffs's constant fallback below) must hold for bit-for-bit
@@ -196,8 +245,9 @@ def _load_table(name: str) -> _AeroTable:
         C_A=_reshape(C_A_col),
         C_N=_reshape(C_N_col),
         C_m=_reshape(C_m_col),
-        l1=_reshape(l1_col),
+        l1=_reshape(l1_col) if l1_col is not None else None,
         C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
+        l_p=_reshape(l_p_col) if l_p_col is not None else None,
     )
 
 
@@ -240,6 +290,78 @@ class AeroCoeffs(NamedTuple):
     l1: float     # CoP(D)-to-CoG(B) distance [m]
 
 
+def _cm_to_code(C_m: float, p) -> float:
+    """Step 99 (D-111): apply `Aero.cm_convention` to a constant/linearized
+    `C_m`; "code" (default) returns it untouched (bit-for-bit legacy)."""
+    conv = p.aero.cm_convention
+    if conv == "code":
+        return C_m
+    if conv == "standard":
+        return -C_m
+    raise ValueError(f"Aero.cm_convention {conv!r} not in {CM_CONVENTIONS}")
+
+
+def _arm_or_station(p) -> float:
+    """Constant/linearized models: `Aero.l_p` (a CP station, turned into an
+    arm by `_resolve_arm`) when set, else the legacy arm `Lengths.l1`."""
+    return p.aero.l_p if p.aero.l_p > 0.0 else p.lengths.l1
+
+
+def uses_l_p(p) -> bool:
+    """True when the CP is given as a station from the nose (an `l_p_m` table,
+    or `Aero.l_p > 0` under constant/linearized) rather than as the arm `l1`."""
+    if p.aero.model == "table":
+        return _load_table(p.aero.table).l_p is not None
+    return p.aero.l_p > 0.0
+
+
+def cg_station(y, p) -> float:
+    """CoG station from the nose tip [m] at state `y`: `mass.cog_position` of
+    the remaining propellant when the mass model is on (`y=None` -> launch
+    mass), else the constant `Lengths.l_g` (fail-fast when it is unset)."""
+    if p.weight.m_d is None:
+        if p.lengths.l_g <= 0.0:
+            raise ValueError(
+                "a CP station (Aero.l_p / table l_p_m) with the mass model off "
+                "needs Lengths.l_g > 0 (CoG station from the nose)"
+            )
+        return p.lengths.l_g
+    m = p.weight.m if y is None else y[_IDX_M]
+    return mass.cog_position(mass.propellant_mass(m, p), p)
+
+
+def _resolve_arm(base: "AeroCoeffs", y, p) -> "AeroCoeffs":
+    """Turn a CP station into the CoP-to-CoG arm `l_p - l_g(t)` (Step 99,
+    D-110); legacy configs pass through untouched (same object)."""
+    if not uses_l_p(p):
+        return base
+    return base._replace(l1=base.l1 - cg_station(y, p))
+
+
+def validate(p) -> None:
+    """Fail-fast checks for the Step-99 aero options, called from
+    `configs.schema.assemble` (and usable directly): known `cm_convention`;
+    with a CP station, a CoG station when the mass model is off, and no
+    nozzle cant (the thrust arm keeps its legacy `-(l1 + l2)` expression, which
+    is meaningless for station configs -- on-axis thrust has zero moment, so
+    `misalign_deg` must be 0)."""
+    if p.aero.cm_convention not in CM_CONVENTIONS:
+        raise ValueError(
+            f"Aero.cm_convention {p.aero.cm_convention!r} not in {CM_CONVENTIONS}"
+        )
+    if p.aero.l_p < 0.0:
+        raise ValueError(f"Aero.l_p must be >= 0 (0.0 = off), got {p.aero.l_p}")
+    if p.aero.model == "table" and p.aero.table:
+        _load_table(p.aero.table)  # surfaces loader errors early
+    if uses_l_p(p):
+        cg_station(None, p)
+        if p.lengths.misalign_deg != 0.0:
+            raise ValueError(
+                "a CP station (l_p / l_p_m) requires Lengths.misalign_deg == 0: "
+                "the thrust-point arm is not derived for station configs"
+            )
+
+
 def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     """`"constant"`: fixed inputs, independent of both `alpha` and `M` --
     the cheapest model, for first-cut sizing and for isolating one effect
@@ -262,9 +384,9 @@ def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     return AeroCoeffs(
         C_x=p.aero.C_x * axial_flow_factor(alpha),
         C_z=p.aero.C_z,
-        C_m=p.aero.C_m,
+        C_m=_cm_to_code(p.aero.C_m, p),
         C_mq=p.aero.c_mq,
-        l1=p.lengths.l1,
+        l1=_arm_or_station(p),
     )
 
 
@@ -312,9 +434,9 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     return AeroCoeffs(
         C_x=p.aero.C_A0 * axial_flow_factor(alpha),
         C_z=p.aero.C_N_alpha * np.sin(alpha),
-        C_m=p.aero.C_m_alpha * np.sin(alpha),
+        C_m=_cm_to_code(p.aero.C_m_alpha * np.sin(alpha), p),
         C_mq=p.aero.c_mq,
-        l1=p.lengths.l1,
+        l1=_arm_or_station(p),
     )
 
 
@@ -356,7 +478,9 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
         C_z=_table_lookup(table, alpha, M, table.C_N),
         C_m=_table_lookup(table, alpha, M, table.C_m),
         C_mq=C_mq,
-        l1=_table_lookup(table, alpha, M, table.l1),
+        # Step 99: legacy table -> the arm itself; v2 table -> the CP station
+        # (turned into an arm by `_resolve_arm`, which knows the CoG).
+        l1=_table_lookup(table, alpha, M, table.l1 if table.l1 is not None else table.l_p),
     )
 
 
@@ -396,7 +520,9 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None) -> AeroCoeffs:
     any future sampled-data coefficient controller (see that function's
     own docstring for why it is not forwarded any further yet).
     """
-    base = _AERO_MODELS[p.aero.model](flow.alpha, flow.M, p)
+    # Step 99 (D-110): a CP given as a station from the nose becomes the arm
+    # `l_p - l_g(t)` here (the CoG moves with the burn); legacy: pass-through.
+    base = _resolve_arm(_AERO_MODELS[p.aero.model](flow.alpha, flow.M, p), y, p)
     # Local import: circular-import avoidance -- sim.control imports
     # AeroCoeffs (this module) at module level for its own type hints, so
     # this module must not import sim.control at module-load time. Same
@@ -446,5 +572,7 @@ def cop_l1(alpha: float, M: float, p) -> float:
     now a function of `(alpha, M)` only under the `"table"` model
     (architecture.md SS19: "CoP travel makes l1 a function of (alpha, M),
     which couples straight back into the moment"). See `coefficients`/
-    `AeroCoeffs` for the full dispatch this wraps."""
-    return _AERO_MODELS[p.aero.model](alpha, M, p).l1
+    `AeroCoeffs` for the full dispatch this wraps. Step 99: for a CP-station
+    config the CoG is taken at launch mass (no state here); use
+    `coefficients(...)` for the arm at a given state."""
+    return _resolve_arm(_AERO_MODELS[p.aero.model](alpha, M, p), None, p).l1

@@ -62,7 +62,8 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | l2           | REQ     | m              | 0.0     | CoP to thrust-point distance; 0.0 is not a usable value |
 | u_B          | OPT     | m              | 0.0     | lateral offset of the CoG |
 | u_C          | OPT     | m              | 0.0     | lateral offset of the thrust point |
-| misalign_deg | OPT     | deg            | 0.0     | fixed nozzle cant |
+| misalign_deg | OPT     | deg            | 0.0     | fixed nozzle cant (must be 0.0 with a CP station l_p / l_p_m) |
+| l_g          | OPT     | m              | 0.0     | CoG station from the nose; read only with a CP station and no mass model (0.0 there is an error) |
 
 ### Sections
 | field          | REQ/OPT | unit / choices | default | what it does |
@@ -91,6 +92,8 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | C_m_alpha | OPT     | 1/rad                           | 0.0        | pitching-moment slope; read when model == "linearized" |
 | table     | OPT     | filename under data/aero/       | ""         | coefficient table; read when model == "table" |
 | c_mq      | OPT     | -                               | 0.0        | pitch-damping derivative, all three models |
+| l_p       | OPT     | m                               | 0.0        | CoP station from the nose, constant/linearized models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm) |
+| cm_convention | OPT | code \| standard                | "code"     | C_m sign of the constant/linearized models (code: positive = nose-down; standard: textbook, flipped); a table declares `# cm_convention:` in its header |
 
 ### Recovery
 | field       | REQ/OPT | unit / choices   | default  | what it does |
@@ -143,7 +146,8 @@ ROCKET = Rocket(
         # or a fixed nozzle cant.
         # u_B=0.0,           # OPT, m -- lateral offset of the CoG; 0.0 = on the axis
         # u_C=0.0,           # OPT, m -- lateral offset of the thrust point; 0.0 = on the axis
-        # misalign_deg=0.0,  # OPT, deg -- fixed nozzle cant; 0.0 = thrust along the axis
+        # misalign_deg=0.0,  # OPT, deg -- fixed nozzle cant; 0.0 = thrust along the axis (must be 0.0 with an aero l_p / l_p_m CP station)
+        # l_g=0.0,           # OPT, m -- CoG station from the nose tip; read only with an aero CP station (l_p / l_p_m) and NO mass model; 0.0 there is an error
     ),
 
     # sections left at its default (Sections()) -- fill it in (see
@@ -183,6 +187,8 @@ ROCKET = Rocket(
         # C_m_alpha=0.0,   # OPT, 1/rad -- pitching-moment slope, "linearized" model only
         # table="",        # OPT, filename under data/aero/ -- coefficient table, "table" model only
         # c_mq=0.0,        # OPT, - -- pitch-damping derivative, all three models; 0.0 = undamped
+        # l_p=0.0,         # OPT, m -- CoP station from the nose tip, "constant"/"linearized" models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm). A table gives its own l_p_m column instead of l1_m
+        # cm_convention="code",  # OPT, code | standard -- C_m sign of the "constant"/"linearized" models; "code": positive C_m = nose-down; "standard": textbook, flipped on use. A table declares `# cm_convention:` in its header
     ),
 
     recovery=Recovery(  # OPT, Recovery group -- parachute; default is no recovery
