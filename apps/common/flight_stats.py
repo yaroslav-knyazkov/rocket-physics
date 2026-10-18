@@ -83,6 +83,10 @@ class FlightStats:
     burnout_time: float | None       # s, from result.events
     impact_time: float | None        # s, from result.events (full flight)
     downrange_impact: float | None   # m, at impact (full flight)
+    # Step 100 (architecture-35 SS35.4.5): additive, defaulted so every existing
+    # constructor call and positional use is unchanged.
+    max_mach: float | None = None         # -, ascent window, max flow Mach
+    rail_exit_speed: float | None = None  # m/s, inertial |v| at the rail_exit event (None: no rail)
 
 
 def _assert_derivatives_reconstructible(p: Params) -> None:
@@ -168,6 +172,12 @@ def flight_stats(result: Result, p: Params) -> FlightStats:
 
     apogee_altitude = float(altitude_agl(result.raw.sol(t_apogee), p))
 
+    t_rail = result.events.get("rail_exit")
+    rail_exit_speed = None
+    if t_rail is not None:
+        y_rail = result.raw.sol(t_rail)
+        rail_exit_speed = float(np.hypot(y_rail[VX], y_rail[VZ]))
+
     # The ascent grid: the house 2000-point grid over [0, t_apogee], unioned
     # with a second 2000-point grid over [0, t_burnout] -- a motor's
     # ignition spike (~50 ms) would otherwise be under-sampled by a uniform
@@ -194,8 +204,10 @@ def flight_stats(result: Result, p: Params) -> FlightStats:
     max_accel = float(accel.max())
     max_accel_g = max_accel / p.g0
 
-    q = np.array([flow_state(t, y_grid[:, i], p).q for i, t in enumerate(t_grid)])
+    flows = [flow_state(t, y_grid[:, i], p) for i, t in enumerate(t_grid)]
+    q = np.array([f.q for f in flows])
     max_q = float(q.max())
+    max_mach = float(max(f.M for f in flows))
 
     T = np.array([thrust_curve.thrust(t, y_grid[:, i], p) for i, t in enumerate(t_grid)])
     total_impulse = float(np.trapezoid(T, t_grid))
@@ -212,4 +224,6 @@ def flight_stats(result: Result, p: Params) -> FlightStats:
         burnout_time=burnout_time,
         impact_time=impact_time,
         downrange_impact=downrange_impact,
+        max_mach=max_mach,
+        rail_exit_speed=rail_exit_speed,
     )
