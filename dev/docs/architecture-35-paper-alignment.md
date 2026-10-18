@@ -203,7 +203,7 @@ handling: D-118.
 
 ```
 T_curve(t)            = interp of the motor file (unchanged)
-thrust_stand(t, p)    = k_J * T_curve(t / k_t)                       # "T_0": stand thrust, what the motor file says
+thrust_stand(t, p)    = (k_J / k_t) * T_curve(t / k_t)                       # "T_0": stand thrust, what the motor file says
 thrust(t, s, p)       = thrust_stand + A_e (p_ref - p_amb)  (while thrust_stand > 0)   # unchanged semantics
 mass_flow(t, p)       = -T_curve(t / k_t) / (k_t * I_sp * g0)        # amplitude NOT scaled: same propellant, any k_J
 dydt[M]               = mass_flow     # replaces -thrust(t,y,p)/(I_sp g0); clamped: 0 when y[M] <= m_d

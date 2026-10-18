@@ -49,6 +49,7 @@ To use this template:
 | l_cog_f    | OPT     | m                          | None      | motor-local CoG at burnout (endpoint form) |
 | I_0        | OPT     | kg*m^2                     | None      | motor's own MOI at ignition, about its own CoG (endpoint form) |
 | I_f        | OPT     | kg*m^2                     | None      | motor's own MOI at burnout, about its own CoG (endpoint form) |
+| d_exit     | OPT     | m                          | None      | nozzle exit diameter; assemble sets Thrust.A_e = pi/4*d_exit^2 (do not also set A_e) |
 | notes      | OPT     | -                          | ""        | provenance: vendor, datasheet, date, measured or estimated |
 
 ### Thrust
@@ -57,6 +58,8 @@ To use this template:
 | motor_curve | REQ     | filename under data/motors/ | ""     | thrust curve file; "<file>#<designation>" picks one record of a multi-record RASP library |
 | A_e         | OPT     | m^2                       | 0.0      | nozzle exit area; 0.0 = pressure correction inert |
 | p_ref       | OPT     | Pa                        | 101325.0 | ambient pressure the curve was measured at |
+| k_J         | OPT     | -                         | 1.0      | total-impulse factor (impulse scatter): impulse = k_J*J; burned mass unchanged |
+| k_t         | OPT     | -                         | 1.0      | time scale of the curve (burn-time scatter); same propellant, stretched burn |
 """
 
 from __future__ import annotations
@@ -77,6 +80,8 @@ MOTOR = Motor(
         motor_curve="placeholder.csv",  # REQ, filename under data/motors/ -- thrust curve; "" is not usable
         # A_e=0.0,       # OPT, m^2 -- nozzle exit area; 0.0 = pressure correction inert
         # p_ref=101325.0,  # OPT, Pa -- ambient pressure the curve was measured at
+        # k_J=1.0,       # OPT, - -- total-impulse factor (impulse scatter): impulse = k_J*J; burned mass unchanged
+        # k_t=1.0,       # OPT, - -- time scale of the curve (burn-time scatter); same propellant, stretched burn
     ),
 
     # --- which m(t) model is active (SS32.3.4) --------------------------
@@ -101,6 +106,8 @@ MOTOR = Motor(
     l_cog_f=None,  # OPT, m -- motor-local CoG at burnout
     I_0=None,  # OPT, kg*m^2 -- motor's own MOI at ignition, about its own CoG
     I_f=None,  # OPT, kg*m^2 -- motor's own MOI at burnout, about its own CoG
+
+    # d_exit=None,  # OPT, m -- nozzle exit diameter; assemble sets Thrust.A_e = pi/4*d_exit^2 (do not also set A_e)
 
     notes=(
         "My actual motor -- <say where these numbers came from: measured, "

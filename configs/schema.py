@@ -250,6 +250,9 @@ class Motor:
     I_0: float | None = None  # OPT, kg*m^2 -- motor's own MOI at ignition, about its own CoG
     I_f: float | None = None  # OPT, kg*m^2 -- motor's own MOI at burnout,  about its own CoG
 
+    d_exit: float | None = None  # OPT, m -- nozzle exit diameter; assemble sets Thrust.A_e = pi/4*d_exit^2
+    #                                      (None -> Thrust.A_e as given; both given and A_e != 0 -> ValueError)
+
     notes: str = ""  # OPT -- provenance: vendor, datasheet, date, measured or estimated
 
 
@@ -338,10 +341,17 @@ def assemble(sc: Scenario) -> Config:
     SS31.8 #1) -- this change moves *sources*, not keywords."""
     # (1) gather groups from the pieces -- one keyword per group, each
     #     sourced from exactly one owning piece
+    thrust = sc.motor.thrust  # owner moved: Rocket -> Motor (Step 80)
+    if sc.motor.d_exit is not None:  # Step 98 (D-112): nozzle exit diameter -> exit area
+        if thrust.A_e != 0.0:
+            raise ValueError(
+                f"Motor {sc.motor.name!r}: give either d_exit or Thrust.A_e, not both"
+            )
+        thrust = dataclasses.replace(thrust, A_e=math.pi / 4.0 * sc.motor.d_exit**2)
     p = Params(
         weight=_weight_from_pieces(sc.rocket.airframe, sc.rocket.sections, sc.motor, sc.g0),  # DERIVED, SS32.3
         lengths=sc.rocket.lengths,
-        thrust=sc.motor.thrust,  # owner moved: Rocket -> Motor (Step 80)
+        thrust=thrust,
         aero=sc.rocket.aero,
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,

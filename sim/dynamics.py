@@ -222,11 +222,10 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     # bit-for-bit pre-Step-36. On -> `m` is the integrated state
     # `y[M]`, `I` is the instantaneous `I(t)` from the two-lumped-mass
     # model (main.tex SSModels > Mass and moment of inertia), and
-    # `dm/dt = -T_ref(t)/(I_sp*g0)`. `thrust_curve.thrust` (not the raw
-    # curve lookup) stands in for `T_ref(t)` here -- identical to it
-    # whenever `p.A_e == 0.0` (the default, and every scenario below),
-    # and only differs by the Step-16 nozzle-exit pressure term
-    # otherwise, which is a thrust correction, not a mass-flow one.
+    # `dm/dt = -T_ref(t)/(I_sp*g0)`. Step 98 (D-112): `thrust_curve.mass_flow`
+    # computes it from the stand curve, so it is independent of altitude and
+    # of the Step-16 nozzle-exit pressure term (a thrust correction, not a
+    # mass-flow one); identical to the old expression at `A_e == 0.0`.
     if p.weight.m_d is None:
         m = p.weight.m
         I = p.weight.I
@@ -243,7 +242,7 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
         if y[M] <= p.weight.m_d:
             dm_dt = 0.0
         else:
-            dm_dt = -thrust_curve.thrust(t, y, p) / (p.weight.I_sp * p.g0)
+            dm_dt = thrust_curve.mass_flow(t, p)  # Step 98 (D-112): from the stand curve
 
     a_i = F_i / m
 

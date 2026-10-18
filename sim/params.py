@@ -64,6 +64,8 @@ class Thrust:
     motor_curve: str = ""         # file under data/motors/
     A_e: float = 0.0              # nozzle exit area [m^2]; 0.0 = pressure correction inert
     p_ref: float = 101325.0       # ambient pressure the curve was measured at [Pa]
+    k_J: float = 1.0              # total-impulse factor (impulse = k_J*J, independent of k_t); 1.0 = as in the file
+    k_t: float = 1.0              # time scale of the curve (burn-time scatter); 1.0 = as in the file
 
 
 @dataclass(frozen=True)
