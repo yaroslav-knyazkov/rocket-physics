@@ -236,7 +236,14 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
         m_p = mass.propellant_mass(m, p)
         l_B = mass.cog_position(m_p, p)
         I = mass.moment_of_inertia(m_p, l_B, p)
-        dm_dt = -thrust_curve.thrust(t, y, p) / (p.weight.I_sp * p.g0)
+        # Step 97 (G5/B32.2): mass floor -- propellant cannot burn below the
+        # dry mass (a too-low hand-typed I_sp would otherwise drive y[M] < m_d
+        # and, eventually, negative). Identical to the old expression before
+        # the floor is reached.
+        if y[M] <= p.weight.m_d:
+            dm_dt = 0.0
+        else:
+            dm_dt = -thrust_curve.thrust(t, y, p) / (p.weight.I_sp * p.g0)
 
     a_i = F_i / m
 
@@ -342,10 +349,15 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
         # fixed hang attitude (frozen theta/omega, same mechanism as the
         # rail above), and the chute drag is a natively-inertial force
         # (forces.parachute_drag_inertial) added directly to F_i -- NOT
-        # routed through the already-computed a_i, so the Coriolis term
-        # folded into a_i (Step 37) is included exactly once, not dropped.
+        # routed through the already-computed a_i.
+        # Step 97 (G19/B32.1): the legacy `(F_i + F_chute) / m` dropped the
+        # Coriolis term (it lives only in `a_i`, not in `F_i`). The legacy
+        # expression is kept bit-for-bit when `earth_rotation` is off; when
+        # on, the Coriolis acceleration is added exactly once.
         F_chute = forces.parachute_drag_inertial(t, y, p, hold)
         a_chute = (F_i + F_chute) / m
+        if p.gravity.earth_rotation:
+            a_chute = a_chute + coriolis_inplane(t, y, p)
         dydt[VX], dydt[VZ] = a_chute
         dydt[THETA] = 0.0
         dydt[OMEGA] = 0.0

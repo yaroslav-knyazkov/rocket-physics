@@ -157,8 +157,12 @@ def _trigger_after_apogee(t: float, y: np.ndarray, p) -> bool:
     Known simplification, same standing as `parachute_deployed`'s: a
     pre-apogee transient dip in `vz` would arm this early. Not guarded
     against, documented here instead (same standing as B11).
+
+    Step 97 (C1/B32.3): `t >= 0.1` pad guard, the same 0.1 s the apogee
+    event itself uses (`integrate._apogee_event`), so a launch-instant
+    `v_z` transient cannot arm the brake.
     """
-    return y[VZ] > 0.0
+    return t >= 0.1 and y[VZ] > 0.0
 
 
 # Module-private dispatch dict (architecture.md SS12): which trigger is

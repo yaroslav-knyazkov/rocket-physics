@@ -141,6 +141,14 @@ def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     time-varying thrust and automatically cuts off when the curve ends
     (returns zero after the last defined point).
 
+    Step 97 (C4, comment-only): sign convention -- positive `delta`
+    (`p.lengths.misalign_deg`, formerly `thrust_misalign_deg`) tilts the
+    thrust vector from `x_hat_r` toward `+z_hat_r`; with the thrust point
+    aft of the CoG (`aB = -(l1+l2) x_hat_r`) the resulting pitching moment
+    is `+(l1+l2)*T*sin(delta)` in the code's `_cross_y` convention. This
+    is the code's own `delta`; the paper's `theta_t` is not asserted to
+    share its sign.
+
     Step 39 (architecture.md SS23.2): `delta = p.thrust_misalign_deg`
     (converted to radians here, the same "degrees in Params, radians at
     first use" convention as `lat0_deg`/`azimuth_deg`/`wind_dir_deg`) is a

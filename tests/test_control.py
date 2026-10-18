@@ -395,7 +395,9 @@ def test_after_apogee_trigger_is_false_on_the_pad_false_ascending_true_descendin
     y_descending = np.array(State(x=0.0, z=-500.0, vx=0.0, vz=10.0, theta=math.pi / 2, omega=0.0))
     assert not control.airbrake_triggered(0.0, y_ascending, p)
     assert not control.airbrake_triggered(0.0, y_pad, p)   # pad case: vz == 0.0 exactly
-    assert control.airbrake_triggered(0.0, y_descending, p)
+    # Step 97 (C1): 0.1 s pad guard -- not triggered at t < 0.1 even when descending
+    assert not control.airbrake_triggered(0.0, y_descending, p)
+    assert control.airbrake_triggered(0.1, y_descending, p)
 
 
 def test_unknown_airbrake_trigger_raises_keyerror():

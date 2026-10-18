@@ -93,7 +93,10 @@ def flow_state(t: float, y: np.ndarray, p, hold=None) -> Flow:
     # Compute derived quantities
     q = 0.5 * air.rho * V**2
     M = V / air.a if air.a != 0.0 else 0.0
-    Re = air.rho * V * p.aero.l_ref / air.mu if air.mu != 0.0 else 0.0
+    # Step 97 (C2/B32.4, D-118 option c): Reynolds length is `l_ref`, falling
+    # back to `d_ref` when `l_ref == 0.0` (the default).
+    l_re = p.aero.l_ref if p.aero.l_ref != 0.0 else p.aero.d_ref
+    Re = air.rho * V * l_re / air.mu if air.mu != 0.0 else 0.0
 
     return Flow(V=V, alpha=alpha, u_hat=u_hat, n_hat=n_hat,
                 air=air, q=q, M=M, Re=Re)

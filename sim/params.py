@@ -81,7 +81,7 @@ class Aero:
     # shared by all three models
     S: float = 0.0                # reference area [m^2]
     d_ref: float = 0.0            # reference length for the moment and the static margin [m]
-    l_ref: float = 0.0            # Reynolds reference length [m] (NOT the moment length)
+    l_ref: float = 0.0            # Reynolds reference length [m] (NOT the moment length); 0.0 -> falls back to d_ref
     # model == "constant"
     C_x: float = 0.0              # axial-force coefficient [-]   (was A_x, raw Newtons until Step 55)
     C_z: float = 0.0              # normal-force coefficient [-]  (was A_z, raw Newtons until Step 55)
