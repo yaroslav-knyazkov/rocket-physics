@@ -73,7 +73,7 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import dynamics, forces
+from sim import aero, dynamics, forces
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
 from sim import gravity, thrust_curve
@@ -446,6 +446,7 @@ def run_sim(p, s0: State) -> Result:
     bit-for-bit: this check cannot fire, and `_run_rk4` never imports
     `sim.sampling` or constructs a `Hold`.
     """
+    aero.reset_oob_warning()  # Step 112: once-per-run out-of-range alpha warning
     method = p.solver.method
     t_max = p.solver.t_max
     rtol = p.solver.rtol

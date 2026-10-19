@@ -96,6 +96,7 @@ differently-shaped function.
 import functools
 import os
 import re
+import warnings
 from typing import NamedTuple
 
 import numpy as np
@@ -112,6 +113,32 @@ _CM_CONVENTION_RE = re.compile(r"^#\s*cm_convention\s*:\s*(\S+)\s*$")
 # Step 93 (Phase 2.16, D-91/D-92, architecture-34 SS34.3): half-width of the
 # nose-first plateau of the axial flow-direction factor.
 _COS_ALPHA0 = float(np.cos(np.radians(85.0)))
+
+# Step 112 (D-120): large-alpha extension of the table model (Jorgensen).
+TABLE_OOB_MODES = ("clamp", "jorgensen")
+
+# Finite-length factor eta vs fineness lam = S_p / d_ref^2 (~ L/d). Source: Jorgensen NASA TR R-474
+# Fig. 4 (digitized, +-0.005), low crossflow Mach. Linear interpolation, clamped outside [2, 40].
+# NOT modelled: the rise of eta with crossflow Mach (-> ~1 supersonic).
+_ETA_LAM = np.array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0, 40.0])
+_ETA_VAL = np.array([0.577, 0.607, 0.643, 0.668, 0.685, 0.701, 0.724, 0.753, 0.795, 0.815])
+
+# UNVERIFIED: C_dn = 1.2 (constant, subsonic subcritical cylinder crossflow). Mach/Re dependence
+# (transonic peak 1.6-2.0, supercritical drop) is out of scope (backlog B42). Field default: Aero.C_dn.
+# UNVERIFIED: tail-first axial magnitude. Jorgensen uses a separate C_A(180 deg); its value is not
+# verified here, so Aero.C_x180 == 0.0 falls back to C_x(0) of the table. The user should set it.
+
+
+class AeroRangeWarning(UserWarning):
+    """Table aero asked for an alpha outside the table under `table_oob='clamp'`."""
+
+
+_OOB_WARNED: set = set()
+
+
+def reset_oob_warning() -> None:
+    """Re-arm the once-per-run out-of-range warning (called at `run_sim` entry)."""
+    _OOB_WARNED.clear()
 
 
 def axial_flow_factor(alpha: float) -> float:
@@ -353,6 +380,7 @@ def validate(p) -> None:
         raise ValueError(f"Aero.l_p must be >= 0 (0.0 = off), got {p.aero.l_p}")
     if p.aero.model == "table" and p.aero.table:
         _load_table(p.aero.table)  # surfaces loader errors early
+    _validate_table_oob(p)
     if uses_l_p(p):
         cg_station(None, p)
         if p.lengths.misalign_deg != 0.0:
@@ -360,6 +388,41 @@ def validate(p) -> None:
                 "a CP station (l_p / l_p_m) requires Lengths.misalign_deg == 0: "
                 "the thrust-point arm is not derived for station configs"
             )
+
+
+def _validate_table_oob(p) -> None:
+    """Step 112 (112.4): `table_oob` is a known mode; `jorgensen` has what it needs."""
+    a = p.aero
+    if a.table_oob not in TABLE_OOB_MODES:
+        raise ValueError(f"Aero.table_oob {a.table_oob!r} not in {TABLE_OOB_MODES}")
+    if a.table_oob == "clamp":
+        return
+    if a.model != "table":
+        raise ValueError("Aero.table_oob='jorgensen' requires Aero.model == 'table'")
+    if not uses_l_p(p):
+        raise ValueError(
+            "Aero.table_oob='jorgensen' needs a v2 table with an l_p_m column "
+            "(a legacy l1_m table carries an arm, not a station)"
+        )
+    t = _load_table(a.table)
+    if not (t.alpha[0] < 0.0 < t.alpha[-1]):
+        raise ValueError("Aero.table_oob='jorgensen' needs a two-sided table (alpha[0] < 0 < alpha[-1])")
+    lim = np.radians(80.0)
+    if t.alpha[-1] >= lim or t.alpha[0] <= -lim:
+        raise ValueError("Aero.table_oob='jorgensen' needs both table alpha edges below 80 deg")
+    for name, ok in (
+        ("S > 0", a.S > 0.0),
+        ("d_ref > 0", a.d_ref > 0.0),
+        ("S_p > 0", a.S_p > 0.0),
+        ("l_pc > 0", a.l_pc > 0.0),
+        ("oob_blend_deg > 0", a.oob_blend_deg > 0.0),
+        ("C_dn >= 0", a.C_dn >= 0.0),
+        ("0 <= eta <= 1", 0.0 <= a.eta <= 1.0),
+        ("C_x180 >= 0", a.C_x180 >= 0.0),
+        ("S_base >= 0", a.S_base >= 0.0),
+    ):
+        if not ok:
+            raise ValueError(f"Aero.table_oob='jorgensen' requires {name}")
 
 
 def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
@@ -473,7 +536,7 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
         C_mq = _table_lookup(table, alpha, M, table.C_mq)
     else:
         C_mq = p.aero.c_mq
-    return AeroCoeffs(
+    clamped = AeroCoeffs(
         C_x=_table_lookup(table, alpha, M, table.C_A) * _table_axial_factor(table, alpha),
         C_z=_table_lookup(table, alpha, M, table.C_N),
         C_m=_table_lookup(table, alpha, M, table.C_m),
@@ -481,6 +544,62 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
         # Step 99: legacy table -> the arm itself; v2 table -> the CP station
         # (turned into an arm by `_resolve_arm`, which knows the CoG).
         l1=_table_lookup(table, alpha, M, table.l1 if table.l1 is not None else table.l_p),
+    )
+    # Step 112 (D-120): outside the table's alpha range the lookup clamps; opt into the extension.
+    if table.alpha[0] <= alpha <= table.alpha[-1]:
+        return clamped
+    if p.aero.table_oob == "jorgensen":
+        return _jorgensen_extend(clamped, table, alpha, M, p)
+    if p.aero.table not in _OOB_WARNED:
+        _OOB_WARNED.add(p.aero.table)
+        warnings.warn(
+            f"Aero table '{p.aero.table}' covers alpha in [{np.degrees(table.alpha[0]):g}, "
+            f"{np.degrees(table.alpha[-1]):g}] deg; the flight left it and the edge values are held. "
+            "Set Aero.table_oob='jorgensen'; RK45 can stall in tail-first descent "
+            "(dev/docs/diagnosis-rk45-v2-table.md).",
+            AeroRangeWarning,
+            stacklevel=2,
+        )
+    return clamped
+
+
+def _Z(a: float) -> float:
+    """Potential-flow shape sin(2a) cos(a/2): odd, zero at 0, +-90, +-180 deg."""
+    return float(np.sin(2.0 * a) * np.cos(0.5 * a))
+
+
+def _jorgensen_extend(clamped: AeroCoeffs, table: _AeroTable, alpha: float, M: float, p) -> AeroCoeffs:
+    """Step 112 (D-120, architecture-35 SS35.6 / 112.2): smooth blend of the clamped coefficients
+    into Jorgensen's large-alpha model beyond the table edge. `C_mq` and `l1` stay the clamped
+    lookups. Model choices (not paper-verified): smoothstep blend over `oob_blend_deg`; sign of
+    the potential term above 90 deg follows the printed `sin(2a)cos(a/2)` (negative there)."""
+    ap = p.aero
+    a_e = table.alpha[-1] if alpha > 0.0 else table.alpha[0]
+    tau = min((abs(alpha) - abs(a_e)) / np.radians(ap.oob_blend_deg), 1.0)
+    w = tau * tau * (3.0 - 2.0 * tau)
+
+    # axial: x0 cos^2 nose-first, -x180 cos^2 tail-first (flow-direction sign built in)
+    x0 = _table_lookup(table, 0.0, M, table.C_A)
+    x180 = ap.C_x180 if ap.C_x180 > 0.0 else x0
+    c2 = float(np.cos(alpha)) ** 2
+    Cx_J = x0 * c2 if abs(alpha) <= 0.5 * np.pi else -x180 * c2
+
+    S = ap.S
+    eta = ap.eta if ap.eta > 0.0 else float(np.interp(ap.S_p / ap.d_ref**2, _ETA_LAM, _ETA_VAL))
+    s_base = ap.S_base if ap.S_base > 0.0 else S
+    sa = float(np.sin(alpha))
+    Cz_cf = eta * ap.C_dn * (ap.S_p / S) * sa * abs(sa)
+    Cz_J = (s_base / S) * _Z(alpha) + Cz_cf
+
+    # moment: table residual continued with the potential shape + arm correction of the crossflow
+    cm_e = _table_lookup(table, a_e, M, table.C_m)
+    lp_e = _table_lookup(table, a_e, M, table.l_p)
+    Cm_J = cm_e * _Z(alpha) / _Z(a_e) + (ap.l_pc - lp_e) * Cz_cf / ap.d_ref
+
+    return clamped._replace(
+        C_x=(1.0 - w) * clamped.C_x + w * Cx_J,
+        C_z=(1.0 - w) * clamped.C_z + w * Cz_J,
+        C_m=(1.0 - w) * clamped.C_m + w * Cm_J,
     )
 
 

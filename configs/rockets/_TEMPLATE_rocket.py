@@ -94,6 +94,14 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | c_mq      | OPT     | -                               | 0.0        | pitch-damping derivative, all three models |
 | l_p       | OPT     | m                               | 0.0        | CoP station from the nose, constant/linearized models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm) |
 | cm_convention | OPT | code \| standard                | "code"     | C_m sign of the constant/linearized models (code: positive = nose-down; standard: textbook, flipped); a table declares `# cm_convention:` in its header |
+| table_oob | OPT | clamp \| jorgensen              | "clamp"    | table model, alpha beyond the table: clamp = hold the edge value (legacy, warns once per run); jorgensen = large-alpha extension (needs v2 table with l_p_m, S_p, l_pc) |
+| oob_blend_deg | OPT | deg                         | 10.0       | width of the blend band beyond the table edge; read when table_oob == "jorgensen" |
+| S_p       | REQ     | m^2                             | 0.0        | planform area (about d_ref * body length); REQ iff table_oob == "jorgensen" |
+| l_pc      | REQ     | m                               | 0.0        | planform-centroid station from the nose (about half the length, aft with fins); REQ iff table_oob == "jorgensen" |
+| C_dn      | OPT     | -                               | 1.2        | crossflow drag coefficient of a cylinder (constant; UNVERIFIED, Mach/Re dependence not modelled) |
+| eta       | OPT     | -                               | 0.0        | finite-length factor; 0.0 = from fineness S_p/d_ref^2 (Jorgensen TR R-474 Fig. 4) |
+| C_x180    | OPT     | -                               | 0.0        | axial coefficient magnitude in tail-first flow; 0.0 = C_x(0) of the table (UNVERIFIED placeholder: a blunt base facing the flow is higher, set it) |
+| S_base    | OPT     | m^2                             | 0.0        | base area of the potential term; 0.0 = S |
 
 ### Recovery
 | field       | REQ/OPT | unit / choices   | default  | what it does |
@@ -189,6 +197,14 @@ ROCKET = Rocket(
         # c_mq=0.0,        # OPT, - -- pitch-damping derivative, all three models; 0.0 = undamped
         # l_p=0.0,         # OPT, m -- CoP station from the nose tip, "constant"/"linearized" models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm). A table gives its own l_p_m column instead of l1_m
         # cm_convention="code",  # OPT, code | standard -- C_m sign of the "constant"/"linearized" models; "code": positive C_m = nose-down; "standard": textbook, flipped on use. A table declares `# cm_convention:` in its header
+        # table_oob="clamp",  # OPT, clamp | jorgensen -- "table" model, alpha beyond the table: clamp = hold the edge value (legacy, warns once per run); jorgensen = large-alpha extension
+        # oob_blend_deg=10.0,  # OPT, deg -- width of the blend band beyond the table edge; "jorgensen" only
+        # S_p=0.0,         # REQ, m^2 -- planform area, about d_ref * body length; required iff table_oob="jorgensen"
+        # l_pc=0.0,        # REQ, m -- planform-centroid station from the nose; required iff table_oob="jorgensen"
+        # C_dn=1.2,        # OPT, - -- crossflow drag coefficient of a cylinder, constant (UNVERIFIED; no Mach/Re dependence)
+        # eta=0.0,         # OPT, - -- finite-length factor; 0.0 = derived from fineness S_p/d_ref^2
+        # C_x180=0.0,      # OPT, - -- axial coefficient magnitude, tail-first flow; 0.0 = table C_x(0) (UNVERIFIED placeholder, set it)
+        # S_base=0.0,      # OPT, m^2 -- base area of the potential term; 0.0 = S
     ),
 
     recovery=Recovery(  # OPT, Recovery group -- parachute; default is no recovery

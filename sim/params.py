@@ -105,6 +105,17 @@ class Aero:
     # restoring for a positive slope) | "standard" (textbook, restoring = negative slope; flipped on use).
     # A table declares its own via a `# cm_convention:` header line.
     cm_convention: str = "code"
+    # Step 112 (D-120): out-of-range alpha policy of the table model. "clamp" = hold the edge value (legacy,
+    # bit-identical; warns once per run); "jorgensen" = large-alpha extension (potential + crossflow terms),
+    # needs S_p and l_pc. All fields below are inert under "clamp".
+    table_oob: str = "clamp"
+    oob_blend_deg: float = 10.0   # width of the blend band beyond the table edge [deg]
+    S_p: float = 0.0              # planform area [m^2]; REQ iff jorgensen
+    l_pc: float = 0.0             # planform-centroid station from the nose [m]; REQ iff jorgensen
+    C_dn: float = 1.2             # crossflow drag coefficient of a cylinder [-] (Mach/Re dependence not modelled)
+    eta: float = 0.0              # finite-length factor; 0.0 -> from fineness S_p/d_ref^2
+    C_x180: float = 0.0           # axial coefficient magnitude, tail-first flow; 0.0 -> C_x(0) of the table
+    S_base: float = 0.0           # base area of the potential term [m^2]; 0.0 -> S
 
 
 @dataclass(frozen=True)
