@@ -166,7 +166,7 @@ def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
-def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
+def aero_force_body(t: float, s, p, flow, hold=None, fb=None) -> np.ndarray:
     """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
     body frame, unconditionally -- the Phase 1 form, for every alpha, not
     just alpha = 0.
@@ -225,17 +225,25 @@ def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
     is the zero-order-held value for the current tick, not a fresh
     per-substep/per-stage evaluation of the continuous law).
     """
-    c = aero.coefficients(t, s, p, flow, hold)
+    # Step 102 (D-109): `fb` is the brake fraction, computed once per RHS call by
+    # `dynamics.derivatives` and passed down; a direct caller may omit it.
+    if fb is None:
+        fb = control.airbrake_deploy_fraction(t, s, p, hold)
+    c = aero.coefficients(t, s, p, flow, hold, fb)
     A_x = flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
-    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p, hold)
+    if p.control.airbrake_aero == "table":
+        # The brake's drag/normal force/moment/CP shift are inside the table's f_b
+        # axis; no separate additive term and no extra flow-direction factor.
+        return np.array([-A_x, -A_z])
+    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * fb
     # Step 93 (D-94a): the brake is a body-axis axial drag too, so it follows
     # the same flow-direction factor as `C_x` (architecture-34 SS34.3).
     A_brake *= aero.axial_flow_factor(flow.alpha)
     return np.array([-(A_x + A_brake), -A_z])
 
 
-def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
+def aero_moment_y(t: float, s, p, flow, hold=None, fb=None) -> float:
     """A_m = -A_m*y_hat_r (main.tex SSMoments), scalar about y.
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
@@ -271,8 +279,13 @@ def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
     `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
     unaffected, bit-for-bit. Passed through to `aero.coefficients` only
     (same reasoning as `aero_force_body`'s docstring).
+
+    Step 102 (D-109): `fb` is the brake fraction (see `aero_force_body`); only read
+    under `Control.airbrake_aero == "table"`, where an omitted `fb` is computed here.
     """
-    c = aero.coefficients(t, s, p, flow, hold)
+    if fb is None:
+        fb = control.airbrake_deploy_fraction(t, s, p, hold) if p.control.airbrake_aero == "table" else 0.0
+    c = aero.coefficients(t, s, p, flow, hold, fb)
     A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
     A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
     return -A_m

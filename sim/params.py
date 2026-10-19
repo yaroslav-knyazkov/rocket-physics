@@ -183,6 +183,10 @@ class Control:
     airbrake_trigger: str = "after_burnout"    # after_burnout | after_time | after_apogee
     airbrake_deploy_time: float = 0.0          # s, read only when airbrake_trigger == "after_time"
     aero_coeff_model: str = "none"        # Step 57 seam; "none" = identity
+    # Step 102 (D-109): how the brake enters the aerodynamics. "additive" = the legacy axial term
+    # q*Cd*S_max*f_b (default, bit-identical); "table" = the aero table's f_b axis supplies the brake's
+    # C_A/C_N/C_m/l_p (needs Aero.model == "table" with an f_b column; the additive term is then off).
+    airbrake_aero: str = "additive"       # additive | table
 
 
 @dataclass(frozen=True)

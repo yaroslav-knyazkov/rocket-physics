@@ -115,7 +115,7 @@ the one place `weight`'s dispatch now lives.
 
 import numpy as np
 
-from sim import aero, forces, mass, thrust_curve
+from sim import aero, control, forces, mass, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
@@ -212,7 +212,12 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     # is a pure call-count reduction, not a behaviour change.
     flow = flow_state(t, y, p, hold)
     thrust = thrust_body(t, y, p, hold)
-    aero_force = aero_force_body(t, y, p, flow, hold)
+    # Step 102 (D-109): the brake deployment fraction is evaluated exactly once per RHS
+    # call (it used to be evaluated inside `aero_force_body` only) and threaded down to
+    # the force, the moment and the CoP-arm lookup, so a table with an `f_b` axis sees one
+    # consistent value and no extra control-law evaluation is paid.
+    fb = control.airbrake_deploy_fraction(t, y, p, hold)
+    aero_force = aero_force_body(t, y, p, flow, hold, fb)
 
     body_forces = thrust + aero_force
     F_i = weight_inertial(t, y, p) + to_inertial(body_forces, theta)
@@ -304,7 +309,7 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     # `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
     # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
     # both arrays are bitwise identical to the pre-Step-43 literals below.
-    l1_aero = aero.coefficients(t, y, p, flow, hold).l1
+    l1_aero = aero.coefficients(t, y, p, flow, hold, fb).l1
     aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
     aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
 
@@ -323,7 +328,7 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     # way.
     M_thrust = _cross_y(aB, thrust)
     M_aero = _cross_y(aA, aero_force)
-    M_moment = aero_moment_y(t, y, p, flow, hold)
+    M_moment = aero_moment_y(t, y, p, flow, hold, fb)
     M_y = M_thrust + M_aero + M_moment
 
     dydt = np.zeros(7)

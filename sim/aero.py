@@ -117,6 +117,9 @@ _COS_ALPHA0 = float(np.cos(np.radians(85.0)))
 # Step 112 (D-120): large-alpha extension of the table model (Jorgensen).
 TABLE_OOB_MODES = ("clamp", "jorgensen")
 
+# Step 102 (D-109): how the air brake enters the aerodynamics (Control.airbrake_aero).
+AIRBRAKE_AERO_MODES = ("additive", "table")
+
 # Finite-length factor eta vs fineness lam = S_p / d_ref^2 (~ L/d). Source: Jorgensen NASA TR R-474
 # Fig. 4 (digitized, +-0.005), low crossflow Mach. Linear interpolation, clamped outside [2, 40].
 # NOT modelled: the rise of eta with crossflow Mach (-> ~1 supersonic).
@@ -169,6 +172,10 @@ class _AeroTable(NamedTuple):
     l1: "np.ndarray | None"   # (n_M, n_alpha), CoP-to-CoG distance [m]; None for a v2 (`l_p_m`) table
     C_mq: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative, or None when the column is absent
     l_p: "np.ndarray | None" = None  # (n_M, n_alpha), CoP station from the nose [m]; None for a legacy (`l1_m`) table
+    # Step 102 (D-109): brake-fraction axis. `None` = no `f_b` column. Otherwise `f_b` is the ascending
+    # grid (starting at 0.0), `planes[k]` the 2-D table at `f_b[k]`, and the arrays above are `planes[0]`.
+    f_b: "np.ndarray | None" = None
+    planes: "tuple | None" = None
 
 
 @functools.lru_cache(maxsize=None)
@@ -244,38 +251,57 @@ def _load_table(name: str) -> _AeroTable:
     n_M = M_grid.size
     n_a = alpha_grid.size
 
-    if M_col.size != n_M * n_a:
+    # Step 102 (D-109): optional `f_b` column -> one (M, alpha) plane per brake fraction.
+    fb_col = data["f_b"].astype(float) if "f_b" in data.dtype.names else None
+    fb_grid = np.unique(fb_col) if fb_col is not None else None
+    n_fb = 1 if fb_grid is None else fb_grid.size
+
+    if M_col.size != n_fb * n_M * n_a:
+        axes = "(M, alpha)" if fb_grid is None else "(f_b, M, alpha)"
         raise ValueError(
-            f"Aero table '{name}' is not a rectangular (M, alpha) grid: "
-            f"{M_col.size} rows, expected {n_M} M-values * {n_a} alpha-"
-            f"values = {n_M * n_a}"
+            f"Aero table '{name}' is not a rectangular {axes} grid: "
+            f"{M_col.size} rows, expected {n_fb * n_M * n_a}"
+        )
+    if fb_grid is not None and (fb_grid[0] != 0.0 or n_fb < 2):
+        raise ValueError(
+            f"Aero table '{name}': the f_b axis must start at 0.0 (brake closed) "
+            f"and have at least two values, got {fb_grid.tolist()}"
         )
 
-    def _reshape(col: np.ndarray) -> np.ndarray:
-        grid = np.empty((n_M, n_a))
-        for i, m in enumerate(M_grid):
-            mask = M_col == m
-            row_alpha = alpha_col[mask]
-            order = np.argsort(row_alpha)
-            if not np.allclose(row_alpha[order], alpha_grid):
-                raise ValueError(
-                    f"Aero table '{name}': the alpha grid at M={m} does not "
-                    "match the other M rows -- every M value must repeat "
-                    "the same set of alpha_deg values"
-                )
-            grid[i] = col[mask][order]
-        return grid
+    def _plane(rows: np.ndarray) -> _AeroTable:
+        """One `(M, alpha)` plane out of the rows selected by the boolean `rows`."""
 
-    return _AeroTable(
-        M=M_grid,
-        alpha=alpha_grid,
-        C_A=_reshape(C_A_col),
-        C_N=_reshape(C_N_col),
-        C_m=_reshape(C_m_col),
-        l1=_reshape(l1_col) if l1_col is not None else None,
-        C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
-        l_p=_reshape(l_p_col) if l_p_col is not None else None,
-    )
+        def _reshape(col: np.ndarray) -> np.ndarray:
+            grid = np.empty((n_M, n_a))
+            for i, m in enumerate(M_grid):
+                mask = (M_col == m) & rows
+                row_alpha = alpha_col[mask]
+                order = np.argsort(row_alpha)
+                if row_alpha.size != n_a or not np.allclose(row_alpha[order], alpha_grid):
+                    raise ValueError(
+                        f"Aero table '{name}': the alpha grid at M={m} does not "
+                        "match the other M rows -- every M value must repeat "
+                        "the same set of alpha_deg values"
+                    )
+                grid[i] = col[mask][order]
+            return grid
+
+        return _AeroTable(
+            M=M_grid,
+            alpha=alpha_grid,
+            C_A=_reshape(C_A_col),
+            C_N=_reshape(C_N_col),
+            C_m=_reshape(C_m_col),
+            l1=_reshape(l1_col) if l1_col is not None else None,
+            C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
+            l_p=_reshape(l_p_col) if l_p_col is not None else None,
+        )
+
+    if fb_grid is None:
+        return _plane(np.ones(M_col.shape, dtype=bool))
+    planes = tuple(_plane(fb_col == f) for f in fb_grid)
+    # The top-level arrays are the brake-closed plane (f_b = 0): the additive-brake mode reads them.
+    return planes[0]._replace(f_b=fb_grid, planes=planes)
 
 
 def _bracket_M(M_grid: np.ndarray, M: float) -> "tuple[int, int, float]":
@@ -292,6 +318,34 @@ def _bracket_M(M_grid: np.ndarray, M: float) -> "tuple[int, int, float]":
     i_lo = i_hi - 1
     w = (M - M_grid[i_lo]) / (M_grid[i_hi] - M_grid[i_lo])
     return i_lo, i_hi, w
+
+
+def _at_fb(table: _AeroTable, fb: float) -> _AeroTable:
+    """The 2-D `(M, alpha)` table at brake fraction `fb` (Step 102, D-109): the two bracketing
+    `f_b` planes blended linearly, clamped at both ends (no extrapolation, like M). A table
+    without an `f_b` column is returned as is; at a plane's own `f_b` (and beyond the edges) the
+    plane is returned untouched, so `f_b = 0` is exactly the brake-closed table. Interpolation is
+    linear in the grid values, so blending the grids equals blending the looked-up coefficients;
+    doing it on the grids lets the alpha extension (`_jorgensen_extend`) see the blended edge values."""
+    planes = table.planes
+    if planes is None:
+        return table
+    grid = table.f_b
+    if fb <= grid[0]:
+        return planes[0]
+    if fb >= grid[-1]:
+        return planes[-1]
+    j = int(np.searchsorted(grid, fb))
+    lo, hi = planes[j - 1], planes[j]
+    w = (fb - grid[j - 1]) / (grid[j] - grid[j - 1])
+
+    def _mix(a, b):
+        return None if a is None else a + w * (b - a)
+
+    return lo._replace(
+        C_A=_mix(lo.C_A, hi.C_A), C_N=_mix(lo.C_N, hi.C_N), C_m=_mix(lo.C_m, hi.C_m),
+        l1=_mix(lo.l1, hi.l1), C_mq=_mix(lo.C_mq, hi.C_mq), l_p=_mix(lo.l_p, hi.l_p),
+    )
 
 
 def _table_lookup(table: _AeroTable, alpha: float, M: float, grid: np.ndarray) -> float:
@@ -380,6 +434,7 @@ def validate(p) -> None:
         raise ValueError(f"Aero.l_p must be >= 0 (0.0 = off), got {p.aero.l_p}")
     if p.aero.model == "table" and p.aero.table:
         _load_table(p.aero.table)  # surfaces loader errors early
+    _validate_airbrake_aero(p)
     _validate_table_oob(p)
     if uses_l_p(p):
         cg_station(None, p)
@@ -388,6 +443,23 @@ def validate(p) -> None:
                 "a CP station (l_p / l_p_m) requires Lengths.misalign_deg == 0: "
                 "the thrust-point arm is not derived for station configs"
             )
+
+
+def _validate_airbrake_aero(p) -> None:
+    """Step 102 (D-109): `Control.airbrake_aero` is a known mode; `table` has an `f_b` table."""
+    mode = p.control.airbrake_aero
+    if mode not in AIRBRAKE_AERO_MODES:
+        raise ValueError(f"Control.airbrake_aero {mode!r} not in {AIRBRAKE_AERO_MODES}")
+    if mode == "additive":
+        return
+    if p.aero.model != "table" or not p.aero.table:
+        raise ValueError(
+            "Control.airbrake_aero='table' requires Aero.model == 'table' with a table that has an f_b column"
+        )
+    if _load_table(p.aero.table).f_b is None:
+        raise ValueError(
+            f"Control.airbrake_aero='table' needs an f_b column; table '{p.aero.table}' has none"
+        )
 
 
 def _validate_table_oob(p) -> None:
@@ -503,7 +575,7 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     )
 
 
-def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
+def _table_coeffs(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
     """`"table"`: `C_A, C_N, C_m` and `l1` read from `p.aero.table`
     (`data/aero/<name>`, this module's own format -- see the module
     docstring), interpolated at run time (bracket-and-clamp in `M`,
@@ -530,8 +602,14 @@ def _table_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     `axial_flow_factor(alpha)` iff the table's alpha grid stays inside
     (-90, +90) deg (`_table_axial_factor`); a table covering reversed flow
     is authoritative and used as is.
+
+    Step 102 (D-109): `fb` is the air-brake deployment fraction. A table with an
+    `f_b` column is first blended in `f_b` (`_at_fb`), then looked up in `(M, alpha)`,
+    then -- beyond the alpha edge, `table_oob='jorgensen'` -- extended; the brake's
+    effect is inside the table (no separate axial-flow factor). `fb=0.0` / no column
+    -> the 2-D table itself.
     """
-    table = _load_table(p.aero.table)
+    table = _at_fb(_load_table(p.aero.table), fb)
     if table.C_mq is not None:
         C_mq = _table_lookup(table, alpha, M, table.C_mq)
     else:
@@ -610,7 +688,16 @@ _AERO_MODELS = {
 }
 
 
-def coefficients(t: float, y: np.ndarray, p, flow, hold=None) -> AeroCoeffs:
+def _dispatch(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
+    """The model dispatch; `fb` reaches only the table model, and only under
+    `Control.airbrake_aero == "table"` (Step 102)."""
+    model_fn = _AERO_MODELS[p.aero.model]
+    if p.aero.model == "table":
+        return model_fn(alpha, M, p, fb if p.control.airbrake_aero == "table" else 0.0)
+    return model_fn(alpha, M, p)
+
+
+def coefficients(t: float, y: np.ndarray, p, flow, hold=None, fb: float = 0.0) -> AeroCoeffs:
     """The one public seam: all five aero coefficients at once, dispatched
     on `p.aero.model` (architecture-28-rewrite.md SS28.5.1) -- the same
     `_MODELS[key](...)` shape `gravity.py`/`wind.py` already use
@@ -638,10 +725,15 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None) -> AeroCoeffs:
     `control.aero_coeff_delta`, which is itself the single choke point for
     any future sampled-data coefficient controller (see that function's
     own docstring for why it is not forwarded any further yet).
+
+    Step 102 (D-109): `fb` is the brake deployment fraction, computed once per RHS
+    call by the caller (`dynamics.derivatives`). It selects the `f_b` plane of a table
+    only under `Control.airbrake_aero == "table"`; otherwise (default) it is ignored
+    and an `f_b` table is read at `f_b = 0`.
     """
     # Step 99 (D-110): a CP given as a station from the nose becomes the arm
     # `l_p - l_g(t)` here (the CoG moves with the burn); legacy: pass-through.
-    base = _resolve_arm(_AERO_MODELS[p.aero.model](flow.alpha, flow.M, p), y, p)
+    base = _resolve_arm(_dispatch(flow.alpha, flow.M, p, fb), y, p)
     # Local import: circular-import avoidance -- sim.control imports
     # AeroCoeffs (this module) at module level for its own type hints, so
     # this module must not import sim.control at module-load time. Same
@@ -672,10 +764,11 @@ def C_N(alpha: float, M: float, p) -> float:
     return _AERO_MODELS[p.aero.model](alpha, M, p).C_z
 
 
-def C_m(alpha: float, M: float, p) -> float:
+def C_m(alpha: float, M: float, p, fb: float = 0.0) -> float:
     """Pitching-moment coefficient (models.tex: `A_m = qSd_ref*C_m`).
-    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps."""
-    return _AERO_MODELS[p.aero.model](alpha, M, p).C_m
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps.
+    Step 102: optional brake fraction `fb` (read only under `airbrake_aero="table"`)."""
+    return _dispatch(alpha, M, p, fb).C_m
 
 
 def C_mq(alpha: float, M: float, p) -> float:

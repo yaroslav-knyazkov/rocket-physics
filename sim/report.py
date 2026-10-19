@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sim import aero
+from sim import aero, control
 from sim.flow import flow_state
 from sim.gravity import altitude_agl
 from sim.integrate import run_sim
@@ -79,8 +79,17 @@ def static_margin_cal(result, p, t_grid=None):
     margin = np.empty(t.size)
     for i, ti in enumerate(t):
         flow = flow_state(ti, y[:, i], p)
-        margin[i] = aero.coefficients(ti, y[:, i], p, flow).l1 / p.aero.d_ref
+        margin[i] = aero.coefficients(ti, y[:, i], p, flow, None, _brake_fraction(ti, y[:, i], p)).l1 / p.aero.d_ref
     return t, margin
+
+
+def _brake_fraction(t, y, p) -> float:
+    """Step 102 (D-109): the brake fraction the dynamics saw, for the `f_b` axis of a
+    table (`Control.airbrake_aero == "table"`; otherwise 0.0 and not evaluated). Uses the
+    continuous law, so a sampled-data run's held value is not reproduced here."""
+    if p.control.airbrake_aero != "table":
+        return 0.0
+    return control.airbrake_deploy_fraction(t, y, p)
 
 
 def _flight_grid(result, t_grid):
@@ -102,8 +111,9 @@ def cm_slope_series(result, p, t_grid=None):
     slope = np.empty(t.size)
     for i, ti in enumerate(t):
         flow = flow_state(ti, y[:, i], p)
-        hi = aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p)
-        lo = aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p)
+        fb = _brake_fraction(ti, y[:, i], p)
+        hi = aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+        lo = aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
         slope[i] = (hi - lo) / (2.0 * _CM_SLOPE_STEP)
     return t, slope
 
