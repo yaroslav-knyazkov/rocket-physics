@@ -91,7 +91,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | C_N_alpha | OPT     | 1/rad                           | 0.0        | normal-force slope; read when model == "linearized" |
 | C_m_alpha | OPT     | 1/rad                           | 0.0        | pitching-moment slope; read when model == "linearized" |
 | table     | OPT     | filename under data/aero/       | ""         | coefficient table; read when model == "table" |
-| c_mq      | OPT     | -                               | 0.0        | pitch-damping derivative, all three models |
+| c_mq      | OPT     | -                               | 0.0        | pitch-damping derivative, all three models; CODE sign (positive = damping), NOT flipped by cm_convention="standard" |
 | l_p       | OPT     | m                               | 0.0        | CoP station from the nose, constant/linearized models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm) |
 | cm_convention | OPT | code \| standard                | "code"     | C_m sign of the constant/linearized models (code: positive = nose-down; standard: textbook, flipped); a table declares `# cm_convention:` in its header |
 | table_oob | OPT | clamp \| jorgensen              | "clamp"    | table model, alpha beyond the table: clamp = hold the edge value (legacy, warns once per run); jorgensen = large-alpha extension (needs v2 table with l_p_m, S_p, l_pc) |
@@ -195,7 +195,7 @@ ROCKET = Rocket(
         # C_N_alpha=0.0,   # OPT, 1/rad -- normal-force slope, "linearized" model only
         # C_m_alpha=0.0,   # OPT, 1/rad -- pitching-moment slope, "linearized" model only
         # table="",        # OPT, filename under data/aero/ -- coefficient table, "table" model only
-        # c_mq=0.0,        # OPT, - -- pitch-damping derivative, all three models; 0.0 = undamped
+        # c_mq=0.0,        # OPT, - -- pitch-damping derivative, all three models; 0.0 = undamped; code sign (positive = damping)
         # l_p=0.0,         # OPT, m -- CoP station from the nose tip, "constant"/"linearized" models; arm = l_p - CoG(t); 0.0 = off (lengths.l1 is the arm). A table gives its own l_p_m column instead of l1_m
         # cm_convention="code",  # OPT, code | standard -- C_m sign of the "constant"/"linearized" models; "code": positive C_m = nose-down; "standard": textbook, flipped on use. A table declares `# cm_convention:` in its header
         # table_oob="clamp",  # OPT, clamp | jorgensen -- "table" model, alpha beyond the table: clamp = hold the edge value (legacy, warns once per run); jorgensen = large-alpha extension

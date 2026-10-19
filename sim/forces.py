@@ -166,7 +166,7 @@ def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
-def aero_force_body(t: float, s, p, flow, hold=None, fb=None) -> np.ndarray:
+def aero_force_body(t: float, s, p, flow, hold=None, fb=None, c=None) -> np.ndarray:
     """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
     body frame, unconditionally -- the Phase 1 form, for every alpha, not
     just alpha = 0.
@@ -229,8 +229,9 @@ def aero_force_body(t: float, s, p, flow, hold=None, fb=None) -> np.ndarray:
     # `dynamics.derivatives` and passed down; a direct caller may omit it.
     if fb is None:
         fb = control.airbrake_deploy_fraction(t, s, p, hold)
-    c = aero.coefficients(t, s, p, flow, hold, fb)
-    A_x = flow.q * p.aero.S * c.C_x
+    if c is None:  # Step 114: `dynamics.derivatives` passes the bundle it already computed
+        c = aero.coefficients(t, s, p, flow, hold, fb)
+    A_x =flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
     if p.control.airbrake_aero == "table":
         # The brake's drag/normal force/moment/CP shift are inside the table's f_b
@@ -243,7 +244,7 @@ def aero_force_body(t: float, s, p, flow, hold=None, fb=None) -> np.ndarray:
     return np.array([-(A_x + A_brake), -A_z])
 
 
-def aero_moment_y(t: float, s, p, flow, hold=None, fb=None) -> float:
+def aero_moment_y(t: float, s, p, flow, hold=None, fb=None, c=None) -> float:
     """A_m = -A_m*y_hat_r (main.tex SSMoments), scalar about y.
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
@@ -285,8 +286,9 @@ def aero_moment_y(t: float, s, p, flow, hold=None, fb=None) -> float:
     """
     if fb is None:
         fb = control.airbrake_deploy_fraction(t, s, p, hold) if p.control.airbrake_aero == "table" else 0.0
-    c = aero.coefficients(t, s, p, flow, hold, fb)
-    A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
+    if c is None:
+        c = aero.coefficients(t, s, p, flow, hold, fb)
+    A_m =flow.q * p.aero.S * p.aero.d_ref * c.C_m
     A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
     return -A_m
 

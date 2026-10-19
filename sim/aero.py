@@ -146,6 +146,9 @@ class AeroRangeWarning(UserWarning):
     """Table aero asked for an alpha outside the table under `table_oob='clamp'`."""
 
 
+# Module-global once-per-run flag set: it is re-armed only by `reset_oob_warning()`, which
+# `run_sim` calls at entry; a direct caller of `coefficients`/`derivatives` outside `run_sim`
+# warns once per process per table unless it calls `reset_oob_warning()` itself.
 _OOB_WARNED: set = set()
 
 
@@ -273,6 +276,10 @@ def _load_table(name: str) -> _AeroTable:
     # backward compatibility. This is the only column handled this way;
     # every other column above is mandatory.
     C_mq_col = data["c_mq"].astype(float) if "c_mq" in data.dtype.names else None
+    if C_mq_col is not None and cm_convention == "standard":
+        # Step 114: the textbook C_mq < 0 (damping) -> the code's sign (positive = damping),
+        # the same flip as C_m above.
+        C_mq_col = -C_mq_col
 
     M_grid = np.unique(M_col)
     alpha_grid = np.unique(alpha_col)
@@ -364,6 +371,8 @@ def _at_fb(table: _AeroTable, fb: float) -> _AeroTable:
     if fb >= grid[-1]:
         return planes[-1]
     j = int(np.searchsorted(grid, fb))
+    if fb == grid[j]:  # exactly on a grid node: the stored plane, no re-blend / allocation
+        return planes[j]
     lo, hi = planes[j - 1], planes[j]
     w = (fb - grid[j - 1]) / (grid[j] - grid[j - 1])
 
@@ -509,6 +518,13 @@ def _validate_table_oob(p) -> None:
     t = _load_table(a.table)
     if not (t.alpha[0] < 0.0 < t.alpha[-1]):
         raise ValueError("Aero.table_oob='jorgensen' needs a two-sided table (alpha[0] < 0 < alpha[-1])")
+    min_edge = np.radians(2.0)
+    if min(abs(t.alpha[0]), abs(t.alpha[-1])) < min_edge:
+        raise ValueError(
+            "Aero.table_oob='jorgensen' needs both table alpha edges at |alpha| >= 2 deg: the "
+            "extension scales the edge C_m by Z(alpha)/Z(alpha_edge) with Z = sin(2a)cos(a/2), "
+            "which vanishes at 0, so a near-zero edge amplifies it without bound"
+        )
     lim = np.radians(80.0)
     if t.alpha[-1] >= lim or t.alpha[0] <= -lim:
         raise ValueError("Aero.table_oob='jorgensen' needs both table alpha edges below 80 deg")

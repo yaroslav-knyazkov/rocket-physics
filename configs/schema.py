@@ -377,6 +377,19 @@ def assemble(sc: Scenario) -> Config:
     for _f in ("k_J", "k_t"):
         if not getattr(p.thrust, _f) > 0.0:
             raise ValueError(f"Thrust.{_f} must be > 0, got {getattr(p.thrust, _f)}")
+    # (2d) Step 114: propellant consistency. The solver burns J/(I_sp g0) of mass (k_t cancels,
+    #      k_J does not scale the flow); more than the loaded propellant (+1 %) means the mass
+    #      floor in `dynamics.derivatives` would freeze dm/dt while thrust continues.
+    if p.weight.m_d is not None and p.weight.I_sp and p.thrust.motor_curve:
+        J = motor_file.load(p.thrust.motor_curve).total_impulse
+        burned = J / (p.weight.I_sp * p.g0)
+        m_prop = p.weight.m - p.weight.m_d
+        if burned > 1.01 * m_prop:
+            raise ValueError(
+                f"Motor {sc.motor.name!r}: I_sp={p.weight.I_sp:g} s implies {burned:.4g} kg of propellant "
+                f"burned (J={J:.4g} N*s / (I_sp*g0)) but m_prop={m_prop:.4g} kg: inconsistent "
+                "I_sp / m_prop (thrust would continue after the mass floor)"
+            )
     # (3) s0 AFTER overrides -- so an overridden rail angle moves the
     #     initial attitude with it (F5, D-51); getting this order backwards
     #     would re-create F5's foot-gun inside the mechanism that

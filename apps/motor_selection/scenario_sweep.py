@@ -10,8 +10,11 @@ constraints they failed. The old `MotorEntry`/`overrides` path in
 
 Definitions worth knowing:
 
-- `tw_liftoff` = peak stand thrust before leaving the rail (whole burn when the
-  site has no rail) divided by the launch weight `weight.m * g0`.
+- `tw_liftoff` = peak thrust before leaving the rail (whole burn when the
+  site has no rail) divided by the launch weight `weight.m * g0`. The thrust is
+  the one flown (`thrust_curve.thrust`): the stand curve scaled by k_J/k_t plus
+  the nozzle-exit term `A_e*(p_ref - p_amb)` at the launch-site pressure (zero
+  for `A_e == 0`), sampled on 2000 points.
 - `v_rail_exit` is NaN when the site has no rail; the "rail exit" static margin
   is then taken at `t = 0`.
 - `M_max` is the ascent-window maximum flow Mach; it is infeasible
@@ -48,7 +51,7 @@ from apps.common.artifacts import OUTPUT_DIR
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from configs import motors as motor_registry
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
-from sim import aero, mass, motor_file, thrust_curve
+from sim import aero, atmosphere, mass, motor_file, thrust_curve
 from sim.integrate import Result, run_sim
 from sim.params import Params, Thrust
 from sim.plotting import plot_trajectory_overlay
@@ -160,6 +163,9 @@ def derive_history(
     spec = motor.thrust.motor_curve
     rec = motor_file.load(spec)
     k_J, k_t = motor.thrust.k_J, motor.thrust.k_t
+    for name, val in (("k_J", k_J), ("k_t", k_t)):  # same check as `assemble` (QA-4)
+        if not val > 0.0:
+            raise ValueError(f"Thrust.{name} must be > 0, got {val}")
     if t is None:
         t_end = k_t * float(rec.times[-1])
         t = np.union1d(k_t * rec.times, np.linspace(0.0, t_end, n))
@@ -218,8 +224,13 @@ def _tw_liftoff(result: Result, p: Params) -> float:
     if t_lim is None:
         t_lim = float(result.t[-1])
     t = np.linspace(0.0, t_lim, 2000)
-    peak = max(thrust_curve.thrust_stand(float(ti), p) for ti in t)
-    return peak / (p.weight.m * p.g0)
+    T = thrust_curve.thrust_stand_array(t, p)
+    if p.thrust.A_e != 0.0:
+        # Step 114: the flown thrust (`thrust_curve.thrust`) adds the nozzle-exit pressure term
+        # A_e*(p_ref - p_amb) while the motor burns; at liftoff p_amb is the launch-site pressure.
+        p_amb = atmosphere.air_state(0.0, result.y[:, 0], p).p
+        T = np.where(T > 0.0, T + p.thrust.A_e * (p.thrust.p_ref - p_amb), T)
+    return float(T.max()) / (p.weight.m * p.g0)
 
 
 def _margins(result: Result, p: Params) -> tuple[float, float, float]:

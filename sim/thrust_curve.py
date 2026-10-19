@@ -97,6 +97,20 @@ def thrust_stand(t: float, p) -> float:
     return T
 
 
+def thrust_stand_array(t: np.ndarray, p) -> np.ndarray:
+    """Vectorised `thrust_stand` over an array of times (Step 114); element-wise
+    the same arithmetic as the scalar function. Zeros with no curve."""
+    t = np.asarray(t, dtype=float)
+    if not p.thrust.motor_curve:
+        return np.zeros_like(t)
+    times, thrust_curves = _load_motor_curve(p.thrust.motor_curve)
+    tt = t / p.thrust.k_t if p.thrust.k_t != 1.0 else t
+    T = np.interp(tt, times, thrust_curves, left=thrust_curves[0], right=0.0)
+    if p.thrust.k_J != 1.0 or p.thrust.k_t != 1.0:
+        T = (p.thrust.k_J / p.thrust.k_t) * T
+    return T
+
+
 def mass_flow(t: float, p) -> float:
     """`dm/dt = -T_curve(t / k_t) / (k_t * I_sp * g0)` [kg/s] (Step 98, D-112).
 
