@@ -16,7 +16,7 @@
 - §35.3 Phase 2.17 scope (in / out, justification)
 - §35.4 Design: components, new fields, interfaces, directory changes
 - §35.5 Non-functional decisions
-- §35.6 Tickets (Steps 97-111)
+- §35.6 Tickets (Steps 97-112; Step 112 = large-alpha Jorgensen extension, "Inserted steps")
 - §35.7 Open decisions for the user (`decision_required`)
 - §35.8 Data the user must supply
 - §35.9 Timeline and milestones M1 / M2 / M3, paper track
@@ -339,7 +339,7 @@ tests/              one test file per new module + test_analytic.py (97)
 - **LaTeX.** Not edited anywhere in this phase. Step 110 produces tables/plots in `output/paper/`; pasting is a separate, user-approved action.
 - **Windows/Yandex.Disk.** No new long blocking calls; the full suite and ensembles run in the background (<= 240 s per foreground call).
 
-## 35.6 Tickets (Steps 97-111)
+## 35.6 Tickets (Steps 97-112)
 
 Format per ticket: boundaries, assignee, `depends_on`, `parallel_safe`, spec slice (file + section), tests first (TDD), pin
 impact, acceptance. All tickets: developer reads only the cited slice (`Grep -n` the anchor in this file, then `Read` with
@@ -466,6 +466,61 @@ concurrency are given where files are really disjoint.
 - **Spec slice:** §35.4.3; App 2 docstring.
 - **Tests first:** requested `f_b` levels produce one condition set per level using the flight of the brake-open case; default (no levels) bit-identical to today.
 - **Pin impact:** none. **Acceptance:** the user gets the (M, alpha, Re, f_b) list to feed CFD for the whole-rocket table.
+
+### Inserted steps
+
+#### [Step 112] Large-α extension of table aero (Jorgensen, opt-in)
+- **Goal:** 1, 2, 3 (any table-aero flight under RK45 must get through tail-first descent). **Boundaries:** `sim/aero.py` (`_table_coeffs` branch, new helpers, `validate`, `reset_oob_warning`), `sim/params.py` (`Aero` fields below), `sim/integrate.py` (ONE line: `aero.reset_oob_warning()` at `run_sim` entry), `configs/rockets/_TEMPLATE_rocket.py` (fields, `REQ|OPT`), `tests/test_aero_oob.py` (new), `tests/test_scenario_sweep.py` (comment at L123 only).
+- **Assignee:** developer. **depends_on:** [99] (landed). **parallel_safe:** false (`params.py`, `aero.py` shared).
+- **Spec slice:** this ticket + D-120 (§35.12); root cause: `dev/docs/diagnosis-rk45-v2-table.md` (Verdict, Evidence, Recommendation); paper `dev/docs/latex/sections-ai/models.tex` L375-409 (`eq:axial_factor`, `eq:cx_full`, `eq:cz_crossflow`, the `\restodo`); code anchors: `aero.py` `_table_lookup`, `_table_coeffs`, `_cm_to_code`, `_resolve_arm`, `validate`; moment sign: `forces.py` `aero_force_body` (`F = [-qS C_x, -qS C_z]`) and `aero_moment_y` (`-qS d C_m`), `dynamics.py` `_cross_y`.
+- **Why (one line):** `np.interp` clamps `C_N, C_m` at the table edge, so at `alpha ~ +-180 deg` they flip sign with the sign of a ~1e-9 transverse velocity: a sliding mode that collapses RK45's step (not stiffness, not `C_m,q`). The extension makes every coefficient continuous through `+-180 deg`.
+
+**112.1 New `Aero` fields (all inert at defaults; D-110 strict opt-in)**
+
+| Field | Default | REQ/OPT | Meaning / source |
+|---|---|---|---|
+| `table_oob` | `"clamp"` | OPT | `clamp` = today, bit-identical (+ once-per-run warning, 112.5). `jorgensen` = the extension below |
+| `oob_blend_deg` | `10.0` | OPT | width `Delta` of the blend band beyond the table edge [deg] (our choice, 112.3) |
+| `S_p` | `0.0` | REQ iff `jorgensen` | planform area [m^2]. NO overall-length field exists in `params.py` (grep `L_total` finds nothing in `sim/`), so it is user-supplied. Recipe in the template: body `d_ref * L` (+ fin planform if wanted) |
+| `l_pc` | `0.0` | REQ iff `jorgensen` | planform-centroid station from the nose [m]; recipe: `~0.5 L` for a plain cylinder-plus-nose-cone body, shifted aft by fins |
+| `C_dn` | `1.2` | OPT | crossflow drag coefficient of a cylinder, constant (paper L401: 1.2 at low crossflow Mach). Mach dependence `C_dn(M sin a)` is NOT modelled (backlog B42) |
+| `eta` | `0.0` | OPT | finite-length factor; `0.0` -> derived from fineness `lam = S_p/d_ref^2` (~ L/d) by `np.interp` over `(lam, eta)` = (1, .63), (2, .68), (5, .74), (10, .82), (20, .87), (40, .90), (1000, 1.0) clamped (Hoerner finite-cylinder values as remembered, **UNVERIFIED**: developer checks against the paper's `\cite{jorgensen}` entry / Hoerner, or marks them UNVERIFIED in the step notes; the user may override with an explicit `eta`) |
+| `C_x180` | `0.0` | OPT | axial coefficient for tail-first flow; `0.0` -> `C_x(0)` of the table at the current Mach (no invented number; a blunt-base-first body is really higher, ~1.0-1.2 for a flat-ended cylinder, UNVERIFIED) |
+| `S_base` | `0.0` | OPT | base area for the potential term [m^2]; `0.0` -> `S` (ratio 1) |
+
+Derivable from existing fields: only `S_base` (`= S`) and `eta` (from `S_p`, `d_ref`). `S_p`, `l_pc` cannot be derived (no length field), hence REQ.
+
+**112.2 Formulas.** `alpha` in `(-180, 180]` deg as given by the flow (`atan2`). Table edges `a_hi = table.alpha[-1]`, `a_lo = table.alpha[0]`. **If `a_lo <= alpha <= a_hi` call the existing code path untouched** (bit-identical, no extra work). Otherwise let `a_e = a_hi` (`alpha > 0`) or `a_lo` (`alpha < 0`), `d = |alpha| - |a_e|`, `tau = min(d/Delta, 1)`, `w = tau^2 (3 - 2 tau)` (smoothstep), `Delta = oob_blend_deg` in rad.
+
+- `C^clamp` = exactly what `_table_coeffs` returns today (including `_table_axial_factor`), for `C_x, C_z, C_m`.
+- Helper `Z(a) = sin(2a) cos(a/2)` (odd in `a`; zero at `0, +-90, +-180`).
+- Axial: `x0 = lookup(C_A, alpha=0, M)`, `x180 = C_x180 or x0`. `C_x^J = x0 cos^2(a)` for `|a| <= 90`, `C_x^J = -x180 cos^2(a)` for `|a| > 90` (the minus sign is the flow-direction sign the paper obtains through `f(alpha)`; here it is built in, so `f` is NOT applied to `C_x^J`). Even in `a`; `= 0` at `+-90` with zero slope on both sides (C1); `-x180` at `+-180`.
+- Normal force (code convention: `A_z = q S C_z`, `F = -A_z z_hat`, `C_z > 0` for `alpha > 0` restoring): `C_z,pot = (S_base/S) Z(a)`, `C_z,cf = eta C_dn (S_p/S) sin(a)|sin(a)|` (the paper's `sin^2` with the sign that makes `C_z` odd: the force opposes the transverse velocity; this resolves the sign half of the `\restodo` for `a > 90`), `C_z^J = C_z,pot + C_z,cf`.
+- Moment, each force at its own station, relative to the live CG. The seam applies one arm `l1 = l_p - l_g(t)` (the table's `l_p`, edge-clamped as today, NOT blended) to the whole `C_z`: `M_y = -qS (l1 C_z + d_ref C_m)`. Crossflow at `l_pc` instead of `l_p` adds `(l_pc - l_p) C_z,cf` to the bracket, hence `C_m^J = C_m(a_e) Z(a)/Z(a_e) + (l_pc - l_p(a_e)) C_z,cf / d_ref`, with `C_m(a_e)` and `l_p(a_e)` looked up at `(a_e, M)` (`C_m` already in code convention after load; positive = nose-down). The first term continues the table's residual moment with the potential shape (vanishes at `0, +-180`, odd); the second is the arm correction (negative when `l_pc < l_p`: crossflow acts forward of the CP; if `l_pc < l_g` the crossflow moment destabilises, as physically expected).
+- Result: `C = (1 - w) C^clamp + w C^J` for `C_x, C_z, C_m`; `l1` and `C_mq` stay the clamped lookups (continuous, no jump).
+- **Smoothness.** At `+-180`: `C_x -> -x180` (continuous, even); `C_z ~ K e|e|`, `C_m ~ K' e|e|` for `e = 180 - |a|` signed through the crossing -> continuous, odd, zero slope at the crossing (the force becomes quadratic transverse drag; no sign jump, so no sliding mode). At `+-90`: `C_x` C1 as above, `C_z` is smooth (`sin^2` branch smooth; `Z(90) = 0`). Table edge: C0 (`w = 0`, `C^clamp(a_e) = table(a_e)`; the slope drops from the table slope to the blend start, same kink as today's clamp). End of band: C1 (`w' = 0`).
+- Symmetry (needs an odd-symmetric table: `C_A` even, `C_N, C_m` odd): `C_x(-a) = C_x(a)`, `C_z(-a) = -C_z(a)`, `C_m(-a) = -C_m(a)`.
+
+**112.3 Blend choice and justification.** Smoothstep weight over `Delta = 10 deg` (field), clamp-hold below the weight, Jorgensen above. Alternatives rejected: (i) hard switch at the edge (C0 jump: crossflow term at 10 deg for a slender body is already larger than the table `C_N`, a step would re-create a mini-discontinuity); (ii) pure taper to zero (the diagnosis's minimal fix: zero normal force at 90 deg is unphysical for crossflow, and loses the large-`a` moment the user asked for); (iii) 5 deg band: legal, but slope up to `~4.5/rad` vs the table's ~3/rad; the wider band is kinder to RK45 and costs nothing. The paper's `\restodo` on blending **remains**: the blend shape is our engineering choice, not validated, and `C_z,pot` for `a > 90` follows the printed sign (`Z < 0` there, tiny because of `cos(a/2)`); both are to be reported to the user as "model choice, not paper-verified".
+
+**112.4 Validation (`aero.validate`, fail-fast at `assemble`).** `table_oob` in `{"clamp","jorgensen"}`; `jorgensen` requires `model == "table"`, `uses_l_p(p)` (v2 table: legacy `l1_m` tables carry an arm, not a station, so the `l_pc` correction is undefined), a two-sided table (`alpha[0] < 0 < alpha[-1]`; one-sided tables need an odd-mirror feature, backlog B43), both edges `< 80 deg` (else `Z(a_e)` is ill-conditioned and the table already covers large `a`), `S > 0`, `d_ref > 0`, `S_p > 0`, `l_pc > 0`, `oob_blend_deg > 0`, `C_dn >= 0`, `0 <= eta <= 1`, `C_x180 >= 0`, `S_base >= 0`.
+
+**112.5 Clamp-mode warning.** In `_table_coeffs`, `table_oob == "clamp"` and `alpha` outside `[a_lo, a_hi]`: `warnings.warn` once per run (module-level set keyed by table name, cleared by `aero.reset_oob_warning()` called at `run_sim` entry) with an `AeroRangeWarning(UserWarning)`: names the table, its range, and the hint "set Aero.table_oob='jorgensen'; RK45 can stall in tail-first descent (diagnosis-rk45-v2-table.md)". Numerics unchanged. The developer greps existing tests for `recwarn`/`pytest.warns`/`-W error` assumptions and reports any that break.
+
+**Tests first (`tests/test_aero_oob.py`, TDD).**
+1. Full demo flight (DEMO rocket + LARGE motor + `example_v2.csv`, params with `S_p`, `l_pc` set, e.g. `S_p = 0.08`, `l_pc = 0.7`; `t_max` 200 s), RK45, `table_oob="jorgensen"`: (a) ballistic (no chute) reaches the ground; (b) with chute reaches the ground; both with the RHS counter wrapper that raises after 50 000 calls (fail instead of hang) and assert `nfev` below an explicit bound (the monkeypatched taper needed 2480; constant aero 1052; use 20 000 as ceiling and record the measured value in the step notes).
+2. Ascent equals clamp: same flight with `t_max` just before apogee (~15 s) under `clamp` and `jorgensen` -> `np.array_equal` of the whole solution (all `|alpha|` inside the table).
+3. Continuity (numeric): for `M` in a few values, `|C(a + 1e-7 rad) - C(a)| <= L * 1e-7` with a generous common `L` (e.g. 50) at `a` in `{+-180, +-90, +-a_e, +-(a_e + Delta)}` for `C_x, C_z, C_m`, plus a dense scan (0.01 deg steps over `(-180, 180]`) with a bounded finite-difference slope; and `C_z(180 - e) ~ -C_z(-180 + e)` sign-correct with both `-> 0` as `e -> 0`.
+4. Inside the table range (`|alpha| <= a_hi` on a grid) `jorgensen` output `==` `clamp` output bitwise for `C_x, C_z, C_m, C_mq, l1`.
+5. Symmetry in the extended region (odd-symmetric table): `C_x(-a) = C_x(a)`, `C_z(-a) = -C_z(a)`, `C_m(-a) = -C_m(a)` to 1e-12.
+6. Analytic spot checks: far from the band (`a = 90`) `C_x = 0`, `C_z = eta C_dn S_p/S + 0`; `a = 180` `C_x = -x180` (explicit and the `0.0 -> C_x(0)` default); moment arm: `C_m^J - C_m_tab-part = (l_pc - l_p) C_z,cf / d_ref` at one `a`.
+7. Default `clamp`: `_table_coeffs` for `alpha` in and out of range equals the legacy expression (`_table_lookup` + `_table_axial_factor`) bit-for-bit; the existing flights/pins are the second line.
+8. Warning: `clamp` + out-of-range alpha, three calls inside one `run_sim`-like scope -> exactly one `AeroRangeWarning` (use `catch_warnings(record=True)` + `simplefilter("always")`; call `reset_oob_warning()` first); none in range; none under `jorgensen`; a second `run_sim` warns again.
+9. `validate` failures (one assert per rule in 112.4); template doc test green.
+
+- **Pin impact:** none at default (`clamp` untouched; new fields inert). No re-pin. The new RK45-completes tests are additions. After landing, whether `test_scenario_sweep.py` should leave RK4 for RK45 is a separate decision (not part of this step).
+- **Comment fix (same step):** `tests/test_scenario_sweep.py` L123 "RK45 crawls on this airframe with a restoring-moment table (no damping)" is a misattribution; the cause is the clamped lookup at `alpha ~ 180` (sliding mode), see `diagnosis-rk45-v2-table.md`. Replace the comment (no behaviour change; the sweep stays RK4 unless decided otherwise).
+- **Acceptance:** tests 1-9 green; full suite green with zero changed expectations; measured `nfev` recorded; step notes list the UNVERIFIED defaults (`eta` table, `C_x180` remark) and the open model choices (blend shape, sign of `C_z,pot` for `a > 90`). Not covered / deferred: Mach-dependent `C_dn` (B42), one-sided tables (B43), multi-component crossflow (fins) beyond the user-supplied `S_p`/`l_pc`.
 
 ## 35.7 Open decisions for the user (`decision_required`)
 
@@ -604,6 +659,7 @@ decisions D-109..D-118 (D-109, D-110, D-111 before Step 99; D-112 before Step 98
 | D-117 | Max-spec = authority envelope + structural loads | proposed |
 | D-118 | `Re` length fallback to `d_ref` | proposed |
 | D-119 | Deferral list confirmed | proposed |
+| D-120 | Out-of-range alpha in the table model: opt-in Jorgensen extension (`Aero.table_oob = "jorgensen"`), default `"clamp"` stays bit-identical (D-110); blend = smoothstep over 10 deg beyond the table edge; REQ `S_p`, `l_pc`; defaults `C_dn = 1.2`, `eta` from fineness, `C_x180 = C_x(0)`. Taken by the user 2026-10-19; designed as Step 112 | taken |
 
 New backlog items to register after approval (continue from B34): B34 table-driven mass (D-113 b), B35 first-order actuator/servo
 model, B36 IMU + Kalman, B37 Dryden `w` + vertical wind with the 2D closure, B38 jet damping once `ṁ` and arm are known,

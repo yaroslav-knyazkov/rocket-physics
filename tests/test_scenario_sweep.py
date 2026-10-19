@@ -120,7 +120,8 @@ def test_works_with_v2_table_and_margin_series():
     rocket = dataclasses.replace(
         DEMO.rocket, aero=Aero(model="table", S=0.00229, d_ref=0.054, table="example_v2.csv")
     )
-    # RK45 crawls on this airframe with a restoring-moment table (no damping): fixed-step RK4
+    # RK45 stalls after apogee here: the table lookup clamps C_N/C_m at alpha ~ 180 deg (sliding mode),
+    # not stiffness or missing damping (dev/docs/diagnosis-rk45-v2-table.md; fix: Step 112). Fixed-step RK4
     out = ss.sweep_scenario(
         _scn(rocket=rocket, solver=Solver(method="rk4", dt=0.005, t_max=20.0)), [LARGE], target=1500.0
     )
