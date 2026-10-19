@@ -44,6 +44,23 @@ def _rows(f_b_values, ca, lp, with_fb=True, cn_gain=0.2):
     return "\n".join(out) + "\n"
 
 
+def _flight_rows(f_values, ca, lp, with_fb=True):
+    """A drag-only table over the full alpha circle (no out-of-range clamping in a full flight):
+    C_A = ca[f] * cos(alpha) at the nodes -180/-90/0/90/180, C_N = C_m = 0, constant l_p."""
+    cols = "alpha_deg,M," + ("f_b," if with_fb else "") + "C_A,C_N,C_m,l_p_m"
+    out = [cols]
+    for f in f_values:
+        for M in (0.0, 5.0):
+            for a in (-180, -90, 0, 90, 180):
+                fb_cell = f"{f}," if with_fb else ""
+                out.append(f"{a},{M},{fb_cell}{ca[f] * round(math.cos(math.radians(a)))!r},0.0,0.0,{lp[f]!r}")
+    return "\n".join(out) + "\n"
+
+
+def _apogee(res):
+    return -res.raw.sol(res.events["apogee"])[Z]
+
+
 @contextlib.contextmanager
 def _table(name, text):
     path = os.path.join(os.path.dirname(__file__), "..", "data", "aero", name)
@@ -183,7 +200,7 @@ def test_fb_composes_with_jorgensen_extension():
 def test_static_margin_shifts_with_fb_and_diagnostic_shows_it():
     """The Farha effect: l_p drops by 0.2 m when the brake opens, so the static margin
     (l_p - l_g)/d_ref falls by 0.2/d_ref calibres in the margin series."""
-    with _table("test_fb_margin.csv", _rows((0.0, 1.0), CA, LP, cn_gain=0.0)) as name:
+    with _table("test_fb_margin.csv", _flight_rows((0.0, 1.0), CA, LP)) as name:
         p = _params(
             name, "table", airbrake_model="full", airbrake_trigger="after_burnout",
         )
@@ -232,29 +249,13 @@ def test_equivalence_table_plane_vs_additive_brake_apogee():
     cd_b, s_b, s_ref = 1.0, 0.002, 0.005
     ca0 = 0.45
     ca = {0.0: ca0, 1.0: ca0 + cd_b * s_b / s_ref}
-    flat = {0.0: 1.3, 1.0: 1.3}
-
-    def rows(f_values, with_fb):
-        cols = "alpha_deg,M," + ("f_b," if with_fb else "") + "C_A,C_N,C_m,l_p_m"
-        out = [cols]
-        for f in f_values:
-            for M in (0.0, 5.0):
-                for a in (-10, 0, 10):
-                    fb_cell = f"{f}," if with_fb else ""
-                    out.append(f"{a},{M},{fb_cell}{ca[f]!r},0.0,0.0,1.3")
-        return "\n".join(out) + "\n"
-
+    lp = {0.0: 1.3, 1.0: 1.3}
     s0 = State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=math.pi / 2, omega=0.0)
     ctl = dict(airbrake_model="full", airbrake_trigger="after_burnout")
-    with _table("test_fb_eq_t.csv", rows((0.0, 1.0), True)) as nt, _table("test_fb_eq_a.csv", rows((0.0,), False)) as na:
+    with _table("test_fb_eq_t.csv", _flight_rows((0.0, 1.0), ca, lp)) as nt,             _table("test_fb_eq_a.csv", _flight_rows((0.0,), ca, lp, with_fb=False)) as na:
         pt = _params(nt, "table", **ctl)
         pa = _params(na, "additive", airbrake_Cd=cd_b, airbrake_S_max=s_b, **ctl)
-        pt = dataclasses.replace(pt, aero=dataclasses.replace(pt.aero, S=s_ref))
-        pa = dataclasses.replace(pa, aero=dataclasses.replace(pa.aero, S=s_ref))
-        rt, ra = run_sim(pt, s0), run_sim(pa, s0)
-        h_t = -rt.raw.sol(rt.events["apogee"])[Z]
-        h_a = -ra.raw.sol(ra.events["apogee"])[Z]
-        p_open = dataclasses.replace(pa, control=dataclasses.replace(pa.control, airbrake_S_max=0.0))
-        h_closed = -(r := run_sim(p_open, s0)).raw.sol(r.events["apogee"])[Z]
+        pc = _params(na, "additive", airbrake_Cd=cd_b, airbrake_S_max=0.0, **ctl)
+        h_t, h_a, h_closed = (_apogee(run_sim(q, s0)) for q in (pt, pa, pc))
     assert h_closed - h_a > 1.0  # the brake matters in this scenario
     assert abs(h_t - h_a) / h_a < 1e-4

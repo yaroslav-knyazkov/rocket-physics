@@ -70,6 +70,15 @@ The thrust-point arm keeps its legacy `-(l1 + l2)` expression, so a station
 config must have `misalign_deg == 0` (`validate`). `data/aero/example.csv` is
 unchanged; `example_v2.csv` is its v2 sibling.
 
+Step 102 (Phase 2.17, D-109): an optional `f_b` column (air-brake deployment
+fraction, rectangular `(f_b, M, alpha)` grid, axis starting at 0.0) lets the table
+carry the brake's effect on `C_A`, `C_N`, `C_m` and the CP station `l_p_m`. It is read
+only under `Control.airbrake_aero = "table"` (then the additive `q Cd S_max f_b` term
+of `forces.py` is off); under the default `"additive"` the table is read at `f_b = 0`.
+Order of operations: blend the two bracketing `f_b` planes (`_at_fb`, clamped at the
+edges), then look up `(M, alpha)`, then -- beyond the alpha edge with
+`table_oob = "jorgensen"` -- apply the large-alpha extension to the blended values.
+
 Interpolation, in both dimensions, matches this project's established
 "hold the edge value, never extrapolate" convention (`thrust_curve.py`
 holds the first/zero value outside its time range; `soundings.py` holds

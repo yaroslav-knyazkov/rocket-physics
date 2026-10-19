@@ -123,6 +123,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | airbrake_trigger         | OPT     | after_burnout \| after_time \| after_apogee | "after_burnout"  | when the brake is allowed to act |
 | airbrake_deploy_time     | OPT     | s                                           | 0.0              | read only when airbrake_trigger == "after_time" |
 | aero_coeff_model         | OPT     | none                                        | "none"           | aero-coefficient control seam; "none" = identity |
+| airbrake_aero            | OPT     | additive \| table                           | "additive"       | brake in the aerodynamics: additive axial term, or the aero table's f_b axis (needs an f_b column) |
 """
 
 from __future__ import annotations
@@ -230,6 +231,7 @@ ROCKET = Rocket(
         # airbrake_trigger="after_burnout",    # OPT, after_burnout | after_time | after_apogee -- when the brake may act
         # airbrake_deploy_time=0.0,            # OPT, s -- read only when airbrake_trigger == "after_time"
         # aero_coeff_model="none",             # OPT, none -- aero-coefficient control seam; "none" = identity
+        # airbrake_aero="additive",            # OPT, additive | table -- brake via additive term or the table's f_b axis
     ),
 
     notes=(
