@@ -118,6 +118,7 @@ from sim.state import M as _IDX_M
 # (restoring = negative slope), converted to "code" at load/use.
 CM_CONVENTIONS = ("code", "standard")
 _CM_CONVENTION_RE = re.compile(r"^#\s*cm_convention\s*:\s*(\S+)\s*$")
+_CM_CONVENTION_MENTION_RE = re.compile(r"cm[\s_\-]*convention", re.IGNORECASE)
 
 # Step 93 (Phase 2.16, D-91/D-92, architecture-34 SS34.3): half-width of the
 # nose-first plateau of the axial flow-direction factor.
@@ -208,6 +209,13 @@ def _load_table(name: str) -> _AeroTable:
                 continue
             if stripped.startswith("#"):
                 m_conv = _CM_CONVENTION_RE.match(stripped)
+                if not m_conv and _CM_CONVENTION_MENTION_RE.search(stripped):
+                    # QA-1: a near-miss (trailing text, '=', other case) must never be a
+                    # silent no-op -- that would leave a textbook-sign table unflipped.
+                    raise ValueError(
+                        f"Aero table '{name}': malformed cm_convention line {stripped!r} "
+                        f"(expected exactly '# cm_convention: <{'|'.join(CM_CONVENTIONS)}>')"
+                    )
                 if m_conv:
                     if seen_convention:
                         raise ValueError(
@@ -223,12 +231,23 @@ def _load_table(name: str) -> _AeroTable:
             f"(expected one of {CM_CONVENTIONS})"
         )
 
-    if not data_lines:
+    if len(data_lines) < 2:  # empty file, or a header with no rows
         raise ValueError(f"Aero table '{name}' has no data rows")
+
+    header = [h.strip() for h in data_lines[0].split(",")]
+    dups = sorted({h for h in header if header.count(h) > 1})
+    if dups:  # QA-2: genfromtxt would silently rename the later column and ignore it
+        raise ValueError(f"Aero table '{name}': duplicate column header(s) {dups}")
+    missing = [c for c in ("alpha_deg", "M", "C_A", "C_N", "C_m") if c not in header]
+    if missing:  # QA-10
+        raise ValueError(f"Aero table '{name}': missing required column(s) {missing}")
 
     data = np.atleast_1d(
         np.genfromtxt(data_lines, delimiter=",", names=True, dtype=float)
     )
+    for col in data.dtype.names:  # QA-3: NaN / non-numeric / empty cell
+        if not np.all(np.isfinite(data[col])):
+            raise ValueError(f"Aero table '{name}': column {col!r} has a non-finite or non-numeric value")
 
     M_col = data["M"].astype(float)
     alpha_col = np.radians(data["alpha_deg"].astype(float))
@@ -441,6 +460,8 @@ def validate(p) -> None:
         )
     if p.aero.l_p < 0.0:
         raise ValueError(f"Aero.l_p must be >= 0 (0.0 = off), got {p.aero.l_p}")
+    if p.aero.l_ref < 0.0:  # QA-10: negative Reynolds length gives a negative Re
+        raise ValueError(f"Aero.l_ref must be >= 0 (0.0 = use d_ref), got {p.aero.l_ref}")
     if p.aero.model == "table" and p.aero.table:
         _load_table(p.aero.table)  # surfaces loader errors early
     _validate_airbrake_aero(p)

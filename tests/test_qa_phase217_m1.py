@@ -1,11 +1,5 @@
-"""QA reproducers for Phase 2.17 M1 (Steps 97, 98, 99, 100, 112); report:
-dev/docs/qa-report-2.17-m1.md.
-
-Not collected by a bare `pytest` (name does not match `test_*.py`); run explicitly:
-`python -m pytest tests/qa_phase217_m1.py -q`.
-
-`xfail(strict=True)` marks a reproducer of an open defect: it flips to a failure
-(XPASS) once the defect is fixed, which is the cue to drop the marker.
+"""Regression tests for the QA findings of Phase 2.17 M1 (Steps 97, 98, 99, 100, 112);
+report: dev/docs/qa-report-2.17-m1.md (QA-1 ... QA-10).
 """
 
 import contextlib
@@ -84,73 +78,99 @@ def test_jorgensen_exactly_pm_180_is_finite_and_even_odd(sign):
 
 
 # ----------------------------------------------------------------------
-# Open defects (see the report)
+# QA-1 ... QA-10 fixes
 # ----------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="QA-1: malformed cm_convention comment is silently ignored (-> 'code')")
 @pytest.mark.parametrize(
     "line",
     [
         "# cm_convention: standard  (textbook)\n",
         "#cm_convention=standard\n",
         "# CM_CONVENTION: standard\n",
+        "# cm-convention: standard\n",
+        "# cm_convention: Standard\n",
+        "# cm_convention: textbook\n",
     ],
 )
-def test_malformed_cm_convention_line_is_not_silently_ignored(line):
+def test_malformed_cm_convention_line_fails_fast(line):  # QA-1
     with _table("qa_cmconv.csv", line + _HDR + _BODY) as name:
-        try:
-            t = aero._load_table(name)
-        except ValueError:
-            return  # rejecting is acceptable
-        assert t.C_m[0, 0] == -0.1  # or honoured: 'standard' flips 0.1 -> -0.1
-
-
-@pytest.mark.xfail(strict=True, reason="QA-2: duplicate column header silently renamed by genfromtxt")
-def test_duplicate_column_header_is_rejected():
-    text = "alpha_deg,M,C_A,C_N,C_m,C_m,l_p_m\n-10,0.5,0.35,-0.5,0.1,9,1.0\n0,0.5,0.3,0,0,9,1.0\n10,0.5,0.35,0.5,-0.1,9,1.0\n"
-    with _table("qa_dupcol.csv", text) as name:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="cm_convention"):
             aero._load_table(name)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-3: NaN / non-numeric cell loaded as NaN without error")
-def test_nan_or_non_numeric_cell_is_rejected():
+def test_well_formed_cm_convention_line_is_honoured():  # QA-1 control
+    with _table("qa_cmconv_ok.csv", "# cm_convention: standard\n" + _HDR + _BODY) as name:
+        assert aero._load_table(name).C_m[0, 0] == -0.1
+
+
+def test_duplicate_column_header_is_rejected():  # QA-2
+    text = "alpha_deg,M,C_A,C_N,C_m,C_m,l_p_m\n-10,0.5,0.35,-0.5,0.1,9,1.0\n0,0.5,0.3,0,0,9,1.0\n10,0.5,0.35,0.5,-0.1,9,1.0\n"
+    with _table("qa_dupcol.csv", text) as name:
+        with pytest.raises(ValueError, match="duplicate"):
+            aero._load_table(name)
+
+
+def test_nan_or_non_numeric_cell_is_rejected():  # QA-3
     for bad in ("nan", "abc"):
         text = _HDR + f"-10,0.5,0.35,-0.5,{bad},1.0\n0,0.5,0.3,0.0,0.0,1.0\n10,0.5,0.35,0.5,-0.1,1.0\n"
         with _table("qa_nan.csv", text) as name:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match="non-finite"):
                 aero._load_table(name)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-4: no validation of Thrust.k_J / k_t (k_t = 0 -> ZeroDivisionError inside the RHS)")
-@pytest.mark.parametrize("kw", [dict(k_t=0.0), dict(k_t=-1.0), dict(k_J=0.0), dict(k_J=-1.0)])
-def test_nonpositive_scatter_factors_fail_fast_at_assemble(kw):
+@pytest.mark.parametrize(
+    "text, match",
+    [
+        ("alpha_deg,M,C_A,C_N,l_p_m\n" + "0,0.5,0.3,0.0,1.0\n", "missing required"),
+        (_HDR, "no data rows"),
+    ],
+)
+def test_malformed_table_structure_gives_clear_error(text, match):  # QA-10
+    with _table("qa_struct.csv", text) as name:
+        with pytest.raises(ValueError, match=match):
+            aero._load_table(name)
+
+
+def _scenario_with_thrust(**kw):
     th = dataclasses.replace(DEMO.motor.thrust, **kw)
-    sc = dataclasses.replace(DEMO, motor=dataclasses.replace(DEMO.motor, thrust=th))
-    with pytest.raises(ValueError):
+    return dataclasses.replace(DEMO, motor=dataclasses.replace(DEMO.motor, thrust=th))
+
+
+@pytest.mark.parametrize("kw", [dict(k_t=0.0), dict(k_t=-1.0), dict(k_J=0.0), dict(k_J=-1.0)])
+def test_nonpositive_scatter_factors_fail_fast_at_assemble(kw):  # QA-4
+    with pytest.raises(ValueError, match="Thrust.k_"):
+        assemble(_scenario_with_thrust(**kw))
+
+
+def test_positive_scatter_factors_still_assemble():  # QA-4 control
+    assemble(_scenario_with_thrust(k_J=0.9, k_t=1.1))
+
+
+@pytest.mark.parametrize("d", [-0.05, float("nan")])
+def test_bad_d_exit_is_rejected(d):  # QA-5
+    sc = dataclasses.replace(DEMO, motor=dataclasses.replace(DEMO.motor, d_exit=d))
+    with pytest.raises(ValueError, match="d_exit"):
         assemble(sc)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-5: negative Motor.d_exit silently squared into a positive A_e")
-def test_negative_d_exit_is_rejected():
-    sc = dataclasses.replace(DEMO, motor=dataclasses.replace(DEMO.motor, d_exit=-0.05))
-    with pytest.raises(ValueError):
+def test_negative_l_ref_is_rejected():  # QA-10
+    sc = dataclasses.replace(
+        DEMO, rocket=dataclasses.replace(DEMO.rocket, aero=dataclasses.replace(DEMO.rocket.aero, l_ref=-0.1))
+    )
+    with pytest.raises(ValueError, match="l_ref"):
         assemble(sc)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-6: duplicate motor names collapse in SweepResult.results (keyed by name)")
-def test_sweep_duplicate_motor_names_do_not_collide():
+def test_sweep_duplicate_motor_names_are_rejected():  # QA-6
     from apps.motor_selection import scenario_sweep as ss
     from tests.test_scenario_sweep import LARGE, _scn
 
-    out = ss.sweep_scenario(_scn(), [LARGE, LARGE])
-    assert len(out.rows) == 2
-    assert len(out.results) == 2
+    with pytest.raises(ValueError, match="duplicate"):
+        ss.sweep_scenario(_scn(), [LARGE, LARGE])
 
 
-@pytest.mark.xfail(strict=True, reason="QA-7: empty --motors list writes an empty table and exits 0")
-def test_cli_empty_motor_list_is_an_error(tmp_path):
+def test_cli_empty_motor_list_is_an_error(tmp_path):  # QA-7
     from apps.motor_selection import scenario_sweep as ss
 
     with pytest.raises((SystemExit, ValueError)):

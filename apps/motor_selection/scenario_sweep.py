@@ -325,6 +325,12 @@ def sweep_scenario(
     brake_overrides: "dict[str, Any] | None" = None,
 ) -> SweepResult:
     """Evaluate every motor; return ranked rows and the flights (by name)."""
+    if not motors:  # QA-7
+        raise ValueError("sweep_scenario: the motor list is empty")
+    names = [m.name for m in motors]
+    dup = sorted({n for n in names if names.count(n) > 1})
+    if dup:  # QA-6: results are keyed by motor name, so duplicates would collapse silently
+        raise ValueError(f"sweep_scenario: duplicate motor name(s) {dup}")
     pairs = [evaluate_motor(scenario, m, constraints, target, brake_overrides) for m in motors]
     pairs.sort(key=lambda rr: _rank_key(rr[0], target))
     return SweepResult(rows=[r for r, _ in pairs], results={r.motor: res for r, res in pairs})

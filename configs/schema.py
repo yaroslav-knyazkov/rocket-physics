@@ -344,6 +344,8 @@ def assemble(sc: Scenario) -> Config:
     #     sourced from exactly one owning piece
     thrust = sc.motor.thrust  # owner moved: Rocket -> Motor (Step 80)
     if sc.motor.d_exit is not None:  # Step 98 (D-112): nozzle exit diameter -> exit area
+        if not sc.motor.d_exit >= 0.0:  # QA-5: negative / NaN would be silently squared
+            raise ValueError(f"Motor {sc.motor.name!r}: d_exit must be >= 0, got {sc.motor.d_exit}")
         if thrust.A_e != 0.0:
             raise ValueError(
                 f"Motor {sc.motor.name!r}: give either d_exit or Thrust.A_e, not both"
@@ -370,6 +372,11 @@ def assemble(sc: Scenario) -> Config:
     # (2b) Step 99: fail-fast on the aero v2 options (CP station needs a CoG
     #      station and zero cant; known C_m convention) -- a no-op for legacy configs.
     aero.validate(p)
+    # (2c) QA-4: thrust-scatter factors scale impulse / burn time; non-positive values are
+    #      meaningless (k_t = 0 divides by zero inside the RHS).
+    for _f in ("k_J", "k_t"):
+        if not getattr(p.thrust, _f) > 0.0:
+            raise ValueError(f"Thrust.{_f} must be > 0, got {getattr(p.thrust, _f)}")
     # (3) s0 AFTER overrides -- so an overridden rail angle moves the
     #     initial attitude with it (F5, D-51); getting this order backwards
     #     would re-create F5's foot-gun inside the mechanism that

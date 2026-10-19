@@ -253,8 +253,29 @@ def test_example_v2_matches_legacy_geometry_and_converts_cm():
     assert np.array_equal(t_new.C_N, t_old.C_N)
 
 
-def test_example_v2_flies_stable():
-    p = _v2_example_params()
+def _short_flight_alpha(table):
+    """|alpha| at t = 0.02 s of a 0.1 s flight from a 0.1 rad attitude offset."""
+    p = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l2=0.4, l_g=0.9),
+        aero=Aero(model="table", S=0.02, d_ref=0.08, table=table, c_mq=0.5),
+        solver=Solver(method="rk4", dt=0.001, t_max=0.1),
+    )
     aero.validate(p)
     r = run_sim(p, State(x=0.0, z=0.0, vx=3.0, vz=-150.0, theta=math.pi / 2 - 0.1, omega=0.0))
-    assert np.max(np.abs(r.y[5])) < 5.0  # omega stays bounded
+    assert np.max(np.abs(r.y[5])) < 8.0  # omega stays bounded
+    return abs(flow_state(0.0, r.y[:, 20], p).alpha)
+
+
+def test_example_v2_flies_stable():
+    """QA-8: discriminates the declared (restoring) `standard` table from the same table
+    with the C_m convention flipped (anti-restoring): the former must pull the attitude
+    offset back measurably faster (measured |alpha| 0.0088 vs 0.0132 rad, ratio 0.67)."""
+    with open(os.path.join(_AERO_DIR, "example_v2.csv")) as f:
+        text = f.read()
+    assert "# cm_convention: standard" in text
+    flipped = text.replace("# cm_convention: standard", "# cm_convention: code")
+    with _table("zz_example_v2_flipped.csv", flipped) as name:
+        a_flipped = _short_flight_alpha(name)
+    a_stable = _short_flight_alpha("example_v2.csv")
+    assert a_stable < 0.8 * a_flipped
