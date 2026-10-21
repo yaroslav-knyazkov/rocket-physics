@@ -132,3 +132,11 @@ LaTeX перенесён в `dev/docs/latex/` без изменений. Вет�
 - Коммит на `develop` — `52b3d9a`; идентичный cherry-pick на `feature/sim-paper-alignment` — `e252858` (файлы совпадали побитово до фикса, конфликтов не было).
 - Полные прогоны: `develop` 501/501, `feature/sim-paper-alignment` 658/658 — обе ветки полностью зелёные, Phase 2.17 M1 готова к продолжению.
 - `next` → Step 103 (модель привода аэротормоза: rate+range+delay).
+
+### 2026-10-22 — Phase 2.17: Step 103 (модель привода аэротормоза) готов и принят QA
+
+- `Params.Actuator` (model=ideal|full, rate_open/rate_close, f_min/f_max, delay_ticks); `sim/control.py` — `AirbrakeHold` + замкнутая рампа (D-114, без лага, без нового состояния); `sim/integrate.py` — guard неизвестной модели при входе в `run_sim`. Путь по умолчанию (`ideal`) — голый float, бит-в-бит с поведением до Step 103.
+- По ходу работы всплыла мелкая развилка владения полем: `Params` получил 13-ю группу, structural one-owner-invariant тест (`test_config_pieces.py`) упал, пока `actuator` не заведён ни в один config piece. Оркестратор решил без отдельного вопроса пользователю (D-123, механическое следствие уже одобренного D-114): `Rocket` владеет `actuator`, тот же бакет, что `control` — `configs/schema.py` + `_TEMPLATE_rocket.py` дополнены по аналогии.
+- Коммиты на `feature/sim-paper-alignment`: `6390c1d` (Step 103), `f17a88a` (QA). QA-вердикт: PASS с замечаниями (не блокеры) — все 6 критериев приёмки независимо проверены трассировкой кода; 3 minor (rate_close не протестирован по эффекту, нет тестов на невалидный ввод, документационный пробел вне скоупа). `dev/docs/qa-report-2.17-step103.md`.
+- Полный прогон (дважды независимо — developer и QA): 668/668.
+- `next`: Step 105 (dispersion hooks + ensemble runner) и Step 107 (sampled laws registry) оба разблокированы (зависели только от Step 98/103); Step 106 (max-spec app) ждёт ещё 101+102+105; Step 101 по-прежнему ждёт данных пользователя.

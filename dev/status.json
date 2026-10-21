@@ -536,10 +536,12 @@
         "Step 113 (fc938c8, сделан пользователем напрямую вне оркестратора 2026-10-19): фикс QA-1..QA-8, QA-10 — fail-fast на битом cm_convention, валидация k_J/k_t/d_exit, дубли колонок/NaN в таблице; репродьюсеры перенесены в обычный набор тестов",
         "Step 114 (c7f8b91, тот же прямой коммит пользователя): самостоятельный code-review раунд — согласованность I_sp/m_prop, флип C_mq-колонки под standard convention, guard Jorgensen у края таблицы < 2°, коэффициенты аэро один раз за RHS, flown-тяга с поправкой на давление сопла в T/W сценарного перебора",
         "QA re-check Steps 113-114 (883548d): PASS — QA-1..QA-8, QA-10 подтверждены исправленными настоящими тестами (не xfail); QA-9 подтверждённо НЕ тронут (вне заявленного scope Step 113); QA-11..13 по-прежнему открыты (info); все 5 правок Step 114 корректны и не меняют поведение по умолчанию (D-110). dev/docs/qa-report-2.17-step113-114.md",
-        "D-77/D-122 fix (develop 52b3d9a, feature e252858): numpy==2.5.4 запинен в requirements.txt; выяснилось, что этого недостаточно — весь вектор RK45 сдвигается ~1e-14 относительно между окружениями (не виден в усечённом выводе pytest, но ломает np.array_equal). Пользователь одобрил двухэтапно: сначала узкое поле, затем — после того как оно не помогло — полный перепин обоих RK45-словарей (y_final + t_final/apogee/ground для sounding-теста) под фактические значения этой машины. RK4-ветки не тронуты, бит-в-бит подтверждены. Полный прогон: develop 501/501, feature/sim-paper-alignment 658/658, оба зелёные."
+        "D-77/D-122 fix (develop 52b3d9a, feature e252858): numpy==2.5.4 запинен в requirements.txt; выяснилось, что этого недостаточно — весь вектор RK45 сдвигается ~1e-14 относительно между окружениями (не виден в усечённом выводе pytest, но ломает np.array_equal). Пользователь одобрил двухэтапно: сначала узкое поле, затем — после того как оно не помогло — полный перепин обоих RK45-словарей (y_final + t_final/apogee/ground для sounding-теста) под фактические значения этой машины. RK4-ветки не тронуты, бит-в-бит подтверждены. Полный прогон: develop 501/501, feature/sim-paper-alignment 658/658, оба зелёные.",
+        "Step 103 (6390c1d): модель привода аэротормоза (rate/range/command-delay) — Params.Actuator (model=ideal|full), sim/control.py AirbrakeHold + замкнутая рампа (D-114), guard неизвестной модели в sim/integrate.py при входе в run_sim; Rocket владеет actuator (как и control) — configs/schema.py + _TEMPLATE_rocket.py. Пин-эффект: ноль (путь ideal — голый float, бит-в-бит). Решение по владению полем (Rocket, не Scenario) принято оркестратором как механическое следствие уже одобренного D-114, по аналогии с control.",
+        "QA Step 103 (f17a88a): PASS с замечаниями (не блокеры) — все 6 критериев приёмки независимо проверены трассировкой кода (не только по зелёным тестам); 3 minor: rate_close не протестирован по эффекту (только дефолт), нет тестов на невалидный ввод (delay_ticks/rate_*/f_min>f_max — по конвенции проекта), документационный пробел вне скоупа (Control.airbrake_model не упоминает \"full\"). dev/docs/qa-report-2.17-step103.md. Полный прогон (оба независимых прогона): 668/668."
       ],
-      "tests": "658 passed / 0 failed (полный прогон 2026-10-22 на ветке, после фикса D-77/D-122)",
-      "next": "Step 103 (модель привода аэротормоза: rate+range+delay); Step 101 по-прежнему ждёт данных пользователя (architecture-35 §35.8)",
+      "tests": "668 passed / 0 failed (полный прогон 2026-10-22, после Step 103 + QA)",
+      "next": "Step 105 (dispersion hooks + ensemble runner, depends_on Step 98 done) или Step 107 (sampled laws registry, depends_on Step 103 done) — оба разблокированы; Step 106 (max-spec app) ждёт 101+102+103+105; Step 101 по-прежнему ждёт данных пользователя (architecture-35 §35.8)",
       "open_items": [
         "QA-9 (test quality, minor) остаётся открытым: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, таблица eta Jorgensen не запинена против первоисточника Hoerner/Jorgensen, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
       ],
@@ -1401,6 +1403,15 @@
       "choice": "пользователь: закрепить numpy==2.5.4 в requirements.txt (сделано) + полный перепин обоих RK45-словарей (_TILT_PINNED, _TILT_SOUNDING_PINNED) под фактические значения машины — y_final целиком, а для sounding-теста ещё t_final/apogee/ground (двухэтапно: сперва одобрено узкое поле, оно не помогло, затем одобрен полный перепин). RK4-ветки не трогались. develop 52b3d9a, feature/sim-paper-alignment e252858 (cherry-pick, идентичный диф). Полные прогоны зелёные на обеих ветках (501/501, 658/658).",
       "author": "user",
       "user_approved": true,
+      "stage": "2.17"
+    },
+    {
+      "id": "D-123",
+      "date": "2026-10-22",
+      "question": "Step 103: new Params.Actuator group breaks the one-owner-invariant test in tests/test_config_pieces.py until some config piece sources it. Rocket owns it (same bucket as Control, mirrors existing precedent) or Scenario owns it (like Solver.sample_rate_hz)?",
+      "choice": "оркестратор: Rocket (вариант developer-а с рекомендацией) — actuator = физическая характеристика конкретного аппарата/тормоза, не настройка прогона; тот же бакет, что и control. Механическое следствие уже одобренного D-114, не новая развилка архитектуры/стека — решено без отдельного вопроса пользователю, см. также developer's cost/risk breakdown in the Step 103 handoff.",
+      "author": "orchestrator",
+      "user_approved": false,
       "stage": "2.17"
     }
   ],
