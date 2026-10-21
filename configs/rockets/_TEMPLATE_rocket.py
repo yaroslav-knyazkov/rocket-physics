@@ -45,6 +45,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | aero      | OPT     | Aero group     | Aero()      | aerodynamic model and coefficients (S and d_ref are needed for any force) |
 | recovery  | OPT     | Recovery group | Recovery()  | parachute model; default is no recovery |
 | control   | OPT     | Control group  | Control()   | airbrake / aero-coefficient control; default is none |
+| actuator  | OPT     | Actuator group | Actuator()  | sampled-data airbrake actuator (rate/range/delay); default is the ideal zero-order hold |
 | sections  | OPT     | Sections group | Sections()  | named airframe stations; descriptive except motor placement |
 | notes     | OPT     | -              | ""          | provenance: where the numbers came from |
 
@@ -124,12 +125,22 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | airbrake_deploy_time     | OPT     | s                                           | 0.0              | read only when airbrake_trigger == "after_time" |
 | aero_coeff_model         | OPT     | none                                        | "none"           | aero-coefficient control seam; "none" = identity |
 | airbrake_aero            | OPT     | additive \| table                           | "additive"       | brake in the aerodynamics: additive axial term, or the aero table's f_b axis (needs an f_b column) |
+
+### Actuator
+| field       | REQ/OPT | unit / choices | default | what it does |
+|-------------|---------|-----------------|---------|--------------|
+| model       | OPT     | ideal \| full   | "ideal" | sampled-data airbrake actuator; "ideal" = the zero-order hold IS the actuator (every field below inert) |
+| rate_open   | OPT     | fraction/s      | inf     | "full" model only: deployment rate limit (cmd > current); inf = unbounded |
+| rate_close  | OPT     | fraction/s      | inf     | "full" model only: retraction rate limit (cmd < current); inf = unbounded |
+| f_min       | OPT     | -               | 0.0     | "full" model only: actuator's own minimum deploy fraction |
+| f_max       | OPT     | -               | 1.0     | "full" model only: actuator's own maximum deploy fraction |
+| delay_ticks | OPT     | whole sample ticks | 0    | "full" model only: command delay, in whole sample periods |
 """
 
 from __future__ import annotations
 
 from configs.schema import Airframe, Rocket
-from sim.params import Aero, Control, Lengths, Recovery
+from sim.params import Actuator, Aero, Control, Lengths, Recovery
 
 ROCKET = Rocket(
     name="my_rocket",  # REQ, - -- registry key; rename to match the filename once you rename it
@@ -232,6 +243,19 @@ ROCKET = Rocket(
         # airbrake_deploy_time=0.0,            # OPT, s -- read only when airbrake_trigger == "after_time"
         # aero_coeff_model="none",             # OPT, none -- aero-coefficient control seam; "none" = identity
         # airbrake_aero="additive",            # OPT, additive | table -- brake via additive term or the table's f_b axis
+    ),
+
+    actuator=Actuator(  # OPT, Actuator group -- sampled-data airbrake actuator; default is the ideal zero-order hold
+        model="ideal",  # OPT, ideal | full -- "ideal" means every field below is inert (the hold itself is the actuator)
+        # Leave this whole group at its defaults unless you are modelling
+        # the airbrake's own rate limit, deployment range, or flight-
+        # computer command delay under p.solver.sample_rate_hz > 0.0 --
+        # "full" only has an effect in that sampled-data mode.
+        # rate_open=float("inf"),   # OPT, fraction/s -- "full" model only: deployment rate limit; inf = unbounded
+        # rate_close=float("inf"),  # OPT, fraction/s -- "full" model only: retraction rate limit; inf = unbounded
+        # f_min=0.0,                # OPT, - -- "full" model only: actuator's own minimum deploy fraction
+        # f_max=1.0,                # OPT, - -- "full" model only: actuator's own maximum deploy fraction
+        # delay_ticks=0,            # OPT, whole sample ticks -- "full" model only: command delay, in whole sample periods
     ),
 
     notes=(

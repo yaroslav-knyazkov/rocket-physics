@@ -192,6 +192,32 @@ class Control:
 
 
 @dataclass(frozen=True)
+class Actuator:
+    """Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): the
+    sampled-data airbrake's own actuator dynamics -- rate limit,
+    deployment range, and command delay, closed form (no servo-lag model;
+    D-114 explicitly rejected a second-order model -- no parameters known
+    yet -- and rejected staying ideal-only).
+
+    `model = "ideal"` (the default) is exactly the Step 59 zero-order
+    hold: the held command IS the deploy fraction for the whole tick,
+    bit-for-bit unchanged, and every field below is unused. `model =
+    "full"` adds the rate/range/delay mechanics
+    (`sim/control.py`'s `AirbrakeHold`/`_ramp`); `rate_open = rate_close =
+    inf` (the default even under `"full"`) makes the rate limit
+    unconditionally unbounded (never `rate*dt`, which would be `inf*0.0 ==
+    nan` at a tick's own first instant) -- so it reduces to exactly the
+    same zero-order hold, bit-for-bit (this group's own acceptance test).
+    """
+    model: str = "ideal"              # ideal | full
+    rate_open: float = float("inf")   # fraction/s, opening (cmd > current)
+    rate_close: float = float("inf")  # fraction/s, closing (cmd < current)
+    f_min: float = 0.0
+    f_max: float = 1.0
+    delay_ticks: int = 0              # command delay, whole sample ticks
+
+
+@dataclass(frozen=True)
 class Solver:
     method: str = "RK45"          # RK45 (or any scipy name) | rk4
     rtol: float = 1e-8
@@ -203,7 +229,9 @@ class Solver:
 
 @dataclass(frozen=True)
 class Params:
-    """Every symbol from main.tex, composed into twelve groups (SS28.3)."""
+    """Every symbol from main.tex, composed into groups (SS28.3) -- twelve
+    at Step 50, plus `Actuator` (Step 103, architecture-35-paper-
+    alignment.md SS35.6)."""
 
     weight: Weight                              # the only required group
     g0: float = 9.80665                         # standard gravity, shared constant (see note)
@@ -217,6 +245,7 @@ class Params:
     wind:       Wind       = field(default_factory=Wind)
     recovery:   Recovery   = field(default_factory=Recovery)
     control:    Control    = field(default_factory=Control)
+    actuator:   Actuator   = field(default_factory=Actuator)
     solver:     Solver     = field(default_factory=Solver)
 
 

@@ -41,7 +41,11 @@ is now the one DERIVED group -- a function of two disjoint-field-set
 inputs, `Rocket.airframe` (+ `Rocket.sections`) and `Scenario.motor`,
 composed by `_weight_from_pieces`, not a merge with a precedence rule.
 Every other group keeps its single owning piece unchanged, and `thrust`
-moves from `Rocket` to `Scenario.motor`.
+moves from `Rocket` to `Scenario.motor`. Step 103 (architecture-35-paper-
+alignment.md SS35.6, D-114) adds one more group, `actuator`, owned by
+`Rocket` alongside `control` -- the sampled-data airbrake's own actuator
+(rate/range/delay) is the same kind of vehicle control hardware `control`
+already is, not a run-level concern.
 
 The import rule above now also applies to pieces: piece modules do
 `from configs.schema import Rocket`, **never** `from configs import
@@ -61,6 +65,7 @@ from typing import Any
 from sim import aero
 from sim import mass
 from sim import motor_file
+from sim.params import Actuator
 from sim.params import Aero
 from sim.params import Atmosphere
 from sim.params import Control
@@ -281,6 +286,12 @@ class Rocket:
     aero: Aero = dataclasses.field(default_factory=Aero)
     recovery: Recovery = dataclasses.field(default_factory=Recovery)
     control: Control = dataclasses.field(default_factory=Control)
+    # Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): the
+    # sampled-data airbrake's own actuator (rate/range/delay) -- same
+    # owning piece as `control` above, the vehicle's own control hardware,
+    # not a run-level/weather/site concern (SS31.3.2's one-owner
+    # invariant).
+    actuator: Actuator = dataclasses.field(default_factory=Actuator)
     sections: Sections = dataclasses.field(default_factory=Sections)
     notes: str = ""
 
@@ -358,6 +369,7 @@ def assemble(sc: Scenario) -> Config:
         aero=sc.rocket.aero,
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,
+        actuator=sc.rocket.actuator,
         site=sc.site.site,
         atmosphere=sc.weather.atmosphere,
         soundings=sc.weather.soundings,

@@ -73,7 +73,7 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import aero, dynamics, forces
+from sim import aero, control, dynamics, forces
 from sim.dynamics import derivatives
 from sim.state import State, VZ, Z
 from sim import gravity, thrust_curve
@@ -445,6 +445,15 @@ def run_sim(p, s0: State) -> Result:
     0.0` (the default) is the off switch on both integration paths,
     bit-for-bit: this check cannot fire, and `_run_rk4` never imports
     `sim.sampling` or constructs a `Hold`.
+
+    Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): an
+    unregistered `p.actuator.model` also raises `ValueError` here,
+    immediately -- a deliberate exception to this project's usual lazy-
+    KeyError-at-first-dispatch convention for model-selection strings
+    (SS7), because the actuator dispatch only happens deep inside the
+    sampled-data loop (`sim/sampling.py`'s `sample()`, called once per
+    tick), where a typo would otherwise only surface after however many
+    ticks of a potentially long integration had already run.
     """
     aero.reset_oob_warning()  # Step 112: once-per-run out-of-range alpha warning
     method = p.solver.method
@@ -453,6 +462,13 @@ def run_sim(p, s0: State) -> Result:
     atol = p.solver.atol
     dt = p.solver.dt
     sample_rate_hz = p.solver.sample_rate_hz
+
+    if p.actuator.model not in control.known_actuator_models():
+        raise ValueError(
+            f"p.actuator.model={p.actuator.model!r} is not a registered "
+            f"actuator model (known: {sorted(control.known_actuator_models())}) "
+            "(architecture-35-paper-alignment.md SS35.6)."
+        )
 
     if sample_rate_hz > 0.0 and method != "rk4":
         raise ValueError(

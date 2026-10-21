@@ -20,7 +20,7 @@ import numpy as np
 
 from sim import control, sampling
 from sim.integrate import run_sim
-from sim.params import Aero, Control, Lengths, Params, Thrust, Weight, with_solver
+from sim.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
 from sim.state import State
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
@@ -39,6 +39,13 @@ def _launch_params(**control_kw) -> Params:
     return Params(
         weight=_LAUNCH_WEIGHT, lengths=_LAUNCH_LENGTHS, thrust=_LAUNCH_THRUST,
         aero=_LAUNCH_AERO, control=Control(**control_kw),
+    )
+
+
+def _launch_params_with_actuator(control_kw: dict, actuator_kw: dict) -> Params:
+    return Params(
+        weight=_LAUNCH_WEIGHT, lengths=_LAUNCH_LENGTHS, thrust=_LAUNCH_THRUST,
+        aero=_LAUNCH_AERO, control=Control(**control_kw), actuator=Actuator(**actuator_kw),
     )
 
 
@@ -165,6 +172,35 @@ def test_prev_is_threaded_exactly_once_per_tick_not_per_substep_or_stage():
     assert [count for _t, count in calls] == [1, 2, 3, 4, 5]  # prev genuinely threaded
     # Sampled at each tick's own start: t=0.0, 0.1, 0.2, 0.3, 0.4.
     assert [round(t, 9) for t, _count in calls] == [0.0, 0.1, 0.2, 0.3, 0.4]
+
+
+def test_channel_value_can_be_a_non_scalar_threaded_through_prev_the_airbrake_channel():
+    """Module docstring's own claim ("The value type is deliberately `Any`
+    ... so a future channel can hold a tuple ... not just a scalar") is no
+    longer just the locally-registered test double above -- the real
+    `"airbrake"` channel does this too, as of Step 103
+    (architecture-35-paper-alignment.md SS35.6): under `p.actuator.model
+    == "full"`, `sample()` threads an `AirbrakeHold` NamedTuple (not a
+    `float`) as this channel's own `prev`, tick to tick, and the channel
+    reads its own previous `t_k`/`f_k`/`cmd_eff` back out of it correctly.
+    """
+    p = _launch_params_with_actuator(
+        control_kw=dict(airbrake_model="none"), actuator_kw=dict(model="full"),
+    )
+    y = np.array(_launch_state())
+
+    hold1 = sampling.sample(0.0, y, p, prev=None)
+    v1 = hold1.values["airbrake"]
+    assert isinstance(v1, control.AirbrakeHold)
+    assert v1.t_k == 0.0
+
+    hold2 = sampling.sample(0.1, y, p, prev=hold1)
+    v2 = hold2.values["airbrake"]
+    assert isinstance(v2, control.AirbrakeHold)
+    assert v2.t_k == 0.1
+    # `prev` genuinely threaded (not reset): tick 2's f_k is tick 1's ramp
+    # carried a full sample period forward, not a fresh `0.0`.
+    assert v2.f_k == v1.cmd_eff  # "none" law, rate_open=inf -- ramp reaches cmd exactly
 
 
 # ----------------------------------------------------------------------

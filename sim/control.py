@@ -74,6 +74,9 @@ same documented caveat (a pre-apogee `v_z` transient would arm it early).
 t=0", the same semantics `Recovery.deploy_time == 0.0` already carries.
 """
 
+import math
+from typing import NamedTuple
+
 import numpy as np
 
 from sim import gravity, thrust_curve
@@ -219,29 +222,167 @@ def airbrake_deploy_fraction(t: float, y: np.ndarray, p, hold=None) -> float:
     an `"airbrake"` channel value (computed once at the current tick's
     start by `sample_airbrake`, below), that held value is returned
     directly -- a zero-order hold, not a fresh evaluation of the law below.
+
+    Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): the held
+    value is `float` under `p.actuator.model == "ideal"` (unchanged from
+    Step 59 -- returned as-is, the branch above), or an `AirbrakeHold`
+    under `"full"`, in which case the actual deploy fraction at this exact
+    `t` is the rate/range-limited ramp evaluated `t - hold.t_k` seconds
+    into the held actuator state (`_ramp`, below) -- continuous within a
+    tick (every RK4 stage sees a different value as `t` advances across
+    the tick's four stages), unlike the `"ideal"` branch's single constant.
     """
     if hold is not None and "airbrake" in hold.values:
-        return hold.values["airbrake"]
+        v = hold.values["airbrake"]
+        if isinstance(v, AirbrakeHold):
+            a = p.actuator
+            return _ramp(v.f_k, v.cmd_eff, t - v.t_k, a.rate_open, a.rate_close, a.f_min, a.f_max)
+        return v
     return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
 
 
-def sample_airbrake(t: float, y: np.ndarray, p, prev) -> float:
+def sample_airbrake(t: float, y: np.ndarray, p, prev):
     """The airbrake channel function registered into
     `sim.sampling._CHANNELS` under `"airbrake"` (architecture-28-rewrite.md
     SS28.8.2): evaluates today's existing pure, memoryless
     `_AIRBRAKE_CONTROLLERS[p.control.airbrake_model]` law exactly once --
     the same law `airbrake_deploy_fraction` calls on every un-sampled RHS
-    evaluation -- and returns the value to be held for the whole tick.
+    evaluation -- to get this tick's own RAW command, then dispatches that
+    command through `p.actuator.model` (Step 103) to decide what value is
+    actually held for the tick.
 
     `prev` (this channel's own held value from the previous tick, or
-    `None` at the first tick, t=0) is accepted, per the channel signature
-    every registered channel must have, but unused here: today's only
-    registered airbrake law, `_proportional_airbrake`, is itself
-    memoryless and needs no previous value to compute its own next one. A
-    future stateful law (a fixed-rate PID, backlog B12) would read `prev`
-    instead of ignoring it -- that is B12's job, not this step's.
+    `None` at the first tick, t=0) is threaded straight through to the
+    actuator-model dispatch below; see `_actuator_ideal`/`_actuator_full`.
     """
-    return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+    cmd = _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+    return _ACTUATOR_MODELS[p.actuator.model](t, cmd, p, prev)
+
+
+# ----------------------------------------------------------------------
+# Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): the
+# actuator itself -- rate limit, deployment range, command delay, closed
+# form. `model = "ideal"` (the default) is exactly the Step 59
+# zero-order hold (bit-for-bit, the dispatch function below is the
+# identity on the raw command); `model = "full"` is everything else.
+# ----------------------------------------------------------------------
+
+
+class AirbrakeHold(NamedTuple):
+    """The `"full"` actuator model's own held state -- the value
+    `sample_airbrake` returns for the `"airbrake"` channel, and the value
+    `airbrake_deploy_fraction` reads back every RHS stage.
+
+    `t_k`: this tick's own start time (the `t` `sample_airbrake` was
+    called with) -- `airbrake_deploy_fraction` computes `t - t_k` from it,
+    never a separately threaded tick period.
+    `f_k`: the actuator's own continuous value AT `t_k` -- the previous
+    tick's ramp, evaluated a full sample period in (`_ramp`, applied in
+    `_actuator_full` below); `0.0` at the very first tick (`f_0 = 0`,
+    stowed).
+    `cmd_eff`: this tick's EFFECTIVE command -- the raw law output from
+    `delay_ticks` ticks ago (or `0.0` if that many ticks haven't happened
+    yet), what the ramp in `airbrake_deploy_fraction` actually ramps
+    toward during this tick.
+    `cmd_queue`: the raw (un-delayed) commands not yet delivered -- a
+    `tuple[float, ...]` of length `delay_ticks`, oldest first; the FIFO
+    `_actuator_full` reads `cmd_eff` out of and pushes this tick's own raw
+    command onto.
+    """
+    t_k: float
+    f_k: float
+    cmd_eff: float
+    cmd_queue: "tuple[float, ...]"
+
+
+def _ramp(f0: float, cmd: float, dt: float, rate_open: float, rate_close: float,
+          f_min: float, f_max: float) -> float:
+    """The rate/range-limited actuator's closed form (D-114): the value
+    reached after `dt` seconds of ramping from `f0` toward `cmd`, limited
+    by `rate_open` (opening, `cmd > f0`) / `rate_close` (closing, `cmd <
+    f0`), clipped to `[f_min, f_max]`.
+
+    Infinite rates are treated as "no rate limit at all" -- the bound
+    stays `+-inf` regardless of `dt`, including `dt == 0.0` -- rather than
+    via `rate * dt`, which would be `inf * 0.0 == nan` at a tick's own
+    first instant. This is what makes `rate_open = rate_close = inf` (the
+    `Actuator` defaults even under `"full"`) reduce exactly to the Step 59
+    zero-order hold, bit-for-bit, at every `t` in the tick including
+    `t == t_k` itself (this module's own acceptance test,
+    architecture-35-paper-alignment.md SS35.6).
+    """
+    delta = cmd - f0
+    upper = np.inf if math.isinf(rate_open) else rate_open * dt
+    lower = -np.inf if math.isinf(rate_close) else -rate_close * dt
+    step = np.clip(delta, lower, upper)
+    return float(np.clip(f0 + step, f_min, f_max))
+
+
+def _actuator_ideal(t: float, cmd: float, p, prev) -> float:
+    """Variant `"ideal"` (the default): the zero-order hold IS the
+    actuator -- the Step 59 legacy behaviour, bit-for-bit. `t`/`p`/`prev`
+    unused."""
+    return cmd
+
+
+def _actuator_full(t: float, cmd: float, p, prev) -> AirbrakeHold:
+    """Variant `"full"`: rate + range + command delay (D-114).
+
+    `prev` is this channel's own `AirbrakeHold` from the previous tick (or
+    `None` at the very first tick). `f_k` is `prev`'s ramp evaluated a
+    full sample period in (`t - prev.t_k`, the previous tick's own
+    duration -- no separately threaded period needed); `cmd_eff` is pulled
+    out of the delay FIFO (`prev.cmd_queue`), and this tick's raw `cmd` is
+    pushed onto it.
+    """
+    a = p.actuator
+    if prev is None:
+        # f_0 = 0.0 is the spec's own literal initial condition
+        # (architecture-35-paper-alignment.md SS35.4.4's closed form),
+        # deliberately NOT a.f_min -- the actuator starts fully stowed
+        # regardless of where its operating range's own floor sits; the
+        # very first ramp (above, once a command arrives) travels from
+        # 0.0, not from f_min, same as a real actuator's physical rest
+        # position would.
+        f_k = 0.0
+        queue: "tuple[float, ...]" = ()
+    else:
+        f_k = _ramp(prev.f_k, prev.cmd_eff, t - prev.t_k, a.rate_open, a.rate_close, a.f_min, a.f_max)
+        queue = prev.cmd_queue
+
+    if a.delay_ticks <= 0:
+        cmd_eff, new_queue = cmd, ()
+    elif len(queue) >= a.delay_ticks:
+        cmd_eff, new_queue = queue[0], queue[1:] + (cmd,)
+    else:
+        cmd_eff, new_queue = 0.0, queue + (cmd,)
+
+    return AirbrakeHold(t_k=t, f_k=f_k, cmd_eff=cmd_eff, cmd_queue=new_queue)
+
+
+# Module-private dispatch dict (architecture.md SS12), same pattern as
+# `_AIRBRAKE_CONTROLLERS`/`_AIRBRAKE_TRIGGERS` above. Unknown strings
+# raise `KeyError` at the first call here -- but `sim.integrate.run_sim`
+# validates `p.actuator.model` against this same dict eagerly, at entry,
+# before any integration is attempted (architecture-35-paper-alignment.md
+# SS35.6: "unknown law name raises at run_sim entry", a deliberate
+# exception to the project's usual lazy-KeyError convention, SS7).
+_ACTUATOR_MODELS = {
+    "ideal": _actuator_ideal,
+    "full": _actuator_full,
+}
+
+
+def known_actuator_models() -> "tuple[str, ...]":
+    """The registered `p.actuator.model` names. `sim.integrate.run_sim`'s
+    own eager-validation guard (Step 103, SS35.6) calls this instead of
+    reaching into `_ACTUATOR_MODELS` directly, so that dict stays
+    module-private like every other dispatch dict in this file -- the
+    one place outside this module that needs to know a name is valid
+    gets a named, stable entry point for it instead of a cross-module
+    reach into another module's internals.
+    """
+    return tuple(_ACTUATOR_MODELS)
 
 
 # ----------------------------------------------------------------------
