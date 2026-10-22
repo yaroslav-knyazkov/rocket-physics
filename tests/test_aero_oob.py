@@ -235,6 +235,32 @@ def test_moment_arm_correction(pj):
     assert aero._table_coeffs(a, M, pj).C_m == pytest.approx(expect, rel=1e-12)
 
 
+def test_eta_table_matches_research_note():
+    """Step 115 (conventions audit §9.1, QA-9): `_ETA_LAM`/`_ETA_VAL` are a
+    third-party hand digitisation of Jorgensen TR R-474 Fig. 4 (circular
+    cylinder, Re_n = 88,000; HPR Sim crate `hpr_aero::crossflow`),
+    transcribed in dev/docs/latex/research/jorgensen-params-findings.md §1.
+    Every existing test rebuilds `eta` FROM `_ETA_LAM`/`_ETA_VAL`, so an
+    accidental table edit would otherwise pass silently -- pin the 10
+    `(L/d, eta)` points the code actually carries against that same 10-point
+    subset of the research note's 12-point transcription (the note also has
+    L/d = 25 -> 0.775 and L/d = 35 -> 0.805, which `_ETA_LAM`/`_ETA_VAL` do
+    not include; this test does not newly introduce those two points, only
+    pins the ones that already exist in the code), plus the note's own
+    cross-check against Jorgensen's primary-source Fig. 6 (M_n = 0 start
+    values "about 0.68 and 0.70" at L/d 10/12, matching the digitised
+    0.685/0.701)."""
+    lam_note_subset = np.array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0, 40.0])
+    eta_note_subset = np.array([0.577, 0.607, 0.643, 0.668, 0.685, 0.701, 0.724, 0.753, 0.795, 0.815])
+    assert aero._ETA_LAM == pytest.approx(lam_note_subset, abs=1e-9)
+    assert aero._ETA_VAL == pytest.approx(eta_note_subset, abs=1e-9)
+
+    eta_10 = float(np.interp(10.0, aero._ETA_LAM, aero._ETA_VAL))
+    eta_12 = float(np.interp(12.0, aero._ETA_LAM, aero._ETA_VAL))
+    assert eta_10 == pytest.approx(0.68, abs=0.01)
+    assert eta_12 == pytest.approx(0.70, abs=0.01)
+
+
 def test_explicit_eta_and_s_base_are_used():
     M, a = 0.8, np.radians(90.0)
     p = _params(_jorg(eta=0.5, S_base=2 * S_REF))

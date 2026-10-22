@@ -15,7 +15,9 @@ named by `"<filename>"` (one record, or the file's only record) or
 The RASP grammar: `;`-prefixed lines are comments; a header line is a
 non-comment line whose first whitespace-separated token does not parse as
 a float (`designation diameter_mm length_mm delays m_prop_kg m_total_kg
-manufacturer`, `delays` free text, never parsed); every other non-comment,
+manufacturer`, `delays` free text, never parsed, `manufacturer` free text
+to end of line -- joined back together even when it is itself several
+whitespace-separated tokens, e.g. "Cesaroni Technology"); every other non-comment,
 non-blank line is a `time thrust` data row (extra columns beyond the first
 two are ignored, matching the `.csv` reader's tolerance). A record ends at
 the next header line or EOF -- blank lines are not load-bearing, so both
@@ -53,6 +55,10 @@ class MotorRecord:
     thrusts: np.ndarray  # N
     m_prop: float | None = None  # kg   <- RASP header field 5
     m_total: float | None = None  # kg   <- RASP header field 6
+    # Conventions audit SS11: the RASP spec gives these two fields in kg
+    # despite the field names ("prop-weight"/"total-weight"); some older
+    # third-party .eng files in circulation use grams instead, and there is
+    # no in-band way to tell one from the other -- not checked here.
     diameter: float | None = None  # m    <- RASP header field 2 (mm in file)
     length: float | None = None  # m    <- RASP header field 3 (mm in file)
     delays: str = ""  #      <- RASP header field 4, free text, never parsed
@@ -186,10 +192,21 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
             tokens = stripped.split()
             if _is_float(tokens[0]):
                 # Data row: time, thrust (extra columns ignored).
+                if len(tokens) < 2:
+                    raise ValueError(
+                        f"motor file '{filename}': data row {stripped!r} needs at least "
+                        "2 tokens (time, thrust), got 1"
+                    )
                 times.append(float(tokens[0]))
                 thrusts.append(float(tokens[1]))
             else:
                 # Header row: starts a new record, flush the previous one.
+                if len(tokens) < 7:
+                    raise ValueError(
+                        f"motor file '{filename}': header row {stripped!r} needs 7 tokens "
+                        "(designation diameter_mm length_mm delays m_prop_kg m_total_kg "
+                        f"manufacturer), got {len(tokens)}"
+                    )
                 flush()
                 designation = tokens[0]
                 diameter = float(tokens[1]) / 1000.0
@@ -197,7 +214,10 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
                 delays = tokens[3]
                 m_prop = float(tokens[4])
                 m_total = float(tokens[5])
-                manufacturer = tokens[6]
+                # Real headers carry multi-word manufacturers ("Cesaroni
+                # Technology"); join everything from field 7 on instead of
+                # truncating to one token (conventions audit §6 item 1).
+                manufacturer = " ".join(tokens[6:])
                 times = []
                 thrusts = []
 

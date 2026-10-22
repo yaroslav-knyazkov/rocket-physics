@@ -94,7 +94,15 @@ def flow_state(t: float, y: np.ndarray, p, hold=None) -> Flow:
     q = 0.5 * air.rho * V**2
     M = V / air.a if air.a != 0.0 else 0.0
     # Step 97 (C2/B32.4, D-118 option c): Reynolds length is `l_ref`, falling
-    # back to `d_ref` when `l_ref == 0.0` (the default).
+    # back to `d_ref` when `l_ref == 0.0` (the default). Neither choice is
+    # "wrong" in isolation -- diameter is the standard Re for crossflow/base-
+    # pressure correlations (Jorgensen TR R-474, Hoerner), body length is the
+    # standard Re for skin-friction drag (OpenRocket techdoc SS3.4.1,
+    # Barrowman) -- but this single `Re` feeds no model today (consumed only
+    # by test expectations, not by aero.py/forces.py/dynamics.py), so which
+    # correlation it is "for" is undefined until one is built. See conventions
+    # audit SS3: a future Re-dependent model (backlog B30 item 3) should get
+    # its own length-based Re_L rather than reuse this field.
     l_re = p.aero.l_ref if p.aero.l_ref != 0.0 else p.aero.d_ref
     Re = air.rho * V * l_re / air.mu if air.mu != 0.0 else 0.0
 

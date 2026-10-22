@@ -137,7 +137,7 @@ _ETA_LAM = np.array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0, 40.0])
 _ETA_VAL = np.array([0.577, 0.607, 0.643, 0.668, 0.685, 0.701, 0.724, 0.753, 0.795, 0.815])
 
 # UNVERIFIED: C_dn = 1.2 (constant, subsonic subcritical cylinder crossflow). Mach/Re dependence
-# (transonic peak 1.6-2.0, supercritical drop) is out of scope (backlog B42). Field default: Aero.C_dn.
+# (transonic peak 1.6-2.0, supercritical drop) is out of scope (backlog B35). Field default: Aero.C_dn.
 # UNVERIFIED: tail-first axial magnitude. Jorgensen uses a separate C_A(180 deg); its value is not
 # verified here, so Aero.C_x180 == 0.0 falls back to C_x(0) of the table. The user should set it.
 
@@ -566,7 +566,7 @@ def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
         C_x=p.aero.C_x * axial_flow_factor(alpha),
         C_z=p.aero.C_z,
         C_m=_cm_to_code(p.aero.C_m, p),
-        C_mq=p.aero.c_mq,
+        C_mq=_cm_to_code(p.aero.c_mq, p),
         l1=_arm_or_station(p),
     )
 
@@ -616,7 +616,7 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
         C_x=p.aero.C_A0 * axial_flow_factor(alpha),
         C_z=p.aero.C_N_alpha * np.sin(alpha),
         C_m=_cm_to_code(p.aero.C_m_alpha * np.sin(alpha), p),
-        C_mq=p.aero.c_mq,
+        C_mq=_cm_to_code(p.aero.c_mq, p),
         l1=_arm_or_station(p),
     )
 

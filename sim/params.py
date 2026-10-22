@@ -97,8 +97,10 @@ class Aero:
     # model == "table"
     table: str = ""               # file under data/aero/      (was aero_table)
     # all three models
-    # pitch-damping derivative [-]. CODE sign (positive = damping) regardless of `cm_convention`:
-    # the scalar is NOT flipped under "standard" (a table's c_mq column IS flipped there).
+    # pitch-damping derivative [-]. CODE sign (positive = damping). Step 115 (conventions audit
+    # §1.3): the scalar IS flipped by `cm_convention="standard"` for the constant/linearized models
+    # (same `_cm_to_code` conversion as `C_m`/`C_m_alpha`), matching the table's c_mq column, which
+    # was already flipped there since Step 114.
     c_mq: float = 0.0
     # Step 99 (D-111): CP station from the nose [m] for the constant/linearized models
     # (arm = l_p - CoG(t)); 0.0 = off, Lengths.l1 is the arm. A table carries its own l_p_m column.

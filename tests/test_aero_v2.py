@@ -189,6 +189,35 @@ def test_constant_model_l_p_and_cm_convention():
     assert aero.C_m(0.0, 0.5, p) == -0.2
 
 
+def test_constant_model_cm_convention_flips_scalar_c_mq():
+    """Step 115 (conventions audit §1.3): a scalar `c_mq` must flip under
+    `cm_convention="standard"` exactly like `C_m` does -- previously only a
+    table's `c_mq` column was flipped there, leaving the scalar path a
+    silent trap for a textbook-signed `c_mq` under "standard"."""
+    p_std = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l2=0.4, l_g=0.9),
+        aero=Aero(model="constant", S=0.01, d_ref=0.1, C_x=0.5, C_m=0.2,
+                  c_mq=-5.0, cm_convention="standard"),
+    )
+    assert aero.C_mq(0.0, 0.5, p_std) == 5.0
+
+    p_lin = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l2=0.4, l_g=0.9),
+        aero=Aero(model="linearized", S=0.01, d_ref=0.1, C_A0=0.5, C_m_alpha=0.2,
+                  c_mq=-5.0, cm_convention="standard"),
+    )
+    assert aero.C_mq(0.0, 0.5, p_lin) == 5.0
+
+    p_code = Params(
+        weight=Weight(m=0.5, I=0.05),
+        lengths=Lengths(l2=0.4, l_g=0.9),
+        aero=Aero(model="constant", S=0.01, d_ref=0.1, C_x=0.5, C_m=0.2, c_mq=-5.0),
+    )
+    assert aero.C_mq(0.0, 0.5, p_code) == -5.0  # "code" (default): unflipped
+
+
 def test_legacy_aero_defaults_unchanged():
     p = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4),
                aero=Aero(model="constant", C_m=0.2))
