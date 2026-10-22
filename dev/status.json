@@ -538,15 +538,20 @@
         "QA re-check Steps 113-114 (883548d): PASS — QA-1..QA-8, QA-10 подтверждены исправленными настоящими тестами (не xfail); QA-9 подтверждённо НЕ тронут (вне заявленного scope Step 113); QA-11..13 по-прежнему открыты (info); все 5 правок Step 114 корректны и не меняют поведение по умолчанию (D-110). dev/docs/qa-report-2.17-step113-114.md",
         "D-77/D-122 fix (develop 52b3d9a, feature e252858): numpy==2.5.4 запинен в requirements.txt; выяснилось, что этого недостаточно — весь вектор RK45 сдвигается ~1e-14 относительно между окружениями (не виден в усечённом выводе pytest, но ломает np.array_equal). Пользователь одобрил двухэтапно: сначала узкое поле, затем — после того как оно не помогло — полный перепин обоих RK45-словарей (y_final + t_final/apogee/ground для sounding-теста) под фактические значения этой машины. RK4-ветки не тронуты, бит-в-бит подтверждены. Полный прогон: develop 501/501, feature/sim-paper-alignment 658/658, оба зелёные.",
         "Step 103 (6390c1d): модель привода аэротормоза (rate/range/command-delay) — Params.Actuator (model=ideal|full), sim/control.py AirbrakeHold + замкнутая рампа (D-114), guard неизвестной модели в sim/integrate.py при входе в run_sim; Rocket владеет actuator (как и control) — configs/schema.py + _TEMPLATE_rocket.py. Пин-эффект: ноль (путь ideal — голый float, бит-в-бит). Решение по владению полем (Rocket, не Scenario) принято оркестратором как механическое следствие уже одобренного D-114, по аналогии с control.",
-        "QA Step 103 (f17a88a): PASS с замечаниями (не блокеры) — все 6 критериев приёмки независимо проверены трассировкой кода (не только по зелёным тестам); 3 minor: rate_close не протестирован по эффекту (только дефолт), нет тестов на невалидный ввод (delay_ticks/rate_*/f_min>f_max — по конвенции проекта), документационный пробел вне скоупа (Control.airbrake_model не упоминает \"full\"). dev/docs/qa-report-2.17-step103.md. Полный прогон (оба независимых прогона): 668/668."
+        "QA Step 103 (f17a88a): PASS с замечаниями (не блокеры) — все 6 критериев приёмки независимо проверены трассировкой кода (не только по зелёным тестам); 3 minor: rate_close не протестирован по эффекту (только дефолт), нет тестов на невалидный ввод (delay_ticks/rate_*/f_min>f_max — по конвенции проекта), документационный пробел вне скоупа (Control.airbrake_model не упоминает \"full\"). dev/docs/qa-report-2.17-step103.md. Полный прогон (оба независимых прогона): 668/668.",
+        "Аудит конвенций (177b83d, по прямому запросу пользователя 2026-10-22 — \"не изобретать, только индустриальные стандарты\"): 21 пункт, 6 самодельных конвенций против стандарта, 11 подтверждены стандартными, 4 стандартны-но-не-запинены. Главная находка после C_m — переопределённость аэро-момента (l_p и C_m оба заданы и складываются; ЦД по определению — производная величина, не независимый вход). dev/docs/conventions-industry-standard-analysis.md. Решения по 5 развилкам с движением пинов/LaTeX — у пользователя, см. pending_user.",
+        "Step 115 (06ac047): безопасное подмножество аудита (5 пунктов без движения пинов и без LaTeX) — исправлена ссылка на несуществующий backlog B42 → B35; scalar c_mq теперь переворачивается под cm_convention=standard в _constant_coeffs/_linearized_coeffs (table-column путь это уже делал); таблица eta Йоргенсена запинена против research-заметки (закрывает часть QA-9); устойчивость парсера RASP .eng (многословный manufacturer, ValueError вместо IndexError); документационные уточнения (Re l_ref/d_ref, _g_radial AGL vs _g_wgs84 MSL).",
+        "QA Step 115 (c422d4c): PASS без дефектов. Независимо перепроверены все 5 пунктов; pin-тест eta подтверждён не-циркулярным (сверен вручную с research-заметкой). Found: у sim/aero.py::_table_coeffs свой отдельный scalar c_mq fallback, который Step 115 не тронул (вне скоупа) — тот же баг, уже живой на example_v2.csv (B36, пин-риск, нужно решение пользователя). Полный прогон: 673/673."
       ],
-      "tests": "668 passed / 0 failed (полный прогон 2026-10-22, после Step 103 + QA)",
+      "tests": "673 passed / 0 failed (полный прогон 2026-10-22, после Step 115 + QA)",
       "next": "Step 105 (dispersion hooks + ensemble runner, depends_on Step 98 done) или Step 107 (sampled laws registry, depends_on Step 103 done) — оба разблокированы; Step 106 (max-spec app) ждёт 101+102+103+105; Step 101 по-прежнему ждёт данных пользователя (architecture-35 §35.8)",
       "open_items": [
-        "QA-9 (test quality, minor) остаётся открытым: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, таблица eta Jorgensen не запинена против первоисточника Hoerner/Jorgensen, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
+        "QA-9 (test quality, minor) частично закрыт Step 115 (таблица eta Jorgensen теперь запинена против первоисточника); остаётся: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md",
+        "B36: sim/aero.py::_table_coeffs scalar c_mq fallback не переворачивается под cm_convention=standard (та же дыра, что Step 115 закрыл в constant/linearized, но не в table) — живой на example_v2.csv, пин-риск, решение пользователя нужно"
       ],
       "pending_user": [
-        "Данные обеих реальных конфигураций (масса/ЦМ/МИ, геометрия, аэротаблица), кандидаты-моторы (.eng), аэротормоз, миссия — architecture-35 §35.8; блокирует Step 101"
+        "Данные обеих реальных конфигураций (масса/ЦМ/МИ, геометрия, аэротаблица), кандидаты-моторы (.eng), аэротормоз, миссия — architecture-35 §35.8; блокирует Step 101",
+        "Аудит конвенций — 5 развилок ждут решения пользователя (dev/docs/conventions-industry-standard-analysis.md §13/§14): (1) §12.1 — l_p это ЦД или станция момента? (рекомендация: станция момента, ЦД становится производной, 0 пинов, 1 предложение в LaTeX); (2) §1.1 — реальная конвенция C_m сейчас (D-111b, движет все пины + LaTeX) или дешёвое переименование (D-111c, 0 пинов)?; (3) §2 — C_A(alpha)=cos²alpha по Йоргенсену вместо рампы 85° (движет пины для любого ненулевого alpha)?; (4) §9 — одобрить research-проход по TR R-474/TN D-6996 (сняты лимиты Exa/Firecrawl)?; (5) §10 — подтвердить направление кватерниона (body→inertial) вместе с уже отложенным вопросом I_a (Step 30)."
       ]
     },
     {
@@ -1413,6 +1418,15 @@
       "author": "orchestrator",
       "user_approved": false,
       "stage": "2.17"
+    },
+    {
+      "id": "D-124",
+      "date": "2026-10-22",
+      "question": "User (verbatim): 'throughout the project I don't want to invent anything, I want to use industry standards so if something is invented please change it and let me know; you can do a sweep.' Triggered by discovering sim/forces.py's C_m sign convention is project-invented (B31/D-111), not the aerospace-standard one. How far to go overnight while the user is asleep?",
+      "choice": "оркестратор: заказан и выполнен полный read-only аудит архитектором (opus) — 21 пункт, 6 самодельных конвенций против 11 подтверждённых стандартными и 4 стандартных-но-не-запиненных. Пин-безопасные/без LaTeX пункты (5 шт., §14 отчёта) применены сразу же как Step 115 без отдельного вопроса пользователю — укладываются в прямое указание \"исправь, если придумано\". Пункты, двигающие числовые пины и/или утверждённый LaTeX (C_m-конвенция, aксиальный cos²alpha, переопределённость l_p/C_m, кватернион-направление, Jorgensen research-проход) — НЕ применены, несмотря на формальное разрешение пользователя, потому что это противоречит его же действующим гейтам (пины и LaTeX — только по явному «да» для каждого конкретного изменения); собраны как батч решений в pending_user, dev/docs/conventions-industry-standard-analysis.md §13/§14.",
+      "author": "orchestrator",
+      "user_approved": false,
+      "stage": "2.17"
     }
   ],
   "deferred_decisions": [
@@ -1662,7 +1676,13 @@
       "id": "B35",
       "title": "C_dn=1.2 (поперечное сопротивление цилиндра в расширении Йоргенсена) помечен UNVERIFIED, нет Mach/Re зависимости",
       "status": "open",
-      "note": "Из аудита конвенций 2026-10-22 (§9.1, dev/docs/conventions-industry-standard-analysis.md). sim/aero.py ссылался на несуществующий 'backlog B42' для этого же факта — исправлено на B35. Трансзвуковой пик 1.6-2.0, сверхкритическое падение до 0.15-0.30 — вне скоупа текущей реализации. Нужен research-проход по TR R-474/TN D-6996 (см. §9.1(d) того же аудита) прежде чем закрывать."
+      "note": "Из аудита конвенций 2026-10-22 (§9.1, dev/docs/conventions-industry-standard-analysis.md). sim/aero.py ссылался на несуществующий 'backlog B42' для этого же факта — исправлено на B35 (Step 115). Трансзвуковой пик 1.6-2.0, сверхкритическое падение до 0.15-0.30 — вне скоупа текущей реализации. Нужен research-проход по TR R-474/TN D-6996 (см. §9.1(d) того же аудита) прежде чем закрывать."
+    },
+    {
+      "id": "B36",
+      "title": "sim/aero.py::_table_coeffs — scalar c_mq fallback не переворачивается под cm_convention=\"standard\" (та же дыра, что Step 115 закрыл в constant/linearized)",
+      "status": "open",
+      "note": "QA Step 115 (dev/docs/qa-report-2.17-step115.md), найдено как precision note при независимой перепроверке. Step 115 исправил §1.3 только в _constant_coeffs/_linearized_coeffs; у _table_coeffs свой отдельный scalar-fallback (sim/aero.py ~line 662: C_mq = p.aero.c_mq, без _cm_to_code), который не трогали — вне заявленного скоупа Step 115. Живой, не теоретический: data/aero/example_v2.csv + tests/test_aero_v2.py (_v2_example_params/_short_flight_alpha) уже задают c_mq=0.5 под cm_convention=standard и проходят через этот путь. Пин-риск НЕ нулевой (в отличие от уже исправленных путей) — фикс может сдвинуть существующие пины на example_v2.csv-основанных тестах; нужно решение пользователя перед исправлением."
     }
   ],
   "artifacts": {
