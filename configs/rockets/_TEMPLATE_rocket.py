@@ -103,6 +103,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | eta       | OPT     | -                               | 0.0        | finite-length factor; 0.0 = from fineness S_p/d_ref^2 (Jorgensen TR R-474 Fig. 4) |
 | C_x180    | OPT     | -                               | 0.0        | axial coefficient magnitude in tail-first flow; 0.0 = C_x(0) of the table (UNVERIFIED placeholder: a blunt base facing the flow is higher, set it) |
 | S_base    | OPT     | m^2                             | 0.0        | base area of the potential term; 0.0 = S |
+| cx_scale  | OPT     | -                               | 1.0        | multiplier on C_x (dispersion hook, apps/common/ensemble.py, Step 105); 1.0 = off, skipped entirely |
 
 ### Recovery
 | field       | REQ/OPT | unit / choices   | default  | what it does |

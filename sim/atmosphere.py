@@ -117,6 +117,15 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     else:
         press = p_b * np.exp(-_G_ISA * (H - H_b) / (_R_D * T_b))
 
+    # Step 105 (architecture-35 SS35.4.1/SS35.4.5, dispersion hooks): a launch-day
+    # temperature offset, applied AFTER the pressure profile (the lapse-rate/
+    # hydrostatic formula above is untouched -- this models a day that is uniformly
+    # hotter/colder than the standard atmosphere at the same pressure altitude, not a
+    # different lapse rate). `== 0.0` (the default) is skipped entirely, not added as
+    # 0.0, so every pinned flight is bit-for-bit unchanged.
+    if p.atmosphere.dT_K != 0.0:
+        T = T + p.atmosphere.dT_K
+
     rho = press / (_R_D * T)
     a = np.sqrt(_GAMMA * _R_D * T)
     mu = _MU_0 * (T / _T_0) ** 1.5 * (_T_0 + _S_MU) / (T + _S_MU)

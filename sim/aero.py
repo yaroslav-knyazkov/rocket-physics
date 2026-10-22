@@ -780,6 +780,18 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None, fb: float = 0.0) -
     # Step 99 (D-110): a CP given as a station from the nose becomes the arm
     # `l_p - l_g(t)` here (the CoG moves with the burn); legacy: pass-through.
     base = _resolve_arm(_dispatch(flow.alpha, flow.M, p, fb), y, p)
+    # Step 105 (architecture-35 SS35.4.1/SS35.4.5, dispersion hooks): applied here,
+    # after every model dispatch and the station-to-arm resolution, so it scales the
+    # SAME C_x every actual force/moment consumer (forces.py, dynamics.py) reads through
+    # this seam. The `C_A()` thin wrapper below dispatches the model directly, bypassing
+    # this seam entirely (same as it already bypasses `_resolve_arm`/`control.aero_coeff_
+    # delta` above) -- it is NOT scaled by `cx_scale`, deliberately: nothing in sim/ calls
+    # it to compute a force (only tests and report.py's C_m slope diagnostic use these
+    # per-coefficient wrappers; see `C_A`'s own module-level comment, architecture-28-
+    # rewrite.md D-7). `== 1.0` (the default) is skipped entirely, not multiplied by 1.0,
+    # so every pinned flight is bit-for-bit unchanged.
+    if p.aero.cx_scale != 1.0:
+        base = base._replace(C_x=base.C_x * p.aero.cx_scale)
     # Local import: circular-import avoidance -- sim.control imports
     # AeroCoeffs (this module) at module level for its own type hints, so
     # this module must not import sim.control at module-load time. Same

@@ -120,6 +120,13 @@ class Aero:
     eta: float = 0.0              # finite-length factor; 0.0 -> from fineness S_p/d_ref^2
     C_x180: float = 0.0           # axial coefficient magnitude, tail-first flow; 0.0 -> C_x(0) of the table
     S_base: float = 0.0           # base area of the potential term [m^2]; 0.0 -> S
+    # Step 105 (architecture-35-paper-alignment.md SS35.4.1/SS35.4.5, D-105 dispersion
+    # hooks): multiplier on C_x, applied in sim/aero.py's `coefficients` choke point
+    # (the single place every downstream consumer of C_x reads from). 1.0 (the default)
+    # is skipped entirely -- not multiplied by 1.0 -- so every pinned flight is
+    # bit-for-bit unchanged; only a Monte-Carlo dispersion run (apps/common/ensemble.py)
+    # sets this away from 1.0.
+    cx_scale: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -144,6 +151,12 @@ class Site:                       # the launch site and the pad standing on it
 class Atmosphere:
     model: str = "isa"            # isa | sounding | field
     humid_air: bool = False
+    # Step 105 (architecture-35-paper-alignment.md SS35.4.1/SS35.4.5, dispersion
+    # hooks): ISA launch-day temperature offset [K], applied in sim/atmosphere.py's
+    # "isa" tier only. 0.0 (the default) is skipped entirely, so every pinned flight
+    # is bit-for-bit unchanged; a Monte-Carlo dispersion run (apps/common/ensemble.py)
+    # sets this away from 0.0.
+    dT_K: float = 0.0
 
 
 @dataclass(frozen=True)

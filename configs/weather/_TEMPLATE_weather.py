@@ -38,6 +38,7 @@ To use this template:
 |-----------|---------|---------------------------|---------|--------------|
 | model     | OPT     | isa \| sounding \| field  | "isa"   | atmosphere model; "isa" needs no sounding data |
 | humid_air | OPT     | bool                      | False   | True needs a sounding/field dewpoint (model != "isa") |
+| dT_K      | OPT     | K                         | 0.0     | ISA launch-day temperature offset (dispersion hook, apps/common/ensemble.py, Step 105); read only by the "isa" tier; 0.0 = off, skipped entirely |
 
 ### Soundings
 | field             | REQ/OPT | unit / choices | default | what it does |
