@@ -62,9 +62,9 @@ rather than to a literal zero everywhere; every table committed before
 Step 44 lacks it, so this must not change any existing table's behaviour.
 
 Step 99 (Phase 2.17, architecture-35 SS35.4.3, D-110/D-111): table v2. Exactly
-one of `l1_m` (legacy arm CoP->CoG) or `l_p_m` (CoP station from the nose; the
-arm is `l_p_m - l_g(t)` with `l_g` from `sim/mass.py`, or `Lengths.l_g` with the
-mass model off) must be present. A `# cm_convention: code|standard` header line
+one of `l1_m` (legacy arm CoP->CoG) or `l_p_m` (moment reference station from the
+nose, `x_ref`; the arm is `l_p_m - l_g(t)` with `l_g` from `sim/mass.py`, or
+`Lengths.l_g` with the mass model off) must be present. A `# cm_convention: code|standard` header line
 (default `code`) declares the sign of `C_m`; `standard` is flipped on load.
 The thrust-point arm keeps its legacy `-(l1 + l2)` expression, so a station
 config must have `misalign_deg == 0` (`validate`). `data/aero/example.csv` is
@@ -72,7 +72,7 @@ unchanged; `example_v2.csv` is its v2 sibling.
 
 Step 102 (Phase 2.17, D-109): an optional `f_b` column (air-brake deployment
 fraction, rectangular `(f_b, M, alpha)` grid, axis starting at 0.0) lets the table
-carry the brake's effect on `C_A`, `C_N`, `C_m` and the CP station `l_p_m`. It is read
+carry the brake's effect on `C_A`, `C_N`, `C_m` and the moment reference station `l_p_m`. It is read
 only under `Control.airbrake_aero = "table"` (then the additive `q Cd S_max f_b` term
 of `forces.py` is off); under the default `"additive"` the table is read at `f_b = 0`.
 Order of operations: blend the two bracketing `f_b` planes (`_at_fb`, clamped at the
@@ -184,7 +184,7 @@ class _AeroTable(NamedTuple):
     C_m: np.ndarray     # (n_M, n_alpha)
     l1: "np.ndarray | None"   # (n_M, n_alpha), CoP-to-CoG distance [m]; None for a v2 (`l_p_m`) table
     C_mq: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative, or None when the column is absent
-    l_p: "np.ndarray | None" = None  # (n_M, n_alpha), CoP station from the nose [m]; None for a legacy (`l1_m`) table
+    l_p: "np.ndarray | None" = None  # (n_M, n_alpha), moment reference station from the nose [m] (`x_ref`); None for a legacy (`l1_m`) table
     # Step 102 (D-109): brake-fraction axis. `None` = no `f_b` column. Otherwise `f_b` is the ascending
     # grid (starting at 0.0), `planes[k]` the 2-D table at `f_b[k]`, and the arrays above are `planes[0]`.
     f_b: "np.ndarray | None" = None
@@ -260,7 +260,7 @@ def _load_table(name: str) -> _AeroTable:
     if cm_convention == "standard":  # D-111: textbook sign -> the code's (positive = nose-down)
         C_m_col = -C_m_col
     # Step 99 (D-110/D-111): exactly one arm column -- `l1_m` (legacy CoP-to-CoG arm)
-    # xor `l_p_m` (CoP station from the nose; the arm is then l_p_m - CoG(t)).
+    # xor `l_p_m` (moment reference station from the nose, `x_ref`; the arm is then l_p_m - CoG(t)).
     has_l1 = "l1_m" in data.dtype.names
     has_lp = "l_p_m" in data.dtype.names
     if has_l1 == has_lp:
@@ -420,14 +420,19 @@ def _cm_to_code(C_m: float, p) -> float:
 
 
 def _arm_or_station(p) -> float:
-    """Constant/linearized models: `Aero.l_p` (a CP station, turned into an
+    """Constant/linearized models: `Aero.l_p` (a moment reference station, turned into an
     arm by `_resolve_arm`) when set, else the legacy arm `Lengths.l1`."""
     return p.aero.l_p if p.aero.l_p > 0.0 else p.lengths.l1
 
 
 def uses_l_p(p) -> bool:
-    """True when the CP is given as a station from the nose (an `l_p_m` table,
-    or `Aero.l_p > 0` under constant/linearized) rather than as the arm `l1`."""
+    """True when the moment reference is given as a station from the nose (`x_ref`, an `l_p_m` table,
+    or `Aero.l_p > 0` under constant/linearized) rather than as the arm `l1`.
+
+    Known limitation (not fixed here): `Aero.l_p == 0.0` also means "off" for constant/linearized
+    models, so a user cannot express "my moment reference station is the nose tip" there even though
+    it is the most common CFD convention -- a v2 table does not have this problem (`l_p_m = 0.0` is a
+    normal station value, only the scalar `Aero.l_p` field collides with its own off-switch)."""
     if p.aero.model == "table":
         return _load_table(p.aero.table).l_p is not None
     return p.aero.l_p > 0.0
@@ -440,7 +445,7 @@ def cg_station(y, p) -> float:
     if p.weight.m_d is None:
         if p.lengths.l_g <= 0.0:
             raise ValueError(
-                "a CP station (Aero.l_p / table l_p_m) with the mass model off "
+                "a moment reference station (Aero.l_p / table l_p_m) with the mass model off "
                 "needs Lengths.l_g > 0 (CoG station from the nose)"
             )
         return p.lengths.l_g
@@ -449,7 +454,7 @@ def cg_station(y, p) -> float:
 
 
 def _resolve_arm(base: "AeroCoeffs", y, p) -> "AeroCoeffs":
-    """Turn a CP station into the CoP-to-CoG arm `l_p - l_g(t)` (Step 99,
+    """Turn a moment reference station into the CoP-reference-to-CoG arm `l_p - l_g(t)` (Step 99,
     D-110); legacy configs pass through untouched (same object)."""
     if not uses_l_p(p):
         return base
@@ -479,7 +484,7 @@ def validate(p) -> None:
         cg_station(None, p)
         if p.lengths.misalign_deg != 0.0:
             raise ValueError(
-                "a CP station (l_p / l_p_m) requires Lengths.misalign_deg == 0: "
+                "a moment reference station (l_p / l_p_m) requires Lengths.misalign_deg == 0: "
                 "the thrust-point arm is not derived for station configs"
             )
 
@@ -816,10 +821,13 @@ def C_A(alpha: float, M: float, p) -> float:
     return _AERO_MODELS[p.aero.model](alpha, M, p).C_x
 
 
-def C_N(alpha: float, M: float, p) -> float:
+def C_N(alpha: float, M: float, p, fb: float = 0.0) -> float:
     """Normal-force coefficient (models.tex: `A_z = qSC_z`, `C_z == C_N`).
-    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps."""
-    return _AERO_MODELS[p.aero.model](alpha, M, p).C_z
+    See `coefficients`/`AeroCoeffs` for the full dispatch this wraps.
+    Step 116: optional brake fraction `fb` (read only under `airbrake_aero="table"`),
+    the same as `C_m` -- needed so `sim/report.py`'s derived-CP/combined-stability
+    diagnostics (D-125) read the brake-blended plane, not always the closed one."""
+    return _dispatch(alpha, M, p, fb).C_z
 
 
 def C_m(alpha: float, M: float, p, fb: float = 0.0) -> float:

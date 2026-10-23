@@ -12,7 +12,7 @@ import pytest
 from sim import aero
 from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Solver, Weight
-from sim.report import stability_check, static_margin_cal
+from sim.report import _CM_SLOPE_STEP, stability_check, static_margin_cal
 from sim.state import State
 
 _AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
@@ -56,12 +56,20 @@ def test_static_margin_series_matches_cg_travel():
     assert margin.shape == t.shape
     assert np.all(np.isfinite(margin))
     assert np.all(margin > 0.0)
-    # the arm l_p_m - l_g(t) divided by d_ref: check the first point by hand
+    # Step 116 (D-125): the derived-CP arm (l1 corrected by the local C_m/C_N slope ratio),
+    # divided by d_ref -- cross-check the first point against the same formula computed
+    # independently via aero's own per-coefficient slope helpers (not a hand-typed literal:
+    # the correction term is new with this step, see sim/report.py S116.3).
     from sim import mass
+    from sim.flow import flow_state
     y0 = r.raw.sol(0.0)
     l_g0 = mass.cog_position(mass.propellant_mass(y0[6], p), p)
-    # M ~ 0 at t=0 -> first M row of the table (1.18 m)
-    assert margin[0] == pytest.approx((1.18 - l_g0) / 0.1, rel=1e-6)
+    flow0 = flow_state(0.0, y0, p)
+    step = _CM_SLOPE_STEP
+    dcm = (aero.C_m(flow0.alpha + step, flow0.M, p) - aero.C_m(flow0.alpha - step, flow0.M, p)) / (2 * step)
+    dcz = (aero.C_N(flow0.alpha + step, flow0.M, p) - aero.C_N(flow0.alpha - step, flow0.M, p)) / (2 * step)
+    expected = (1.18 - l_g0) / 0.1 - dcm / dcz
+    assert margin[0] == pytest.approx(expected, rel=1e-6)
 
 
 def test_stable_table_reports_no_warning():
@@ -76,7 +84,20 @@ def test_stable_table_reports_no_warning():
 
 def test_flipping_declared_convention_reports_instability():
     with _flipped_copy("example_v2.csv", "test_v2_flipped.csv", "code") as name:
-        p = _params(name)
+        # Step 116 (D-125): a thinner margin than _params()'s default geometry -- needed so a
+        # wrongly-declared cm_convention actually flips the *combined* stability criterion, not
+        # just the standalone cm_slope. At the default geometry (l_d=0.8, l_p=1.3) this table's
+        # ample margin term dominates the C_m contribution regardless of its sign (verified
+        # numerically: combined stays at a constant -0.715, still "stable" under the unified
+        # criterion even with the wrong convention declared) -- this geometry is deliberately
+        # thinned so the flip crosses zero (verified: -0.065 declared correctly vs +0.035
+        # declared wrong).
+        p = Params(
+            weight=Weight(m=2.0, I=0.1, m_d=1.5, l_d=1.05, l_p=1.55, I_d=0.08, I_sp=200.0),
+            lengths=Lengths(l2=0.4),
+            aero=Aero(model="table", S=0.01, d_ref=0.1, table=name),
+            solver=Solver(method="rk4", dt=0.01, t_max=2.0),
+        )
         r = _run(p)
         with pytest.warns(UserWarning, match="unstable"):
             out = stability_check(r, p)

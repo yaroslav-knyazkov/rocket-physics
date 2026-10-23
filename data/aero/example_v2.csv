@@ -1,8 +1,9 @@
 # Aero table v2 sibling of example.csv (Step 99, Phase 2.17, architecture-35
 # SS35.4.3, D-110/D-111). Same synthetic placeholder numbers as example.csv,
 # expressed in the v2 format:
-#   - the CoP is given as a station from the nose tip, l_p_m [m] (not as the
-#     CoP-to-CoG arm l1_m), so the arm follows the moving CoG:
+#   - the moment reference station is given from the nose tip, l_p_m [m] (x_ref;
+#     C_m is taken about this station, the CP is a derived quantity), not as the
+#     CoP-to-CoG arm l1_m, so the arm follows the moving CoG:
 #     arm = l_p_m - l_g(t). Values here are example.csv's l1_m + 0.9 m, i.e.
 #     they reproduce example.csv's arms for a CoG station l_g = 0.9 m
 #     (Lengths.l_g = 0.9 with the mass model off).

@@ -66,20 +66,48 @@ def flight_summary(result, p) -> dict:
     )
 
 
+_CZ_SLOPE_EPS = 1e-9  # |dC_z/dalpha| below this: no normal-force sensitivity to derive a CP
+                       # correction from at this (alpha, M) (e.g. a drag-only test table with
+                       # C_N == 0 identically) -- fall back to the raw arm, no correction.
+
+
 def static_margin_cal(result, p, t_grid=None):
-    """Static margin series in calibres, `(t, margin)` with
-    `margin(t) = l1(t) / d_ref` -- `l1` is the CoP-to-CoG arm the dynamics
-    uses (`aero.coefficients(...).l1`), i.e. `(l_p - l_g(t)) / d_ref` for an
-    `l_p`/`l_p_m` config (Step 99, architecture-35 SS35.4.3), evaluated on the
-    flight's own `(alpha, M)`. Defaults to a 400-point grid over the flight.
+    """Static margin series in calibres, `(t, margin)`.
+
+    Step 116 (D-125): `l_p`/`l_p_m` is the *moment reference station* `x_ref`, not necessarily the
+    CP (architecture.md / conventions-industry-standard-analysis.md SS12.1). When the config uses a
+    station (`aero.uses_l_p(p)`), the margin is corrected to the *derived* CP station, via the local
+    slope ratio (central difference, the same `_CM_SLOPE_STEP` as `cm_slope_series`):
+
+        margin(t) = l1(t)/d_ref - (dC_m/dalpha)/(dC_z/dalpha)
+
+    where `l1(t) == x_ref - l_g(t)` (`aero.coefficients(...).l1`, D-110, unchanged). For a legacy
+    direct-arm config (`not uses_l_p(p)`), `l1` is the input arm itself with no separate "station"
+    reading to be ambiguous about, so the margin is reported as-is: `l1(t)/d_ref` (today's formula,
+    bit-for-bit).
     """
     if p.aero.d_ref <= 0.0:
         raise ValueError("static_margin_cal needs Aero.d_ref > 0")
     t, y = _flight_grid(result, t_grid)
+    use_derived_cp = aero.uses_l_p(p)
     margin = np.empty(t.size)
     for i, ti in enumerate(t):
         flow = flow_state(ti, y[:, i], p)
-        margin[i] = aero.coefficients(ti, y[:, i], p, flow, None, _brake_fraction(ti, y[:, i], p)).l1 / p.aero.d_ref
+        fb = _brake_fraction(ti, y[:, i], p)
+        arm = aero.coefficients(ti, y[:, i], p, flow, None, fb).l1
+        correction = 0.0
+        if use_derived_cp:
+            dcm = (
+                aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+                - aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+            ) / (2.0 * _CM_SLOPE_STEP)
+            dcz = (
+                aero.C_N(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+                - aero.C_N(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+            ) / (2.0 * _CM_SLOPE_STEP)
+            if abs(dcz) > _CZ_SLOPE_EPS:
+                correction = dcm / dcz
+        margin[i] = arm / p.aero.d_ref - correction
     return t, margin
 
 
@@ -118,32 +146,63 @@ def cm_slope_series(result, p, t_grid=None):
     return t, slope
 
 
+def combined_stability_slope_series(result, p, t_grid=None):
+    """`(t, d/dalpha[(l_g - l_p)*C_z - d_ref*C_m])` -- the single, reference-point-independent
+    stability criterion (Step 116, D-125, conventions-industry-standard-analysis.md SS12.1).
+    NEGATIVE = restoring (stable) in the code's C_m convention -- the opposite polarity from
+    `cm_slope_series`'s own "positive = restoring" (that is `dC_m/dalpha` alone, a different
+    quantity). Expressed via the already-resolved arm `l1 == l_p - l_g(t)` (or the legacy direct
+    arm), so it needs no `aero.uses_l_p` gate -- it is the same quantity `dynamics.py` actually
+    sums into the physical moment, for any aero model.
+    """
+    t, y = _flight_grid(result, t_grid)
+    slope = np.empty(t.size)
+    for i, ti in enumerate(t):
+        flow = flow_state(ti, y[:, i], p)
+        fb = _brake_fraction(ti, y[:, i], p)
+        arm = aero.coefficients(ti, y[:, i], p, flow, None, fb).l1
+        dcm = (
+            aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+            - aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+        ) / (2.0 * _CM_SLOPE_STEP)
+        dcz = (
+            aero.C_N(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+            - aero.C_N(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+        ) / (2.0 * _CM_SLOPE_STEP)
+        slope[i] = -arm * dcz - p.aero.d_ref * dcm
+    return t, slope
+
+
 def stability_check(result, p, t_grid=None) -> dict:
-    """Static-stability diagnostic (Step 99, D-111): warns (`UserWarning`) when
-    the static margin goes negative (CoP ahead of the CoG) or when the pitching-
-    moment slope has the destabilising sign in the code's convention (e.g. a
-    table whose declared `# cm_convention:` is wrong). Returns
-    `{min_margin_cal, min_cm_slope, stable}`; `stable` is False if either warned.
+    """Static-stability diagnostic (Step 116, D-125: single combined criterion, superseding the
+    two-independent-tests shape of Step 99/D-111). Warns (`UserWarning`) when the combined
+    restoring-moment slope (`combined_stability_slope_series`, negative = restoring) goes positive
+    anywhere over the flight. Returns `{min_margin_cal, min_cm_slope, max_stability_slope, stable}`
+    -- `min_margin_cal`/`min_cm_slope` stay as informational values (still meaningful on their own),
+    but `stable` is driven only by `max_stability_slope` (the *max*, not the min -- see
+    `combined_stability_slope_series`'s own docstring for why).
     """
     _, margin = static_margin_cal(result, p, t_grid)
-    _, slope = cm_slope_series(result, p, t_grid)
+    _, cm_slope = cm_slope_series(result, p, t_grid)
+    _, combined = combined_stability_slope_series(result, p, t_grid)
     min_margin = float(margin.min())
-    min_slope = float(slope.min())
-    stable = True
-    if min_margin < 0.0:
-        stable = False
+    min_cm_slope = float(cm_slope.min())
+    max_combined = float(combined.max())
+    stable = max_combined <= 1e-9  # tolerance: finite-difference rounding on flat segments
+    if not stable:
         warnings.warn(
-            f"unstable: static margin reaches {min_margin:.3f} cal (CoP ahead of the CoG)",
+            f"unstable: combined static-margin/pitching-moment-slope criterion reaches "
+            f"{max_combined:.4g} > 0 (d/dalpha[(l_g-l_p)*C_z - d_ref*C_m] in the code convention, "
+            "negative = nose-down restoring) -- check the CP/moment-reference station, geometry, "
+            "and the table's `# cm_convention:`",
             UserWarning, stacklevel=2,
         )
-    if min_slope < -1e-9:  # tolerance: finite-difference rounding on flat segments
-        stable = False
-        warnings.warn(
-            f"unstable: dC_m/dalpha = {min_slope:.4g} < 0 in the code convention "
-            "(positive C_m is nose-down) -- check the table's `# cm_convention:`",
-            UserWarning, stacklevel=2,
-        )
-    return dict(min_margin_cal=min_margin, min_cm_slope=min_slope, stable=stable)
+    return dict(
+        min_margin_cal=min_margin,
+        min_cm_slope=min_cm_slope,
+        max_stability_slope=max_combined,
+        stable=stable,
+    )
 
 
 def sweep(base_params: Params, path: str, values, s0: State) -> dict:
