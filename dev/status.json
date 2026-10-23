@@ -546,7 +546,7 @@
         "QA Step 105 (fac0a05): PASS, без блокеров/major. Независимо воспроизведены все числа тестов (62/62, 189/189, 705/705) и аналитическая ISA-формула вручную; Windows-spawn-safety подтверждена провокацией реального BrokenProcessPool на намеренно неправильном evaluate. Важная НЕ-дефектная находка для D-116: экстраполяция разработчика по времени RK4-sampled (~3.4 мин) занижена — прямой замер QA даёт 5.03 мин (только разгон-апогей) и ~2.5 часа (с полным спуском), сильно зависит от длины полёта. dev/docs/qa-report-2.17-step105.md."
       ],
       "tests": "705 passed / 0 failed (полный прогон 2026-10-22, после Step 105 + QA)",
-      "next": "Батч одобрен пользователем 2026-10-23 (D-125..D-128), в порядке (все трогают sim/aero.py — строго последовательно, не параллельно): Step 116 l_p relabel (D-125) → Step 117 C_m rename (D-126) → Step 118 axial cos² hybrid (D-127) → Step 119 B36 fix (D-128) → Step 104 segmented RK45 (D-128, build now) → research-проход по Jorgensen TR R-474/TN D-6996 (D-128, когда освободятся кредиты Exa/Firecrawl) → Step 107 (sampled laws, разблокирован, не трогает aero.py — можно параллельно). Step 106 ждёт только Step 101 (данные пользователя). Рекомендован /compact перед началом (MAIN 344k контекста, $97.40 за сессию на 2026-10-23 07:xx).",
+      "next": "Step 116 (l_p relabel, D-125) в работе: тикет готов (architect, dev/docs/task-116-lp-relabel.md на feature/sim-paper-alignment) — формула производного ЦД (slope-форма, guard на dC_z/dalpha≈0), gated на uses_l_p; объединённый критерий устойчивости; 2 LaTeX-правки (rocket-2d.tex geometry, analysis.tex static margin). Один пин подвинется осознанно (D-129, одобрено): tests/test_report.py::test_static_margin_series_matches_cg_travel — литерал заменяется на cross-check через aero.C_m/C_N. Передано developer-у. После: Step 117 C_m rename (D-126) → Step 118 axial cos² hybrid (D-127) → Step 119 B36 fix (D-128) → Step 104 segmented RK45 (D-128) → research-проход по Jorgensen (D-128, когда освободятся кредиты) → Step 107 (параллельно, не трогает aero.py). Step 106 ждёт только Step 101 (данные пользователя). Все шаги 116-119+104 строго последовательны (один файл sim/aero.py).",
       "open_items": [
         "QA-9 (test quality, minor) частично закрыт Step 115 (таблица eta Jorgensen теперь запинена против первоисточника); остаётся: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
       ],
@@ -1461,6 +1461,15 @@
       "date": "2026-10-23",
       "question": "Misc batch from the overnight audit: B36 fix (table-model scalar c_mq fallback, has real pin risk), research pass on Jorgensen TR R-474/TN D-6996, quaternion direction confirmation, Step 104 (segmented RK45) go/no-go.",
       "choice": "пользователь: все четыре — да. B36 чинить сейчас (несмотря на пин-риск, явно принят); research-проход одобрен; направление кватерниона (body→inertial) подтверждено, присоединяется к уже отложенному вопросу I_a (Step 30) — Step 30 остаётся блокирован, пока I_a не решён; Step 104 (сегментированный RK45) — строить сейчас, не откладывать до Step 109 (данные D-116: 5 мин только разгон против порога ~5 мин, ~2.5ч с полным спуском — неприемлемо для итерации над регулятором).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.17"
+    },
+    {
+      "id": "D-129",
+      "date": "2026-10-23",
+      "question": "Step 116 (l_p relabel, D-125) ticket done (dev/docs/task-116-lp-relabel.md, architect). Implementing it moves one numeric pin: tests/test_report.py::test_static_margin_series_matches_cg_travel's margin[0] literal (1.18 - l_g0)/0.1 becomes that minus a nonzero slope-ratio correction (example_v2.csv has a real C_m slope). Proposed: replace the hard literal with a cross-check computed via aero.C_m/aero.C_N's own slope helpers (not a hand-typed new number). 3 other report.py tests get no code change but are re-verified (stable now driven by the new combined criterion). All sim/dynamics.py trajectory pins stay untouched per Option A.",
+      "choice": "пользователь: да, продолжать (рекомендация оркестратора) — сдвиг пина осознанное и раскрытое следствие уже одобренного D-125 (вариант A подразумевал изменение диагностики report.py), траекторных пинов не касается.",
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
