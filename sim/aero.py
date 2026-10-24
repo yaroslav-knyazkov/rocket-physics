@@ -207,6 +207,13 @@ class _AeroTable(NamedTuple):
     # grid (starting at 0.0), `planes[k]` the 2-D table at `f_b[k]`, and the arrays above are `planes[0]`.
     f_b: "np.ndarray | None" = None
     planes: "tuple | None" = None
+    cm_convention: str = "code"  # Step 119 (D-128/B36): this table's own declared `# cm_convention:`
+                                  # header value ("code" default, same as _load_table's own local
+                                  # default). Used ONLY by _table_coeffs's scalar c_mq fallback, to
+                                  # flip a user-supplied constant exactly as a c_mq *column* in this
+                                  # same file would have been flipped. Every plane of a multi-f_b
+                                  # table shares the same value (it is a per-file, not per-plane,
+                                  # property) -- _at_fb's _replace() leaves it untouched, correctly.
 
 
 @functools.lru_cache(maxsize=None)
@@ -348,6 +355,9 @@ def _load_table(name: str) -> _AeroTable:
             l1=_reshape(l1_col) if l1_col is not None else None,
             C_mq_code=_reshape(C_mq_col) if C_mq_col is not None else None,
             l_p=_reshape(l_p_col) if l_p_col is not None else None,
+            cm_convention=cm_convention,  # Step 119/B36: the enclosing _load_table's already-
+                                           # parsed, already-validated local variable (line 246) --
+                                           # no new parsing, just carrying the existing value through.
         )
 
     if fb_grid is None:
@@ -663,6 +673,11 @@ def _table_coeffs(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
     for a user to be able to try a single constant damping value without
     regenerating a whole `(M, alpha)` grid.
 
+    Step 119 (D-128/B36): when the column is absent, the fallback scalar is flipped by the
+    TABLE's own declared `cm_convention` (not `Params.aero.cm_convention`, which this field's own
+    docstring scopes to the constant/linearized models only) -- the fallback stands in for a
+    missing column, so it is interpreted exactly as a column would have been.
+
     Step 55: `l1` now comes out of this same bundle as the force/moment
     coefficients, closing the pre-existing leak (architecture-28-rewrite.md
     F2) where `dynamics.py`'s CoP-arm lookup and `forces.py`'s force/
@@ -683,6 +698,12 @@ def _table_coeffs(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
     table = _at_fb(_load_table(p.aero.table), fb)
     if table.C_mq_code is not None:
         C_mq_code = _table_lookup(table, alpha, M, table.C_mq_code)
+    elif table.cm_convention == "standard":
+        # Step 119 (D-128/B36): the table has no c_mq column of its own -- the scalar fallback
+        # must respect the SAME convention the table declares, exactly as a c_mq *column* in
+        # this same file would have been flipped at load time (lines ~297-300 above). Mirrors
+        # the textbook-C_mq<0 -> code-sign flip documented there.
+        C_mq_code = -p.aero.c_mq
     else:
         C_mq_code = p.aero.c_mq
     clamped = AeroCoeffs(

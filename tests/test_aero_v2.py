@@ -104,6 +104,35 @@ def test_cm_convention_standard_flips_exactly_and_default_is_code():
         assert np.array_equal(t_std.C_N, t_code.C_N)
 
 
+def test_table_cm_convention_flips_scalar_c_mq_fallback():
+    """Step 119 (D-128/B36): a table with no c_mq column of its own must flip the scalar
+    Aero.c_mq fallback by the TABLE's own declared cm_convention -- not by
+    Params.aero.cm_convention (that field's docstring scopes it to constant/linearized only)."""
+
+    def _params(table):
+        # Mirrors _short_flight_alpha's shape (no mass model needed -- this test only
+        # exercises aero.coefficients, not a flight). _mass_params can't be reused as is:
+        # its **kw forwards straight to Params(**kw), which collides with the `aero=`
+        # it already passes positionally.
+        return Params(
+            weight=Weight(m=2.0, I=0.1),
+            lengths=Lengths(l2=0.4, l_g=0.9),
+            aero=Aero(model="table", S=0.01, d_ref=0.1, table=table, c_mq=5.0),
+        )
+
+    with _table("test_v2_fallback_std.csv", _v2_text(header="# cm_convention: standard\n")) as n_std, \
+         _table("test_v2_fallback_code.csv", _v2_text(header="# cm_convention: code\n")) as n_code, \
+         _table("test_v2_fallback_default.csv", _v2_text()) as n_default:
+        p_std = _params(n_std)
+        p_code = _params(n_code)
+        p_default = _params(n_default)
+        y = _y(1.8)
+        flow = flow_state(0.0, y, p_std)
+        assert aero.coefficients(0.0, y, p_std, flow).C_mq_code == -5.0     # standard -> flipped
+        assert aero.coefficients(0.0, y, p_code, flow).C_mq_code == 5.0    # code -> unflipped
+        assert aero.coefficients(0.0, y, p_default, flow).C_mq_code == 5.0  # no header -> default "code"
+
+
 def test_unknown_cm_convention_is_an_error():
     with _table("test_v2_badconv.csv", _v2_text(header="# cm_convention: bogus\n")) as name:
         with pytest.raises(ValueError, match="cm_convention"):
