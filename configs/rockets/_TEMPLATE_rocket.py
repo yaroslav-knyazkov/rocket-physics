@@ -117,7 +117,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 ### Control
 | field                    | REQ/OPT | unit / choices                              | default          | what it does |
 |--------------------------|---------|---------------------------------------------|------------------|--------------|
-| airbrake_model           | OPT     | none \| proportional                        | "none"           | airbrake controller; "none" = every field below inert |
+| airbrake_model           | OPT     | none \| proportional \| full \| a registered sampled-law name | "none" | airbrake controller; "none" = every field below inert |
 | airbrake_target_apogee_m | OPT     | m                                           | 0.0              | target apogee the controller steers toward |
 | airbrake_kp              | OPT     | 1/m                                         | 0.0              | proportional gain on predicted-apogee error (deployment fraction per metre) |
 | airbrake_Cd              | OPT     | -                                           | 1.0              | airbrake drag coefficient |
@@ -126,6 +126,11 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | airbrake_deploy_time     | OPT     | s                                           | 0.0              | read only when airbrake_trigger == "after_time" |
 | aero_coeff_model         | OPT     | none                                        | "none"           | aero-coefficient control seam; "none" = identity |
 | airbrake_aero            | OPT     | additive \| table                           | "additive"       | brake in the aerodynamics: additive axial term, or the aero table's f_b axis (needs an f_b column) |
+| airbrake_ki              | OPT     | 1/(m*s)                                     | 0.0              | pi_apogee's integral gain; 0.0 = inert (sampled laws only) |
+| onboard_mass             | OPT     | kg                                          | 0.0              | sampled laws' onboard mass estimate (nominal, not truth) |
+| onboard_CdA0             | OPT     | m^2                                         | 0.0              | sampled laws' onboard baseline drag area (C_x*S, lumped) |
+| onboard_CdA_brake        | OPT     | m^2                                         | 0.0              | sampled laws' onboard brake drag-area increment (C_D,b*S_b, lumped) |
+| onboard_rho0             | OPT     | kg/m^3                                      | 1.225            | sampled laws' nominal air density (not ISA-at-h_hat, task-107) |
 
 ### Actuator
 | field       | REQ/OPT | unit / choices | default | what it does |
@@ -244,6 +249,11 @@ ROCKET = Rocket(
         # airbrake_deploy_time=0.0,            # OPT, s -- read only when airbrake_trigger == "after_time"
         # aero_coeff_model="none",             # OPT, none -- aero-coefficient control seam; "none" = identity
         # airbrake_aero="additive",            # OPT, additive | table -- brake via additive term or the table's f_b axis
+        # airbrake_ki=0.0,                     # OPT, 1/(m*s) -- pi_apogee's integral gain; sampled laws only
+        # onboard_mass=0.0,                    # OPT, kg -- sampled laws' onboard mass estimate
+        # onboard_CdA0=0.0,                    # OPT, m^2 -- sampled laws' onboard baseline drag area (C_x*S)
+        # onboard_CdA_brake=0.0,               # OPT, m^2 -- sampled laws' onboard brake drag-area increment
+        # onboard_rho0=1.225,                  # OPT, kg/m^3 -- sampled laws' nominal air density
     ),
 
     actuator=Actuator(  # OPT, Actuator group -- sampled-data airbrake actuator; default is the ideal zero-order hold

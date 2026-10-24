@@ -72,10 +72,19 @@ any event is finalised, so it cannot read `Result.events`) and carries its
 same documented caveat (a pre-apogee `v_z` transient would arm it early).
 `airbrake_deploy_time == 0.0` under `"after_time"` means "deployed from
 t=0", the same semantics `Recovery.deploy_time == 0.0` already carries.
+
+Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-sampled-
+laws-registry.md): `register_sampled_law`/`known_sampled_laws` let a
+STATEFUL law (estimator + controller, outside this module -- `controllers/
+laws.py`) plug into the same `p.control.airbrake_model` dispatch key the
+three memoryless laws already use, read only by `sample_airbrake` under
+`p.solver.sample_rate_hz > 0.0` (`sim/integrate.py`'s eager guard rejects
+any other combination before integration starts). `_proportional_airbrake`
+and the other two memoryless laws are not edited by this step.
 """
 
 import math
-from typing import NamedTuple
+from typing import Any, Callable, NamedTuple, Optional
 
 import numpy as np
 
@@ -231,14 +240,36 @@ def airbrake_deploy_fraction(t: float, y: np.ndarray, p, hold=None) -> float:
     into the held actuator state (`_ramp`, below) -- continuous within a
     tick (every RK4 stage sees a different value as `t` advances across
     the tick's four stages), unlike the `"ideal"` branch's single constant.
+
+    Step 107: a SampledLawHold's own actuator_hold is unwrapped first --
+    the ramp/passthrough logic below is otherwise unaware a sampled law
+    was involved. A registered sampled law has no memoryless/continuous
+    evaluation of its own (it is stateful by construction) -- calling
+    this function for one WITHOUT a `hold` (e.g. a hold-less diagnostic
+    call made outside the sampled-data loop, such as sim/report.py's own
+    brake-fraction report) raises a clear `ValueError` here instead of an
+    opaque `KeyError` from `_AIRBRAKE_CONTROLLERS` (which never carries a
+    sampled-law entry, SS107.3.1) -- found during this ticket's own
+    code-review pass, not anticipated by the ticket text itself.
     """
     if hold is not None and "airbrake" in hold.values:
         v = hold.values["airbrake"]
+        if isinstance(v, SampledLawHold):
+            v = v.actuator_hold
         if isinstance(v, AirbrakeHold):
             a = p.actuator
             return _ramp(v.f_k, v.cmd_eff, t - v.t_k, a.rate_open, a.rate_close, a.f_min, a.f_max)
         return v
-    return _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+    name = p.control.airbrake_model
+    if name in _SAMPLED_LAWS:
+        raise ValueError(
+            f"airbrake_deploy_fraction: p.control.airbrake_model={name!r} is a "
+            "registered sampled law and has no memoryless/continuous evaluation -- "
+            "it can only be evaluated through sample_airbrake's own zero-order-"
+            "hold dispatch (a `hold` carrying a SampledLawHold must be passed "
+            "here; task-107-sampled-laws-registry.md)."
+        )
+    return _AIRBRAKE_CONTROLLERS[name](t, y, p)
 
 
 def sample_airbrake(t: float, y: np.ndarray, p, prev):
@@ -254,8 +285,25 @@ def sample_airbrake(t: float, y: np.ndarray, p, prev):
     `prev` (this channel's own held value from the previous tick, or
     `None` at the first tick, t=0) is threaded straight through to the
     actuator-model dispatch below; see `_actuator_ideal`/`_actuator_full`.
+
+    Step 107: if p.control.airbrake_model names a REGISTERED sampled law
+    instead, dispatch there (ctrl_state threaded via SampledLawHold) --
+    see task-107-sampled-laws-registry.md.
     """
-    cmd = _AIRBRAKE_CONTROLLERS[p.control.airbrake_model](t, y, p)
+    name = p.control.airbrake_model
+    if name in _SAMPLED_LAWS:
+        prev_actuator_hold, prev_ctrl_state = (
+            (prev.actuator_hold, prev.ctrl_state) if isinstance(prev, SampledLawHold) else (prev, None)
+        )
+        if _in_coast_window(t, y, p):
+            meas = _ideal_measurement(t, y, p)  # Step 108 replaces this one call (SS107.3.2/SS107.12)
+            cmd, ctrl_state = _SAMPLED_LAWS[name](t, meas, p, prev_ctrl_state)
+        else:
+            cmd, ctrl_state = 0.0, prev_ctrl_state  # outside the window: command 0, state frozen
+        actuator_hold = _ACTUATOR_MODELS[p.actuator.model](t, cmd, p, prev_actuator_hold)
+        return SampledLawHold(actuator_hold=actuator_hold, ctrl_state=ctrl_state)
+
+    cmd = _AIRBRAKE_CONTROLLERS[name](t, y, p)
     return _ACTUATOR_MODELS[p.actuator.model](t, cmd, p, prev)
 
 
@@ -383,6 +431,115 @@ def known_actuator_models() -> "tuple[str, ...]":
     reach into another module's internals.
     """
     return tuple(_ACTUATOR_MODELS)
+
+
+# ----------------------------------------------------------------------
+# Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
+# sampled-laws-registry.md): the sampled-law registry -- any STATEFUL
+# estimator+law pair (controllers/laws.py) can plug into the same
+# p.control.airbrake_model dispatch key the three memoryless laws above
+# already use. No law is written in this module -- see controllers/.
+# ----------------------------------------------------------------------
+
+
+_SAMPLED_LAWS: "dict[str, Callable]" = {}
+
+
+def register_sampled_law(name: str, fn: "Callable") -> None:
+    """Register fn(t_k, meas, p, state) -> (cmd, state) under `name`, read
+    by sample_airbrake's dispatch (below) whenever p.control.airbrake_model
+    == name. Collides only with the three BUILT-IN memoryless names (none/
+    proportional/full) -- raises ValueError there (silently shadowing one
+    of this project's off-switch/legacy names would be a nasty, hard-to-
+    debug mistake for every subsequent call in the same process). Any
+    other name, including re-registering the SAME name a second time, is a
+    plain overwrite -- no raise -- the simplest, most dict-assignment-like
+    behaviour, consistent with every other dispatch dict in this codebase
+    being a bare literal (this is the first RUNTIME registration API this
+    project has had; there is no stricter precedent to match).
+    """
+    if name in _AIRBRAKE_CONTROLLERS:
+        raise ValueError(
+            f"register_sampled_law: {name!r} collides with a built-in "
+            f"airbrake_model name (known: {sorted(_AIRBRAKE_CONTROLLERS)})."
+        )
+    _SAMPLED_LAWS[name] = fn
+
+
+def known_sampled_laws() -> "tuple[str, ...]":
+    """The registered sampled-law names -- sim.integrate.run_sim's own
+    eager-validation guard (Step 107, mirroring known_actuator_models())
+    calls this instead of reaching into _SAMPLED_LAWS directly."""
+    return tuple(_SAMPLED_LAWS)
+
+
+class Measurement(NamedTuple):
+    """What a registered sampled law is allowed to see -- never `y`
+    (architecture-35-paper-alignment.md SS35.4.4: "the controller never
+    sees y"). `a_imu` is `None` until Step 108 wires an IMU channel (D-115
+    only commits to baro + alpha-beta; IMU is option (c), not taken)."""
+    h_baro: float
+    a_imu: "Optional[float]" = None
+
+
+def _ideal_measurement(t: float, y: np.ndarray, p) -> Measurement:
+    """Step 107's own stub sensor: truth-equals-measurement, no noise, no
+    lag, no quantisation -- exactly what the roadmap's own "ideal sensor"
+    test wording (Step 107's acceptance bullet) requires to be testable
+    BEFORE Step 108's real sim/sensors.py exists. Reads gravity.altitude_
+    agl (the same primitive _proportional_airbrake's own predictor already
+    reads), never atmosphere.py or any noise model.
+
+    SUPERSEDED BY STEP 108 (does not change this ticket's own tests, see
+    SS107.12): sample_airbrake's sampled-law branch (SS107.4) calls this
+    function by name, in exactly one place. Step 108 replaces that ONE
+    call site with `sensors.measure(t, y, p, prev_sens_state)` (returning
+    a `(Measurement, sens_state)` pair instead of a bare `Measurement`),
+    and threads the returned `sens_state` into `SampledLawHold.sens_state`
+    (already present, default None, SS107.3.3) -- `_ideal_measurement`
+    itself is then dead code Step 108 may delete, but nothing in THIS
+    ticket's tests calls it directly (they go through run_sim/
+    sample_airbrake), so deleting it breaks no Step 107 test.
+    """
+    return Measurement(h_baro=gravity.altitude_agl(y, p))
+
+
+class SampledLawHold(NamedTuple):
+    """The channel's own `prev` (sim.sampling's sense) when p.control.
+    airbrake_model is a REGISTERED sampled law -- wraps the actuator's own
+    held value (float under actuator.model=="ideal", AirbrakeHold -- Step
+    103's own type, UNTOUCHED -- under "full") together with the LAW's own
+    ctrl_state (opaque, law-specific: None for a stateless law, a small
+    NamedTuple with an integrator for pi_apogee). `sens_state` is a Step-
+    108 placeholder (always None here, Step 107 never writes anything
+    else into it) -- present now so Step 108 does not need to change this
+    NamedTuple's SHAPE, only what it puts in that one field (no API break,
+    per the task brief's own requirement).
+    """
+    actuator_hold: "float | AirbrakeHold"
+    ctrl_state: Any
+    sens_state: Any = None
+
+
+def _in_coast_window(t: float, y: np.ndarray, p) -> bool:
+    """Unpowered-ascent, pre-apogee -- a SEPARATE copy of the exact
+    condition _proportional_airbrake applies inline (that function is NOT
+    touched/refactored here, SS107.1), used only by sample_airbrake's new
+    sampled-law branch, below. A registered law never sees `y`
+    (architecture-35-paper-alignment.md SS35.4.4), so the window has to be
+    decided at the channel level, which legitimately has `y` (the plant
+    truth sampled once per tick) -- not inside the law itself.
+
+    Known, documented simplification (same standing as `_trigger_after_
+    apogee`'s own "pre-apogee vz dip" caveat, this module's docstring):
+    outside this window the law is not called at all this tick (SS107.4),
+    so a stateful law's internal filter/integrator does not warm up until
+    the window opens -- not fixed here, not a regression (the legacy
+    laws have no state to warm up in the first place, so this is a new
+    kind of simplification specific to a stateful law, not a narrowing of
+    an existing guarantee).
+    """
+    return not (thrust_curve.thrust(t, y, p) > 0.0 or y[VZ] >= 0.0)
 
 
 # ----------------------------------------------------------------------

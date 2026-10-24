@@ -193,7 +193,7 @@ class Recovery:
 
 @dataclass(frozen=True)
 class Control:
-    airbrake_model: str = "none"          # none | proportional
+    airbrake_model: str = "none"          # none | proportional | full | <registered sampled-law name> (needs solver.sample_rate_hz>0)
     airbrake_target_apogee_m: float = 0.0
     airbrake_kp: float = 0.0
     airbrake_Cd: float = 1.0
@@ -205,6 +205,18 @@ class Control:
     # q*Cd*S_max*f_b (default, bit-identical); "table" = the aero table's f_b axis supplies the brake's
     # C_A/C_N/C_m/l_p (needs Aero.model == "table" with an f_b column; the additive term is then off).
     airbrake_aero: str = "additive"       # additive | table
+    # Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
+    # sampled-laws-registry.md): gains/onboard model read ONLY by a
+    # registered sampled law (sim.control.known_sampled_laws()) -- inert
+    # (unreachable) under every memoryless airbrake_model value, zero pin
+    # risk. airbrake_kp/airbrake_target_apogee_m above are REUSED by
+    # proportional_drag (same meaning: P gain / target on predicted
+    # apogee error) -- no duplicate field for those two.
+    airbrake_ki: float = 0.0          # pi_apogee's integral gain [1/(m*s)]; 0.0 = inert
+    onboard_mass: float = 0.0         # kg, onboard model's own mass estimate (nominal, not truth)
+    onboard_CdA0: float = 0.0         # m^2, onboard model's own baseline drag area (C_x*S, lumped); 0.0 = vacuum-limit predictor
+    onboard_CdA_brake: float = 0.0    # m^2, onboard model's own FULLY-OPEN brake drag area increment (C_D,b*S_b, lumped)
+    onboard_rho0: float = 1.225       # kg/m^3, nominal air density the predictor uses; 1.225 = ISA sea level (not ISA-at-h_hat, SS107.3.4)
 
 
 @dataclass(frozen=True)

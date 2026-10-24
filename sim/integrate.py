@@ -660,6 +660,11 @@ def run_sim(p, s0: State) -> Result:
     sampled-data loop (`sim/sampling.py`'s `sample()`, called once per
     tick), where a typo would otherwise only surface after however many
     ticks of a potentially long integration had already run.
+
+    Step 107: a registered sampled law (sim.control.known_sampled_laws())
+    also raises here, immediately, if sample_rate_hz <= 0.0 -- same
+    eager-validation rationale as the actuator-model guard above
+    (task-107-sampled-laws-registry.md).
     """
     aero.reset_oob_warning()  # Step 112: once-per-run out-of-range alpha warning
     method = p.solver.method
@@ -674,6 +679,16 @@ def run_sim(p, s0: State) -> Result:
             f"p.actuator.model={p.actuator.model!r} is not a registered "
             f"actuator model (known: {sorted(control.known_actuator_models())}) "
             "(architecture-35-paper-alignment.md SS35.6)."
+        )
+
+    if p.control.airbrake_model in control.known_sampled_laws() and sample_rate_hz <= 0.0:
+        raise ValueError(
+            f"p.control.airbrake_model={p.control.airbrake_model!r} is a "
+            f"registered sampled law (known: {sorted(control.known_sampled_laws())}) "
+            "and requires p.solver.sample_rate_hz > 0.0 (architecture-35-"
+            "paper-alignment.md SS35.4.4, task-107-sampled-laws-registry.md): "
+            "a sampled law carries state across ticks and only makes sense "
+            "under the sampled-data/ZOH mode."
         )
 
     if sample_rate_hz > 0.0 and method not in ("rk4", "rk45_seg"):
