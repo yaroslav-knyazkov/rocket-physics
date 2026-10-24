@@ -65,6 +65,25 @@ only whether/when a fresh `Hold` is computed differs, via one small
 counter. `sim/sampling.py` is imported locally, only inside the
 `sample_rate_hz > 0.0` branch, so the default `RK45` path (and the
 `rk4` path with sampling off) never imports or touches it at all.
+
+Step 104 (Phase 2.17; D-116/D-128; task-104-segmented-rk45.md): a second,
+also opt-in sampled-data path -- `p.solver.method == "rk45_seg"` -- for
+when the fixed-step `rk4` + ZOH path (Step 59) is too slow for a large
+sampled-data ensemble (measured in qa-report-2.17-step105.md SS7: a
+100-sample ascent-to-apogee ensemble landed at the D-116 "~5 min"
+threshold under rk4; a full-flight ensemble, ~2.5 hours). One
+`solve_ivp(method="RK45", ...)` call per sampling tick, instead of one
+hand-written RK4 substep per tick -- the adaptive solver's own step
+control runs freely inside a tick, and the hold boundary between ticks
+is a segment boundary, never a mid-step discontinuity, so it is honoured
+exactly, the same ZOH correctness argument Step 59's own docstring makes
+for its RK4 stages. Gated the same way Step 59's `rk4` path is
+(`sample_rate_hz > 0.0` required), PLUS a new, symmetric gate:
+`method == "rk45_seg"` itself requires `sample_rate_hz > 0.0` (this
+method exists only to serve the ZOH mode; an un-sampled run has no
+reason to ask for it). `_run_rk4` is NOT touched by this step -- zero
+diff, confirmed by construction: the new path is dispatched on a
+brand-new `method` string no existing call can reach.
 """
 
 import math
@@ -417,6 +436,189 @@ def _run_rk4(p, s0: State, t_max: float, dt: float, sample_rate_hz: float = 0.0)
     )
 
 
+_NON_TERMINAL_EVENTS = (
+    ("apogee", _apogee_event),
+    ("burnout", _burnout_event),
+    ("rail_exit", _rail_exit_event),
+    ("parachute_deploy", _parachute_deploy_event),
+)
+
+
+def _pending_events(found: "dict[str, Optional[float]]"):
+    """Which events still need watching in the NEXT segment (Step 104,
+    task-104-segmented-rk45.md SS104.5). `_ground_event` is unconditionally
+    always included (terminal, stops the whole run, not first-occurrence-
+    tracked). Each of the other four is dropped the moment `found[name]` is
+    no longer `None` -- it has already fired once, and `Result.events` can
+    only ever record one time per key (never a list), so re-including an
+    already-fired event risks a LATER segment's spurious/second crossing
+    (e.g. floating-point noise sitting exactly at `thrust == 0` well after
+    burnout) silently overwriting the correct first-occurrence time. Pure
+    function of `found` alone -- no `solve_ivp` call, no segment state --
+    independently unit-testable."""
+    pending = [(name, fn) for name, fn in _NON_TERMINAL_EVENTS if found[name] is None]
+    names = ["ground"] + [name for name, _ in pending]
+    fns = [_ground_event] + [fn for _, fn in pending]
+    return names, fns
+
+
+class _SegmentedSol:
+    """Stitches per-segment scipy dense `OdeSolution` callables
+    (`solve_ivp(..., dense_output=True).sol`) into one seamless `raw.sol(t)`
+    spanning the WHOLE run -- the exact same call shape `_LinearInterpolant`
+    and the real single-call RK45 path's `OdeSolution` already give every
+    caller (scalar t -> shape-(6,) array; array t -> shape-(6, N) array), so
+    `Result.raw.sol(...)` needs no special-casing per integrator anywhere
+    outside this module (task-104-segmented-rk45.md SS104.6). Each
+    segment's own `sol` IS scipy's exact dense interpolant for that segment
+    -- this class only decides WHICH segment's `sol` to delegate to for a
+    given `t`, by binary search over `starts` (each segment's own
+    `t_start`, strictly increasing, absolute time -- SS104.4). A `t`
+    landing exactly on a shared segment boundary is served by the segment
+    whose OWN `t_start` equals that `t` (`searchsorted(..., side="right")`
+    semantics -- confirmed directly against the formula, not assumed: for
+    `starts=[0, 1, 2]` and `t=1.0` this resolves to segment index 1, not 0);
+    `t` outside `[starts[0], run end]` is clamped to the nearest edge
+    segment, same "caller's responsibility to stay in range" contract every
+    other `raw.sol` implementation in this codebase already has.
+    """
+
+    def __init__(self, starts: "list[float]", sols: "list"):
+        self._starts = np.asarray(starts, dtype=float)
+        self._sols = sols
+
+    def __call__(self, t):
+        t_arr = np.atleast_1d(np.asarray(t, dtype=float))
+        idx = np.searchsorted(self._starts, t_arr, side="right") - 1
+        idx = np.clip(idx, 0, len(self._sols) - 1)
+        # State width read from the first delegate call rather than
+        # hardcoded -- `State` grew a 7th component (mass, Step 36) after
+        # this class's own design sketch (task-104-segmented-rk45.md
+        # SS104.6) assumed 6; staying generic here means a future State
+        # width change needs no edit in this module.
+        out = None
+        for seg_idx in np.unique(idx):
+            mask = idx == seg_idx
+            vals = self._sols[seg_idx](t_arr[mask])
+            if out is None:
+                out = np.empty((vals.shape[0], t_arr.size))
+            out[:, mask] = vals
+        return out if np.ndim(t) else out[:, 0]
+
+
+class _SegRK45Raw(NamedTuple):
+    # `_SegmentedSol` in the normal (>=1 segment) case; `_LinearInterpolant`
+    # in the degenerate `t_max <= 0.0` case (see `_run_segmented_rk45`'s own
+    # fallback) -- both satisfy the same `sol(t)` call contract.
+    sol: Any
+
+
+def _run_segmented_rk45(p, s0: State, t_max: float, sample_rate_hz: float,
+                         rtol: float, atol: float) -> Result:
+    """Segmented RK45 + zero-order hold (Step 104, D-116/D-128) -- see
+    task-104-segmented-rk45.md SS104.4-SS104.6 for the full design
+    rationale. One `solve_ivp(method="RK45", ...)` call per sampling tick;
+    each segment's own `t_span` is ABSOLUTE time (no 0-reset, no offset
+    arithmetic needed when stitching -- SS104.4). Event functions are the
+    same five module-level callables the plain-RK45 path uses, reused
+    verbatim: `_ground_event` (terminal) every segment; the other four
+    first-occurrence-only across the whole run via `_pending_events`.
+    """
+    from sim import sampling  # local import -- Step 59's own precedent;
+                               # never imported on the default RK45 path
+                               # or the un-sampled rk4 path.
+
+    y0 = np.array(s0, dtype=float)
+    T_s = 1.0 / sample_rate_hz
+
+    t_chunks = [np.array([0.0])]
+    y_chunks = [y0.reshape(-1, 1)]  # State width, not hardcoded (see _SegmentedSol's own note)
+    seg_starts: list = []
+    seg_sols: list = []
+
+    found = {"apogee": None, "burnout": None, "rail_exit": None, "parachute_deploy": None}
+    t_ground = None
+
+    t = 0.0
+    y = y0
+    hold = None
+    while t < t_max:
+        hold = sampling.sample(t, y, p, prev=hold)
+        t_end = min(t + T_s, t_max)
+        if t_end <= t:
+            break  # floating-point edge at the very last tick; nothing left to integrate
+
+        names, fns = _pending_events(found)
+
+        # Deviation from task-104-segmented-rk45.md SS104.4's literal code
+        # sketch, found while implementing (not guessed around): scipy's
+        # `solve_ivp(..., args=...)` passes the SAME `args` tuple to `fun`
+        # AND every function in `events=` (documented scipy behaviour,
+        # confirmed directly against the installed scipy 1.18.1). The
+        # sketch's own `args=(p, hold)` would therefore call
+        # `_ground_event(t, y, p, hold)` -- 4 args into a 3-arg function,
+        # a TypeError on the very first tick. Fixed by keeping `args=(p,)`
+        # (bit-for-bit what the event functions -- reused verbatim,
+        # SS104.4's own non-goal -- already expect) and threading `hold`
+        # into the RHS only, via a closure fresh each tick (`_hold=hold`
+        # default-argument binding avoids any late-binding surprise, even
+        # though this tick's `sol` is always fully consumed before `hold`
+        # is reassigned next iteration).
+        def _rhs(tt, yy, pp, _hold=hold):
+            return derivatives(tt, yy, pp, _hold)
+
+        sol = solve_ivp(
+            _rhs, (t, t_end), y, method="RK45",
+            args=(p,), events=fns, dense_output=True,
+            rtol=rtol, atol=atol,
+        )
+        if sol.status == -1:
+            raise RuntimeError(f"segmented RK45 tick at t={t} failed: {sol.message}")
+
+        for idx, name in enumerate(names):
+            if name != "ground" and len(sol.t_events[idx]):
+                found[name] = float(sol.t_events[idx][0])
+
+        seg_starts.append(t)
+        seg_sols.append(sol.sol)
+        t_chunks.append(sol.t[1:])
+        y_chunks.append(sol.y[:, 1:])
+
+        t, y = float(sol.t[-1]), sol.y[:, -1]
+
+        if sol.status == 1:
+            # The only terminal event ever passed is _ground_event
+            # (SS104.5) -- confirmed by construction via _pending_events.
+            t_ground = float(sol.t_events[0][0])
+            break
+
+    t_arr = np.concatenate(t_chunks)
+    y_arr = np.concatenate(y_chunks, axis=1)
+
+    # Degenerate input (`t_max <= 0.0`): the `while` loop above never ran,
+    # so `seg_sols` is empty -- found during code-review, not anticipated
+    # by task-104-segmented-rk45.md's own SS104.9 ("no new guard needed"
+    # reasoning, which only holds because the SIBLING paths don't crash on
+    # this input either). `_SegmentedSol([], [])` would `IndexError` on
+    # any later `raw.sol(t)` call (`self._sols[-1]` on an empty list);
+    # fall back to the same single-point constant-extrapolation
+    # `_LinearInterpolant` `_run_rk4` already relies on for this exact
+    # degenerate case, rather than leaving a crash-on-first-use landmine.
+    sol_impl = _SegmentedSol(seg_starts, seg_sols) if seg_sols else _LinearInterpolant(t_arr, y_arr)
+
+    return Result(
+        t=t_arr,
+        y=y_arr,
+        events={
+            "apogee": found["apogee"], "ground": t_ground,
+            "burnout": found["burnout"], "rail_exit": found["rail_exit"],
+            "parachute_deploy": found["parachute_deploy"],
+        },
+        raw=_SegRK45Raw(sol=sol_impl),
+        params=p,
+    )
+
+
 def run_sim(p, s0: State) -> Result:
     """Integrate the equations of motion from `s0` until ground impact or
     `p.solver.t_max`, whichever comes first.
@@ -446,6 +648,10 @@ def run_sim(p, s0: State) -> Result:
     bit-for-bit: this check cannot fire, and `_run_rk4` never imports
     `sim.sampling` or constructs a `Hold`.
 
+    Step 104 (D-116/D-128): `p.solver.method == 'rk45_seg'` opts into a
+    second sampled-data path, segmented RK45, gated the same way plus its
+    own sample_rate_hz>0.0 requirement -- see task-104-segmented-rk45.md.
+
     Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): an
     unregistered `p.actuator.model` also raises `ValueError` here,
     immediately -- a deliberate exception to this project's usual lazy-
@@ -470,16 +676,32 @@ def run_sim(p, s0: State) -> Result:
             "(architecture-35-paper-alignment.md SS35.6)."
         )
 
-    if sample_rate_hz > 0.0 and method != "rk4":
+    if sample_rate_hz > 0.0 and method not in ("rk4", "rk45_seg"):
         raise ValueError(
             f"p.solver.sample_rate_hz={sample_rate_hz} requires "
-            f"p.solver.method=='rk4' (got method={method!r}): an adaptive "
-            "integrator cannot honour a zero-order-hold boundary "
-            "(architecture-28-rewrite.md SS28.8.2)."
+            f"p.solver.method in {{'rk4', 'rk45_seg'}} (got method={method!r}): "
+            "a plain adaptive integrator cannot honour a zero-order-hold "
+            "boundary (architecture-28-rewrite.md SS28.8.2; Step 104 adds "
+            "'rk45_seg' as the second, segmented-adaptive option, "
+            "task-104-segmented-rk45.md)."
+        )
+
+    if method == "rk45_seg" and sample_rate_hz <= 0.0:
+        raise ValueError(
+            f"p.solver.method='rk45_seg' requires sample_rate_hz > 0.0 "
+            f"(got sample_rate_hz={sample_rate_hz}): segmented RK45 exists "
+            "only to serve the sampled-data/ZOH mode -- for an un-sampled "
+            "run use method='RK45' instead (task-104-segmented-rk45.md "
+            "SS104.2)."
         )
 
     if method == "rk4":
         result = _run_rk4(p, s0, t_max, dt, sample_rate_hz)
+        _warn_if_mach_blind(result)
+        return result
+
+    if method == "rk45_seg":
+        result = _run_segmented_rk45(p, s0, t_max, sample_rate_hz, rtol, atol)
         _warn_if_mach_blind(result)
         return result
 

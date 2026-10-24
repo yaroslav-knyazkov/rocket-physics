@@ -235,7 +235,7 @@ class Actuator:
 
 @dataclass(frozen=True)
 class Solver:
-    method: str = "RK45"          # RK45 (or any scipy name) | rk4
+    method: str = "RK45"          # RK45 (or any scipy name) | rk4 | rk45_seg (Step 104, D-116 -- requires sample_rate_hz>0.0)
     rtol: float = 1e-8
     atol: float = 1e-10
     t_max: float = 300.0

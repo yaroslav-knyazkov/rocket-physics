@@ -79,7 +79,7 @@ data-table model (see configs/rockets/_TEMPLATE_rocket.py).
 ### Solver
 | field          | REQ/OPT | unit / choices        | default | what it does |
 |----------------|---------|-----------------------|---------|--------------|
-| method         | OPT     | RK45 \| rk4 (or any scipy name) | "RK45" | integration method |
+| method         | OPT     | RK45 \| rk4 \| rk45_seg (or any scipy name for RK45's slot) | "RK45" | integration method; rk45_seg needs sample_rate_hz>0.0 (Step 104) |
 | rtol           | OPT     | -                     | 1e-08   | relative tolerance |
 | atol           | OPT     | -                     | 1e-10   | absolute tolerance (state components have mixed units) |
 | t_max          | OPT     | s                     | 300.0   | maximum simulated time |
