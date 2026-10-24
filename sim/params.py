@@ -102,7 +102,8 @@ class Aero:
     # (same `_cm_to_code` conversion as `C_m`/`C_m_alpha`), matching the table's c_mq column, which
     # was already flipped there since Step 114.
     c_mq: float = 0.0
-    # Step 99 (D-111): CP station from the nose [m] for the constant/linearized models
+    # Step 99 (D-111): moment reference station from the nose [m] (x_ref) for the
+    # constant/linearized models
     # (arm = l_p - CoG(t)); 0.0 = off, Lengths.l1 is the arm. A table carries its own l_p_m column.
     l_p: float = 0.0
     # C_m sign convention of the constant/linearized coefficients: "code" (positive C_m = nose-down,

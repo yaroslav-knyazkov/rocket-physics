@@ -73,7 +73,7 @@ def test_table_lookup_exact_grid_point():
 
     assert aero.C_A(alpha, M, p) == 0.60
     assert aero.C_N(alpha, M, p) == 0.6981
-    assert aero.C_m(alpha, M, p) == -0.1396
+    assert aero.C_m_code(alpha, M, p) == -0.1396
     assert aero.cop_l1(alpha, M, p) == 0.35
 
 
@@ -161,7 +161,7 @@ def test_no_table_reproduces_pre_step25_coefficients_exactly():
 
     assert aero.C_A(alpha_probe, M_probe, p) == p.aero.C_A0
     assert aero.C_N(alpha_probe, M_probe, p) == p.aero.C_N_alpha * math.sin(alpha_probe)
-    assert aero.C_m(alpha_probe, M_probe, p) == p.aero.C_m_alpha * math.sin(alpha_probe)
+    assert aero.C_m_code(alpha_probe, M_probe, p) == p.aero.C_m_alpha * math.sin(alpha_probe)
     assert aero.cop_l1(alpha_probe, M_probe, p) == p.lengths.l1
 
     s = State(x=0.0, z=0.0, vx=0.0, vz=-60.0, theta=math.pi / 2 - 0.1, omega=0.3)
@@ -242,7 +242,7 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     # Confirm the probe lands exactly on the table's grid point used below.
     C_A = aero.C_A(flow.alpha, flow.M, p)
     C_N = aero.C_N(flow.alpha, flow.M, p)
-    C_m = aero.C_m(flow.alpha, flow.M, p)
+    C_m = aero.C_m_code(flow.alpha, flow.M, p)
     l1_table = aero.cop_l1(flow.alpha, flow.M, p)
     assert math.isclose(C_A, 0.60, rel_tol=1e-9)
     assert math.isclose(C_N, 0.6981, rel_tol=1e-9)
@@ -363,13 +363,13 @@ def test_C_mq_no_table_returns_constant_regardless_of_alpha_M():
         aero=Aero(c_mq=12.5),
     )
     for alpha, M in [(0.0, 0.5), (0.3, 1.0), (-0.2, 2.5)]:
-        assert aero.C_mq(alpha, M, p) == 12.5
+        assert aero.C_mq_code(alpha, M, p) == 12.5
 
 
 def test_C_mq_table_without_column_falls_back_to_params_constant():
     """`data/aero/example.csv` predates Step 44 and has no `c_mq` column:
-    `_load_table` must set `_AeroTable.C_mq` to `None` for it, and
-    `aero.C_mq` must then fall back to `p.c_mq` (not to a literal `0.0`) --
+    `_load_table` must set `_AeroTable.C_mq_code` to `None` for it, and
+    `aero.C_mq_code` must then fall back to `p.c_mq` (not to a literal `0.0`) --
     architecture.md SS24.4's deliberate exception to "table wins
     completely". Set `p.c_mq` to an unmistakable nonzero value so a stray
     `0.0` fallback could not be missed.
@@ -381,10 +381,10 @@ def test_C_mq_table_without_column_falls_back_to_params_constant():
     )
 
     table = aero._load_table("example.csv")
-    assert table.C_mq is None
+    assert table.C_mq_code is None
 
     for alpha, M in [(0.0, 0.5), (math.radians(10.0), 1.0), (0.05, 2.0)]:
-        assert aero.C_mq(alpha, M, p) == 7.0
+        assert aero.C_mq_code(alpha, M, p) == 7.0
 
 
 def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constant():
@@ -415,10 +415,10 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
         )
 
         table = aero._load_table("test_c_mq_table.csv")
-        assert table.C_mq is not None
+        assert table.C_mq_code is not None
 
         # Exact grid point: alpha=0deg, M=1.0 -> c_mq = 50.0, no interpolation.
-        assert aero.C_mq(0.0, 1.0, p) == 50.0
+        assert aero.C_mq_code(0.0, 1.0, p) == 50.0
 
         # Bracketed/interpolated point: alpha=5deg (halfway 0/10deg), M=0.75
         # (halfway 0.5/1.0) -- same bilinear blend test_table_lookup_
@@ -428,11 +428,11 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
         c_mq_at_M05 = (20.0 + 30.0) / 2  # alpha=5deg, M=0.5 row
         c_mq_at_M10 = (50.0 + 60.0) / 2  # alpha=5deg, M=1.0 row
         expected = (c_mq_at_M05 + c_mq_at_M10) / 2
-        assert math.isclose(aero.C_mq(alpha, M, p), expected, rel_tol=1e-9)
+        assert math.isclose(aero.C_mq_code(alpha, M, p), expected, rel_tol=1e-9)
 
         # Decisively not the Params sentinel -- confirms the table, not
         # p.aero.c_mq, is what answered both queries above.
-        assert aero.C_mq(0.0, 1.0, p) != p.aero.c_mq
+        assert aero.C_mq_code(0.0, 1.0, p) != p.aero.c_mq
     finally:
         aero._load_table.cache_clear()
         if os.path.exists(test_path):
@@ -504,8 +504,8 @@ def test_coefficients_bundle_matches_the_five_thin_wrappers():
     c = aero.coefficients(t, y, p, flow)
     assert c.C_x == aero.C_A(flow.alpha, flow.M, p)
     assert c.C_z == aero.C_N(flow.alpha, flow.M, p)
-    assert c.C_m == aero.C_m(flow.alpha, flow.M, p)
-    assert c.C_mq == aero.C_mq(flow.alpha, flow.M, p)
+    assert c.C_m_code == aero.C_m_code(flow.alpha, flow.M, p)
+    assert c.C_mq_code == aero.C_mq_code(flow.alpha, flow.M, p)
     assert c.l1 == aero.cop_l1(flow.alpha, flow.M, p)
 
 
@@ -568,7 +568,7 @@ def test_coefficients_is_identity_for_the_default_control_model():
     t = 0.5
     flow = flow_state(t, y, p)
 
-    sentinel = aero.AeroCoeffs(C_x=0.1, C_z=0.2, C_m=0.3, C_mq=0.4, l1=0.5)
+    sentinel = aero.AeroCoeffs(C_x=0.1, C_z=0.2, C_m_code=0.3, C_mq_code=0.4, l1=0.5)
     original = aero._AERO_MODELS["linearized"]
     aero._AERO_MODELS["linearized"] = lambda alpha, M, p: sentinel
     try:

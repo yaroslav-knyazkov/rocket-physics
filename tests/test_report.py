@@ -66,7 +66,7 @@ def test_static_margin_series_matches_cg_travel():
     l_g0 = mass.cog_position(mass.propellant_mass(y0[6], p), p)
     flow0 = flow_state(0.0, y0, p)
     step = _CM_SLOPE_STEP
-    dcm = (aero.C_m(flow0.alpha + step, flow0.M, p) - aero.C_m(flow0.alpha - step, flow0.M, p)) / (2 * step)
+    dcm = (aero.C_m_code(flow0.alpha + step, flow0.M, p) - aero.C_m_code(flow0.alpha - step, flow0.M, p)) / (2 * step)
     dcz = (aero.C_N(flow0.alpha + step, flow0.M, p) - aero.C_N(flow0.alpha - step, flow0.M, p)) / (2 * step)
     expected = (1.18 - l_g0) / 0.1 - dcm / dcz
     assert margin[0] == pytest.approx(expected, rel=1e-6)

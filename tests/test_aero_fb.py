@@ -96,7 +96,7 @@ def test_blend_at_half_is_the_linear_blend_of_the_planes():
         c0 = aero._table_coeffs(a, M, p, 0.0)
         c1 = aero._table_coeffs(a, M, p, 1.0)
         ch = aero._table_coeffs(a, M, p, 0.5)
-        for field in ("C_x", "C_z", "C_m", "l1"):
+        for field in ("C_x", "C_z", "C_m_code", "l1"):
             assert getattr(ch, field) == pytest.approx(
                 0.5 * (getattr(c0, field) + getattr(c1, field)), rel=1e-12
             )

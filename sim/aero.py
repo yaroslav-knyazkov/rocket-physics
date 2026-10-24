@@ -1,5 +1,5 @@
-"""Aerodynamic coefficients C_x(alpha, M), C_z(alpha, M), C_m(alpha, M),
-C_mq(alpha, M) and the CoP-to-CoG distance l1(alpha, M) -- an explicit
+"""Aerodynamic coefficients C_x(alpha, M), C_z(alpha, M), C_m_code(alpha, M),
+C_mq_code(alpha, M) and the CoP-to-CoG distance l1(alpha, M) -- an explicit
 three-way model dispatch (architecture-28-rewrite.md SS28.5; supersedes the
 table-vs-constant-fallback shape of roadmap.md Step 25 / architecture.md
 SS19, and Step 44's `c_mq` scaffold, SS24.4).
@@ -22,7 +22,7 @@ selected, it is the only one producing them.
 
 This also closes the `"constant"` model's own bug the rewrite exists to
 fix (architecture-28-rewrite.md, "Confirmed bug, user-identified"):
-`"constant"`'s `C_x`/`C_z`/`C_m` used to be raw-Newton/Newton-metre
+`"constant"`'s `C_x`/`C_z`/`C_m_code` used to be raw-Newton/Newton-metre
 placeholders (`A_x`, `A_z`, `A_m`), the only aero model that ignored the
 atmosphere entirely. They are now true dimensionless coefficients, scaled
 by dynamic pressure and reference area/length exactly like the other two
@@ -32,7 +32,7 @@ models (`forces.py`'s `aero_force_body`/`aero_moment_y`) -- see
 The public seam is a single function, `coefficients(t, y, p, flow) ->
 AeroCoeffs`, returning all five coefficients at once (axial-force,
 normal-force, pitching-moment, pitch-damping, CoP-to-CoG distance) --
-`AeroCoeffs`'s own docstring lists the fields. `C_A`/`C_N`/`C_m`/`C_mq`/
+`AeroCoeffs`'s own docstring lists the fields. `C_A`/`C_N`/`C_m_code`/`C_mq_code`/
 `cop_l1`, the pre-Step-55 per-coefficient public functions, are kept as
 thin wrappers around the same dispatch (architecture-28-rewrite.md D-7),
 so the existing unit tests and call sites that read one coefficient at a
@@ -94,7 +94,7 @@ untouched by Step 55 -- only *when* it is called changed: on
 
 Note on `C_N`'s signature: main.tex writes `C_N(alpha)` (no explicit `M`
 dependence), but this module gives `C_N` the same `(alpha, M, p)` shape as
-`C_A`/`C_m`/`cop_l1` for one uniform interface -- the `"constant"`/
+`C_A`/`C_m_code`/`cop_l1` for one uniform interface -- the `"constant"`/
 `"linearized"` models ignore `M` entirely (matching main.tex and the
 pre-Step-25 formula exactly), and the `"table"` model is free to encode
 `M`-dependence in `C_N` too if the data has it (real compressible
@@ -181,9 +181,9 @@ class _AeroTable(NamedTuple):
     alpha: np.ndarray   # (n_alpha,), ascending, radians
     C_A: np.ndarray     # (n_M, n_alpha)
     C_N: np.ndarray     # (n_M, n_alpha)
-    C_m: np.ndarray     # (n_M, n_alpha)
+    C_m_code: np.ndarray     # (n_M, n_alpha) -- always code sign (post `cm_convention` flip at load, Step 117/D-126)
     l1: "np.ndarray | None"   # (n_M, n_alpha), CoP-to-CoG distance [m]; None for a v2 (`l_p_m`) table
-    C_mq: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative, or None when the column is absent
+    C_mq_code: "np.ndarray | None"  # (n_M, n_alpha), pitch-damping derivative (always code sign, Step 117), or None when the column is absent
     l_p: "np.ndarray | None" = None  # (n_M, n_alpha), moment reference station from the nose [m] (`x_ref`); None for a legacy (`l1_m`) table
     # Step 102 (D-109): brake-fraction axis. `None` = no `f_b` column. Otherwise `f_b` is the ascending
     # grid (starting at 0.0), `planes[k]` the 2-D table at `f_b[k]`, and the arrays above are `planes[0]`.
@@ -326,9 +326,9 @@ def _load_table(name: str) -> _AeroTable:
             alpha=alpha_grid,
             C_A=_reshape(C_A_col),
             C_N=_reshape(C_N_col),
-            C_m=_reshape(C_m_col),
+            C_m_code=_reshape(C_m_col),
             l1=_reshape(l1_col) if l1_col is not None else None,
-            C_mq=_reshape(C_mq_col) if C_mq_col is not None else None,
+            C_mq_code=_reshape(C_mq_col) if C_mq_col is not None else None,
             l_p=_reshape(l_p_col) if l_p_col is not None else None,
         )
 
@@ -380,8 +380,8 @@ def _at_fb(table: _AeroTable, fb: float) -> _AeroTable:
         return None if a is None else a + w * (b - a)
 
     return lo._replace(
-        C_A=_mix(lo.C_A, hi.C_A), C_N=_mix(lo.C_N, hi.C_N), C_m=_mix(lo.C_m, hi.C_m),
-        l1=_mix(lo.l1, hi.l1), C_mq=_mix(lo.C_mq, hi.C_mq), l_p=_mix(lo.l_p, hi.l_p),
+        C_A=_mix(lo.C_A, hi.C_A), C_N=_mix(lo.C_N, hi.C_N), C_m_code=_mix(lo.C_m_code, hi.C_m_code),
+        l1=_mix(lo.l1, hi.l1), C_mq_code=_mix(lo.C_mq_code, hi.C_mq_code), l_p=_mix(lo.l_p, hi.l_p),
     )
 
 
@@ -403,8 +403,10 @@ def _table_lookup(table: _AeroTable, alpha: float, M: float, grid: np.ndarray) -
 class AeroCoeffs(NamedTuple):
     C_x: float    # axial-force coefficient      (today's C_A)
     C_z: float    # normal-force coefficient     (today's C_N)
-    C_m: float    # pitching-moment coefficient
-    C_mq: float   # pitch-damping derivative
+    C_m_code: float    # pitching-moment coefficient, ALWAYS code sign (post-dispatch/post-`_cm_to_code`;
+                        # Step 117/D-126 rename -- do not read this as the declared `cm_convention`,
+                        # it is already flipped to the code's convention regardless of input).
+    C_mq_code: float   # pitch-damping derivative, same always-code-sign guarantee as C_m_code.
     l1: float     # CoP(D)-to-CoG(B) distance [m]
 
 
@@ -527,7 +529,7 @@ def _validate_table_oob(p) -> None:
     if min(abs(t.alpha[0]), abs(t.alpha[-1])) < min_edge:
         raise ValueError(
             "Aero.table_oob='jorgensen' needs both table alpha edges at |alpha| >= 2 deg: the "
-            "extension scales the edge C_m by Z(alpha)/Z(alpha_edge) with Z = sin(2a)cos(a/2), "
+            "extension scales the edge C_m_code by Z(alpha)/Z(alpha_edge) with Z = sin(2a)cos(a/2), "
             "which vanishes at 0, so a near-zero edge amplifies it without bound"
         )
     lim = np.radians(80.0)
@@ -554,7 +556,7 @@ def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     at a time in a comparison sweep (models.tex SSAerodynamics >
     Coefficients).
 
-    Step 55's actual fix: `C_x`/`C_z`/`C_m` are true dimensionless
+    Step 55's actual fix: `C_x`/`C_z`/`C_m_code` are true dimensionless
     coefficients now, not raw Newton/Newton-metre placeholders -- the
     force/moment they produce is still multiplied by dynamic pressure and
     the reference area/length in `forces.py`'s `aero_force_body`/
@@ -565,13 +567,13 @@ def _constant_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     Step 93 (D-91, architecture-34 SS34.3): `C_x` is a constant *magnitude*
     whose sign follows the flow, `C_x * axial_flow_factor(alpha)` -- tail-
     first, the axial force opposes the motion instead of accelerating it.
-    `C_z`/`C_m` are deliberately unchanged (D-95).
+    `C_z`/`C_m_code` are deliberately unchanged (D-95).
     """
     return AeroCoeffs(
         C_x=p.aero.C_x * axial_flow_factor(alpha),
         C_z=p.aero.C_z,
-        C_m=_cm_to_code(p.aero.C_m, p),
-        C_mq=_cm_to_code(p.aero.c_mq, p),
+        C_m_code=_cm_to_code(p.aero.C_m, p),
+        C_mq_code=_cm_to_code(p.aero.c_mq, p),
         l1=_arm_or_station(p),
     )
 
@@ -581,7 +583,7 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     zero-`alpha` condition, `M`-independent, bit-for-bit today's (pre-
     Step-55) `"coefficients"` regime.
 
-    Phase 2.5 (after Step 35): `C_z`/`C_m`'s formula uses `sin(alpha)`
+    Phase 2.5 (after Step 35): `C_z`/`C_m_code`'s formula uses `sin(alpha)`
     instead of the raw `alpha` main.tex's linear formula literally
     specifies. `sin(alpha) == alpha` to leading order for small alpha --
     they differ by <0.4% at 8.6 degrees (deg2rad(8.6) - sin(deg2rad(8.6)) /
@@ -594,7 +596,7 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     having engaged) lands exactly there -- floating-point noise in `w`
     alone then flips `alpha` between +pi and -pi from one solver
     evaluation to the next. With the raw-alpha formula that flips
-    `C_z`/`C_m`'s sign and (being unbounded) magnitude every RHS call,
+    `C_z`/`C_m_code`'s sign and (being unbounded) magnitude every RHS call,
     which sent `solve_ivp`'s adaptive step control into a step-size
     collapse that did not recover within any reasonable wall-clock time
     (observed: still not converged after several minutes, on a scenario
@@ -620,22 +622,22 @@ def _linearized_coeffs(alpha: float, M: float, p) -> AeroCoeffs:
     return AeroCoeffs(
         C_x=p.aero.C_A0 * axial_flow_factor(alpha),
         C_z=p.aero.C_N_alpha * np.sin(alpha),
-        C_m=_cm_to_code(p.aero.C_m_alpha * np.sin(alpha), p),
-        C_mq=_cm_to_code(p.aero.c_mq, p),
+        C_m_code=_cm_to_code(p.aero.C_m_alpha * np.sin(alpha), p),
+        C_mq_code=_cm_to_code(p.aero.c_mq, p),
         l1=_arm_or_station(p),
     )
 
 
 def _table_coeffs(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
-    """`"table"`: `C_A, C_N, C_m` and `l1` read from `p.aero.table`
+    """`"table"`: `C_A, C_N, C_m_code` and `l1` read from `p.aero.table`
     (`data/aero/<name>`, this module's own format -- see the module
     docstring), interpolated at run time (bracket-and-clamp in `M`,
     `np.interp` in `alpha`, then blend -- `_table_lookup`).
 
-    `C_mq` (Step 44, architecture.md SS24.4): table-driven only when the
+    `C_mq_code` (Step 44, architecture.md SS24.4): table-driven only when the
     table has a `c_mq` column, otherwise the constant `p.aero.c_mq` --
     SIGN: positive c_mq is DAMPING in this document's convention (positive
-    `C_m` is a nose-down moment here), the opposite of the textbook
+    `C_m_code` is a nose-down moment here), the opposite of the textbook
     `C_mq < 0`, the same flip `C_m_alpha` already carries. This is a
     deliberate exception to this model's usual "table wins completely"
     rule: every table committed before Step 44 lacks the column, so an
@@ -661,15 +663,15 @@ def _table_coeffs(alpha: float, M: float, p, fb: float = 0.0) -> AeroCoeffs:
     -> the 2-D table itself.
     """
     table = _at_fb(_load_table(p.aero.table), fb)
-    if table.C_mq is not None:
-        C_mq = _table_lookup(table, alpha, M, table.C_mq)
+    if table.C_mq_code is not None:
+        C_mq_code = _table_lookup(table, alpha, M, table.C_mq_code)
     else:
-        C_mq = p.aero.c_mq
+        C_mq_code = p.aero.c_mq
     clamped = AeroCoeffs(
         C_x=_table_lookup(table, alpha, M, table.C_A) * _table_axial_factor(table, alpha),
         C_z=_table_lookup(table, alpha, M, table.C_N),
-        C_m=_table_lookup(table, alpha, M, table.C_m),
-        C_mq=C_mq,
+        C_m_code=_table_lookup(table, alpha, M, table.C_m_code),
+        C_mq_code=C_mq_code,
         # Step 99: legacy table -> the arm itself; v2 table -> the CP station
         # (turned into an arm by `_resolve_arm`, which knows the CoG).
         l1=_table_lookup(table, alpha, M, table.l1 if table.l1 is not None else table.l_p),
@@ -699,7 +701,7 @@ def _Z(a: float) -> float:
 
 def _jorgensen_extend(clamped: AeroCoeffs, table: _AeroTable, alpha: float, M: float, p) -> AeroCoeffs:
     """Step 112 (D-120, architecture-35 SS35.6 / 112.2): smooth blend of the clamped coefficients
-    into Jorgensen's large-alpha model beyond the table edge. `C_mq` and `l1` stay the clamped
+    into Jorgensen's large-alpha model beyond the table edge. `C_mq_code` and `l1` stay the clamped
     lookups. Model choices (not paper-verified): smoothstep blend over `oob_blend_deg`; sign of
     the potential term above 90 deg follows the printed `sin(2a)cos(a/2)` (negative there)."""
     ap = p.aero
@@ -721,14 +723,14 @@ def _jorgensen_extend(clamped: AeroCoeffs, table: _AeroTable, alpha: float, M: f
     Cz_J = (s_base / S) * _Z(alpha) + Cz_cf
 
     # moment: table residual continued with the potential shape + arm correction of the crossflow
-    cm_e = _table_lookup(table, a_e, M, table.C_m)
+    cm_e = _table_lookup(table, a_e, M, table.C_m_code)
     lp_e = _table_lookup(table, a_e, M, table.l_p)
     Cm_J = cm_e * _Z(alpha) / _Z(a_e) + (ap.l_pc - lp_e) * Cz_cf / ap.d_ref
 
     return clamped._replace(
         C_x=(1.0 - w) * clamped.C_x + w * Cx_J,
         C_z=(1.0 - w) * clamped.C_z + w * Cz_J,
-        C_m=(1.0 - w) * clamped.C_m + w * Cm_J,
+        C_m_code=(1.0 - w) * clamped.C_m_code + w * Cm_J,
     )
 
 
@@ -760,7 +762,7 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None, fb: float = 0.0) -
     Step 57 (architecture-28-rewrite.md SS28.6): after the base model is
     computed, `control.aero_coeff_delta(t, y, p, flow, base)` is called
     through, letting a controller (airbrake coefficient modulation,
-    eventually guidance) override or perturb `C_x`/`C_z`/`C_m`/`l1` as a
+    eventually guidance) override or perturb `C_x`/`C_z`/`C_m_code`/`l1` as a
     function of vehicle state -- this is the single choke point, so every
     downstream consumer (forces.py's axial force, normal force, static
     moment and damping term, and dynamics.py's CoP moment arm) sees one
@@ -791,7 +793,7 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None, fb: float = 0.0) -
     # this seam. The `C_A()` thin wrapper below dispatches the model directly, bypassing
     # this seam entirely (same as it already bypasses `_resolve_arm`/`control.aero_coeff_
     # delta` above) -- it is NOT scaled by `cx_scale`, deliberately: nothing in sim/ calls
-    # it to compute a force (only tests and report.py's C_m slope diagnostic use these
+    # it to compute a force (only tests and report.py's C_m_code slope diagnostic use these
     # per-coefficient wrappers; see `C_A`'s own module-level comment, architecture-28-
     # rewrite.md D-7). `== 1.0` (the default) is skipped entirely, not multiplied by 1.0,
     # so every pinned flight is bit-for-bit unchanged.
@@ -825,24 +827,27 @@ def C_N(alpha: float, M: float, p, fb: float = 0.0) -> float:
     """Normal-force coefficient (models.tex: `A_z = qSC_z`, `C_z == C_N`).
     See `coefficients`/`AeroCoeffs` for the full dispatch this wraps.
     Step 116: optional brake fraction `fb` (read only under `airbrake_aero="table"`),
-    the same as `C_m` -- needed so `sim/report.py`'s derived-CP/combined-stability
+    the same as `C_m_code` -- needed so `sim/report.py`'s derived-CP/combined-stability
     diagnostics (D-125) read the brake-blended plane, not always the closed one."""
     return _dispatch(alpha, M, p, fb).C_z
 
 
-def C_m(alpha: float, M: float, p, fb: float = 0.0) -> float:
-    """Pitching-moment coefficient (models.tex: `A_m = qSd_ref*C_m`).
+def C_m_code(alpha: float, M: float, p, fb: float = 0.0) -> float:
+    """Pitching-moment coefficient, ALWAYS in the code's sign convention (models.tex:
+    `A_m = qSd_ref*C_m`, but see Step 117/D-126 -- this value is already flipped to code
+    sign regardless of the declared `cm_convention`; it is not the textbook-sign `C_m`).
     See `coefficients`/`AeroCoeffs` for the full dispatch this wraps.
     Step 102: optional brake fraction `fb` (read only under `airbrake_aero="table"`)."""
-    return _dispatch(alpha, M, p, fb).C_m
+    return _dispatch(alpha, M, p, fb).C_m_code
 
 
-def C_mq(alpha: float, M: float, p) -> float:
-    """Pitch-damping derivative (analysis.tex SSDynamic stability).
+def C_mq_code(alpha: float, M: float, p) -> float:
+    """Pitch-damping derivative, ALWAYS in the code's sign convention (analysis.tex
+    SSDynamic stability; Step 117/D-126 rename, same guarantee as `C_m_code`).
     See `coefficients`/`AeroCoeffs` for the full dispatch this wraps,
     and `_table_coeffs`'s docstring for the sign convention and the
     optional-column fallback."""
-    return _AERO_MODELS[p.aero.model](alpha, M, p).C_mq
+    return _AERO_MODELS[p.aero.model](alpha, M, p).C_mq_code
 
 
 def cop_l1(alpha: float, M: float, p) -> float:

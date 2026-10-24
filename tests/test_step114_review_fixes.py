@@ -66,7 +66,7 @@ def test_standard_table_flips_c_mq_column_and_damps_pitch():
     text = "# cm_convention: standard\n" + _BODY.format(q=-8.0)  # textbook: C_mq < 0 damps
     with _table("test_s114_std.csv", text) as name:
         t = aero._load_table(name)
-        assert np.all(t.C_mq == 8.0)
+        assert np.all(t.C_mq_code == 8.0)
         p = Params(
             weight=Weight(m=0.5, I=0.05),
             lengths=Lengths(l1=0.3, l2=0.4, l_g=0.9),
@@ -81,7 +81,7 @@ def test_standard_table_flips_c_mq_column_and_damps_pitch():
 
 def test_code_table_c_mq_column_is_untouched():
     with _table("test_s114_code.csv", _BODY.format(q=8.0)) as name:
-        assert np.all(aero._load_table(name).C_mq == 8.0)
+        assert np.all(aero._load_table(name).C_mq_code == 8.0)
 
 
 # 3 ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def test_coefficients_evaluated_once_per_rhs(monkeypatch):
 def test_at_fb_on_a_grid_node_returns_the_stored_plane():
     planes = tuple(
         aero._AeroTable(M=np.array([0.5]), alpha=np.array([0.0, 0.1]), C_A=np.full((1, 2), v),
-                        C_N=np.zeros((1, 2)), C_m=np.zeros((1, 2)), l1=None, C_mq=None,
+                        C_N=np.zeros((1, 2)), C_m_code=np.zeros((1, 2)), l1=None, C_mq_code=None,
                         l_p=np.ones((1, 2)))
         for v in (0.3, 0.5, 0.9)
     )

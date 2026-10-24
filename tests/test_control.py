@@ -276,14 +276,14 @@ def test_aero_coeff_delta_reaches_all_four_consumers():
     consumers moves by exactly the closed-form delta its own docstring
     formula predicts (forces.py's `aero_force_body`/`aero_moment_y`;
     dynamics.py's CoP arm, isolated with its own l1-only variant so it is
-    not entangled with the C_x/C_z/C_m/C_mq checks).
+    not entangled with the C_x/C_z/C_m_code/C_mq_code checks).
     """
     dC_x, dC_z, dC_m, dC_mq, dl1 = 0.2, 0.15, 0.05, 1.0, 0.1
 
     def _delta_all(t, y, p, flow, base):
         return base._replace(
-            C_x=base.C_x + dC_x, C_z=base.C_z + dC_z, C_m=base.C_m + dC_m,
-            C_mq=base.C_mq + dC_mq, l1=base.l1 + dl1,
+            C_x=base.C_x + dC_x, C_z=base.C_z + dC_z, C_m_code=base.C_m_code + dC_m,
+            C_mq_code=base.C_mq_code + dC_mq, l1=base.l1 + dl1,
         )
 
     def _delta_l1_only(t, y, p, flow, base):

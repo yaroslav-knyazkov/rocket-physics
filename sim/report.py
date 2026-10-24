@@ -79,7 +79,7 @@ def static_margin_cal(result, p, t_grid=None):
     station (`aero.uses_l_p(p)`), the margin is corrected to the *derived* CP station, via the local
     slope ratio (central difference, the same `_CM_SLOPE_STEP` as `cm_slope_series`):
 
-        margin(t) = l1(t)/d_ref - (dC_m/dalpha)/(dC_z/dalpha)
+        margin(t) = l1(t)/d_ref - (dC_m_code/dalpha)/(dC_z/dalpha)
 
     where `l1(t) == x_ref - l_g(t)` (`aero.coefficients(...).l1`, D-110, unchanged). For a legacy
     direct-arm config (`not uses_l_p(p)`), `l1` is the input arm itself with no separate "station"
@@ -98,8 +98,8 @@ def static_margin_cal(result, p, t_grid=None):
         correction = 0.0
         if use_derived_cp:
             dcm = (
-                aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
-                - aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+                aero.C_m_code(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+                - aero.C_m_code(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
             ) / (2.0 * _CM_SLOPE_STEP)
             dcz = (
                 aero.C_N(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
@@ -140,14 +140,14 @@ def cm_slope_series(result, p, t_grid=None):
     for i, ti in enumerate(t):
         flow = flow_state(ti, y[:, i], p)
         fb = _brake_fraction(ti, y[:, i], p)
-        hi = aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
-        lo = aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+        hi = aero.C_m_code(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+        lo = aero.C_m_code(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
         slope[i] = (hi - lo) / (2.0 * _CM_SLOPE_STEP)
     return t, slope
 
 
 def combined_stability_slope_series(result, p, t_grid=None):
-    """`(t, d/dalpha[(l_g - l_p)*C_z - d_ref*C_m])` -- the single, reference-point-independent
+    """`(t, d/dalpha[(l_g - l_p)*C_z - d_ref*C_m_code])` -- the single, reference-point-independent
     stability criterion (Step 116, D-125, conventions-industry-standard-analysis.md SS12.1).
     NEGATIVE = restoring (stable) in the code's C_m convention -- the opposite polarity from
     `cm_slope_series`'s own "positive = restoring" (that is `dC_m/dalpha` alone, a different
@@ -162,8 +162,8 @@ def combined_stability_slope_series(result, p, t_grid=None):
         fb = _brake_fraction(ti, y[:, i], p)
         arm = aero.coefficients(ti, y[:, i], p, flow, None, fb).l1
         dcm = (
-            aero.C_m(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
-            - aero.C_m(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
+            aero.C_m_code(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
+            - aero.C_m_code(flow.alpha - _CM_SLOPE_STEP, flow.M, p, fb)
         ) / (2.0 * _CM_SLOPE_STEP)
         dcz = (
             aero.C_N(flow.alpha + _CM_SLOPE_STEP, flow.M, p, fb)
@@ -192,7 +192,7 @@ def stability_check(result, p, t_grid=None) -> dict:
     if not stable:
         warnings.warn(
             f"unstable: combined static-margin/pitching-moment-slope criterion reaches "
-            f"{max_combined:.4g} > 0 (d/dalpha[(l_g-l_p)*C_z - d_ref*C_m] in the code convention, "
+            f"{max_combined:.4g} > 0 (d/dalpha[(l_g-l_p)*C_z - d_ref*C_m_code] in the code convention, "
             "negative = nose-down restoring) -- check the CP/moment-reference station, geometry, "
             "and the table's `# cm_convention:`",
             UserWarning, stacklevel=2,

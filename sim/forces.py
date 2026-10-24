@@ -36,7 +36,7 @@ reproduces Phase 1 bit-for-bit.
 Step 14: `thrust_body` now uses the thrust curve from sim/thrust_curve.py,
 replacing the hard-coded T_BURN constant-thrust model.
 
-Step 25: the "coefficients" regime's `C_A`/`C_N`/`C_m` are no longer
+Step 25: the "coefficients" regime's `C_A`/`C_N`/`C_m_code` are no longer
 inline `Params`-constant formulas -- they are delegated to sim/aero.py,
 which is table-driven (`p.aero_table`) with the exact same constant
 formulas as the fallback (architecture.md SS19). Bit-for-bit unchanged
@@ -46,9 +46,9 @@ Step 55 (Phase 2.11 rewrite pass, architecture-28-rewrite.md SS28.5):
 `aero_force_body`/`aero_moment_y` no longer have their own `if/elif/else`
 aero-model branch at all -- both call the single `aero.coefficients(t, s,
 p, flow)` seam and read the `AeroCoeffs` bundle it returns (`C_x`, `C_z`,
-`C_m`, `C_mq`), which itself dispatches on `p.aero.model` ("constant" |
+`C_m_code`, `C_mq_code`), which itself dispatches on `p.aero.model` ("constant" |
 "linearized" | "table"). `"linearized"` is bit-for-bit the old
-"coefficients" regime; `"constant"`'s `C_x`/`C_z`/`C_m` are now true
+"coefficients" regime; `"constant"`'s `C_x`/`C_z`/`C_m_code` are now true
 dimensionless coefficients (the fix this step exists for -- see
 sim/aero.py's module docstring), so `"constant"` is now `q`-scaled like
 every other model, where it used to be a raw, atmosphere-independent
@@ -254,11 +254,11 @@ def aero_moment_y(t: float, s, p, flow, hold=None, fb=None, c=None) -> float:
     a required parameter, the caller's own `flow_state(t, s, p)` result --
     see `aero_force_body`'s docstring for why reusing it is bit-for-bit.
 
-    Step 55 (architecture-28-rewrite.md SS28.5): `C_m`/`C_mq` come from the
+    Step 55 (architecture-28-rewrite.md SS28.5): `C_m_code`/`C_mq_code` come from the
     single `aero.coefficients(t, s, p, flow)` bundle, dispatched on
     `p.aero.model` ("constant" | "linearized" | "table" -- sim/aero.py's
     module docstring):
-            A_m = q * S * d_ref * c.C_m
+            A_m = q * S * d_ref * c.C_m_code
 
     The pitch-damping term (Step 44; analysis.tex SSDynamic stability;
     architecture.md SS24.4), `c_m += q_hat*c_mq` with `q_hat =
@@ -288,8 +288,8 @@ def aero_moment_y(t: float, s, p, flow, hold=None, fb=None, c=None) -> float:
         fb = control.airbrake_deploy_fraction(t, s, p, hold) if p.control.airbrake_aero == "table" else 0.0
     if c is None:
         c = aero.coefficients(t, s, p, flow, hold, fb)
-    A_m =flow.q * p.aero.S * p.aero.d_ref * c.C_m
-    A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
+    A_m =flow.q * p.aero.S * p.aero.d_ref * c.C_m_code
+    A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq_code
     return -A_m
 
 

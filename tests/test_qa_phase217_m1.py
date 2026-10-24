@@ -73,8 +73,8 @@ def test_jorgensen_exactly_pm_180_is_finite_and_even_odd(sign):
 
     p = _params(_jorg())
     c = aero._table_coeffs(sign * math.pi, 0.5, p)
-    assert np.all(np.isfinite([c.C_x, c.C_z, c.C_m]))
-    assert abs(c.C_z) < 1e-9 and abs(c.C_m) < 1e-9
+    assert np.all(np.isfinite([c.C_x, c.C_z, c.C_m_code]))
+    assert abs(c.C_z) < 1e-9 and abs(c.C_m_code) < 1e-9
 
 
 # ----------------------------------------------------------------------
@@ -101,7 +101,7 @@ def test_malformed_cm_convention_line_fails_fast(line):  # QA-1
 
 def test_well_formed_cm_convention_line_is_honoured():  # QA-1 control
     with _table("qa_cmconv_ok.csv", "# cm_convention: standard\n" + _HDR + _BODY) as name:
-        assert aero._load_table(name).C_m[0, 0] == -0.1
+        assert aero._load_table(name).C_m_code[0, 0] == -0.1
 
 
 def test_duplicate_column_header_is_rejected():  # QA-2

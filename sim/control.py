@@ -15,7 +15,7 @@ when Phase 3 needs one, not before.
 Step 57 (architecture-28-rewrite.md SS28.6): a second, structurally
 identical dispatch dict, `_AERO_COEFF_CONTROLLERS`/`aero_coeff_delta`, lets
 a future controller perturb the airframe's own aero coefficients (`C_x`/
-`C_z`/`C_m`/`C_mq`/the CoP arm `l1`) instead of (or in addition to) the
+`C_z`/`C_m_code`/`C_mq_code`/the CoP arm `l1`) instead of (or in addition to) the
 Step-49 airbrake's separate additive drag area. `sim.aero.coefficients`
 is the single choke point that calls through to it, after the base model
 and before any consumer (forces.py's axial/normal force, its pitching
@@ -25,7 +25,7 @@ function's docstring. Structure only: today's only registered variant is
 structural needs to change when one is written:
 
 - Write `_my_law(t, y, p, flow, base) -> AeroCoeffs`, returning
-  `base._replace(C_x=base.C_x + dC_x, C_m=..., l1=...)` -- `NamedTuple.
+  `base._replace(C_x=base.C_x + dC_x, C_m_code=..., l1=...)` -- `NamedTuple.
   _replace` makes "perturb two of five, pass the rest through" the
   default, cheapest thing to write.
 - Register it in `_AERO_COEFF_CONTROLLERS` under a new

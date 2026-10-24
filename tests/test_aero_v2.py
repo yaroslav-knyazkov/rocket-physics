@@ -98,8 +98,8 @@ def test_cm_convention_standard_flips_exactly_and_default_is_code():
         t_default = aero._load_table(n_default)
         t_code = aero._load_table(n_code)
         t_std = aero._load_table(n_std)
-        assert np.array_equal(t_default.C_m, t_code.C_m)
-        assert np.array_equal(t_std.C_m, -t_code.C_m)
+        assert np.array_equal(t_default.C_m_code, t_code.C_m_code)
+        assert np.array_equal(t_std.C_m_code, -t_code.C_m_code)
         # nothing else changes
         assert np.array_equal(t_std.C_N, t_code.C_N)
 
@@ -139,7 +139,7 @@ def test_arm_reaches_the_moment_equation():
         l_B = mass.cog_position(mass.propellant_mass(1.8, p), p)
         I = mass.moment_of_inertia(mass.propellant_mass(1.8, p), l_B, p)
         A_z = flow.q * p.aero.S * c.C_z
-        A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
+        A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m_code
         expected = (-(1.1 - l_B) * A_z - A_m) / I
         assert derivatives(0.0, y, p)[5] == pytest.approx(expected, rel=1e-9)
 
@@ -186,7 +186,7 @@ def test_constant_model_l_p_and_cm_convention():
                   l_p=1.2, cm_convention="standard"),
     )
     assert aero.cop_l1(0.0, 0.5, p) == pytest.approx(0.3, abs=1e-15)
-    assert aero.C_m(0.0, 0.5, p) == -0.2
+    assert aero.C_m_code(0.0, 0.5, p) == -0.2
 
 
 def test_constant_model_cm_convention_flips_scalar_c_mq():
@@ -200,7 +200,7 @@ def test_constant_model_cm_convention_flips_scalar_c_mq():
         aero=Aero(model="constant", S=0.01, d_ref=0.1, C_x=0.5, C_m=0.2,
                   c_mq=-5.0, cm_convention="standard"),
     )
-    assert aero.C_mq(0.0, 0.5, p_std) == 5.0
+    assert aero.C_mq_code(0.0, 0.5, p_std) == 5.0
 
     p_lin = Params(
         weight=Weight(m=0.5, I=0.05),
@@ -208,21 +208,21 @@ def test_constant_model_cm_convention_flips_scalar_c_mq():
         aero=Aero(model="linearized", S=0.01, d_ref=0.1, C_A0=0.5, C_m_alpha=0.2,
                   c_mq=-5.0, cm_convention="standard"),
     )
-    assert aero.C_mq(0.0, 0.5, p_lin) == 5.0
+    assert aero.C_mq_code(0.0, 0.5, p_lin) == 5.0
 
     p_code = Params(
         weight=Weight(m=0.5, I=0.05),
         lengths=Lengths(l2=0.4, l_g=0.9),
         aero=Aero(model="constant", S=0.01, d_ref=0.1, C_x=0.5, C_m=0.2, c_mq=-5.0),
     )
-    assert aero.C_mq(0.0, 0.5, p_code) == -5.0  # "code" (default): unflipped
+    assert aero.C_mq_code(0.0, 0.5, p_code) == -5.0  # "code" (default): unflipped
 
 
 def test_legacy_aero_defaults_unchanged():
     p = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4),
                aero=Aero(model="constant", C_m=0.2))
     assert aero.cop_l1(0.0, 0.5, p) == 0.3
-    assert aero.C_m(0.0, 0.5, p) == 0.2
+    assert aero.C_m_code(0.0, 0.5, p) == 0.2
     aero.validate(p)  # nothing to complain about
 
 
@@ -278,7 +278,7 @@ def test_example_v2_matches_legacy_geometry_and_converts_cm():
     assert t_new.l1 is None
     assert np.allclose(t_new.l_p - 0.9, t_old.l1, atol=1e-12)
     # legacy file kept its (textbook-sign) C_m; v2 declares `standard`, so it is flipped
-    assert np.array_equal(t_new.C_m, -t_old.C_m)
+    assert np.array_equal(t_new.C_m_code, -t_old.C_m_code)
     assert np.array_equal(t_new.C_N, t_old.C_N)
 
 

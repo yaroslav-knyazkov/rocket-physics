@@ -102,7 +102,7 @@ def test_ascent_matches_clamp():
 
 def _coef(alpha, M, p):
     c = aero._table_coeffs(alpha, M, p)
-    return np.array([c.C_x, c.C_z, c.C_m])
+    return np.array([c.C_x, c.C_z, c.C_m_code])
 
 
 MACHS = [0.3, 0.8, 1.5]
@@ -227,12 +227,12 @@ def test_moment_arm_correction(pj):
     table = aero._load_table("example_v2.csv")
     a_e = table.alpha[-1]
     lp_e = aero._table_lookup(table, a_e, M, table.l_p)
-    cm_e = aero._table_lookup(table, a_e, M, table.C_m)
+    cm_e = aero._table_lookup(table, a_e, M, table.C_m_code)
     eta = float(np.interp(S_P / D_REF**2, aero._ETA_LAM, aero._ETA_VAL))
     c_zcf = eta * 1.2 * (S_P / S_REF) * np.sin(a) * abs(np.sin(a))
     z = lambda x: np.sin(2 * x) * np.cos(x / 2)  # noqa: E731
     expect = cm_e * z(a) / z(a_e) + (L_PC - lp_e) * c_zcf / D_REF
-    assert aero._table_coeffs(a, M, pj).C_m == pytest.approx(expect, rel=1e-12)
+    assert aero._table_coeffs(a, M, pj).C_m_code == pytest.approx(expect, rel=1e-12)
 
 
 def test_eta_table_matches_research_note():
@@ -288,7 +288,7 @@ def test_clamp_default_equals_legacy_expression(pc, deg):
         c = aero._table_coeffs(a, M, pc)
     assert c.C_x == aero._table_lookup(t, a, M, t.C_A) * aero._table_axial_factor(t, a)
     assert c.C_z == aero._table_lookup(t, a, M, t.C_N)
-    assert c.C_m == aero._table_lookup(t, a, M, t.C_m)
+    assert c.C_m_code == aero._table_lookup(t, a, M, t.C_m_code)
     assert c.l1 == aero._table_lookup(t, a, M, t.l_p)
 
 
