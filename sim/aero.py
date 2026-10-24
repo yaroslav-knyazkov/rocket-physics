@@ -121,7 +121,10 @@ _CM_CONVENTION_RE = re.compile(r"^#\s*cm_convention\s*:\s*(\S+)\s*$")
 _CM_CONVENTION_MENTION_RE = re.compile(r"cm[\s_\-]*convention", re.IGNORECASE)
 
 # Step 93 (Phase 2.16, D-91/D-92, architecture-34 SS34.3): half-width of the
-# nose-first plateau of the axial flow-direction factor.
+# nose-first plateau of the axial flow-direction factor. Step 118 (D-127,
+# conventions-audit SS2 option c): outside this plateau the factor is now a
+# cos^2-shaped (not linear) transition anchored at this same 85 deg edge --
+# see axial_flow_factor's own docstring for the formula and the reasoning.
 _COS_ALPHA0 = float(np.cos(np.radians(85.0)))
 
 # Step 112 (D-120): large-alpha extension of the table model (Jorgensen).
@@ -158,13 +161,28 @@ def reset_oob_warning() -> None:
 
 
 def axial_flow_factor(alpha: float) -> float:
-    """Flow-direction factor of the axial force, `f = clip(cos(alpha) /
-    cos(85 deg), -1, +1)` (D-92). Exactly `1.0` for `|alpha| <= 85 deg`
-    (nose-first flight is bit-for-bit unchanged), `0` at `+-90 deg`, `-1`
-    for `|alpha| >= 95 deg`: the axial force then points toward the nose,
-    i.e. against the motion of a tail-first vehicle (architecture-34 SS34.3).
+    """Flow-direction factor of the axial force. Let `r = cos(alpha) /
+    cos(85 deg)`; `f = clip(r * |r|, -1, +1)` (D-92/D-127). Exactly `1.0`
+    for `|alpha| <= 85 deg` (nose-first flight is bit-for-bit unchanged --
+    `r >= 1` there, so `r*|r| >= 1` and the clip holds it at exactly `1.0`),
+    `0` at `+-90 deg`, `-1` for `|alpha| >= 95 deg`: the axial force then
+    points toward the nose, i.e. against the motion of a tail-first vehicle
+    (architecture-34 SS34.3).
+
+    Step 118 (D-127, conventions-audit SS2 option c): outside the plateau
+    this is `cos^2`-shaped -- proportional to `(cos alpha / cos 85 deg)^2`,
+    a squared ratio anchored at the plateau's own 85 deg edge so it stays
+    exactly continuous there -- replacing the earlier, invented linear-in-
+    `cos(alpha)` ramp. This is a renormalised cos^2 *family* curve, NOT
+    Jorgensen's own two-anchor form (`C_A(0)*cos^2(alpha)` nose-first,
+    `C_A(180)*cos^2(alpha)` tail-first, anchored at alpha=0/180 deg and
+    needing a second, separately-measured constant, `Aero.C_x180`) -- this
+    function stays a pure function of `alpha` alone, matching every call
+    site's existing usage. See dev/docs/task-118-axial-cos2-hybrid.md
+    SS118.5 for why that is a deliberate limitation, not an oversight.
     """
-    return min(1.0, max(-1.0, float(np.cos(alpha)) / _COS_ALPHA0))
+    r = float(np.cos(alpha)) / _COS_ALPHA0
+    return min(1.0, max(-1.0, r * abs(r)))
 
 
 def _table_axial_factor(table: "_AeroTable", alpha: float) -> float:

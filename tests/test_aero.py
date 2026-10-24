@@ -578,8 +578,10 @@ def test_coefficients_is_identity_for_the_default_control_model():
 
 
 # ----------------------------------------------------------------------
-# Step 93 (Phase 2.16, D-91..D-93): the axial coefficient follows the flow
-# direction -- f(alpha) = clip(cos(alpha)/cos(85 deg), -1, 1).
+# Step 93 (Phase 2.16, D-91..D-93), reshaped Step 118 (D-127): the axial
+# coefficient follows the flow direction -- f(alpha) = clip(r*|r|, -1, 1)
+# with r = cos(alpha)/cos(85 deg) (cos^2-shaped outside the 85 deg plateau,
+# exactly 1.0 for |alpha| <= 85 deg).
 # ----------------------------------------------------------------------
 
 
@@ -596,10 +598,16 @@ def test_axial_flow_factor_zero_at_90_and_minus_one_beyond_95():
 
 
 def test_axial_flow_factor_is_continuous_across_the_ramp():
+    """Step 118 (D-127): the cos^2-shaped transition's slope at the 85/95 deg
+    edges is exactly double the old linear ramp's (d(r^2)/dalpha = 2*r*dr/dalpha,
+    r=1 at the edge) -- empirically ~22.86/rad vs. ~11.43/rad, so this test's
+    tolerance doubles too (3e-3 -> 6e-3, same ~1.5x safety margin over the
+    theoretical per-step bound, ~3.99e-3, that the old tolerance used over its
+    own ~1.99e-3 bound)."""
     prev = aero.axial_flow_factor(math.radians(84.0))
     for deg in np.linspace(84.0, 96.0, 1201)[1:]:
         cur = aero.axial_flow_factor(math.radians(deg))
-        assert abs(cur - prev) < 3e-3  # slope <= 11.5/rad * 0.01 deg step
+        assert abs(cur - prev) < 6e-3  # slope <= 23/rad * 0.01 deg step
         prev = cur
 
 
