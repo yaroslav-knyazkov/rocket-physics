@@ -6,16 +6,27 @@ completing a right-handed triad (sim/quaternion.py's own frame convention,
 Step 28). `q` is the attitude quaternion (body -> inertial, scalar-first,
 sim.quaternion's convention); `omega` is the body-frame angular velocity.
 
-Step 29 scope: `q` and `omega` are both held exactly constant for the whole
-integration -- `dq/dt = 0`, `domega/dt = 0` identically (sim/dynamics3d.py).
-This mirrors Phase 1's own staging (Step 4: "translation only, theta fixed
-at a constant", before real rotation arrived at Step 6) one dimension up --
-not a step that partially wires in rotational kinematics. Both fields are
-still part of the state vector here, rather than passed around separately,
-because the roadmap's own 13-component layout names them as integrated
-state from the start: Step 30 (full rotational dynamics, `q_dot`/Euler's
-equations) needs them already wired into the vector `solve_ivp` sees, not
-retrofitted into a smaller layout later.
+Step 29 scope (superseded by Step 30, see below): `q` and `omega` were
+both held exactly constant for the whole integration -- `dq/dt = 0`,
+`domega/dt = 0` identically (sim/dynamics3d.py). This mirrored Phase 1's
+own staging (Step 4: "translation only, theta fixed at a constant",
+before real rotation arrived at Step 6) one dimension up. Both fields were
+still part of the state vector from Step 29 on, rather than passed around
+separately, because the roadmap's own 13-component layout names them as
+integrated state from the start: Step 30 (full rotational dynamics,
+`q_dot`/Euler's equations) needed them already wired into the vector
+`solve_ivp` sees, not retrofitted into a smaller layout later.
+
+Step 30 (task-30-3d-rotational-dynamics.md SS30.5.2): `dq/dt = 0` is
+RETIRED. `dq/dt` is now always live (pure kinematics, `sim.quaternion.
+q_dot`, needs no inertia). `domega/dt = 0` survives only as the default
+(`p.inertia.model == "none"`): prescribed-rate kinematics, `omega` held
+exactly constant while `q` integrates under it -- a well-defined,
+documented model (a commanded tumble or a frozen-dynamics sanity run),
+not the old "rotation not implemented yet" statement. With
+`p.inertia.model == "tensor"`, `domega/dt` is Euler's rotational equation,
+general form, from the full symmetric inertia tensor (sim/inertia.py,
+sim/dynamics3d.py).
 
 `State3D` mirrors sim/state.py's NamedTuple-plus-index-constants style,
 generalised from scalar fields to vector slices of the flat array.

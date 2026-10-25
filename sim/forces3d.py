@@ -73,6 +73,7 @@ through this adapter at all.
 
 import numpy as np
 
+from sim import aero, control, dynamics
 from sim import forces as forces2d
 from sim import quaternion
 from sim.flow import flow_state
@@ -105,7 +106,27 @@ def thrust_body_3d(t: float, s: np.ndarray, p) -> np.ndarray:
     return np.array([Tx, 0.0, Tz])
 
 
-def aero_force_body_3d(t: float, s: np.ndarray, p) -> np.ndarray:
+def flow_fb_coeffs_3d(t: float, s: np.ndarray, p):
+    """Shared `(flow, fb, coeffs)` bundle for a 3D state `s`, on the same
+    disposable `_s2d(s)` view every function below builds. code-review
+    finding (2026-10-25): `aero_force_body_3d` and `moment_body_3d` each
+    used to recompute this bundle independently, so a `derivatives_3d`
+    call with `p.inertia.model == "tensor"` paid for it TWICE per RHS
+    evaluation -- exactly the redundant atmosphere/aero work Step 56/114
+    eliminated on the 2D path (`sim/dynamics.py`'s own `flow`/`fb`/`coeffs`
+    locals, computed once and threaded through). This helper is the single
+    place that computation happens now; `sim.dynamics3d.derivatives_3d`
+    calls it once and passes the result to both `aero_force_body_3d` and
+    `moment_body_3d` when both are needed in the same call."""
+    s2d = _s2d(s)
+    flow = flow_state(t, s2d, p)
+    hold = None
+    fb = control.airbrake_deploy_fraction(t, s2d, p, hold)
+    coeffs = aero.coefficients(t, s2d, p, flow, hold, fb)
+    return flow, fb, coeffs
+
+
+def aero_force_body_3d(t: float, s: np.ndarray, p, flow=None, fb=None, coeffs=None) -> np.ndarray:
     """A_body, body frame, 3-vector -- `sim.forces.aero_force_body`'s 2D
     `(-A_x, -A_z)` embedded with a zero y-component (module docstring).
 
@@ -114,10 +135,53 @@ def aero_force_body_3d(t: float, s: np.ndarray, p) -> np.ndarray:
     computing it internally (closing F8) -- this adapter computes it once,
     on the same disposable 2D-compatible state view `_s2d(s)` it already
     builds for the force call itself, and passes it through. Purely
-    mechanical signature-compatibility follow-through, not new 3D physics
-    (Step 30's rotational EOM, which would add a 3D `aero_moment` call
-    here, remains out of scope)."""
+    mechanical signature-compatibility follow-through, not new 3D physics.
+    The 3D moment vector (Step 30's rotational EOM) is `moment_body_3d`
+    below, a separate function -- not added here, since this function's
+    contract is a force, not a moment.
+
+    `flow`/`fb`/`coeffs`, all optional (default `None`): when the caller
+    already has them (`flow_fb_coeffs_3d`'s own bundle, SS30.4's sibling
+    fix), pass them through instead of recomputing -- bit-for-bit
+    identical either way, since these are pure functions of `(t, s2d, p)`.
+    `None` (every pre-existing call site, including every test) recomputes
+    internally, unchanged."""
     s2d = _s2d(s)
-    flow = flow_state(t, s2d, p)
-    Ax, Az = forces2d.aero_force_body(t, s2d, p, flow)
+    if flow is None:
+        flow, fb, coeffs = flow_fb_coeffs_3d(t, s, p)
+    Ax, Az = forces2d.aero_force_body(t, s2d, p, flow, fb=fb, c=coeffs)
     return np.array([Ax, 0.0, Az])
+
+
+def moment_body_3d(t: float, s: np.ndarray, p, flow=None, fb=None, coeffs=None) -> np.ndarray:
+    """M about the CoG, body frame, 3-vector -- the 2D pitching moment
+    `M_y` embedded with zero roll and yaw components (module docstring;
+    task-30-3d-rotational-dynamics.md SS30.4, eq:moment_3d).
+
+    `M_y` is assembled by calling `sim.dynamics.pitch_moment` on this
+    adapter's own `_s2d(s)` view -- the EXACT same extracted formula
+    `derivatives` itself calls (D-30.7), not a hand-copied duplicate
+    (`forces3d.py`'s own module docstring states that philosophy).
+    `M_x = M_z = 0.0`: no roll moment (fin cant) and no yaw moment
+    (sideslip) are modelled yet -- Step 31's scope, and the research note
+    `3d_equations_of_motion.md` SS5 and `rocket-3d.tex`'s simtodo note on
+    `eq:moment_3d` state the same staging.
+
+    Note 1 (task-30 SS30.4.2): no sign conversion is needed. `_cross_y`
+    (`sim.dynamics`) computes exactly the y-component of the standard
+    right-handed 3D cross product for in-plane vectors, so `M_y` drops
+    straight into this vector's middle slot.
+
+    Note 3: inherits `_s2d`'s documented limits (module docstring) --
+    correct for planar attitude, an approximation otherwise, exactly like
+    the three force wrappers above. Step 31 replaces the whole adapter.
+
+    `flow`/`fb`/`coeffs`, all optional (default `None`): see
+    `aero_force_body_3d`'s matching note -- same sharing mechanism,
+    `flow_fb_coeffs_3d`, same bit-for-bit guarantee."""
+    s2d = _s2d(s)
+    if flow is None:
+        flow, fb, coeffs = flow_fb_coeffs_3d(t, s, p)
+    hold = None
+    M_y = dynamics.pitch_moment(t, s2d, p, flow, hold, fb, coeffs)
+    return np.array([0.0, M_y, 0.0])

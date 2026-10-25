@@ -310,6 +310,58 @@ class Roll:
 
 
 @dataclass(frozen=True)
+class Inertia:
+    """Step 30 (task-30-3d-rotational-dynamics.md): the vehicle's full
+    symmetric moment-of-inertia tensor in body axes, for the 3D rotational
+    equations of motion (sim/inertia.py, sim/dynamics3d.py).
+
+    Six independent components, NOT the axisymmetric `diag(I_a, I_t, I_t)`
+    special case: body axes are not assumed to be principal axes, and
+    `I_yy == I_zz` is not assumed (user decision, 2026-10-24).
+
+    SIGN CONVENTION: `eq:inertia_integrals` (the six fields are those
+    integrals), `eq:inertia_matrix` (the off-diagonal minus signs),
+    rocket-3d.tex `sec:3d_inertia`/`sec:conventions` for the full
+    derivation and the CAD/aerospace-vs-physics convention warning
+    (Hibbeler SS21.1; Stevens & Lewis ch.1) -- derived from scratch there,
+    task-30 SS30.1.2, not merely cited.
+
+    The matrix assembly itself lives in exactly one place,
+    `sim/inertia.py::tensor`, and is pinned by a point-mass test. Do not
+    re-derive it anywhere else -- including in this docstring, which cites
+    the labels above rather than repeating the matrix.
+
+    Moments are about the instantaneous CoG (point B), the same reference
+    point the 2D moment arms use (sim/dynamics.py's `aA`/`aB`).
+
+    RELATION TO `Weight.I` -- deliberately none (SS30.2). `Weight.I` is the
+    t=0 value of a *time-varying* transverse MOI rebuilt every RHS call by
+    `sim.mass.moment_of_inertia` as the propellant burns and the CoG
+    travels; `I_yy`/`I_zz` here are components of a *constant* rigid-body
+    tensor, because the 3D path has no variable-mass model (SS30.1.3). They
+    are the same physical quantity only when the mass model is off. Nothing
+    derives one from the other and nothing silently cross-checks them --
+    see SS30.8.3 for the one cross-check that IS made (against `Roll.I_x`),
+    and SS30.15 for the backlog item that unifies them when a 3D mass model
+    arrives.
+
+    `model = "none"` (the default) is the off switch and leaves the 3D
+    rotational *dynamics* off: `domega/dt == 0.0` exactly, i.e. a prescribed
+    constant body rate. The attitude *kinematics* (`dq/dt`) are live either
+    way -- they need no inertia (SS30.5.2).
+    """
+    model: str = "none"           # none | tensor
+    # --- moments of inertia about the CoG, body axes [kg*m^2]; REQ when model == "tensor"
+    I_xx: float = 0.0             # axial (roll), INT(y^2+z^2) dm
+    I_yy: float = 0.0             # transverse (pitch), INT(x^2+z^2) dm
+    I_zz: float = 0.0             # transverse (yaw), INT(x^2+y^2) dm
+    # --- products of inertia [kg*m^2]; 0.0 = body axes ARE principal axes (the normal case)
+    I_xy: float = 0.0             # INT x*y dm   (matrix entry is -I_xy)
+    I_xz: float = 0.0             # INT x*z dm   (matrix entry is -I_xz)
+    I_yz: float = 0.0             # INT y*z dm   (matrix entry is -I_yz)
+
+
+@dataclass(frozen=True)
 class Solver:
     method: str = "RK45"          # RK45 (or any scipy name) | rk4 | rk45_seg (Step 104, D-116 -- requires sample_rate_hz>0.0)
     rtol: float = 1e-8
@@ -323,8 +375,8 @@ class Solver:
 class Params:
     """Every symbol from main.tex, composed into groups (SS28.3) -- twelve
     at Step 50, plus `Actuator` (Step 103, architecture-35-paper-
-    alignment.md SS35.6) and `Roll` (Step 109, task-109-roll-reaction-
-    wheel.md)."""
+    alignment.md SS35.6), `Roll` (Step 109, task-109-roll-reaction-
+    wheel.md) and `Inertia` (Step 30, task-30-3d-rotational-dynamics.md)."""
 
     weight: Weight                              # the only required group
     g0: float = 9.80665                         # standard gravity, shared constant (see note)
@@ -340,6 +392,7 @@ class Params:
     control:    Control    = field(default_factory=Control)
     actuator:   Actuator   = field(default_factory=Actuator)
     roll:       Roll       = field(default_factory=Roll)     # Step 109
+    inertia:    Inertia    = field(default_factory=Inertia)  # Step 30
     sensors:    Sensors    = field(default_factory=Sensors)
     solver:     Solver     = field(default_factory=Solver)
 

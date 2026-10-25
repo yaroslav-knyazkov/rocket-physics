@@ -47,6 +47,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | control   | OPT     | Control group  | Control()   | airbrake / aero-coefficient control; default is none |
 | actuator  | OPT     | Actuator group | Actuator()  | sampled-data airbrake actuator (rate/range/delay); default is the ideal zero-order hold |
 | roll      | OPT     | Roll group | Roll()      | decoupled 2D roll DOF + reaction wheel (Step 109); default "none" is a structural off switch |
+| inertia   | OPT     | Inertia group | Inertia()   | full 3D moment-of-inertia tensor (Step 30), 3D rotational dynamics only; default "none" leaves domega/dt == 0.0 |
 | sensors   | OPT     | Sensors group | Sensors()   | baro-pressure sensing channel; default is noiseless/lagless/unquantised |
 | sections  | OPT     | Sections group | Sections()  | named airframe stations; descriptive except motor placement |
 | notes     | OPT     | -              | ""          | provenance: where the numbers came from |
@@ -171,12 +172,28 @@ Step 109 (task-109-roll-reaction-wheel.md): the decoupled 2D roll DOF + reaction
 | kp          | OPT     | N*m/rad                         | 0.0     | angle_hold: gain on (gamma - gamma_cmd) |
 | kd          | OPT     | N*m/(rad/s)                     | 0.0     | rate_null/angle_hold: gain on omega_x |
 | gamma_cmd   | OPT     | rad                             | 0.0     | angle_hold: commanded roll angle |
+
+### Inertia
+Step 30 (task-30-3d-rotational-dynamics.md): the full symmetric 3D moment-of-inertia tensor, for
+the 3D rotational dynamics (sim/inertia.py, sim/dynamics3d.py) ONLY -- the 2D path never reads this
+group. `model = "none"` (the default) is the off switch: `domega/dt == 0.0` (prescribed-rate
+kinematics) on the 3D path, bit-for-bit unaffected on the 2D path either way.
+
+| field | REQ/OPT          | unit / choices | default | what it does |
+|-------|-------------------|----------------|---------|--------------|
+| model | OPT               | none \| tensor | "none"  | 3D rotational-dynamics model; "none" means every field below is inert |
+| I_xx  | REQ               | kg*m^2 | 0.0 | axial moment of inertia, INT(y^2+z^2) dm; REQ iff model == "tensor"; same physical quantity as `roll.I_x` when roll is on (cross-checked) |
+| I_yy  | REQ               | kg*m^2 | 0.0 | transverse (pitch) moment of inertia, INT(x^2+z^2) dm; REQ iff model == "tensor"; same physical quantity as `airframe.I`-derived `Weight.I` when the mass model is off |
+| I_zz  | REQ               | kg*m^2 | 0.0 | transverse (yaw) moment of inertia, INT(x^2+y^2) dm; REQ iff model == "tensor" |
+| I_xy  | OPT               | kg*m^2         | 0.0     | product of inertia, INT x*y dm; 0.0 = body axes ARE principal axes (the normal case) |
+| I_xz  | OPT               | kg*m^2         | 0.0     | product of inertia, INT x*z dm; 0.0 = body axes ARE principal axes |
+| I_yz  | OPT               | kg*m^2         | 0.0     | product of inertia, INT y*z dm; 0.0 = body axes ARE principal axes |
 """
 
 from __future__ import annotations
 
 from configs.schema import Airframe, Rocket
-from sim.params import Actuator, Aero, Control, Lengths, Recovery, Roll, Sensors
+from sim.params import Actuator, Aero, Control, Inertia, Lengths, Recovery, Roll, Sensors
 
 ROCKET = Rocket(
     name="my_rocket",  # REQ, - -- registry key; rename to match the filename once you rename it
@@ -320,6 +337,23 @@ ROCKET = Rocket(
     #     kp=0.0,                # OPT, N*m/rad -- angle_hold: gain on (gamma - gamma_cmd)
     #     kd=0.0,                # OPT, N*m/(rad/s) -- rate_null/angle_hold: gain on omega_x
     #     gamma_cmd=0.0,         # OPT, rad -- angle_hold: commanded roll angle
+    # ),
+
+    # inertia left at its default (Inertia()) -- the 3D rotational-dynamics
+    # model is OFF (3D path only; the 2D path never reads this group
+    # regardless). Fill this in only once you have a real measured inertia
+    # tensor -- there are no demo numbers for this airframe (task-30-3d-
+    # rotational-dynamics.md SS30.7, same data gap as roll.I_x/c_mq/Barrowman).
+    # Admissibility is checked eagerly at assembly time (ValueError if the
+    # tensor could not come from a real mass distribution, task-30 SS30.8).
+    # inertia=Inertia(  # OPT, Inertia group -- full 3D moment-of-inertia tensor (Step 30); default "none" means every field below is inert
+    #     model="tensor",  # OPT, none | tensor -- "none" means every field below is inert (3D path only: domega/dt == 0.0)
+    #     I_xx=0.0,        # REQ iff model == "tensor", kg*m^2 -- axial MOI, INT(y^2+z^2) dm; same quantity as roll.I_x when roll is on
+    #     I_yy=0.0,        # REQ iff model == "tensor", kg*m^2 -- transverse (pitch) MOI, INT(x^2+z^2) dm; same quantity as airframe.I when the mass model is off
+    #     I_zz=0.0,        # REQ iff model == "tensor", kg*m^2 -- transverse (yaw) MOI, INT(x^2+y^2) dm
+    #     I_xy=0.0,        # OPT, kg*m^2 -- product of inertia, INT x*y dm; 0.0 = body axes ARE principal axes
+    #     I_xz=0.0,        # OPT, kg*m^2 -- product of inertia, INT x*z dm; 0.0 = body axes ARE principal axes
+    #     I_yz=0.0,        # OPT, kg*m^2 -- product of inertia, INT y*z dm; 0.0 = body axes ARE principal axes
     # ),
 
     # sensors left at its default (Sensors()) -- a noiseless, lagless,

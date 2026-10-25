@@ -63,6 +63,7 @@ import math
 from typing import Any
 
 from sim import aero
+from sim import inertia as inertia_mod
 from sim import mass
 from sim import motor_file
 from sim.params import Actuator
@@ -70,6 +71,7 @@ from sim.params import Aero
 from sim.params import Atmosphere
 from sim.params import Control
 from sim.params import Gravity
+from sim.params import Inertia
 from sim.params import Lengths
 from sim.params import Params
 from sim.params import Recovery
@@ -299,6 +301,11 @@ class Rocket:
     # vehicle control hardware, not a run-level/weather/site concern
     # (SS31.3.2's one-owner invariant).
     roll: Roll = dataclasses.field(default_factory=Roll)   # Step 109
+    # Step 30 (task-30-3d-rotational-dynamics.md SS30.2): the full 3D
+    # moment-of-inertia tensor -- a property of the airframe-plus-motor
+    # assembly, so the same owning piece as `roll` above, not a
+    # run-level/weather/site concern (SS31.3.2's one-owner invariant).
+    inertia: Inertia = dataclasses.field(default_factory=Inertia)   # Step 30
     # Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
     # baro channel's own hardware characteristics -- same owning piece as
     # control/actuator above (vehicle control/sensing hardware, not a
@@ -383,6 +390,7 @@ def assemble(sc: Scenario) -> Config:
         control=sc.rocket.control,
         actuator=sc.rocket.actuator,
         roll=sc.rocket.roll,
+        inertia=sc.rocket.inertia,
         sensors=sc.rocket.sensors,
         site=sc.site.site,
         atmosphere=sc.weather.atmosphere,
@@ -398,6 +406,12 @@ def assemble(sc: Scenario) -> Config:
     # (2b) Step 99: fail-fast on the aero v2 options (CP station needs a CoG
     #      station and zero cant; known C_m convention) -- a no-op for legacy configs.
     aero.validate(p)
+    # (2b') Step 30 (task-30-3d-rotational-dynamics.md SS30.8.2): fail-fast on an
+    #      inadmissible inertia tensor (not positive definite / triangle
+    #      inequality violated), plus the SS30.8.3 check-4 cross-check against
+    #      `Roll.I_x` -- a no-op when `p.inertia.model == "none"` (every config
+    #      that exists today).
+    inertia_mod.validate(p.inertia, roll=p.roll)
     # (2c) QA-4: thrust-scatter factors scale impulse / burn time; non-positive values are
     #      meaningless (k_t = 0 divides by zero inside the RHS).
     for _f in ("k_J", "k_t"):

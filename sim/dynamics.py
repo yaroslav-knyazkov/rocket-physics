@@ -148,6 +148,94 @@ def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
     return -(a_x * b_z - a_z * b_x)
 
 
+def pitch_moment(t: float, y: np.ndarray, p, flow, hold=None, fb=None, coeffs=None) -> float:
+    """Pitching moment about the CoG, body-frame y-component
+    (module docstring Step 6; task-30-3d-rotational-dynamics.md SS30.4.2
+    note 2, D-30.7): a pure EXTRACTION of `derivatives`' own moment
+    assembly, so `derivatives` below and `sim.forces3d.moment_body_3d`
+    (eq:moment_3d) call exactly one formula for `M_y` instead of two that
+    could silently drift apart -- the Step-115 c_mq/C_m convention-audit
+    lesson, applied before the fact rather than after.
+
+    `M_y = cross_y(aB, thrust_body) + cross_y(aA, aero_force_body) +
+    aero_moment_y`.
+
+    Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
+    along the body x-axis, relative to the CoG. `l1`, `l2` are positive,
+    nose-tip-referenced distances; `x_hat_r` points toward the nose. A
+    statically stable rocket has its CoP (A) farther from the nose tip
+    than its CoG (a) -- i.e. aft of the CoG along `x_hat_r` -- so `aA`
+    (the CoG-to-CoP vector) points in the *negative* `x_hat_r` direction:
+    `aA = -l1*x_hat_r`. (The previous `aA = +l1*x_hat_r` put the CoP
+    forward of the CoG for any positive `l1`, which is aerodynamically
+    divergent rather than restoring for a linear normal force
+    `A_z ~ alpha` -- see main.tex SSGeometry's correction note.)
+    `aB = aA + AB` with the unchanged `AB = -l2*x_hat_r` (thrust point at
+    the tail): `aB = -(l1 + l2)*x_hat_r`.
+
+    Step 25 (architecture.md SS19, "CoP travel"): `aA`'s `l1` is no
+    longer necessarily the constant `p.l1` -- it comes from the table
+    when `p.aero.model == "table"`, falling back to the constant
+    `p.lengths.l1` under "constant"/"linearized" otherwise (bit-for-bit
+    the line this replaces).
+
+    Step 55 (architecture-28-rewrite.md SS28.5, closing F2's leak): `l1`
+    now comes out of the same `aero.coefficients(...)` bundle every
+    other aero consumer reads, instead of a separate `aero.cop_l1(...)`
+    call -- the table can no longer drive the moment arm while a
+    different model drives the force/moment, which was possible before
+    this step (the two selectors, `aero_model` and `aero_table`, could
+    disagree).
+
+    Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow` is
+    the single `flow_state(t, y, p)` already computed by the caller and
+    threaded through here (and into `aero_force_body`/`aero_moment_y`
+    below) -- this call site does not recompute it a second time.
+
+    `aB` deliberately keeps the constant `p.l1` (not the dynamic CoP
+    location): B is the thrust exit point, a fixed mechanical point on
+    the body that does not move just because the CoP does. Only `aA`
+    (the CoP's own position) is meant to travel -- architecture.md SS19
+    says "l1 [the aero moment arm] becomes a function of (alpha, M)",
+    nothing about the thrust attachment point. Coupling `aB` to the
+    moving CoP too would invent an unspecified thrust-misalignment
+    effect (that is explicitly a *future* gimbal-model concern, per the
+    "on-axis thrust ... intentionally zero today" comment below) rather
+    than model the CoP travel this step actually asks for.
+
+    Step 43 (roadmap.md; architecture.md SS24.3; rocket-2d.tex SSGeometry):
+    lateral (off-axis) offsets `u_B` (CoG), `u_C` (thrust point) along
+    +z_hat_r. `u_D == 0` by definition, so `aA`'s lateral component is
+    `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
+    `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
+    both arrays are bitwise identical to the pre-Step-43 literals below.
+    """
+    l1_aero = coeffs.l1
+    aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
+    aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
+
+    thrust = thrust_body(t, y, p, hold)
+    aero_force = aero_force_body(t, y, p, flow, hold, fb, coeffs)
+
+    # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
+    # to T) produces zero pitching moment -- that was the only case here
+    # before Step 39. It is written out (not simplified away) so a thrust
+    # misalignment (T with a nonzero z-component, `sim/forces.py`'s
+    # `thrust_body` when `p.thrust_misalign_deg != 0`) produces a nonzero
+    # moment with no change to this function's structure: `_cross_y(aB,
+    # thrust) = (p.l1 + p.l2) * T * sin(delta)` exactly (main.tex SSAnalysis
+    # eq:moment_misaligned's M_delta, architecture.md SS23.2), since
+    # `aB = -(p.l1+p.l2)*x_hat_r` and `_cross_y(a, b) = -(a_x*b_z - a_z*b_x)`.
+    # Still zero whenever T = 0 (T=0 scales both cos(delta) and sin(delta)
+    # away) or delta = 0 (the default -- bit-for-bit unchanged). A future
+    # gimbal model (aB off-axis, or a commanded delta(t)) drops in the same
+    # way.
+    M_thrust = _cross_y(aB, thrust)
+    M_aero = _cross_y(aA, aero_force)
+    M_moment = aero_moment_y(t, y, p, flow, hold, fb, coeffs)
+    return M_thrust + M_aero + M_moment
+
+
 # Step 75: the mass model itself moved to sim/mass.py (module docstring
 # above). These three names stay bound here -- not re-implemented, just
 # re-exported -- solely because tests/test_dynamics.py imports them
@@ -285,75 +373,12 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     if p.gravity.earth_rotation:
         a_i = a_i + coriolis_inplane(t, y, p)
 
-    # Geometry (main.tex SSGeometry, corrected 2026-09-20): both points lie
-    # along the body x-axis, relative to the CoG. `l1`, `l2` are positive,
-    # nose-tip-referenced distances; `x_hat_r` points toward the nose. A
-    # statically stable rocket has its CoP (A) farther from the nose tip
-    # than its CoG (a) -- i.e. aft of the CoG along `x_hat_r` -- so `aA`
-    # (the CoG-to-CoP vector) points in the *negative* `x_hat_r` direction:
-    # `aA = -l1*x_hat_r`. (The previous `aA = +l1*x_hat_r` put the CoP
-    # forward of the CoG for any positive `l1`, which is aerodynamically
-    # divergent rather than restoring for a linear normal force
-    # `A_z ~ alpha` -- see main.tex SSGeometry's correction note.)
-    # `aB = aA + AB` with the unchanged `AB = -l2*x_hat_r` (thrust point at
-    # the tail): `aB = -(l1 + l2)*x_hat_r`.
-    #
-    # Step 25 (architecture.md SS19, "CoP travel"): `aA`'s `l1` is no
-    # longer necessarily the constant `p.l1` -- it comes from the table
-    # when `p.aero.model == "table"`, falling back to the constant
-    # `p.lengths.l1` under "constant"/"linearized" otherwise (bit-for-bit
-    # the line this replaces).
-    #
-    # Step 55 (architecture-28-rewrite.md SS28.5, closing F2's leak): `l1`
-    # now comes out of the same `aero.coefficients(...)` bundle every
-    # other aero consumer reads, instead of a separate `aero.cop_l1(...)`
-    # call -- the table can no longer drive the moment arm while a
-    # different model drives the force/moment, which was possible before
-    # this step (the two selectors, `aero_model` and `aero_table`, could
-    # disagree).
-    #
-    # Step 56 (architecture-28-rewrite.md SS28.11, closing F8): `flow` is
-    # the single `flow_state(t, y, p)` computed once above and reused here
-    # (and by `aero_force_body`/`aero_moment_y` below) -- this call site no
-    # longer recomputes it a second time.
-    #
-    # `aB` deliberately keeps the constant `p.l1` (not the dynamic CoP
-    # location): B is the thrust exit point, a fixed mechanical point on
-    # the body that does not move just because the CoP does. Only `aA`
-    # (the CoP's own position) is meant to travel -- architecture.md SS19
-    # says "l1 [the aero moment arm] becomes a function of (alpha, M)",
-    # nothing about the thrust attachment point. Coupling `aB` to the
-    # moving CoP too would invent an unspecified thrust-misalignment
-    # effect (that is explicitly a *future* gimbal-model concern, per the
-    # "on-axis thrust ... intentionally zero today" comment below) rather
-    # than model the CoP travel this step actually asks for.
-    # Step 43 (roadmap.md; architecture.md SS24.3; rocket-2d.tex SSGeometry):
-    # lateral (off-axis) offsets `u_B` (CoG), `u_C` (thrust point) along
-    # +z_hat_r. `u_D == 0` by definition, so `aA`'s lateral component is
-    # `u_B` alone (from `BD = AD - AB`, `AB = -l_B*x_hat_r - u_B*z_hat_r`);
-    # `aB`'s is `u_B - u_C` (from `BC = AC - AB`). Both default to 0.0, so
-    # both arrays are bitwise identical to the pre-Step-43 literals below.
-    l1_aero = coeffs.l1
-    aA = np.array([-l1_aero, p.lengths.u_B])                     # CoP position
-    aB = np.array([-(p.lengths.l1 + p.lengths.l2), p.lengths.u_B - p.lengths.u_C])  # thrust application point
-
-    # aB x T: on-axis thrust (T, 0) applied at an on-axis point (aB parallel
-    # to T) produces zero pitching moment -- that was the only case here
-    # before Step 39. It is written out (not simplified away) so a thrust
-    # misalignment (T with a nonzero z-component, `sim/forces.py`'s
-    # `thrust_body` when `p.thrust_misalign_deg != 0`) produces a nonzero
-    # moment with no change to this function's structure: `_cross_y(aB,
-    # thrust) = (p.l1 + p.l2) * T * sin(delta)` exactly (main.tex SSAnalysis
-    # eq:moment_misaligned's M_delta, architecture.md SS23.2), since
-    # `aB = -(p.l1+p.l2)*x_hat_r` and `_cross_y(a, b) = -(a_x*b_z - a_z*b_x)`.
-    # Still zero whenever T = 0 (T=0 scales both cos(delta) and sin(delta)
-    # away) or delta = 0 (the default -- bit-for-bit unchanged). A future
-    # gimbal model (aB off-axis, or a commanded delta(t)) drops in the same
-    # way.
-    M_thrust = _cross_y(aB, thrust)
-    M_aero = _cross_y(aA, aero_force)
-    M_moment = aero_moment_y(t, y, p, flow, hold, fb, coeffs)
-    M_y = M_thrust + M_aero + M_moment
+    # Step 30 (task-30-3d-rotational-dynamics.md SS30.4.2 note 2, D-30.7):
+    # the moment assembly (CoP/thrust-point arms `aA`/`aB`, the two cross
+    # products and the aero moment) is now the extracted `pitch_moment`
+    # above, called identically from here and from
+    # `sim.forces3d.moment_body_3d` -- a pure move, bit-for-bit (SS30.11.1).
+    M_y = pitch_moment(t, y, p, flow, hold, fb, coeffs)
 
     dydt = np.zeros(width(p))
     dydt[X] = y[VX]
