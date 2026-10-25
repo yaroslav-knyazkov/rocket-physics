@@ -111,16 +111,31 @@ prior step.
 Step 75 (dev/docs/architecture-32-motor-separation.md SS32.3): the mass model
 (propellant mass, CoG position, moment of inertia) moved to sim/mass.py,
 the one place `weight`'s dispatch now lives.
+
+Step 109 (task-109-roll-reaction-wheel.md; other-dynamics.tex SSRoll and
+the reaction wheel): a decoupled 2D roll degree of freedom (`gamma`,
+`omega_x`) plus a reaction wheel (`omega_w`), gated by `p.roll.model`
+(params.py's `Roll` group). `p.roll.model == "none"` (the default) is a
+*structural* off switch, not just a zero-derivative one: `sim.state.width`
+keeps the state vector 7 components wide, so every pinned flight is
+bit-for-bit unchanged -- see task-109 SS109.2.1 for why appending a
+zero-derivative 10th component would NOT have been bit-for-bit (scipy's
+RK45 error norm is an RMS over the state vector, so its *length* sits in
+the step-size controller's denominator). The roll block below (SS109.6)
+reads only `y[GAMMA]`/`y[OMEGA_X]`/`y[OMEGA_W]` and writes only those same
+three indices -- additive in the strongest sense, because the decoupling
+from the pitch channel is exact within the planar assumption (task-109
+SS109.1.4), not an approximation.
 """
 
 import numpy as np
 
-from sim import aero, control, forces, mass, thrust_curve
+from sim import aero, control, forces, mass, roll, thrust_curve
 from sim.flow import flow_state
 from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
 from sim.frames import to_inertial
 from sim.rotation import coriolis_inplane
-from sim.state import M, OMEGA, THETA, VX, VZ, X, Z
+from sim.state import GAMMA, M, OMEGA, OMEGA_W, OMEGA_X, THETA, VX, VZ, X, Z, width
 
 
 def _cross_y(a: np.ndarray, b: np.ndarray) -> float:
@@ -167,7 +182,13 @@ def on_rail(y: np.ndarray, p) -> bool:
 
 
 def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
-    """dy/dt for the state vector [x, z, vx, vz, theta, omega, m].
+    """dy/dt for the state vector [x, z, vx, vz, theta, omega, m] (width 7,
+    `p.roll.model == "none"`, the default) **or**
+    [x, z, vx, vz, theta, omega, m, gamma, omega_x, omega_w] (width 10,
+    `p.roll.model` on) -- `sim.state.width(p)` tells you which; see the
+    module docstring's Step 109 note for why the *width* itself, not just
+    the derivative values, is what keeps every pinned flight bit-for-bit
+    (task-109-roll-reaction-wheel.md SS109.2.1).
 
     Translation: `dx/dt = vx`, `dz/dt = vz`,
     `[dvx/dt, dvz/dt] = (weight_inertial + to_inertial(thrust_body + aero_force_body, theta)) / m`.
@@ -334,9 +355,20 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     M_moment = aero_moment_y(t, y, p, flow, hold, fb, coeffs)
     M_y = M_thrust + M_aero + M_moment
 
-    dydt = np.zeros(7)
+    dydt = np.zeros(width(p))
     dydt[X] = y[VX]
     dydt[Z] = y[VZ]
+
+    # Step 109: both predicates are hoisted to locals so the roll block below
+    # cannot disagree with the pitch block about whether the attitude is
+    # frozen. Both are pure functions of (t, y, p) (`forces.parachute_deployed`
+    # says so in its own docstring), so reducing them to one evaluation each is
+    # a call-count change only -- the Step 56 precedent for exactly this.
+    # `chuted` keeps the original `elif`'s short-circuit: `parachute_deployed`
+    # is not consulted while on the rail, same as before.
+    on_the_rail = on_rail(y, p)
+    chuted = (not on_the_rail) and forces.parachute_deployed(t, y, p)
+    attitude_frozen = on_the_rail or chuted
 
     # Step 47 (architecture.md SS27.1): while on the launch rail, the rail
     # buttons mechanically react every transverse force component and
@@ -345,13 +377,13 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     # `theta`/`omega` are frozen. `on_rail` is false whenever `p.L_rail <=
     # 0.0` (the default), so the `else` branch is bit-for-bit every prior
     # step.
-    if on_rail(y, p):
+    if on_the_rail:
         e = _e_rail(p)
         a_parallel = np.dot(a_i, e) * e
         dydt[VX], dydt[VZ] = a_parallel
         dydt[THETA] = 0.0
         dydt[OMEGA] = 0.0
-    elif forces.parachute_deployed(t, y, p):
+    elif chuted:
         # Step 48 (architecture.md SS27.2): the canopy holds the body in a
         # fixed hang attitude (frozen theta/omega, same mechanism as the
         # rail above), and the chute drag is a natively-inertial force
@@ -375,4 +407,44 @@ def derivatives(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
         dydt[OMEGA] = M_y / I
 
     dydt[M] = dm_dt
+
+    # Step 109 (task-109-roll-reaction-wheel.md SS109.6; other-dynamics.tex
+    # SSRoll and the reaction wheel): the decoupled roll degree of freedom.
+    #
+    # This block is ADDITIVE in the strongest sense available: it writes only
+    # indices 7-9 and reads only `y[GAMMA]`/`y[OMEGA_X]`/`y[OMEGA_W]` plus the
+    # already-computed `flow`. Not one line above it changes, because for an
+    # axisymmetric body the aerodynamic coefficients do not depend on the roll
+    # angle and the wheel's reaction torque has no component along y_hat_r --
+    # the rigid-body roll/pitch gyroscopic term (I_x - I_t)*r*p is identically
+    # zero at the planar model's r == 0, and the wheel's own gyroscopic torque
+    # q*h_w points along z_hat_r (yaw), not y_hat_r (task-109 SS109.1.4 proves
+    # both). The decoupling is exact within the planar assumption, not an
+    # approximation; what it cannot represent is the yaw those terms produce.
+    #
+    # `width(p)` is 7 whenever `p.roll.model == "none"` (the default), so this
+    # branch is unreachable AND `dydt` is 7 long -- bit-for-bit every prior
+    # step, including the RK45 step sizes (task-109 SS109.2.1: the state
+    # vector's LENGTH is in scipy's RMS error norm, so a 10-wide dydt with
+    # three zeros in it would NOT have been bit-for-bit).
+    if p.roll.model != "none":
+        d_gamma, d_omega_x, d_omega_w = roll.derivatives_roll(t, y, p, flow, hold)
+        if attitude_frozen:
+            # The same mechanical-constraint mechanism the pitch block uses:
+            # two rail buttons running in a rail prevent roll as well as
+            # pitch, and the canopy branch inherits sec:recovery's attitude
+            # freeze (a modelling choice, flagged in the paper -- a real
+            # rocket under a canopy does spin). The WHEEL's own ODE keeps
+            # running in both cases: it is internal, and its reaction torque
+            # is taken by the rail buttons / the risers instead of by the
+            # airframe's roll freedom. A wheel spun up on the rail therefore
+            # arrives at rail exit with real stored momentum, which is both
+            # physically right and the only way a roll-control law can have
+            # authority at the moment it first needs it.
+            d_gamma = 0.0
+            d_omega_x = 0.0
+        dydt[GAMMA] = d_gamma
+        dydt[OMEGA_X] = d_omega_x
+        dydt[OMEGA_W] = d_omega_w
+
     return dydt

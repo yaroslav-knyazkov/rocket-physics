@@ -20,7 +20,7 @@ from sim import control, sampling
 from sim.integrate import run_sim
 from sim.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
 from sim.params import replace as params_replace
-from sim.state import State
+from sim.state import State, to_vector, width
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 
@@ -223,11 +223,21 @@ def test_state_vector_length_is_unchanged_by_the_actuator():
     alignment.md SS35.6's own closed-form note): the actuator's rate/
     range/delay state lives entirely in the `AirbrakeHold` the sampled-
     data channel threads through `prev`, never in the integrated state
-    vector -- `State` stays the same 7 components (x, z, vx, vz, theta,
-    omega, m) it already had before Step 103.
+    vector -- the FLAT vector the integrator sees stays the same 7
+    components (x, z, vx, vz, theta, omega, m) it already had before
+    Step 103.
+
+    Step 109 (task-109-roll-reaction-wheel.md SS109.2/SS109.5) grows the
+    `State` NamedTuple itself to 10 fields (three more, gated, roll
+    components) -- a deliberate, approved structural change unrelated to
+    the actuator, so this pin now checks the actual invariant the test's
+    own docstring states ("no extra state in `y`") via `sim.state.width`/
+    `to_vector`, not the NamedTuple's raw field count.
     """
-    assert len(State._fields) == 7
-    assert len(np.array(_launch_state())) == 7
+    p = _launch_params()
+    assert p.roll.model == "none"
+    assert width(p) == 7
+    assert len(to_vector(_launch_state(), p)) == 7
 
 
 def test_full_actuator_with_infinite_rates_reproduces_the_legacy_sampled_flight():

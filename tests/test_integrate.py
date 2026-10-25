@@ -18,7 +18,7 @@ from sim.params import (
     Aero, Atmosphere, Gravity, Lengths, Params, Recovery, Site, Soundings, Thrust, Weight, Wind,
     with_solver,
 )
-from sim.state import State, Z
+from sim.state import State, Z, to_vector
 
 
 # data/motors/placeholder.csv burns from t=0 (thrust=0) up through an
@@ -521,8 +521,12 @@ def test_rk45_seg_degenerate_t_max_zero_does_not_crash_raw_sol():
 
     r = run_sim(with_solver(p, method="rk45_seg", sample_rate_hz=20.0, t_max=0.0), s0)
     assert r.t.shape == (1,)
-    assert np.allclose(r.raw.sol(0.0), np.array(s0))
-    assert np.allclose(r.raw.sol(5.0), np.array(s0))  # constant extrapolation, same as _run_rk4's
+    # Step 109 audit (task-109-roll-reaction-wheel.md SS109.9): `State` grew
+    # three roll fields, so a bare `np.array(s0)` is now 10-wide while
+    # `r.raw.sol(t)` stays 7-wide (`p.roll.model` defaults to "none" here) --
+    # `state.to_vector(s0, p)` is the width-matched, bit-for-bit replacement.
+    assert np.allclose(r.raw.sol(0.0), to_vector(s0, p))
+    assert np.allclose(r.raw.sol(5.0), to_vector(s0, p))  # constant extrapolation, same as _run_rk4's
 
 
 def test_rk45_seg_raw_sol_matches_result_y_at_every_stored_t():

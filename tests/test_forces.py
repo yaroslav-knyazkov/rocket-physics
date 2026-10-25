@@ -18,7 +18,7 @@ from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inert
 from sim.frames import to_inertial
 from sim.integrate import run_sim
 from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight, with_solver
-from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State
+from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State, to_vector
 
 
 def test_thrust_moment_is_zero_on_axis():
@@ -219,7 +219,13 @@ def test_offaxis_alpha_stays_bounded_with_corrected_sign_but_diverges_with_old_s
     assert abs(alphas_fixed[-1]) <= 2.0 * abs(alpha0), alphas_fixed
 
     # --- Old (pre-fix) sign: reconstructed locally, same initial state -
-    y0 = np.array(s0)
+    # Step 109 audit (task-109-roll-reaction-wheel.md SS109.9): `State` grew
+    # three roll fields; `_buggy_derivatives` below is the pre-fix 7-wide
+    # `derivatives` reconstructed from scratch and returns a 7-long dydt, so
+    # `y0` must be trimmed to 7 (`state.to_vector`, not a bare `np.array`) or
+    # `solve_ivp` sees mismatched y0/dydt shapes (10 vs 7). `p.roll.model`
+    # defaults to "none" here, so this is bit-for-bit the old `np.array(s0)`.
+    y0 = to_vector(s0, p)
     sol = solve_ivp(
         _buggy_derivatives, (0.0, 2.0), y0, args=(p,),
         dense_output=True, max_step=0.01, rtol=1e-9, atol=1e-9,

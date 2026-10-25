@@ -128,6 +128,13 @@ class Aero:
     # bit-for-bit unchanged; only a Monte-Carlo dispersion run (apps/common/ensemble.py)
     # sets this away from 1.0.
     cx_scale: float = 1.0
+    # Step 109 (task-109 SS109.1.5; other-dynamics.tex eq:roll_aero): roll-moment
+    # coefficients. CODE sign, like c_mq: positive C_l_p is DAMPING. Deliberately NOT
+    # routed through `cm_convention` -- that flag is about the *pitching* moment
+    # (C_m/C_m_alpha/c_mq); a roll convention flag would need its own table column and
+    # nobody has roll data to put in one yet. Both 0.0 by default -> L_x == 0.0 exactly.
+    C_l: float = 0.0              # static roll-moment coefficient (fin cant) [-]
+    C_l_p: float = 0.0            # roll-damping derivative [-], positive = damping
 
 
 @dataclass(frozen=True)
@@ -272,6 +279,37 @@ class Actuator:
 
 
 @dataclass(frozen=True)
+class Roll:
+    """Step 109 (task-109-roll-reaction-wheel.md; other-dynamics.tex SSRoll and
+    the reaction wheel): the decoupled roll degree of freedom about x_hat_r and
+    the reaction wheel that drives it.
+
+    `model = "none"` (the default) is the off switch, and it is a *structural*
+    one: the state vector stays 7 components wide (sim/state.py's `width`), so
+    every pinned flight is bit-for-bit unchanged -- see task-109 SS109.2.1 for
+    why a zero-derivative 10th component would NOT have been (scipy's RK45
+    error norm is an RMS over the vector, so its length is in the step-size
+    controller's denominator).
+
+    `"free"`  -- roll angle/rate integrated, aerodynamic roll moment only, no wheel.
+    `"wheel"` -- as "free", plus the reaction wheel (eqs. 2-3 of SS109.1.2).
+    """
+    model: str = "none"                    # none | free | wheel
+    I_x: float = 0.0                       # vehicle axial MOI about x_hat_r, wheel INCLUDED
+                                           # and locked [kg*m^2]; REQ when model != "none"
+    # --- reaction wheel (model == "wheel") ---
+    I_w: float = 0.0                       # wheel's own axial MOI [kg*m^2]; 0.0 -> no wheel,
+                                           # tau_w forced to 0.0 and domega_w/dt == 0.0
+    tau_max: float = float("inf")          # |tau_w| limit [N*m]; inf = unbounded torque
+    omega_w_max: float = float("inf")      # |omega_w - omega_x| limit [rad/s]; inf = never saturates
+    # --- control law (sim/roll.py's `_ROLL_LAWS` dispatch) ---
+    law: str = "none"                      # none | rate_null | angle_hold
+    kp: float = 0.0                        # angle_hold: gain on (gamma - gamma_cmd) [N*m/rad]
+    kd: float = 0.0                        # rate_null/angle_hold: gain on omega_x [N*m/(rad/s)]
+    gamma_cmd: float = 0.0                 # angle_hold: commanded roll angle [rad]
+
+
+@dataclass(frozen=True)
 class Solver:
     method: str = "RK45"          # RK45 (or any scipy name) | rk4 | rk45_seg (Step 104, D-116 -- requires sample_rate_hz>0.0)
     rtol: float = 1e-8
@@ -285,7 +323,8 @@ class Solver:
 class Params:
     """Every symbol from main.tex, composed into groups (SS28.3) -- twelve
     at Step 50, plus `Actuator` (Step 103, architecture-35-paper-
-    alignment.md SS35.6)."""
+    alignment.md SS35.6) and `Roll` (Step 109, task-109-roll-reaction-
+    wheel.md)."""
 
     weight: Weight                              # the only required group
     g0: float = 9.80665                         # standard gravity, shared constant (see note)
@@ -300,6 +339,7 @@ class Params:
     recovery:   Recovery   = field(default_factory=Recovery)
     control:    Control    = field(default_factory=Control)
     actuator:   Actuator   = field(default_factory=Actuator)
+    roll:       Roll       = field(default_factory=Roll)     # Step 109
     sensors:    Sensors    = field(default_factory=Sensors)
     solver:     Solver     = field(default_factory=Solver)
 

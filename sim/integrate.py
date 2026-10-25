@@ -92,15 +92,15 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import aero, control, dynamics, forces
+from sim import aero, control, dynamics, forces, roll
 from sim.dynamics import derivatives
-from sim.state import State, VZ, Z
+from sim.state import State, VZ, Z, to_vector
 from sim import gravity, thrust_curve
 
 
 class Result(NamedTuple):
     t: np.ndarray                     # time samples [s]
-    y: np.ndarray                     # state history, shape (6, N)
+    y: np.ndarray                     # state history, shape (width, N); width is 7 or 10, sim/state.py
     events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None, "rail_exit": t | None, "parachute_deploy": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
     params: Any                       # the Params that produced this run -- Step 45, architecture.md SS25.5
@@ -302,7 +302,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float, sample_rate_hz: float = 0.0)
     identical to every pre-Step-59 call (`hold=None` is the default
     `derivatives` already had to honour for the RK45 path).
     """
-    y0 = np.array(s0, dtype=float)
+    y0 = to_vector(s0, p)
 
     ts = [0.0]
     ys = [y0]
@@ -528,7 +528,7 @@ def _run_segmented_rk45(p, s0: State, t_max: float, sample_rate_hz: float,
                                # never imported on the default RK45 path
                                # or the un-sampled rk4 path.
 
-    y0 = np.array(s0, dtype=float)
+    y0 = to_vector(s0, p)
     T_s = 1.0 / sample_rate_hz
 
     t_chunks = [np.array([0.0])]
@@ -665,6 +665,12 @@ def run_sim(p, s0: State) -> Result:
     also raises here, immediately, if sample_rate_hz <= 0.0 -- same
     eager-validation rationale as the actuator-model guard above
     (task-107-sampled-laws-registry.md).
+
+    Step 109 (task-109-roll-reaction-wheel.md SS109.7.2): an unregistered
+    `p.roll.model`/`p.roll.law`, or `p.roll.I_x <= p.roll.I_w` while the
+    roll model is on, also raise here, immediately -- `sim/roll.py`
+    deliberately has no defensive fallback for the inertia check (its own
+    SS109.4.4 docstring note).
     """
     aero.reset_oob_warning()  # Step 112: once-per-run out-of-range alpha warning
     method = p.solver.method
@@ -710,6 +716,37 @@ def run_sim(p, s0: State) -> Result:
             "SS104.2)."
         )
 
+    # Step 109 (task-109-roll-reaction-wheel.md SS109.7.2): eager validation
+    # of the roll model/law, before any integration is attempted -- same
+    # rationale as the actuator-model guard above (a typo in a model-
+    # selection string that only dispatches deep inside the integration
+    # loop must fail before any integration starts). Ordering is load-
+    # bearing: the `roll.model` check comes FIRST, so an unregistered model
+    # name reports itself rather than producing a confusing inertia
+    # complaint from the checks below it.
+    if p.roll.model not in roll.known_roll_models():
+        raise ValueError(
+            f"p.roll.model={p.roll.model!r} is not a registered roll model "
+            f"(known: {sorted(roll.known_roll_models())}) "
+            "(task-109-roll-reaction-wheel.md SS109.3.1)."
+        )
+
+    if p.roll.model != "none":
+        if p.roll.law not in roll.known_roll_laws():
+            raise ValueError(
+                f"p.roll.law={p.roll.law!r} is not a registered roll law "
+                f"(known: {sorted(roll.known_roll_laws())}) "
+                "(task-109 SS109.4.2)."
+            )
+        if p.roll.I_x <= p.roll.I_w:
+            raise ValueError(
+                f"p.roll.I_x={p.roll.I_x} must exceed p.roll.I_w={p.roll.I_w}: "
+                "I_x is the vehicle's axial inertia with the wheel INCLUDED and "
+                "locked, so the airframe-alone inertia I_x - I_w (the denominator "
+                "of eq. (2)) must be positive (task-109 SS109.1.1). I_x = 0.0 is "
+                "the unset default and is never valid with the roll model on."
+            )
+
     if method == "rk4":
         result = _run_rk4(p, s0, t_max, dt, sample_rate_hz)
         _warn_if_mach_blind(result)
@@ -720,7 +757,7 @@ def run_sim(p, s0: State) -> Result:
         _warn_if_mach_blind(result)
         return result
 
-    y0 = np.array(s0, dtype=float)
+    y0 = to_vector(s0, p)
 
     sol = solve_ivp(
         derivatives,

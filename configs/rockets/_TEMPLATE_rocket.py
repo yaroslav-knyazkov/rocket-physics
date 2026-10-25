@@ -46,6 +46,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | recovery  | OPT     | Recovery group | Recovery()  | parachute model; default is no recovery |
 | control   | OPT     | Control group  | Control()   | airbrake / aero-coefficient control; default is none |
 | actuator  | OPT     | Actuator group | Actuator()  | sampled-data airbrake actuator (rate/range/delay); default is the ideal zero-order hold |
+| roll      | OPT     | Roll group | Roll()      | decoupled 2D roll DOF + reaction wheel (Step 109); default "none" is a structural off switch |
 | sensors   | OPT     | Sensors group | Sensors()   | baro-pressure sensing channel; default is noiseless/lagless/unquantised |
 | sections  | OPT     | Sections group | Sections()  | named airframe stations; descriptive except motor placement |
 | notes     | OPT     | -              | ""          | provenance: where the numbers came from |
@@ -105,6 +106,8 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | C_x180    | OPT     | -                               | 0.0        | axial coefficient magnitude in tail-first flow; 0.0 = C_x(0) of the table (UNVERIFIED placeholder: a blunt base facing the flow is higher, set it) |
 | S_base    | OPT     | m^2                             | 0.0        | base area of the potential term; 0.0 = S |
 | cx_scale  | OPT     | -                               | 1.0        | multiplier on C_x (dispersion hook, apps/common/ensemble.py, Step 105); 1.0 = off, skipped entirely |
+| C_l       | OPT     | -                               | 0.0        | static roll-moment coefficient (fin cant), CODE sign; read only when roll.model != "none" |
+| C_l_p     | OPT     | -                               | 0.0        | roll-damping derivative, CODE sign (positive = damping); read only when roll.model != "none" |
 
 ### Recovery
 | field       | REQ/OPT | unit / choices   | default  | what it does |
@@ -153,12 +156,27 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | baro_tau_s        | OPT     | s               | 0.0     | first-order lag time constant on the reading; 0.0 = inert |
 | baro_resolution_m | OPT     | m               | 0.0     | quantisation step; 0.0 = inert (no quantisation) |
 | baro_seed         | OPT     | -               | 0       | RNG seed for the noise draw; only read when baro_sigma_m != 0.0 |
+
+### Roll
+Step 109 (task-109-roll-reaction-wheel.md): the decoupled 2D roll DOF + reaction wheel.
+
+| field       | REQ/OPT | unit / choices                | default | what it does |
+|-------------|---------|--------------------------------|---------|--------------|
+| model       | OPT     | none \| free \| wheel          | "none"  | roll DOF; "none" is a STRUCTURAL off switch (the state vector stays 7-wide) |
+| I_x         | REQ     | kg*m^2                         | 0.0     | vehicle axial MOI about x_hat_r, wheel INCLUDED and locked; REQ iff model != "none" |
+| I_w         | OPT     | kg*m^2                          | 0.0     | wheel's own axial MOI; 0.0 = no wheel (tau_w forced to 0.0) |
+| tau_max     | OPT     | N*m                             | inf     | wheel motor's torque limit; inf = unbounded |
+| omega_w_max | OPT     | rad/s                           | inf     | wheel's max relative speed (one-sided clamp, SS109.1.3); inf = never saturates |
+| law         | OPT     | none \| rate_null \| angle_hold | "none"  | wheel control law; "none" = never commanded |
+| kp          | OPT     | N*m/rad                         | 0.0     | angle_hold: gain on (gamma - gamma_cmd) |
+| kd          | OPT     | N*m/(rad/s)                     | 0.0     | rate_null/angle_hold: gain on omega_x |
+| gamma_cmd   | OPT     | rad                             | 0.0     | angle_hold: commanded roll angle |
 """
 
 from __future__ import annotations
 
 from configs.schema import Airframe, Rocket
-from sim.params import Actuator, Aero, Control, Lengths, Recovery, Sensors
+from sim.params import Actuator, Aero, Control, Lengths, Recovery, Roll, Sensors
 
 ROCKET = Rocket(
     name="my_rocket",  # REQ, - -- registry key; rename to match the filename once you rename it
@@ -235,6 +253,8 @@ ROCKET = Rocket(
         # eta=0.0,         # OPT, - -- finite-length factor; 0.0 = derived from fineness S_p/d_ref^2
         # C_x180=0.0,      # OPT, - -- axial coefficient magnitude, tail-first flow; 0.0 = table C_x(0) (UNVERIFIED placeholder, set it)
         # S_base=0.0,      # OPT, m^2 -- base area of the potential term; 0.0 = S
+        # C_l=0.0,         # OPT, - -- static roll-moment coefficient (fin cant), CODE sign; read only when roll.model != "none"
+        # C_l_p=0.0,       # OPT, - -- roll-damping derivative, CODE sign (positive = damping); read only when roll.model != "none"
     ),
 
     recovery=Recovery(  # OPT, Recovery group -- parachute; default is no recovery
@@ -283,6 +303,24 @@ ROCKET = Rocket(
         # f_max=1.0,                # OPT, - -- "full" model only: actuator's own maximum deploy fraction
         # delay_ticks=0,            # OPT, whole sample ticks -- "full" model only: command delay, in whole sample periods
     ),
+
+    # roll left at its default (Roll()) -- the roll DOF is OFF, and off is
+    # STRUCTURAL (sim/state.py's width gate), not just zero-derivative: no
+    # pinned flight anywhere in this project enables it. Fill this in only
+    # once you have a real I_x (and, for a wheel, I_w/tau_max/omega_w_max) --
+    # there are no demo numbers for this airframe (task-109-roll-reaction-
+    # wheel.md SS109.7b).
+    # roll=Roll(  # OPT, Roll group -- decoupled 2D roll DOF + reaction wheel; default "none" is a structural off switch
+    #     model="none",          # OPT, none | free | wheel -- "none" means every field below is inert
+    #     I_x=0.0,               # REQ iff model != "none", kg*m^2 -- vehicle axial MOI about x_hat_r, wheel INCLUDED and locked
+    #     I_w=0.0,               # OPT, kg*m^2 -- wheel's own axial MOI; 0.0 = no wheel (tau_w forced to 0.0)
+    #     tau_max=float("inf"),  # OPT, N*m -- wheel motor's torque limit; inf = unbounded
+    #     omega_w_max=float("inf"),  # OPT, rad/s -- wheel's max relative speed (one-sided clamp); inf = never saturates
+    #     law="none",            # OPT, none | rate_null | angle_hold -- wheel control law; "none" = never commanded
+    #     kp=0.0,                # OPT, N*m/rad -- angle_hold: gain on (gamma - gamma_cmd)
+    #     kd=0.0,                # OPT, N*m/(rad/s) -- rate_null/angle_hold: gain on omega_x
+    #     gamma_cmd=0.0,         # OPT, rad -- angle_hold: commanded roll angle
+    # ),
 
     # sensors left at its default (Sensors()) -- a noiseless, lagless,
     # unquantised pressure-altitude reading. Fill it in once you have

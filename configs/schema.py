@@ -73,6 +73,7 @@ from sim.params import Gravity
 from sim.params import Lengths
 from sim.params import Params
 from sim.params import Recovery
+from sim.params import Roll
 from sim.params import Sensors
 from sim.params import Site
 from sim.params import Solver
@@ -293,6 +294,11 @@ class Rocket:
     # not a run-level/weather/site concern (SS31.3.2's one-owner
     # invariant).
     actuator: Actuator = dataclasses.field(default_factory=Actuator)
+    # Step 109 (task-109-roll-reaction-wheel.md SS109.7b): the roll DOF and
+    # its reaction wheel -- same owning piece as control/actuator above,
+    # vehicle control hardware, not a run-level/weather/site concern
+    # (SS31.3.2's one-owner invariant).
+    roll: Roll = dataclasses.field(default_factory=Roll)   # Step 109
     # Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
     # baro channel's own hardware characteristics -- same owning piece as
     # control/actuator above (vehicle control/sensing hardware, not a
@@ -376,6 +382,7 @@ def assemble(sc: Scenario) -> Config:
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,
         actuator=sc.rocket.actuator,
+        roll=sc.rocket.roll,
         sensors=sc.rocket.sensors,
         site=sc.site.site,
         atmosphere=sc.weather.atmosphere,
