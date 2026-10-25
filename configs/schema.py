@@ -73,6 +73,7 @@ from sim.params import Gravity
 from sim.params import Lengths
 from sim.params import Params
 from sim.params import Recovery
+from sim.params import Sensors
 from sim.params import Site
 from sim.params import Solver
 from sim.params import Soundings
@@ -292,6 +293,11 @@ class Rocket:
     # not a run-level/weather/site concern (SS31.3.2's one-owner
     # invariant).
     actuator: Actuator = dataclasses.field(default_factory=Actuator)
+    # Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
+    # baro channel's own hardware characteristics -- same owning piece as
+    # control/actuator above (vehicle control/sensing hardware, not a
+    # run-level/weather/site concern).
+    sensors: Sensors = dataclasses.field(default_factory=Sensors)
     sections: Sections = dataclasses.field(default_factory=Sections)
     notes: str = ""
 
@@ -370,6 +376,7 @@ def assemble(sc: Scenario) -> Config:
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,
         actuator=sc.rocket.actuator,
+        sensors=sc.rocket.sensors,
         site=sc.site.site,
         atmosphere=sc.weather.atmosphere,
         soundings=sc.weather.soundings,

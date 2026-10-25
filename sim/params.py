@@ -217,6 +217,32 @@ class Control:
     onboard_CdA0: float = 0.0         # m^2, onboard model's own baseline drag area (C_x*S, lumped); 0.0 = vacuum-limit predictor
     onboard_CdA_brake: float = 0.0    # m^2, onboard model's own FULLY-OPEN brake drag area increment (C_D,b*S_b, lumped)
     onboard_rho0: float = 1.225       # kg/m^3, nominal air density the predictor uses; 1.225 = ISA sea level (not ISA-at-h_hat, SS107.3.4)
+    # Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): which
+    # estimator a registered sampled law's own estimator.step call uses.
+    # "stub" (default) is Step 107's own two-point backward difference,
+    # UNCHANGED, bit-for-bit; "alpha_beta" is Step 108's real filter
+    # (gains below). Read only by controllers/laws.py -- unreachable
+    # (inert) under every memoryless airbrake_model value, same standing
+    # as airbrake_ki/onboard_* above.
+    estimator_model: str = "stub"     # stub | alpha_beta
+    estimator_alpha: float = 0.5      # alpha_beta only: position gain, dimensionless (0, 1)
+    estimator_beta: float = 0.1667    # alpha_beta only: velocity gain, dimensionless (0, 1) -- UNVERIFIED placeholder, see §108.8.3
+
+
+@dataclass(frozen=True)
+class Sensors:
+    """Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
+    baro-pressure sensing channel's own hardware characteristics -- noise,
+    lag, quantisation. All four fields default to exactly the values that
+    make `sim.sensors.measure` reproduce the truth altitude bit-for-bit
+    under the "isa" atmosphere tier (D-115's own "all-zero sensor" case) --
+    zero pin risk for every existing scenario/test, none of which sets
+    these fields.
+    """
+    baro_sigma_m: float = 0.0        # m, Gaussian noise sigma on the pressure-altitude reading; 0.0 = inert (noiseless)
+    baro_tau_s: float = 0.0          # s, first-order lag time constant on the reading; 0.0 = inert (instantaneous)
+    baro_resolution_m: float = 0.0   # m, quantisation step; 0.0 = inert (no quantisation)
+    baro_seed: int = 0               # RNG seed for the noise draw; only read when baro_sigma_m != 0.0
 
 
 @dataclass(frozen=True)
@@ -274,6 +300,7 @@ class Params:
     recovery:   Recovery   = field(default_factory=Recovery)
     control:    Control    = field(default_factory=Control)
     actuator:   Actuator   = field(default_factory=Actuator)
+    sensors:    Sensors    = field(default_factory=Sensors)
     solver:     Solver     = field(default_factory=Solver)
 
 

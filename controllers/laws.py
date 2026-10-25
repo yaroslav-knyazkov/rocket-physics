@@ -56,14 +56,21 @@ def _k(c, f_b: float) -> float:
 
 
 class ProportionalDragState(NamedTuple):
-    est: "Optional[estimator.EstimatorState]" = None
+    # Step 108: `est` holds an `estimator.EstimatorState` under the
+    # default `estimator_model="stub"`, or an `estimator.AlphaBetaState`
+    # under `"alpha_beta"` -- `estimator.step`'s own `model=` dispatch
+    # decides which; this law never reaches into either's own fields
+    # (threads `prev.est` back opaquely), so the type hint below is
+    # honest about both possibilities rather than only the pre-Step-108
+    # one. Found during this ticket's own code-review pass.
+    est: "Optional[estimator.EstimatorState | estimator.AlphaBetaState]" = None
     f_b_prev: float = 0.0
 
 
 def proportional_drag(t_k, meas, p, state):
     c = p.control
     prev = state if state is not None else ProportionalDragState()
-    h_hat, v_hat, est_new = estimator.step(t_k, meas.h_baro, prev.est)
+    h_hat, v_hat, est_new = estimator.step(t_k, meas.h_baro, prev.est, model=c.estimator_model, p=p)
     k = _k(c, prev.f_b_prev)
     h_a = drag_aware_predicted_apogee(h_hat, v_hat, p.g0, c.onboard_mass, k)
     error = h_a - c.airbrake_target_apogee_m
@@ -72,7 +79,9 @@ def proportional_drag(t_k, meas, p, state):
 
 
 class PiApogeeState(NamedTuple):
-    est: "Optional[estimator.EstimatorState]" = None
+    # See ProportionalDragState.est's own comment above -- same honest
+    # either-model type hint, same reason.
+    est: "Optional[estimator.EstimatorState | estimator.AlphaBetaState]" = None
     integral: float = 0.0
     f_b_prev: float = 0.0
 
@@ -81,7 +90,7 @@ def pi_apogee(t_k, meas, p, state):
     c = p.control
     prev = state if state is not None else PiApogeeState()
     dt = 0.0 if prev.est is None or prev.est.t_prev is None else t_k - prev.est.t_prev
-    h_hat, v_hat, est_new = estimator.step(t_k, meas.h_baro, prev.est)
+    h_hat, v_hat, est_new = estimator.step(t_k, meas.h_baro, prev.est, model=c.estimator_model, p=p)
     k = _k(c, prev.f_b_prev)
     h_a = drag_aware_predicted_apogee(h_hat, v_hat, p.g0, c.onboard_mass, k)
     error = h_a - c.airbrake_target_apogee_m

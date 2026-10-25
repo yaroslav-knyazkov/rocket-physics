@@ -109,6 +109,104 @@ def test_estimator_step_backward_difference_on_a_linear_ramp():
 
 
 # ----------------------------------------------------------------------
+# controllers/estimator.py -- the real alpha_beta filter (Step 108,
+# task-108-sensors-estimator.md SS108.6, tests 8-13)
+# ----------------------------------------------------------------------
+
+
+def test_alpha_beta_first_call_returns_zero_velocity():
+    from sim.params import Params, Weight
+
+    p = Params(weight=Weight(m=0.5, I=0.05))  # default Control: estimator_alpha/beta at their defaults
+    h_hat, v_hat, state = estimator.step(0.0, 100.0, None, model="alpha_beta", p=p)
+    assert (h_hat, v_hat) == (100.0, 0.0)
+    assert state == estimator.AlphaBetaState(t_prev=0.0, h_hat=100.0, v_hat=0.0)
+
+
+def test_alpha_beta_converges_on_a_noiseless_constant_velocity_ramp():
+    """`h(t) = h0 + v0*t`, fed exactly every tick: after enough ticks for
+    the filter's own geometric transient to decay, `h_hat`/`v_hat`
+    converge to `h(t)`/`v0` within a tight tolerance."""
+    from sim.params import Control, Params, Weight
+
+    h0, v0, dt = 10.0, 5.0, 0.1
+    p = Params(weight=Weight(m=0.5, I=0.05), control=Control(estimator_alpha=0.5, estimator_beta=0.1667))
+    state = None
+    n_ticks = 200  # (1-alpha)**n << tolerance well before this
+    for n in range(n_ticks):
+        t = n * dt
+        h_true = h0 + v0 * t
+        h_hat, v_hat, state = estimator.step(t, h_true, state, model="alpha_beta", p=p)
+    t_final = (n_ticks - 1) * dt
+    assert h_hat == pytest.approx(h0 + v0 * t_final, abs=1e-6)
+    assert v_hat == pytest.approx(v0, abs=1e-6)
+
+
+def test_alpha_beta_attenuates_noise_relative_to_the_raw_sigma():
+    """Many ticks of a KNOWN constant altitude plus i.i.d. Gaussian noise
+    (known sigma): the filtered `h_hat` series has a materially smaller
+    sample std than the raw noise sigma (loose, empirical bound -- not a
+    pinned steady-state-variance formula, §108.2's own disclosure)."""
+    from sim.params import Control, Params, Weight
+
+    rng = np.random.default_rng(12345)
+    sigma, dt, h_true = 2.0, 0.1, 500.0
+    p = Params(weight=Weight(m=0.5, I=0.05), control=Control(estimator_alpha=0.5, estimator_beta=0.1667))
+    state = None
+    h_hats = []
+    for n in range(2000):
+        t = n * dt
+        h_meas = h_true + rng.normal(0.0, sigma)
+        h_hat, v_hat, state = estimator.step(t, h_meas, state, model="alpha_beta", p=p)
+        h_hats.append(h_hat)
+    # Discard the initial transient (first 50 ticks).
+    tail = np.array(h_hats[50:])
+    assert np.std(tail) < 0.7 * sigma
+
+
+def test_estimator_step_three_positional_args_is_bit_identical_to_pre_ticket_stub():
+    """`estimator.step(t, h, prev)` (3 positional args, no `model=`) is
+    bit-identical to Step 107's pre-ticket behaviour; an explicit
+    `model="stub", p=None` call gives the exact same result."""
+    state = None
+    for t, h in ((0.0, 0.0), (1.0, 10.0), (2.0, 20.0)):
+        bare = estimator.step(t, h, state)
+        explicit = estimator.step(t, h, state, model="stub", p=None)
+        assert bare == explicit
+        _, _, state = bare
+
+
+def test_estimator_step_unknown_model_raises_value_error():
+    with pytest.raises(ValueError):
+        estimator.step(0.0, 100.0, None, model="not_a_real_model")
+
+
+def test_proportional_drag_and_pi_apogee_run_with_alpha_beta_estimator():
+    """SS107.10-style "law called once per tick with `prev` state"
+    smoke test, now with `estimator_model="alpha_beta"` set on the
+    `Control` fixture -- both laws run without error and thread state
+    across ticks."""
+    p = _launch_params(
+        airbrake_model="proportional_drag", airbrake_kp=0.001, airbrake_target_apogee_m=500.0,
+        estimator_model="alpha_beta",
+    )
+    state = None
+    for t, h in ((0.0, 0.0), (0.1, 1.0), (0.2, 2.0)):
+        cmd, state = laws.proportional_drag(t, control.Measurement(h_baro=h), p, state)
+    assert isinstance(state.est, estimator.AlphaBetaState)
+    assert state.est.t_prev == 0.2
+
+    p_pi = _launch_params(
+        airbrake_model="pi_apogee", airbrake_kp=0.001, airbrake_ki=0.0005,
+        airbrake_target_apogee_m=500.0, estimator_model="alpha_beta",
+    )
+    state_pi = None
+    for t, h in ((0.0, 0.0), (0.1, 1.0), (0.2, 2.0)):
+        cmd, state_pi = laws.pi_apogee(t, control.Measurement(h_baro=h), p_pi, state_pi)
+    assert isinstance(state_pi.est, estimator.AlphaBetaState)
+
+
+# ----------------------------------------------------------------------
 # controllers/laws.py -- proportional_drag / pi_apogee, called directly
 # (not through run_sim), so each law's own pure/stateful behaviour is
 # tested independently of the registry/dispatch wiring tests/test_control.py

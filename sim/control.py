@@ -88,7 +88,7 @@ from typing import Any, Callable, NamedTuple, Optional
 
 import numpy as np
 
-from sim import gravity, thrust_curve
+from sim import gravity, sensors, thrust_curve
 # `AeroCoeffs` is needed only for this module's own type hints (the Step 57
 # seam below), never called into at import time -- safe to import at module
 # level here. The opposite direction (sim.aero calling into this module)
@@ -292,16 +292,17 @@ def sample_airbrake(t: float, y: np.ndarray, p, prev):
     """
     name = p.control.airbrake_model
     if name in _SAMPLED_LAWS:
-        prev_actuator_hold, prev_ctrl_state = (
-            (prev.actuator_hold, prev.ctrl_state) if isinstance(prev, SampledLawHold) else (prev, None)
+        prev_actuator_hold, prev_ctrl_state, prev_sens_state = (
+            (prev.actuator_hold, prev.ctrl_state, prev.sens_state)
+            if isinstance(prev, SampledLawHold) else (prev, None, None)
         )
         if _in_coast_window(t, y, p):
-            meas = _ideal_measurement(t, y, p)  # Step 108 replaces this one call (SS107.3.2/SS107.12)
+            meas, sens_state = sensors.measure(t, y, p, prev_sens_state)  # Step 108 (SS107.3.2/SS107.12)
             cmd, ctrl_state = _SAMPLED_LAWS[name](t, meas, p, prev_ctrl_state)
         else:
-            cmd, ctrl_state = 0.0, prev_ctrl_state  # outside the window: command 0, state frozen
+            cmd, ctrl_state, sens_state = 0.0, prev_ctrl_state, prev_sens_state  # outside the window: both frozen
         actuator_hold = _ACTUATOR_MODELS[p.actuator.model](t, cmd, p, prev_actuator_hold)
-        return SampledLawHold(actuator_hold=actuator_hold, ctrl_state=ctrl_state)
+        return SampledLawHold(actuator_hold=actuator_hold, ctrl_state=ctrl_state, sens_state=sens_state)
 
     cmd = _AIRBRAKE_CONTROLLERS[name](t, y, p)
     return _ACTUATOR_MODELS[p.actuator.model](t, cmd, p, prev)
@@ -482,39 +483,18 @@ class Measurement(NamedTuple):
     a_imu: "Optional[float]" = None
 
 
-def _ideal_measurement(t: float, y: np.ndarray, p) -> Measurement:
-    """Step 107's own stub sensor: truth-equals-measurement, no noise, no
-    lag, no quantisation -- exactly what the roadmap's own "ideal sensor"
-    test wording (Step 107's acceptance bullet) requires to be testable
-    BEFORE Step 108's real sim/sensors.py exists. Reads gravity.altitude_
-    agl (the same primitive _proportional_airbrake's own predictor already
-    reads), never atmosphere.py or any noise model.
-
-    SUPERSEDED BY STEP 108 (does not change this ticket's own tests, see
-    SS107.12): sample_airbrake's sampled-law branch (SS107.4) calls this
-    function by name, in exactly one place. Step 108 replaces that ONE
-    call site with `sensors.measure(t, y, p, prev_sens_state)` (returning
-    a `(Measurement, sens_state)` pair instead of a bare `Measurement`),
-    and threads the returned `sens_state` into `SampledLawHold.sens_state`
-    (already present, default None, SS107.3.3) -- `_ideal_measurement`
-    itself is then dead code Step 108 may delete, but nothing in THIS
-    ticket's tests calls it directly (they go through run_sim/
-    sample_airbrake), so deleting it breaks no Step 107 test.
-    """
-    return Measurement(h_baro=gravity.altitude_agl(y, p))
-
-
 class SampledLawHold(NamedTuple):
     """The channel's own `prev` (sim.sampling's sense) when p.control.
     airbrake_model is a REGISTERED sampled law -- wraps the actuator's own
     held value (float under actuator.model=="ideal", AirbrakeHold -- Step
     103's own type, UNTOUCHED -- under "full") together with the LAW's own
     ctrl_state (opaque, law-specific: None for a stateless law, a small
-    NamedTuple with an integrator for pi_apogee). `sens_state` is a Step-
-    108 placeholder (always None here, Step 107 never writes anything
-    else into it) -- present now so Step 108 does not need to change this
-    NamedTuple's SHAPE, only what it puts in that one field (no API break,
-    per the task brief's own requirement).
+    NamedTuple with an integrator for pi_apogee). `sens_state` carries the
+    REAL baro channel's own state (Step 108, `sim.sensors.SensorState`,
+    opaque here) -- a Step-107 placeholder (always None there) until this
+    step wired `sample_airbrake` to actually populate it; the NamedTuple's
+    SHAPE did not need to change, only what it puts in this one field (no
+    API break, per the task brief's own requirement).
     """
     actuator_hold: "float | AirbrakeHold"
     ctrl_state: Any

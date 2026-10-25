@@ -46,6 +46,7 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | recovery  | OPT     | Recovery group | Recovery()  | parachute model; default is no recovery |
 | control   | OPT     | Control group  | Control()   | airbrake / aero-coefficient control; default is none |
 | actuator  | OPT     | Actuator group | Actuator()  | sampled-data airbrake actuator (rate/range/delay); default is the ideal zero-order hold |
+| sensors   | OPT     | Sensors group | Sensors()   | baro-pressure sensing channel; default is noiseless/lagless/unquantised |
 | sections  | OPT     | Sections group | Sections()  | named airframe stations; descriptive except motor placement |
 | notes     | OPT     | -              | ""          | provenance: where the numbers came from |
 
@@ -131,6 +132,9 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | onboard_CdA0             | OPT     | m^2                                         | 0.0              | sampled laws' onboard baseline drag area (C_x*S, lumped) |
 | onboard_CdA_brake        | OPT     | m^2                                         | 0.0              | sampled laws' onboard brake drag-area increment (C_D,b*S_b, lumped) |
 | onboard_rho0             | OPT     | kg/m^3                                      | 1.225            | sampled laws' nominal air density (not ISA-at-h_hat, task-107) |
+| estimator_model          | OPT     | stub \| alpha_beta                          | "stub"           | which estimator a registered sampled law's own filter uses |
+| estimator_alpha          | OPT     | -                                           | 0.5              | alpha_beta only: position gain (0, 1) |
+| estimator_beta           | OPT     | -                                           | 0.1667           | alpha_beta only: velocity gain (0, 1) -- UNVERIFIED placeholder |
 
 ### Actuator
 | field       | REQ/OPT | unit / choices | default | what it does |
@@ -141,12 +145,20 @@ The aero model `table` (the data-table model) reads `data/aero/<table>.csv`.
 | f_min       | OPT     | -               | 0.0     | "full" model only: actuator's own minimum deploy fraction |
 | f_max       | OPT     | -               | 1.0     | "full" model only: actuator's own maximum deploy fraction |
 | delay_ticks | OPT     | whole sample ticks | 0    | "full" model only: command delay, in whole sample periods |
+
+### Sensors
+| field             | REQ/OPT | unit / choices | default | what it does |
+|-------------------|---------|-----------------|---------|--------------|
+| baro_sigma_m      | OPT     | m               | 0.0     | Gaussian noise sigma on the pressure-altitude reading; 0.0 = inert |
+| baro_tau_s        | OPT     | s               | 0.0     | first-order lag time constant on the reading; 0.0 = inert |
+| baro_resolution_m | OPT     | m               | 0.0     | quantisation step; 0.0 = inert (no quantisation) |
+| baro_seed         | OPT     | -               | 0       | RNG seed for the noise draw; only read when baro_sigma_m != 0.0 |
 """
 
 from __future__ import annotations
 
 from configs.schema import Airframe, Rocket
-from sim.params import Actuator, Aero, Control, Lengths, Recovery
+from sim.params import Actuator, Aero, Control, Lengths, Recovery, Sensors
 
 ROCKET = Rocket(
     name="my_rocket",  # REQ, - -- registry key; rename to match the filename once you rename it
@@ -254,6 +266,9 @@ ROCKET = Rocket(
         # onboard_CdA0=0.0,                    # OPT, m^2 -- sampled laws' onboard baseline drag area (C_x*S)
         # onboard_CdA_brake=0.0,               # OPT, m^2 -- sampled laws' onboard brake drag-area increment
         # onboard_rho0=1.225,                  # OPT, kg/m^3 -- sampled laws' nominal air density
+        # estimator_model="stub",               # OPT, stub | alpha_beta -- which estimator a registered sampled law uses
+        # estimator_alpha=0.5,                  # OPT, - -- alpha_beta only: position gain (0, 1)
+        # estimator_beta=0.1667,                # OPT, - -- alpha_beta only: velocity gain (0, 1); UNVERIFIED placeholder
     ),
 
     actuator=Actuator(  # OPT, Actuator group -- sampled-data airbrake actuator; default is the ideal zero-order hold
@@ -268,6 +283,17 @@ ROCKET = Rocket(
         # f_max=1.0,                # OPT, - -- "full" model only: actuator's own maximum deploy fraction
         # delay_ticks=0,            # OPT, whole sample ticks -- "full" model only: command delay, in whole sample periods
     ),
+
+    # sensors left at its default (Sensors()) -- a noiseless, lagless,
+    # unquantised pressure-altitude reading. Fill it in once you have
+    # real barometer datasheet numbers (architecture-35-paper-
+    # alignment.md SS35.8 item 10).
+    # sensors=Sensors(  # OPT, Sensors group -- baro-pressure sensing channel; default is noiseless/lagless/unquantised
+    #     baro_sigma_m=0.0,       # OPT, m -- Gaussian noise sigma; 0.0 = inert
+    #     baro_tau_s=0.0,         # OPT, s -- first-order lag time constant; 0.0 = inert
+    #     baro_resolution_m=0.0,  # OPT, m -- quantisation step; 0.0 = inert
+    #     baro_seed=0,            # OPT, - -- RNG seed; only matters when baro_sigma_m != 0.0
+    # ),
 
     notes=(
         "My actual rocket -- <say where these numbers came from: measured, "

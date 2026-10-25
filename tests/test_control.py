@@ -646,6 +646,32 @@ def test_airbrake_deploy_fraction_without_a_hold_raises_for_a_registered_sampled
         del control._SAMPLED_LAWS["test_s107_noeval"]
 
 
+def test_sample_airbrake_wires_the_real_baro_channel_end_to_end():
+    """Step 108: with `Sensors()` all-default and `atmosphere.model="isa"`
+    (both defaults), a registered dummy law's own `meas.h_baro` equals the
+    true AGL altitude -- end-to-end through `sample_airbrake`'s real
+    wiring (`sim.sensors.measure`), not `sensors.measure` called in
+    isolation (tests/test_sensors.py already owns that)."""
+    from sim import gravity
+
+    seen = []
+
+    def _recording_law(t_k, meas, p, state):
+        seen.append(meas)
+        return 0.0, state
+
+    assert "test_s108_e2e" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s108_e2e", _recording_law)
+    try:
+        p = _coast_scenario_params("test_s108_e2e")
+        y = _coast_state()
+        control.sample_airbrake(0.1, y, p, None)
+        assert len(seen) == 1
+        assert seen[0].h_baro == pytest.approx(gravity.altitude_agl(y, p), abs=1e-9)
+    finally:
+        del control._SAMPLED_LAWS["test_s108_e2e"]
+
+
 def test_unknown_sampled_law_name_without_controllers_imported_raises_keyerror():
     """A genuine typo in `airbrake_model` -- not a registered sampled law,
     not a built-in name -- raises `KeyError` at the first call, the same
