@@ -4,7 +4,9 @@ later, unless stated otherwise.
 \begin{itemize}
     \item \textbf{Planar flight, no crosswind.} Motion is confined to the vertical plane fixed by
     the launch azimuth $\chi$; the out-of-plane wind component is computed and discarded. Wind is
-    horizontal only: updrafts and downdrafts are not modelled.
+    horizontal only: updrafts and downdrafts are not modelled. The yaw rate is
+    $\omega_z\equiv0$, which is what makes the roll freedom of \autoref{sec:roll} decouple
+    exactly rather than approximately.
     \item \textbf{Gravity direction.} Parallel by default, $\hat{z}_g\equiv\hat{z}_0$. The radial
     and ellipsoidal direction models are available; once one is enabled the ground is curved and
     the true altitude $h_{true}$ (\autoref{eq:h_true}) replaces $h=-z$, with impact at
@@ -24,4 +26,25 @@ later, unless stated otherwise.
     written.
     \item \textbf{Turbulence.} The Dryden spectrum is driven at a fixed reference airspeed, not the
     rocket's own, and has no vertical component. It is off by default.
+    \item \textbf{Roll.} The roll freedom of \autoref{sec:roll} is exact in the pitch plane, but
+    the yaw torques that roll and the wheel produce --- \autoref{eq:roll_gyro_pitch}'s
+    $(I_x-I)\omega_z\omega_x$ and \autoref{eq:roll_gyro_wheel}'s $\omega_rh_w$ --- cannot be
+    represented at all and are dropped with $\omega_z$. The aerodynamic coefficients do not depend
+    on the roll angle, so fin--body interference at incidence, roll lock-in and the Magnus side
+    force are absent; the wheel is balanced and centred on the axis, so spinning it moves neither
+    the centre of gravity nor the pitch inertia. Off by default.
+    \item \textbf{Three-dimensional motion.} \autoref{sec:rocket3d} lifts the two items above ---
+    planar flight and the planar roll freedom --- but it is a formulation of the rotational
+    dynamics, not yet a flyable mode, and it carries assumptions of its own. The inertia tensor
+    (\autoref{eq:inertia_matrix}) is \emph{constant}: the 3D formulation is written for a rigid body
+    of fixed mass distribution, so the variable-mass inertia $I(t)$ of \autoref{eq:mass_inertia} and
+    the term $\dot{\mathbf{I}}\vec\omega$ it would add are both absent. The moment vector
+    (\autoref{eq:moment_3d}) supplies the pitching component only: there is no yaw moment from
+    sideslip and no roll moment from fin cant, so a 3D run with a symmetric tensor reproduces the
+    planar pitch history and adds nothing. A reaction wheel, if present, is taken as locked (its
+    inertia inside $I_{xx}$, its momentum outside $\vec{H}$). The rail constraint, the canopy phase
+    and the flight-phase events are all written against the planar state
+    (\autoref{eq:state_vector}) and have no 3D counterpart, so a 3D scenario is integrated over a
+    fixed time span rather than flown to the ground. Off by default; the planar model remains the
+    one every result in this document is produced with.
 \end{itemize}

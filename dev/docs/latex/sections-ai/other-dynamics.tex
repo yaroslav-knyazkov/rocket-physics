@@ -1,6 +1,6 @@
 \section{Other dynamics models}\label{sec:other_dynamics}
-These models modify the equations of motion of \autoref{sec:rocket2d} rather than supply a term of
-them. All are off by default.
+These models modify the equations of motion of \autoref{sec:rocket2d}, or extend them by a degree
+of freedom, rather than supply a term of them. All are off by default.
 
 \subsection{Launch rail}\label{sec:rail}
 On the launch rail the rocket can only slide along it: the rail buttons react every force component
@@ -205,3 +205,144 @@ latch: once true it stays armed.
 Only the \textbf{full} law reads the trigger; \textbf{none} ignores it and \textbf{proportional}
 uses its own window. No condition retracts an armed brake, and there is no deployment-rate limit
 between $f_b=0$ and $1$; a real actuator has both, and both are future work.
+
+\begin{aitext}
+\subsection{Roll and the reaction wheel}\label{sec:roll}
+The rocket's own spin about its nose axis $\hat{x}_r$, and an internal flywheel that drives that
+spin by exchanging angular momentum with the airframe. This is the one model of this section that
+does not modify \autoref{eq:eom_trans} or \autoref{eq:eom_rot} at all: it \emph{adds} a degree of
+freedom which, in the pitch plane, is exactly decoupled from both. The roll angle is $\gamma_r$
+about $+\hat{x}_r$ by the right-hand rule, the roll rate $\omega_x=\dot\gamma_r$ and the roll
+acceleration $\varepsilon_x=\dot\omega_x$, named after the pitch triple $\theta_r,\omega_r,
+\varepsilon_r$ of \autoref{sec:frames}. The vehicle's axial moment of inertia about $\hat{x}_r$ is
+$I_x$, taken with the wheel \emph{included and locked}.
+
+\subsubsection{Why roll decouples exactly}\label{sec:roll_decoupling}
+For an axisymmetric body, $I_{yy}=I_{zz}=I$ with $I$ the pitch inertia of \autoref{sec:mass}, and
+Euler's equation for the pitch channel reads
+\begin{equation} \label{eq:roll_gyro_pitch}
+    I\,\varepsilon_r = \left[\vec{gt}\times\vec{T} + \vec{gp}\times\vec{A}_f
+        + \vec{A}_m\right]\cdot\hat{y}_r - \left(I_x-I\right)\omega_z\,\omega_x,
+\end{equation}
+with $\omega_z$ the yaw rate about $\hat{z}_r$. Planar flight is $\omega_z\equiv0$
+(\autoref{sec:assumptions}), so the gyroscopic term vanishes \emph{identically} --- not to first
+order, and not for small $\omega_x$, but for any roll rate whatever. Roll cannot drive pitch
+without a yaw rate to pair with. A wheel carrying axial momentum $h_w\hat{x}_r$ on a body pitching
+at $\omega_r\hat{y}_r$ likewise torques the airframe by
+\begin{equation} \label{eq:roll_gyro_wheel}
+    \vec{\tau}_{gyro} = -\,\vec{\omega}\times\vec{h}
+        = -\left(\omega_r\hat{y}_r\right)\times\left(h_w\hat{x}_r\right)
+        = +\,\omega_r h_w\,\hat{z}_r,
+\end{equation}
+which is a \emph{yaw} torque: no $\hat{y}_r$ component, so it cannot enter
+\autoref{eq:roll_gyro_pitch}, and no $\hat{x}_r$ component, so it cannot enter the roll equation
+either. Finally, $C_x,C_z,C_m$ and $C_{m,q}$ of \autoref{sec:aero} are functions of $(\alpha,M)$
+alone and take no roll angle. So the three channels --- translation, pitch, roll --- share only the
+flow state, and the roll equations below can be integrated alongside the others with no term
+crossing between them.
+
+What the decoupling \emph{hides} is the yaw that both
+\autoref{eq:roll_gyro_pitch} and \autoref{eq:roll_gyro_wheel} produce, which a 6DOF model would
+carry and this one cannot represent at all --- exactly as the out-of-plane wind component is
+computed and discarded. Two further effects are dropped with it: for a \emph{finned} airframe
+$C_z$ and $C_m$ do depend weakly on $\gamma_r$ (a four-fin body at incidence varies with a
+$90^\circ$ period, through fin--body interference and the fins' effective dihedral relative to the
+$\alpha$ plane), and at high spin there is roll lock-in with the pitch natural frequency and a
+Magnus side force.
+\restodo{roll-orientation dependence of $C_z,C_m$ for a four-fin airframe: needs a
+$C_z(\alpha,M,\gamma_r)$ table axis, for which no data source is identified}
+
+\subsubsection{Equations of motion}\label{sec:roll_eom}
+The vehicle is two bodies sharing one axis: the airframe, and a balanced wheel spinning about
+$\hat{x}_r$ with its own axial inertia $I_w$ and absolute rate $\omega_w$. Only two torques act
+about that axis --- the external aerodynamic moment $L_x$ on the airframe, and the motor torque
+$\tau_w$, which by Newton's third law is $+\tau_w$ on the wheel and $-\tau_w$ on the airframe:
+\begin{gather}
+    \dot\gamma_r = \omega_x \label{eq:roll_kinematics} \\
+    \left(I_x-I_w\right)\varepsilon_x = L_x - \tau_w \label{eq:roll_airframe} \\
+    I_w\,\dot\omega_w = \tau_w \label{eq:roll_wheel}
+\end{gather}
+This is the form to integrate, and it is the reason the wheel's \emph{absolute} rate is carried
+rather than its relative one: \autoref{eq:roll_wheel} is then a standalone scalar equation with no
+$\varepsilon_x$ on its right-hand side. The rate a motor encoder reads is the relative
+$\omega_{w/r}=\omega_w-\omega_x$, and the wheel's stored momentum is $h_w=I_w\,\omega_{w/r}$.
+
+Summing \autoref{eq:roll_airframe} and \autoref{eq:roll_wheel} gives the same content as a
+momentum balance, which is how the device is best read:
+\begin{equation} \label{eq:roll_momentum}
+    h_x = I_x\,\omega_x + h_w, \qquad \dot h_x = L_x.
+\end{equation}
+With no external moment and the vehicle starting at rest, $h_x\equiv0$ and
+\begin{equation} \label{eq:roll_exchange}
+    \omega_x = -\,\frac{h_w}{I_x}:
+\end{equation}
+spin the wheel up to momentum $h_w$ and the airframe counter-rotates, using no external torque at
+all. That is the whole purpose of a reaction wheel, and \autoref{eq:roll_exchange} is the check a
+run is verified against.
+
+\subsubsection{Authority and saturation}\label{sec:roll_saturation}
+The device is fictitious unless both of its limits are carried:
+\begin{equation} \label{eq:roll_limits}
+    \left|\tau_w\right| \leq \tau_{max}, \qquad
+    \left|\omega_{w/r}\right| \leq \omega_{w,max}.
+\end{equation}
+The first is the motor's stall torque. The second is the one that matters: on reaching it the wheel
+\emph{saturates}, \autoref{eq:roll_exchange} caps the roll rate it can hold at
+$I_w\omega_{w,max}/I_x$, and all authority in that direction is gone until an \emph{external}
+moment desaturates it. The speed limit is one-sided in the model --- at saturation the wheel may
+still be braked back, only accelerated further is forbidden --- since a two-sided clamp would lock
+it at its limit for the rest of the flight. Both limits make $\tau_w$ discontinuous in the state,
+exactly as the air brake's $\mathrm{clip}$ does in \autoref{eq:airbrake_p}, and no event is located
+at the boundary.
+\restodo{$I_x$ of the airframe, and $I_w$, $\tau_{max}$, $\omega_{w,max}$ of a wheel sized for it:
+no component is chosen, so no numbers exist}
+
+\subsubsection{Aerodynamic roll moment}\label{sec:roll_aero}
+Roll is damped, and can be driven, by the fins. In the convention of \autoref{sec:conventions},
+with the non-dimensional roll rate formed like the pitch rate $\hat\omega$ of
+\autoref{eq:pitch_damping_moment},
+\begin{equation} \label{eq:roll_aero_moment}
+    \vec{A}_{m,x} = -qSc\left(C_l + C_{l,p}\,\hat\omega_x\right)\hat{x}_r, \qquad
+    \hat\omega_x = \frac{\omega_x c}{2v_{rel}},
+\end{equation}
+so that $L_x=\vec{A}_{m,x}\cdot\hat{x}_r$, with $C_l$ the static roll-moment coefficient of a
+canted fin set and $C_{l,p}>0$ damping, as $C_{m,q}>0$ damps in pitch. The damping term is
+evaluated as $\tfrac14\rho v_{rel}\omega_x c^2 C_{l,p}$, algebraically identical but finite at
+$v_{rel}=0$, which the literal quotient is not. Both coefficients are zero by
+default, which makes $L_x\equiv0$ and leaves \autoref{eq:roll_exchange} --- pure momentum exchange
+--- as the model's default behaviour. A motor also produces a roll torque about $\hat{x}_r$ from its
+internal vortex flow and nozzle ablation (\autoref{sec:noise}); it belongs in $L_x$, and no
+prediction method for it is known.
+\restodo{$C_l$ and $C_{l,p}$ for this airframe: the fin cant is not chosen and no roll data exists;
+Barrowman-style build-up or CFD would supply both}
+
+\subsubsection{Control law and the constrained phases}\label{sec:roll_law}
+The commanded torque is a memoryless function of the state, re-evaluated at every right-hand-side
+call for the reason given in \autoref{sec:airbrake_law}. Three variants:
+\begin{itemize}
+    \item \textbf{None} (default): $\tau_w\equiv0$. The wheel is present but never commanded, so
+    the roll that results is whatever the initial condition and $L_x$ produce.
+    \item \textbf{Rate null}: $\tau_w=k_d\,\omega_x$, which by \autoref{eq:roll_airframe} opposes
+    the roll rate --- the despin law.
+    \item \textbf{Angle hold}: $\tau_w=k_p\left(\gamma_r-\gamma_{cmd}\right)+k_d\,\omega_x$, a PD
+    hold on a commanded roll angle. There is no integral term: one needs the sampled mode
+    (\autoref{sec:sampled}) to carry its accumulator, and none is written.
+\end{itemize}
+Both gains are positive, and both are clipped by \autoref{eq:roll_limits}.
+
+On the launch rail (\autoref{sec:rail}) the buttons running in the rail prevent roll as they
+prevent pitch, so $\omega_x=0$ and $\varepsilon_x=0$ there, alongside
+\autoref{eq:rail_attitude}; under a canopy (\autoref{sec:recovery}) roll is frozen the same way,
+inheriting that section's choice rather than deserving it --- a real rocket under a canopy spins
+freely. In both phases \autoref{eq:roll_wheel} keeps running: the wheel is internal, its reaction
+torque is taken by the rail buttons or the risers instead of by the airframe's roll freedom, and a
+wheel spun up on the rail therefore reaches rail exit with real stored momentum.
+\simtodo{the sampled mode carries no roll channel, so a roll law with memory (integral term,
+rate limiting on $\tau_w$, or a measured rather than true $\omega_x$) is not expressible}
+\figtodo{Plot (simulator output, a named demo scenario): roll angle $\gamma_r$, roll rate
+$\omega_x$ and relative wheel rate $\omega_{w/r}$ against time under the angle-hold law, with the
+saturation level $\omega_{w,max}$ of \autoref{eq:roll_limits} as a reference line.}
+\comptodo{the three laws (none, rate null, angle hold) on the demo rocket given an initial roll
+rate; the table gives the roll angle at apogee, the peak relative wheel rate against
+$\omega_{w,max}$, and whether the wheel saturated. Generated by the simulator.}
+\end{aitext}

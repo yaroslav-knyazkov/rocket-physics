@@ -40,23 +40,36 @@ What is deliberately left undone, and what has to exist before each item can be 
     motion (wobble) of the rocket under the canopy, riser elasticity, and the canopy opening
     transient with its inflation shock. \emph{Waiting on:} canopy and riser data, and the
     attitude degree of freedom under canopy.
-    \item \textbf{Roll dynamics with a reaction wheel (2D).} A decoupled roll degree of freedom
-    about $\hat{x}_r$: roll angle $\gamma_r$, roll rate $\omega_{x}$ and axial moment of inertia
-    $I_x$. A reaction wheel torques the airframe with an equal and opposite torque on the wheel,
-    whose speed and angular momentum saturate. Roll is also damped and driven aerodynamically
-    (roll damping, roll moment from fin cant).
-    \emph{Waiting on:} $I_x$ of the airframe, the wheel inertia and motor torque limits, the
-    aerodynamic roll coefficients, and a control law.
-    \item \textbf{Model extensions for 3D.} What each model needs beyond the pitch plane:
+    \item \textbf{Roll dynamics with a reaction wheel (2D)} --- derived in \autoref{sec:roll}; what
+    remains is data, not derivation. \emph{Waiting on:} $I_x$ of the airframe and the chosen
+    wheel's $I_w$, $\tau_{max}$, $\omega_{w,max}$; the aerodynamic roll coefficients $C_l$ and
+    $C_{l,p}$, which need a chosen fin cant and either a Barrowman-style build-up or CFD; and the
+    motor's own roll torque (\autoref{sec:noise}), for which no prediction method is known. A roll
+    law with memory --- an integral term, a torque rate limit, or a measured rather than true
+    $\omega_x$ --- additionally needs a roll channel on the sampled mode
+    (\autoref{sec:sampled}).
+    \item \textbf{Model extensions for 3D.} The attitude representation, the inertia tensor and the
+    rotational equations of motion are now derived in \autoref{sec:rocket3d}; what each remaining
+    model needs beyond the pitch plane is:
     \begin{itemize}
         \item gravity: the full vector field, not only the in-plane direction $\hat{z}_g$;
         \item thrust: the $\hat{y}_t$ component of the line of thrust and the motor roll torque;
-        \item mass: the full inertia tensor, with products of inertia and the off-axis centre of gravity;
+        \item mass: the tensor of \autoref{eq:inertia_matrix} is derived but constant --- what
+        remains is its time dependence as the grain burns (the $\dot{\mathbf{I}}\vec\omega$ term of
+        \autoref{sec:3d_inertia}), the off-axis centre of gravity, and measured values for
+        $I_{xx}$ and the three products of inertia, which no source supplies today;
+        \item moment arms: the radial offsets $r_g,r_t$ of \autoref{eq:arms} as 3D vectors
+        (\autoref{sec:3d_moment});
         \item aerodynamics: side-force, yaw- and roll-moment coefficients as functions of sideslip
-        $\beta$ as well as $\alpha$;
+        $\beta$ as well as $\alpha$, which is what fills in $M_x$ and $M_z$ of
+        \autoref{eq:moment_3d};
         \item wind and turbulence: the lateral mean-wind component and the Dryden $v$ and $w$ components;
         \item Earth rotation: the full Coriolis vector, with $\vec{\Omega}$ resolved along the trajectory;
         \item rail, recovery and air brake: the rail constraint with lateral tip-off, canopy drag and
-        riser pendulum in 3D, and a brake that also yaws or rolls the airframe.
+        riser pendulum in 3D, and a brake that also yaws or rolls the airframe;
+        \item integration: the flight-phase machinery --- ground, apogee and burnout events, the
+        rail hold and the canopy hold --- is written against the planar state
+        (\autoref{eq:state_vector}) and has to be generalised before any 3D scenario can be flown
+        to the ground (\autoref{sec:3d_state}). This is the largest single item of the group.
     \end{itemize}
 \end{itemize}
