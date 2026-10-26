@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-10-25",
+  "updated": "2026-10-26",
   "active_modules": [
     "architect",
     "developer",
@@ -10,7 +10,7 @@
   ],
   "excluded_modules": [],
   "complexity": "simple",
-  "current_stage": "2.17",
+  "current_stage": "2.18",
   "stages": [
     {
       "id": "1",
@@ -571,6 +571,20 @@
         "Данные обеих реальных конфигураций (масса/ЦМ/МИ, геометрия, аэротаблица), кандидаты-моторы (.eng), аэротормоз, миссия — architecture-35 §35.8; блокирует Step 101",
         "C_m rename (D-126/Step 117): LaTeX-правка для честности конвенции (аудит её требует) НЕ одобрена явно пользователем — подтверждено отложенной повторно на Step 117 (§117.11 тикета); отдельный явный запрос нужен перед правкой dev/docs/latex/"
       ]
+    },
+    {
+      "id": "2.18",
+      "name": "Phase 2.18 — пивот: отказ от configs/ registry, упаковка rocket-physics как библиотеки",
+      "status": "in_progress",
+      "dates": "2026-10-26 …",
+      "branch": "feature/configs-pivot",
+      "design_doc": "dev/docs/pivot-configs-and-packaging-analysis.md",
+      "goals": "Пользователь (2026-10-26, во время ручного заполнения configs/motors/ на usage/manual-sim-testing): убрать файл+реестр конвенцию configs/ (архивировать, не удалять — 'может быть, когда будет app'); вместо этого — прямое конструирование классов (Motor/Rocket/LaunchSite/Weather/Scenario — уже существуют как plain dataclasses в configs/schema.py, пивот снимает слой НАД ними, не строит их заново) в собственном скрипте пользователя; упаковать rocket-physics как pip install -e . пакет, работать из отдельной чистой внешней папки со своими apps/run-файлами/data/model-derivation. GUI explicitly вне скоупа. architect (opus, обязателен для major pivot): dev/docs/pivot-configs-and-packaging-analysis.md (895 строк, 16 развилок F1-F16, SS7 — всё измерено, не оценено на глаз). Grilling-сессия (раунд 1, 13 вопросов) — пользователь принял все рекомендации архитектора целиком одной фразой; 6 более мелких развилок раунда 2 (F4/F9/F12/F13/F14/F15, все низкая/средняя цена ошибки по таблице архитектора) приняты оркестратором по той же рекомендации без отдельного вопроса — пользователь прямо попросил меньше вопросов в будущих grilling-раундах (зафиксировано, применять и далее).",
+      "steps_done": [],
+      "tests": "—",
+      "next": "Step 120: sim/datafiles.py (3-правило path resolver: абсолютный путь как дан, относительный с separator — от cwd, голое имя — в комплектный data/<kind>) + 3 loader edits (sim/motor_file.py, sim/aero.py, sim/soundings.py) + новый test-файл (design doc SS2.3/SS2.6). Step 121 (parallel_safe с 120, другие файлы): pyproject.toml ([tool.setuptools] packages=[\"sim\",\"configs\"]) + тест, что apps/tests не импортируются из внешней папки (design doc SS3.2). Затем по порядку SS5.2: Step 122 (worked example + единая DEMO_SCENARIO-константа + временный bridge-тест field-by-field против старого configs.get(\"demo\")), Step 123 (репойнт 8 light-touch тестов + run.py + select_conditions.py на DEMO_SCENARIO), Step 124 (расцепление apps/ — cli.py теряет --config/--list-configs, study_vehicle.py инлайнит origin_msl/isa_dry_calm, compare_configs.py's N-config режим — через module-level список), Step 125 (архивация: удалить bridge-тест, перенести пины из test_config_registries.py/test_config_migration.py/test_configs.py, git mv 10 файлов в dev/archive/configs-registry-2026-10/ + README, configs/__init__.py → ~20-строчный re-export шим, git tag pre-pivot-configs-registry). F15 (Thrust.curve in-memory мотора) и F8-рок_physics-переименование — отдельные более поздние шаги, не в этой стадии.",
+      "open_items": [],
+      "pending_user": []
     },
     {
       "id": "3",
@@ -1552,6 +1566,60 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
+    },
+    {
+      "id": "D-137",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F5/Q2, F6/Q13, Q1): рабочий стиль пользователя (произвольные пути vs зеркалирование data/<kind> конвенции библиотеки) + механизм резолва путей к файлам данных + голый-filename fallback + in-memory данные мотора.",
+      "choice": "Q1 — произвольные пути, не конвенция библиотеки. F5 — sim/datafiles.py с 3 правилами (Опция 1): абсолютный путь как дан, путь с separator — относительно cwd, голое имя — в комплектный data/<kind> библиотеки (F6, голый fallback сохраняется — 0 существующих тестов меняется). Опция 2 (глобальный изменяемый data-root) отклонена — противоречит контракту «офлайн и детерминирован», связывает 4 lru_cache с ambient state. Опция 3 (in-memory данные) — только для мотора (Thrust.curve), отдельным более поздним шагом (F15), не блокирует этот пивот.",
+      "author": "user (Q1/Q2/Q13, grilling раунд 1) + orchestrator (F15 timing, раунд 2, низкая цена ошибки)",
+      "user_approved": true,
+      "stage": "2.18"
+    },
+    {
+      "id": "D-138",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F1/Q3, F7/Q4, F9/F12/F13/F14): механизм архивации реестра + механизм упаковки + куда ставить + build backend + поддержка wheel + судьба requirements.txt.",
+      "choice": "F1 — и папка dev/archive/configs-registry-2026-10/ (основное, читаемо без git-археологии), и git-тег (страховка); архивным файлам разрешено не остаться импортируемыми. F7 — pyproject.toml + pip install -e . (не PYTHONPATH/.pth — только так реально держится граница CORE/REFERENCE, измерено архитектором на макете). F9 — venv внутри чистой папки пользователя, не глобальный интерпретатор (configs — занятое имя на PyPI v3.0.3, проект уже раз пострадал от коллизии верхнего имени, eventkit/tests). F12 — setuptools (измерено рабочим на этой раскладке, hatchling не даёт преимущества). F13 — редактируемая установка (-e) пока достаточно; настоящий non-editable wheel — отдельный шаг позже, если data/ переедет внутрь пакета. F14 — requirements.txt сокращается до dev/test-зависимостей + [project.optional-dependencies] dev.",
+      "author": "user (F1/F7, grilling раунд 1, Q3/Q4) + orchestrator (F9/F12/F13/F14, раунд 2, по рекомендации архитектора — пользователь прямо попросил меньше вопросов)",
+      "user_approved": true,
+      "stage": "2.18"
+    },
+    {
+      "id": "D-139",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F2/F10/Q5/Q11, F11/Q12): где физически живут apps/*, run*.py, data/ после пивота + судьба --config NAME/--list-configs в apps/common/cli.py.",
+      "choice": "F2/F10 — остаются на месте в корне репозитория, просто исключены из packages в pyproject.toml (граница — в списке пакетов, не в файловом дереве); apps/* — референсный пример «как дёргать движок снаружи», не часть устанавливаемого пакета (hardcode study vehicle, не библиотечная возможность). F11 — --config/--list-configs убираются (CLI-1, минимум): каждое приложение владеет своим vehicle как module-level константой (2 из 4 уже так делают); апгрейд --config path/to/my_scenario.py через importlib (CLI-2) — по желанию, не обязателен сейчас.",
+      "author": "user (grilling раунд 1, Q5/Q11/Q12)",
+      "user_approved": true,
+      "stage": "2.18"
+    },
+    {
+      "id": "D-140",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F3/Q6, F16/Q10): судьба 5 файлов _TEMPLATE_*.py + единый источник демо-сценария для тестов.",
+      "choice": "F3 — консолидировать в один исполняемый examples-скрипт (worked_scenario.py), 5 _TEMPLATE_*.py архивируются; один файл, который реально запускаешь, лучше пяти, которые собираешь в уме. F16 — одна общая DEMO_SCENARIO-константа, используемая и worked-example'ом, и 8 тестовыми файлами, сейчас завязанными на реестр — превращает 8 переписываний тестов в 8 однострочных правок импорта.",
+      "author": "user (grilling раунд 1, Q6/Q10)",
+      "user_approved": true,
+      "stage": "2.18"
+    },
+    {
+      "id": "D-141",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F8/Q7, F4): смущает ли пользователя имя configs как таковое теперь, когда за ним не стоит реестр + во что превращается configs/__init__.py.",
+      "choice": "F8 — переименования сейчас нет (сохранить sim + configs как есть, нулевой blast radius); если имя когда-нибудь станет мешать — дешёвая середина (configs/schema.py → sim/schema.py, ~32 файла) дешевле полного rocket_physics-неймспейса (~100 файлов, отдельная фаза). F4 — configs/__init__.py сокращается до ~20-строчного re-export шима (Cfg-1), расширенного дополнительно на 10 групп sim/params.py (Thrust, Aero, Site, Atmosphere, Wind, Soundings, Lengths, Recovery, Control, Solver) — пользовательский скрипт получает все нужные классы одним import.",
+      "author": "user (F8, grilling раунд 1, Q7) + orchestrator (F4, раунд 2 — зависит от F8, принято по рекомендации архитектора, пользователь прямо попросил меньше вопросов)",
+      "user_approved": true,
+      "stage": "2.18"
+    },
+    {
+      "id": "D-142",
+      "date": "2026-10-26",
+      "question": "Пивот configs/ (F8/Q8, F15/Q9 of design doc): API-поверхность (assemble()/run_sim() как есть, или удобная обёртка run(scenario)) + допустимый риск переноса числовых пинов демо-конфига с configs.get(\"demo\") на инлайн-Scenario.",
+      "choice": "assemble(scenario) -> Config -> run_sim(cfg.params, cfg.s0) остаётся основной цепочкой вызова (сквозной шов всей кодовой базы); удобная однострочная обёртка run(scenario) не добавляется сейчас (не запрошена, не блокирует будущее добавление). Перенос пинов — через временный bridge-тест (field-by-field equality между старым Params через реестр и новым инлайн-Scenario), удаляемый после шага архивации — ошибка переноса проявится как явный провал теста, а не тихий дрейф.",
+      "author": "user (grilling раунд 1, Q8/Q9)",
+      "user_approved": true,
+      "stage": "2.18"
     }
   ],
   "deferred_decisions": [
@@ -1806,8 +1874,8 @@
     {
       "id": "B37",
       "title": "configs/: разделить library-файлы (_TEMPLATE_*, demo/placeholder) от пользовательских конфигов; проанализировать альтернативу текущему registry (__init__.py + явный _MODULES tuple) с точки зрения захламления папок (__init__.py/__pycache__ в каждом подпакете configs/rockets, sites, weather, motors, scenarios)",
-      "status": "open",
-      "note": "Запрос пользователя 2026-10-26, во время ручного заполнения configs/motors/ на ветке usage/manual-sim-testing (git worktree manual-testing). Сейчас (architecture-31-config-separation.md SS31.5, architecture-33-configs-one-demo.md) каждый подпакет держит ОДИН _TEMPLATE_*.py + ОДНО демо (demo.py/cti_k570.py/origin_msl.py/isa_dry_calm.py) в ТОЙ ЖЕ папке, где пользователь добавляет свои файлы — задумано намеренно (D-45..D-55: explicit _MODULES tuple, не auto-discovery, 'половина недописанного драфта не должна стать реальной просто фактом существования файла'), но на практике мешает, когда пользователь реально начинает заполнять свои конфиги рядом с library-примерами. __pycache__/ в каждой папке уже в .gitignore (не репо-проблема, чисто локальный визуальный шум — Python создаёт его при любом импорте, не выключить без PYTHONDONTWRITEBYTECODE=1, что просто медленнее импорт). Нужен architect-анализ: куда вынести library-файлы (own subpackage? configs/_examples/? иное имя по выбору архитектора), что станет с registry-паттерном (_MODULES tuple), что ломается в tests/test_configs.py и tests/test_config_registries.py, и в docs (architecture-31/32/33). Это структурная правка — решение пользователя после сравнительной таблицы вариантов."
+      "status": "superseded",
+      "note": "Запрос пользователя 2026-10-26, во время ручного заполнения configs/motors/ на ветке usage/manual-sim-testing (git worktree manual-testing). architect проанализировал (dev/docs/configs-layout-analysis.md, рекомендация B — _library/ подпапка на подпакет) ДО того, как пользователь поднял значительно более крупный вопрос: не тюнинг реестра, а полный отказ (пока) от файл+registry конвенции configs/ целиком. См. Phase 2.18 (пивот) — configs-layout-analysis.md признан moot этим пивотом (вся реорганизуемая им прослойка уходит в архив), решение по B37 поглощено D-137..D-142."
     }
   ],
   "artifacts": {
