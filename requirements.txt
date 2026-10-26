@@ -1,4 +1,2 @@
-numpy==2.5.4
-scipy>=1.18,<2
-matplotlib>=3.11,<4
 pytest>=8
+# runtime dependencies (numpy/scipy/matplotlib): see pyproject.toml [project.dependencies]
