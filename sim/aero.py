@@ -103,14 +103,13 @@ differently-shaped function.
 """
 
 import functools
-import os
 import re
 import warnings
 from typing import NamedTuple
 
 import numpy as np
 
-from sim import mass
+from sim import datafiles, mass
 from sim.state import M as _IDX_M
 
 # Step 99 (D-111): C_m sign conventions. "code" = the simulator's (positive C_m is
@@ -216,17 +215,7 @@ class _AeroTable(NamedTuple):
                                   # property) -- _at_fb's _replace() leaves it untouched, correctly.
 
 
-@functools.lru_cache(maxsize=None)
-def _load_table(name: str) -> _AeroTable:
-    """Read `data/aero/<name>` into a rectangular `(M, alpha)` grid.
-
-    Path resolution follows `sim/thrust_curve.py`'s `_load_motor_curve` /
-    `sim/soundings.py`'s `load_case` convention: absolute path from the
-    repo root (this file's parent directory is `<repo>/sim/`).
-    """
-    repo_root = os.path.dirname(os.path.dirname(__file__))
-    path = os.path.join(repo_root, "data", "aero", name)
-
+def _load_table_impl(path: str) -> _AeroTable:
     data_lines = []
     cm_convention = "code"
     seen_convention = False
@@ -241,13 +230,13 @@ def _load_table(name: str) -> _AeroTable:
                     # QA-1: a near-miss (trailing text, '=', other case) must never be a
                     # silent no-op -- that would leave a textbook-sign table unflipped.
                     raise ValueError(
-                        f"Aero table '{name}': malformed cm_convention line {stripped!r} "
+                        f"Aero table '{path}': malformed cm_convention line {stripped!r} "
                         f"(expected exactly '# cm_convention: <{'|'.join(CM_CONVENTIONS)}>')"
                     )
                 if m_conv:
                     if seen_convention:
                         raise ValueError(
-                            f"Aero table '{name}': cm_convention declared more than once"
+                            f"Aero table '{path}': cm_convention declared more than once"
                         )
                     seen_convention = True
                     cm_convention = m_conv.group(1)
@@ -255,27 +244,27 @@ def _load_table(name: str) -> _AeroTable:
             data_lines.append(line)
     if cm_convention not in CM_CONVENTIONS:
         raise ValueError(
-            f"Aero table '{name}': unknown cm_convention {cm_convention!r} "
+            f"Aero table '{path}': unknown cm_convention {cm_convention!r} "
             f"(expected one of {CM_CONVENTIONS})"
         )
 
     if len(data_lines) < 2:  # empty file, or a header with no rows
-        raise ValueError(f"Aero table '{name}' has no data rows")
+        raise ValueError(f"Aero table '{path}' has no data rows")
 
     header = [h.strip() for h in data_lines[0].split(",")]
     dups = sorted({h for h in header if header.count(h) > 1})
     if dups:  # QA-2: genfromtxt would silently rename the later column and ignore it
-        raise ValueError(f"Aero table '{name}': duplicate column header(s) {dups}")
+        raise ValueError(f"Aero table '{path}': duplicate column header(s) {dups}")
     missing = [c for c in ("alpha_deg", "M", "C_A", "C_N", "C_m") if c not in header]
     if missing:  # QA-10
-        raise ValueError(f"Aero table '{name}': missing required column(s) {missing}")
+        raise ValueError(f"Aero table '{path}': missing required column(s) {missing}")
 
     data = np.atleast_1d(
         np.genfromtxt(data_lines, delimiter=",", names=True, dtype=float)
     )
     for col in data.dtype.names:  # QA-3: NaN / non-numeric / empty cell
         if not np.all(np.isfinite(data[col])):
-            raise ValueError(f"Aero table '{name}': column {col!r} has a non-finite or non-numeric value")
+            raise ValueError(f"Aero table '{path}': column {col!r} has a non-finite or non-numeric value")
 
     M_col = data["M"].astype(float)
     alpha_col = np.radians(data["alpha_deg"].astype(float))
@@ -290,7 +279,7 @@ def _load_table(name: str) -> _AeroTable:
     has_lp = "l_p_m" in data.dtype.names
     if has_l1 == has_lp:
         raise ValueError(
-            f"Aero table '{name}': give exactly one of the columns 'l1_m' and "
+            f"Aero table '{path}': give exactly one of the columns 'l1_m' and "
             f"'l_p_m' (got {'both' if has_l1 else 'neither'})"
         )
     l1_col = data["l1_m"].astype(float) if has_l1 else None
@@ -319,12 +308,12 @@ def _load_table(name: str) -> _AeroTable:
     if M_col.size != n_fb * n_M * n_a:
         axes = "(M, alpha)" if fb_grid is None else "(f_b, M, alpha)"
         raise ValueError(
-            f"Aero table '{name}' is not a rectangular {axes} grid: "
+            f"Aero table '{path}' is not a rectangular {axes} grid: "
             f"{M_col.size} rows, expected {n_fb * n_M * n_a}"
         )
     if fb_grid is not None and (fb_grid[0] != 0.0 or n_fb < 2):
         raise ValueError(
-            f"Aero table '{name}': the f_b axis must start at 0.0 (brake closed) "
+            f"Aero table '{path}': the f_b axis must start at 0.0 (brake closed) "
             f"and have at least two values, got {fb_grid.tolist()}"
         )
 
@@ -339,7 +328,7 @@ def _load_table(name: str) -> _AeroTable:
                 order = np.argsort(row_alpha)
                 if row_alpha.size != n_a or not np.allclose(row_alpha[order], alpha_grid):
                     raise ValueError(
-                        f"Aero table '{name}': the alpha grid at M={m} does not "
+                        f"Aero table '{path}': the alpha grid at M={m} does not "
                         "match the other M rows -- every M value must repeat "
                         "the same set of alpha_deg values"
                     )
@@ -365,6 +354,25 @@ def _load_table(name: str) -> _AeroTable:
     planes = tuple(_plane(fb_col == f) for f in fb_grid)
     # The top-level arrays are the brake-closed plane (f_b = 0): the additive-brake mode reads them.
     return planes[0]._replace(f_b=fb_grid, planes=planes)
+
+
+_load_table_cached = functools.lru_cache(maxsize=None)(_load_table_impl)
+
+
+def _load_table(name: str) -> _AeroTable:
+    """Read `data/aero/<name>` into a rectangular `(M, alpha)` grid.
+
+    `name` is resolved via `sim.datafiles.resolve` ("aero") before the
+    lookup, and the cache sits on the *resolved* absolute path, not the
+    raw `name` string -- a cwd-relative name is never served a stale
+    resolution across a change of working directory between two calls
+    with the same string (see `sim/datafiles.py`'s docstring).
+    """
+    path = datafiles.resolve(name, "aero")
+    return _load_table_cached(path)
+
+
+_load_table.cache_clear = _load_table_cached.cache_clear
 
 
 def _bracket_M(M_grid: np.ndarray, M: float) -> "tuple[int, int, float]":
