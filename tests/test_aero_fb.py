@@ -13,8 +13,8 @@ import os
 import numpy as np
 import pytest
 
-from configs.scenarios.demo import SCENARIO as DEMO
 from configs.schema import assemble
+from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, report
 from sim.dynamics import derivatives
 from sim.flow import flow_state

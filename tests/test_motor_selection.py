@@ -539,14 +539,14 @@ if __name__ == "__main__":
 def test_mass_model_on_baseline_is_refused_before_any_integration(monkeypatch):
     """D-82: App 3 is a constant-mass study; a mass-on baseline (the
     integrator reads mass from y[M]) is refused before any `run_sim`."""
-    import configs
+    from examples.worked_scenario import DEMO_SCENARIO
 
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called for a mass-on baseline")
 
     monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
-    cfg = configs.get("demo")
+    cfg = DEMO_SCENARIO.config
     assert cfg.params.weight.m_d is not None
     with pytest.raises(ValueError, match="mass model on"):
         compare_motors(

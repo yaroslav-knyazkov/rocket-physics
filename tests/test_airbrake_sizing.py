@@ -17,7 +17,6 @@ import math
 import numpy as np
 import pytest
 
-import configs
 from apps.airbrake_sizing import solve_cda
 from apps.airbrake_sizing.solve_cda import (
     AirbrakeSpec,
@@ -32,6 +31,7 @@ from apps.airbrake_sizing.solve_cda import (
 from apps.airbrake_sizing.targets import SPECS
 from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
+from examples.worked_scenario import DEMO_SCENARIO
 from sim import control
 from sim.integrate import Result
 from sim.params import replace as params_replace
@@ -305,7 +305,7 @@ def test_end_to_end_against_demo_for_every_named_spec():
     vehicle (SPECS are sized for the demo, Step 90) and writes both artifacts. No apogee value is pinned here by
     design (roadmap.md Step 66) -- this is a smoke/wiring test, the
     numbers are reported in the developer's own step report."""
-    cfg = configs.get("demo")
+    cfg = DEMO_SCENARIO.config
     ensure_dir(OUTPUT_DIR)
     csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
     png_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
@@ -333,6 +333,6 @@ def test_named_apogee_target_specs_converge_with_margin():
 
     for name in ("burnout_3850m", "timer_3850m", "when_to_pop"):
         spec = SPECS[name]
-        sol = solve_airbrake(configs.get("demo"), spec)
+        sol = solve_airbrake(DEMO_SCENARIO.config, spec)
         assert sol.reachable and sol.converged, name
         assert abs(sol.apogee_m - spec.target_apogee_m) < 5.0e-3, name

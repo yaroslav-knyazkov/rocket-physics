@@ -244,14 +244,16 @@ _COMPARE_MOTORS_PY = (
 
 
 def test_run_py_sources_its_scenario_from_configs_get_demo():
-    assert 'configs.get("demo")' in _RUN_PY
+    # Step 123 (Phase 2.18, D-139/D-140): `run.py` repointed from the
+    # `configs.get("demo")` registry lookup to `DEMO_SCENARIO` directly.
+    assert "DEMO_SCENARIO" in _RUN_PY
     # The former in-place literal is gone, not just duplicated.
     assert "Weight(" not in _RUN_PY
     assert "math.pi / 2" not in _RUN_PY
 
 
 def test_select_conditions_py_sources_its_scenario_from_configs_get_demo():
-    assert 'configs.get("demo")' in _SELECT_CONDITIONS_PY
+    assert "DEMO_SCENARIO" in _SELECT_CONDITIONS_PY
     assert "Weight(" not in _SELECT_CONDITIONS_PY
     assert "math.pi / 2" not in _SELECT_CONDITIONS_PY
 

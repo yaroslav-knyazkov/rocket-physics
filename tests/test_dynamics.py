@@ -995,11 +995,11 @@ def test_demo_descent_without_recovery_is_dissipative_not_free_fall_faster():
     below the drag-free bound) instead of blowing up."""
     import warnings
 
-    import configs
+    from examples.worked_scenario import DEMO_SCENARIO
     from sim.mach_warning import MachRangeWarning
     from sim.params import replace as params_replace
 
-    cfg = configs.get("demo")
+    cfg = DEMO_SCENARIO.config
     p = params_replace(cfg.params, {"recovery.model": "none"})
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", MachRangeWarning)
@@ -1022,11 +1022,11 @@ def test_apogee_triggered_parachute_ignores_the_pad_sag():
     (vz > 0) for ~ms; the apogee-triggered chute must still deploy at apogee."""
     import warnings
 
-    import configs
+    from examples.worked_scenario import DEMO_SCENARIO
     from sim.mach_warning import MachRangeWarning
     from sim.params import replace as params_replace
 
-    cfg = configs.get("demo")
+    cfg = DEMO_SCENARIO.config
     p = params_replace(
         cfg.params,
         {"recovery.model": "deploy", "recovery.trigger": "apogee", "recovery.S": 1.23, "recovery.Cd": 0.8},

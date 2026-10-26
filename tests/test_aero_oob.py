@@ -9,8 +9,8 @@ import warnings
 import numpy as np
 import pytest
 
-from configs.scenarios.demo import SCENARIO as DEMO
 from configs.schema import assemble
+from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, integrate
 from sim.aero import AeroRangeWarning
 from sim.integrate import run_sim
