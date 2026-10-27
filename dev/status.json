@@ -627,7 +627,7 @@
       "architecture_doc": "dev/docs/architecture-apps-sim-restructure.md",
       "superseded_doc": "dev/docs/pivot-apps-restructure-analysis.md (facts reference only — премисы устарели)",
       "steps": [
-        {"step": 126, "title": "структурный guard-suite (tests/test_layering.py) — чистое добавление", "status": "planned"},
+        {"step": 126, "title": "структурный guard-suite (tests/test_layering.py) — чистое добавление", "status": "done", "commit": "7d9833a", "result": "764/764, G1/G2/G3 все проходят чисто на сегодняшнем дереве без изменений — нарушений инвариантов не найдено. G3 осознанно ограничен корнями кода проекта (sim/apps/configs/controllers/tools/tests/examples/run_*.py), .claude/ исключён (urllib там — инструментарий Claude Code, не проекта)."},
         {"step": 127, "title": "де-анкеринг __file__-путей вывода (5 мест, молча ломаются после переезда)", "status": "planned"},
         {"step": 128, "title": "снятие упаковки (FK1=R2) + чистка корня (docs/, __pycache__)", "status": "planned"},
         {"step": 129, "title": "data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 реальных файлов моторов (cspace/, euroc-sweep/) из D:\\Projects - Ongoing\\fx27\\simulation\\data\\motors\\ в rocket-physics/data/motors/ (D-156), затем fx27/simulation архивируется/удаляется", "status": "planned"},
@@ -638,7 +638,7 @@
         {"step": 134, "title": "configs/ упраздняется: schema.py -> apps/sim/schema.py (FK3=A), шим удалён", "status": "planned"},
         {"step": 135, "title": "документация/навигация/CLAUDE.md «Профиль проекта» синхронизация", "status": "planned"}
       ],
-      "next": "Git-flow: создать feature/apps-root-restructure от develop (тег pre-engine-move перед Step 133 — дешёвая страховка). Передать Step 126 разработчику (developer).",
+      "next": "Step 126 закрыт (commit 7d9833a, 764/764, guards чисты). Ветка feature/apps-root-restructure создана. Передать Step 127 (де-анкеринг __file__-путей вывода) разработчику.",
       "pending_approvals": []
     }
   ],
