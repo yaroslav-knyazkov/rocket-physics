@@ -27,10 +27,18 @@ math.pi / 2`).
 
 from __future__ import annotations
 
-from configs.schema import Airframe, Config, Motor, Rocket, Scenario
-from configs.sites import origin_msl
-from configs.weather import isa_dry_calm
-from sim.params import Aero, Lengths, Thrust
+from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
+from sim.params import Aero, Lengths, Site, Thrust
+
+# Step 124 (Phase 2.18, D-139/CLI-1): inlined, not imported from
+# `configs/sites/origin_msl.py` / `configs/weather/isa_dry_calm.py` (the
+# registry subpackages this app no longer needs). Both are still
+# argument-free (`Site()`, bare `Weather(name=...)`), matching those two
+# modules' own deliberate choice to track `sim/params.py`'s defaults
+# rather than freeze them (see those modules' docstrings) -- this is a
+# literal copy of that choice, not a new one.
+_ORIGIN_MSL_SITE = LaunchSite(name="origin_msl", site=Site())
+_ISA_DRY_CALM_WEATHER = Weather(name="isa_dry_calm")
 
 ROCKET = Rocket(
     name="study_75mm",
@@ -54,8 +62,8 @@ SCENARIO = Scenario(
     name="study_75mm",
     rocket=ROCKET,
     motor=MOTOR,
-    site=origin_msl.SITE,
-    weather=isa_dry_calm.WEATHER,
+    site=_ORIGIN_MSL_SITE,
+    weather=_ISA_DRY_CALM_WEATHER,
     notes=(
         "The architect's own synthetic 1.5 kg / 75 mm vehicle. Deliberately "
         "NOT run.py's 0.5 kg toy scenario: 338 N*s (the largest new fixture) "

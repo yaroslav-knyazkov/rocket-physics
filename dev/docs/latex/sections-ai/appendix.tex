@@ -156,6 +156,22 @@ Signs and axes in one place; the rest of the report follows them.
     plane, to the right of the downrange direction.
     \item \textbf{Pitch.} $\theta_r$ is measured from $\hat{x}_0$, positive nose-up; $\omega_r$
     and $\varepsilon_r$ share its sign (rotation about $+\hat{y}_r$).
+    \item \textbf{Roll.} $\gamma_r$ is measured about $+\hat{x}_r$ by the right-hand rule, so a
+    positive $\gamma_r$ turns $\hat{y}_r$ towards $\hat{z}_r$; $\omega_x$ and $\varepsilon_x$ share
+    its sign. The wheel torque $\tau_w$ is the torque on the \emph{wheel} about $+\hat{x}_r$, so
+    the airframe receives $-\tau_w$ (\autoref{eq:roll_airframe}), and the wheel rate $\omega_w$ is
+    absolute, not relative to the airframe. The roll coefficients follow the same code sign as
+    $C_{m,q}$ --- positive $C_{l,p}$ damps --- and are \emph{not} affected by the $C_m$ convention
+    switch, which governs the pitching moment only.
+    \item \textbf{Inertia tensor.} The three products of inertia are the \emph{integrals}
+    $I_{xy}=\int xy\,\mathrm{d}m$, $I_{xz}=\int xz\,\mathrm{d}m$, $I_{yz}=\int yz\,\mathrm{d}m$
+    (\autoref{eq:inertia_integrals}), so the inertia matrix carries minus signs off the diagonal
+    (\autoref{eq:inertia_matrix}). Much of the physics literature instead names the matrix entries
+    themselves, i.e.\ the negatives of these; off-diagonal numbers taken from such a source must be
+    sign-flipped before use. All six components are referred to the centre of gravity $g$ and to the
+    body axes $\hat{x}_r,\hat{y}_r,\hat{z}_r$, which are \emph{not} assumed to be principal axes.
+    In the planar notation $I_{yy}$ is the pitch inertia $I$ (\autoref{sec:mass_inertia}) and
+    $I_{xx}$ is the axial inertia $I_x$ (\autoref{sec:roll}).
     \item \textbf{Lengths.} $l$ is measured from the nose tip $A$ positive aft, so a point sits at
     $-l\,\hat{x}_r$; the radial offset $r$ is along $-\hat{z}_r$, so it sits at $-r\,\hat{z}_r$.
     \item \textbf{Moments} are taken about the centre of gravity $g$, positive about $+\hat{y}_r$

@@ -1,5 +1,8 @@
 # Architecture §31 — Config separation: rocket / launch site / atmosphere (Phase 2.15, design only)
 
+> Superseded 2026-10 by the Phase 2.18 pivot (`dev/docs/pivot-configs-and-packaging-analysis.md`); the
+> registry this document describes is archived at `dev/archive/configs-registry-2026-10/`.
+
 ## Summary
 
 **Status: user-approved 2026-10-14, all eleven decision forks settled as recommended; implementation

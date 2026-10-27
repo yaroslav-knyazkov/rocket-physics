@@ -227,6 +227,60 @@ def test_run_together_records_parse_correctly():
 
 
 # ----------------------------------------------------------------------
+# RASP parser robustness (Step 115, conventions audit §6): multi-word
+# manufacturer, and ValueError (not IndexError) for a short header/data row.
+# ----------------------------------------------------------------------
+
+
+def test_multi_word_manufacturer_parses_in_full():
+    """Real `.eng` headers often carry a multi-word manufacturer
+    ("Cesaroni Technology"); the reference parsers join everything from
+    field 7 to end of line instead of truncating to one token."""
+    name = "test_motor_file_multiword_mfg.rasp"
+    _write_temp_motor_file(
+        name,
+        "TestC 29.0 100.0 4-7-10 0.05 0.10 Cesaroni Technology Incorporated\n"
+        "0.0 10.0\n0.5 15.0\n",
+    )
+    try:
+        rec = motor_file.load(name)
+        assert rec.manufacturer == "Cesaroni Technology Incorporated"
+    finally:
+        os.remove(os.path.join(_MOTORS_DIR, name))
+
+
+def test_short_header_raises_value_error_not_index_error():
+    """A header with fewer than 7 tokens (some real `.eng` files omit the
+    manufacturer field) must raise a `ValueError` naming the file and the
+    offending line, not a raw `IndexError`."""
+    name = "test_motor_file_short_header.rasp"
+    _write_temp_motor_file(name, "TestD 29.0 100.0 4-7-10 0.05 0.10\n0.0 10.0\n")
+    try:
+        with pytest.raises(ValueError) as excinfo:
+            motor_file.records(name)
+        message = str(excinfo.value)
+        assert name in message
+        assert "TestD" in message
+    finally:
+        os.remove(os.path.join(_MOTORS_DIR, name))
+
+
+def test_short_data_row_raises_value_error_not_index_error():
+    """A data row with a single token must raise a `ValueError` naming the
+    file and the offending line, not a raw `IndexError` at `tokens[1]`."""
+    name = "test_motor_file_short_datarow.rasp"
+    _write_temp_motor_file(name, "TestE 29.0 100.0 4-7-10 0.05 0.10 TestMfg\n0.0\n")
+    try:
+        with pytest.raises(ValueError) as excinfo:
+            motor_file.records(name)
+        message = str(excinfo.value)
+        assert name in message
+        assert "0.0" in message
+    finally:
+        os.remove(os.path.join(_MOTORS_DIR, name))
+
+
+# ----------------------------------------------------------------------
 # Bit-for-bit gate: .csv reading through sim.motor_file must be
 # byte-identical to the pre-Step-76 sim.thrust_curve._load_motor_curve
 # behaviour, for every existing .csv fixture.

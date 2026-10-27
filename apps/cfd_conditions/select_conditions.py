@@ -86,7 +86,7 @@ from pathlib import Path
 
 import numpy as np
 
-import configs
+from examples.worked_scenario import DEMO_SCENARIO
 from sim.flow import flow_state
 from sim.integrate import Result, run_sim
 from sim.params import Params
@@ -195,11 +195,11 @@ def save_conditions_csv(conditions: list[WeightedCondition], path: Path) -> None
 
 
 def main() -> None:
-    # Step 90 (dev/docs/architecture-33-configs-one-demo.md SS33.4.2): the
-    # one demo (configs/scenarios/demo.py), the same scenario run.py uses.
-    # Its ascent reaches supersonic Mach (selected rows span ~0.5-1.7;
-    # peak ~1.75), which is what a K-class demo honestly produces (D-83).
-    cfg = configs.get("demo")
+    # Step 123 (Phase 2.18, D-139/D-140): the one demo
+    # (examples/worked_scenario.py), the same scenario run.py uses. Its
+    # ascent reaches supersonic Mach (selected rows span ~0.5-1.7; peak
+    # ~1.75), which is what a K-class demo honestly produces (D-83).
+    cfg = DEMO_SCENARIO.config
     params = cfg.params
     state0 = cfg.s0
     result = run_sim(params, state0)

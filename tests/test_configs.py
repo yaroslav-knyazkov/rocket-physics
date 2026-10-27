@@ -4,9 +4,15 @@
 Per SS30.8: the two exact-equality pins against `run.py`'s literal and
 `apps.motor_selection.compare_motors._demo_baseline()` are the primary
 checks (this is what makes a later migration, roadmap Step 69, a provable
-no-op), then registry integrity, `derive`'s no-silent-reset property,
-`Variant.apply`/`Config.with_variant` equivalence, every registered config
-actually flying, and no circular import.
+no-op), then `derive`'s no-silent-reset property, `Variant.apply`/
+`Config.with_variant` equivalence, and no circular import.
+
+Registry-integrity checks (duplicate names, `names()`/`get()` contract,
+"every registered config flies") were deleted at Step 125 (Phase 2.18
+pivot, D-137..D-142) -- `configs/__init__.py` is now a plain re-export
+shim with no registry left to check; Step 122's
+`tests/test_worked_scenario_example.py` smoke test already proves the
+one worked demo flies end-to-end.
 """
 
 import math
@@ -16,11 +22,9 @@ from pathlib import Path
 
 import pytest
 
-import configs
 from apps.common import study_vehicle
 from apps.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Config, Variant
-from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
 from tests import config_variants
@@ -81,37 +85,6 @@ def test_demo_75mm_params_pin_demo_baseline_exactly():
 
 def test_demo_75mm_s0_pins_compare_motors_main_literal_exactly():
     assert study_vehicle.CONFIG.s0 == _demo_75mm_s0()
-
-
-# ----------------------------------------------------------------------
-# Registry integrity
-# ----------------------------------------------------------------------
-
-
-def test_registry_keys_equal_module_basenames():
-    for mod in configs._MODULES:
-        basename = mod.__name__.split(".")[-1]
-        assert mod.CONFIG.name == basename
-        assert basename in configs.CONFIGS
-        assert configs.CONFIGS[basename] is mod.CONFIG
-
-
-def test_registry_has_no_duplicate_names():
-    all_names = [mod.CONFIG.name for mod in configs._MODULES]
-    assert len(all_names) == len(set(all_names))
-    assert len(configs.CONFIGS) == len(all_names)
-
-
-def test_names_lists_every_registered_config():
-    assert set(configs.names()) == set(configs.CONFIGS)
-
-
-def test_get_unknown_name_raises_keyerror_listing_every_name():
-    with pytest.raises(KeyError) as excinfo:
-        configs.get("nope")
-    message = str(excinfo.value)
-    for name in configs.names():
-        assert name in message
 
 
 # ----------------------------------------------------------------------
@@ -192,18 +165,6 @@ def test_variant_apply_equals_config_with_variant():
 
 
 # ----------------------------------------------------------------------
-# Every registered config actually flies
-# ----------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("name", configs.names())
-def test_every_registered_config_flies(name):
-    cfg = configs.get(name)
-    result = run_sim(cfg.params, cfg.s0)
-    assert result.events["apogee"] is not None
-
-
-# ----------------------------------------------------------------------
 # No circular import -- a fresh interpreter, as the *first* import
 # ----------------------------------------------------------------------
 
@@ -216,12 +177,23 @@ def _run_fresh_interpreter(code: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_import_configs_demo_first_has_no_circular_import():
-    _run_fresh_interpreter("import configs.scenarios.demo\nprint(configs.scenarios.demo.CONFIG.name)\n")
+def test_import_worked_scenario_first_has_no_circular_import():
+    # Step 125 (Phase 2.18 pivot): the former `configs.scenarios.demo`
+    # registry module is archived; `examples.worked_scenario` is the
+    # live worked example now, and the thing worth checking first-import
+    # order against `configs` for.
+    _run_fresh_interpreter(
+        "import examples.worked_scenario\nprint(examples.worked_scenario.DEMO_SCENARIO.name)\n"
+    )
 
 
 def test_import_configs_package_first_has_no_circular_import():
-    _run_fresh_interpreter("import configs\nprint(configs.names())\n")
+    # `configs.names()` no longer exists on the Step-125 re-export shim
+    # (D-141/Cfg-1) -- check `configs.Scenario` instead, an attribute
+    # exported both before and after that shim swap (Part 3/4 of this
+    # step), so this test stays green across the whole pivot, not just
+    # at the end of it.
+    _run_fresh_interpreter("import configs\nprint(configs.Scenario)\n")
 
 
 # ----------------------------------------------------------------------
@@ -244,14 +216,16 @@ _COMPARE_MOTORS_PY = (
 
 
 def test_run_py_sources_its_scenario_from_configs_get_demo():
-    assert 'configs.get("demo")' in _RUN_PY
+    # Step 123 (Phase 2.18, D-139/D-140): `run.py` repointed from the
+    # `configs.get("demo")` registry lookup to `DEMO_SCENARIO` directly.
+    assert "DEMO_SCENARIO" in _RUN_PY
     # The former in-place literal is gone, not just duplicated.
     assert "Weight(" not in _RUN_PY
     assert "math.pi / 2" not in _RUN_PY
 
 
 def test_select_conditions_py_sources_its_scenario_from_configs_get_demo():
-    assert 'configs.get("demo")' in _SELECT_CONDITIONS_PY
+    assert "DEMO_SCENARIO" in _SELECT_CONDITIONS_PY
     assert "Weight(" not in _SELECT_CONDITIONS_PY
     assert "math.pi / 2" not in _SELECT_CONDITIONS_PY
 

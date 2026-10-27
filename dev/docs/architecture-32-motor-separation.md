@@ -1,5 +1,8 @@
 # Architecture §32 — Motor separation: a `Motor` config piece, composed mass, real `.eng`/`.rasp` curves (Phase 2.16, design only)
 
+> Superseded 2026-10 by the Phase 2.18 pivot (`dev/docs/pivot-configs-and-packaging-analysis.md`); the
+> registry this document describes is archived at `dev/archive/configs-registry-2026-10/`.
+
 ## Summary
 
 **Status: designed 2026-10-15 against the user's own request, relayed by the orchestrator with an

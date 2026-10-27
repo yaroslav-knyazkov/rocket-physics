@@ -283,7 +283,7 @@ def _mass_on_motor() -> Motor:
         name="mass_on",
         thrust=Thrust(motor_curve="Cesaroni_2060K570-17A.eng"),
         mass_model="isp",
-        I_sp=180.0,
+        I_sp=600.0,  # Step 114: consistent with J=2062 N*s and m_prop=0.4 kg (was 180.0 -> 1.17 kg burned)
         m_total=1.0,
         m_prop=0.4,
         length=0.5,

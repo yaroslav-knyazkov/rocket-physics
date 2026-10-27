@@ -41,7 +41,11 @@ is now the one DERIVED group -- a function of two disjoint-field-set
 inputs, `Rocket.airframe` (+ `Rocket.sections`) and `Scenario.motor`,
 composed by `_weight_from_pieces`, not a merge with a precedence rule.
 Every other group keeps its single owning piece unchanged, and `thrust`
-moves from `Rocket` to `Scenario.motor`.
+moves from `Rocket` to `Scenario.motor`. Step 103 (architecture-35-paper-
+alignment.md SS35.6, D-114) adds one more group, `actuator`, owned by
+`Rocket` alongside `control` -- the sampled-data airbrake's own actuator
+(rate/range/delay) is the same kind of vehicle control hardware `control`
+already is, not a run-level concern.
 
 The import rule above now also applies to pieces: piece modules do
 `from configs.schema import Rocket`, **never** `from configs import
@@ -58,15 +62,21 @@ import dataclasses
 import math
 from typing import Any
 
+from sim import aero
+from sim import inertia as inertia_mod
 from sim import mass
 from sim import motor_file
+from sim.params import Actuator
 from sim.params import Aero
 from sim.params import Atmosphere
 from sim.params import Control
 from sim.params import Gravity
+from sim.params import Inertia
 from sim.params import Lengths
 from sim.params import Params
 from sim.params import Recovery
+from sim.params import Roll
+from sim.params import Sensors
 from sim.params import Site
 from sim.params import Solver
 from sim.params import Soundings
@@ -250,6 +260,9 @@ class Motor:
     I_0: float | None = None  # OPT, kg*m^2 -- motor's own MOI at ignition, about its own CoG
     I_f: float | None = None  # OPT, kg*m^2 -- motor's own MOI at burnout,  about its own CoG
 
+    d_exit: float | None = None  # OPT, m -- nozzle exit diameter; assemble sets Thrust.A_e = pi/4*d_exit^2
+    #                                      (None -> Thrust.A_e as given; both given and A_e != 0 -> ValueError)
+
     notes: str = ""  # OPT -- provenance: vendor, datasheet, date, measured or estimated
 
 
@@ -277,6 +290,27 @@ class Rocket:
     aero: Aero = dataclasses.field(default_factory=Aero)
     recovery: Recovery = dataclasses.field(default_factory=Recovery)
     control: Control = dataclasses.field(default_factory=Control)
+    # Step 103 (architecture-35-paper-alignment.md SS35.6, D-114): the
+    # sampled-data airbrake's own actuator (rate/range/delay) -- same
+    # owning piece as `control` above, the vehicle's own control hardware,
+    # not a run-level/weather/site concern (SS31.3.2's one-owner
+    # invariant).
+    actuator: Actuator = dataclasses.field(default_factory=Actuator)
+    # Step 109 (task-109-roll-reaction-wheel.md SS109.7b): the roll DOF and
+    # its reaction wheel -- same owning piece as control/actuator above,
+    # vehicle control hardware, not a run-level/weather/site concern
+    # (SS31.3.2's one-owner invariant).
+    roll: Roll = dataclasses.field(default_factory=Roll)   # Step 109
+    # Step 30 (task-30-3d-rotational-dynamics.md SS30.2): the full 3D
+    # moment-of-inertia tensor -- a property of the airframe-plus-motor
+    # assembly, so the same owning piece as `roll` above, not a
+    # run-level/weather/site concern (SS31.3.2's one-owner invariant).
+    inertia: Inertia = dataclasses.field(default_factory=Inertia)   # Step 30
+    # Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
+    # baro channel's own hardware characteristics -- same owning piece as
+    # control/actuator above (vehicle control/sensing hardware, not a
+    # run-level/weather/site concern).
+    sensors: Sensors = dataclasses.field(default_factory=Sensors)
     sections: Sections = dataclasses.field(default_factory=Sections)
     notes: str = ""
 
@@ -338,13 +372,26 @@ def assemble(sc: Scenario) -> Config:
     SS31.8 #1) -- this change moves *sources*, not keywords."""
     # (1) gather groups from the pieces -- one keyword per group, each
     #     sourced from exactly one owning piece
+    thrust = sc.motor.thrust  # owner moved: Rocket -> Motor (Step 80)
+    if sc.motor.d_exit is not None:  # Step 98 (D-112): nozzle exit diameter -> exit area
+        if not sc.motor.d_exit >= 0.0:  # QA-5: negative / NaN would be silently squared
+            raise ValueError(f"Motor {sc.motor.name!r}: d_exit must be >= 0, got {sc.motor.d_exit}")
+        if thrust.A_e != 0.0:
+            raise ValueError(
+                f"Motor {sc.motor.name!r}: give either d_exit or Thrust.A_e, not both"
+            )
+        thrust = dataclasses.replace(thrust, A_e=math.pi / 4.0 * sc.motor.d_exit**2)
     p = Params(
         weight=_weight_from_pieces(sc.rocket.airframe, sc.rocket.sections, sc.motor, sc.g0),  # DERIVED, SS32.3
         lengths=sc.rocket.lengths,
-        thrust=sc.motor.thrust,  # owner moved: Rocket -> Motor (Step 80)
+        thrust=thrust,
         aero=sc.rocket.aero,
         recovery=sc.rocket.recovery,
         control=sc.rocket.control,
+        actuator=sc.rocket.actuator,
+        roll=sc.rocket.roll,
+        inertia=sc.rocket.inertia,
+        sensors=sc.rocket.sensors,
         site=sc.site.site,
         atmosphere=sc.weather.atmosphere,
         soundings=sc.weather.soundings,
@@ -356,6 +403,33 @@ def assemble(sc: Scenario) -> Config:
     # (2) the scenario's own last word, dotted paths over the whole tree
     if sc.overrides:
         p = params_replace(p, sc.overrides)  # sim.params.replace, SS29 F1
+    # (2b) Step 99: fail-fast on the aero v2 options (CP station needs a CoG
+    #      station and zero cant; known C_m convention) -- a no-op for legacy configs.
+    aero.validate(p)
+    # (2b') Step 30 (task-30-3d-rotational-dynamics.md SS30.8.2): fail-fast on an
+    #      inadmissible inertia tensor (not positive definite / triangle
+    #      inequality violated), plus the SS30.8.3 check-4 cross-check against
+    #      `Roll.I_x` -- a no-op when `p.inertia.model == "none"` (every config
+    #      that exists today).
+    inertia_mod.validate(p.inertia, roll=p.roll)
+    # (2c) QA-4: thrust-scatter factors scale impulse / burn time; non-positive values are
+    #      meaningless (k_t = 0 divides by zero inside the RHS).
+    for _f in ("k_J", "k_t"):
+        if not getattr(p.thrust, _f) > 0.0:
+            raise ValueError(f"Thrust.{_f} must be > 0, got {getattr(p.thrust, _f)}")
+    # (2d) Step 114: propellant consistency. The solver burns J/(I_sp g0) of mass (k_t cancels,
+    #      k_J does not scale the flow); more than the loaded propellant (+1 %) means the mass
+    #      floor in `dynamics.derivatives` would freeze dm/dt while thrust continues.
+    if p.weight.m_d is not None and p.weight.I_sp and p.thrust.motor_curve:
+        J = motor_file.load(p.thrust.motor_curve).total_impulse
+        burned = J / (p.weight.I_sp * p.g0)
+        m_prop = p.weight.m - p.weight.m_d
+        if burned > 1.01 * m_prop:
+            raise ValueError(
+                f"Motor {sc.motor.name!r}: I_sp={p.weight.I_sp:g} s implies {burned:.4g} kg of propellant "
+                f"burned (J={J:.4g} N*s / (I_sp*g0)) but m_prop={m_prop:.4g} kg: inconsistent "
+                "I_sp / m_prop (thrust would continue after the mass floor)"
+            )
     # (3) s0 AFTER overrides -- so an overridden rail angle moves the
     #     initial attitude with it (F5, D-51); getting this order backwards
     #     would re-create F5's foot-gun inside the mechanism that

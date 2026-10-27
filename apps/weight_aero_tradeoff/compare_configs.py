@@ -31,16 +31,12 @@ airframe's own `C_dA` is Mach/alpha-dependent, so no single number is
 honest to report there, even though the row's apogee is still a real,
 comparable number.
 
-**Inputs (SS30.7.2).** `--config NAME` (a single registry name, the
-default) is a *baseline*: this mode compares it against every
+**Inputs (SS30.7.2).** No CLI selection any more (Step 124, D-139/CLI-1):
+this mode always compares the app's own constant-mass study vehicle
+(`apps/common/study_vehicle.py::CONFIG`) as a *baseline* against every
 `apps.weight_aero_tradeoff.scenarios.SCENARIOS` entry applied to it (via
 `Variant.apply`/`Config.with_variant`, Step 63's machinery), plus the
-baseline itself. `--config a,b,c` (two or more comma-separated names)
-instead compares those registry configs *directly*, `SCENARIOS` not
-consulted at all -- the case that justifies this mode existing in the
-first place (two candidates differing by more than a weight/C_dA delta).
-This dispatch is based purely on whether the comma splits the string into
-one name or several; see `_resolve_configs`.
+baseline itself.
 """
 
 from __future__ import annotations
@@ -51,10 +47,10 @@ import dataclasses
 from pathlib import Path
 from typing import Optional
 
-import configs
 from apps.common import study_vehicle
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
+from apps.weight_aero_tradeoff.scenarios import SCENARIOS
 from configs.schema import Config
 from sim.integrate import Result, run_sim
 from sim.plotting import plot_trajectory_overlay
@@ -212,88 +208,23 @@ def save_overlay(runs: "list[ConfigRun]", path: Path) -> None:
     fig.savefig(path)
 
 
-def _parse_config_names(spec: str) -> "list[str]":
-    """Split a `--config` value on commas, stripping whitespace. Raises
-    `ValueError` if any entry is empty (a typo'd trailing comma), the
-    same "fail fast on a plausible typo" reasoning the rest of this
-    project's CLIs use."""
-    names = [s.strip() for s in spec.split(",")]
-    if any(not n for n in names):
-        raise ValueError(
-            f"--config {spec!r}: empty name in comma-separated list"
-        )
-    return names
-
-
-def _resolve_configs(spec: "Optional[str]") -> "list[Config]":
-    """A single name resolves to a *baseline*: compared against every
-    `apps.weight_aero_tradeoff.scenarios.SCENARIOS` variant applied to it
-    (plus the baseline itself) -- the default, SCENARIOS-driven use of
-    this mode. Two or more comma-separated names instead resolve to those
-    registry configs directly, `SCENARIOS` not consulted -- the case that
-    justifies this mode existing at all (module docstring, SS30.7.2):
-    candidates differing by more than a weight/C_dA delta against one
-    baseline."""
-    from apps.weight_aero_tradeoff.scenarios import SCENARIOS
-
-    if spec is None:
-        # no --config: the app's own constant-mass study vehicle (D-79)
-        baseline = study_vehicle.CONFIG
-        return [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
-    names = _parse_config_names(spec)
-    if len(names) == 1:
-        baseline = configs.get(names[0])
-        if baseline.params.weight.m_d is not None:
-            raise ValueError(
-                f"config {baseline.name!r}: mass model is on (weight.m_d="
-                f"{baseline.params.weight.m_d!r}); the integrator reads mass "
-                "from y[M], so the SCENARIOS variants' weight.m overrides "
-                "would be inert (F3). App 5 is a constant-mass study."
-            )
-        return [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
-    return [configs.get(name) for name in names]
-
-
 def main(argv: "Optional[list[str]]" = None) -> None:
     """Self-sufficient entry point: `python -m
     apps.weight_aero_tradeoff.compare_configs` or `run_trade.py --mode
     compare` (forwarding every other argument, same pattern `run_trade.py
-    --mode surface` already uses for `trade_surface.main`)."""
+    --mode surface` already uses for `trade_surface.main`). No CLI
+    selection (Step 124, D-139/CLI-1): always the app's own constant-mass
+    study vehicle (`apps/common/study_vehicle.py::CONFIG`) as baseline,
+    compared against every `apps.weight_aero_tradeoff.scenarios.SCENARIOS`
+    variant applied to it, plus the baseline itself."""
     parser = argparse.ArgumentParser(
         description="App 5 mode (a): named-configuration side-by-side "
         "comparison"
     )
-    parser.add_argument(
-        "--config",
-        default=None,
-        metavar="NAME[,NAME,...]",
-        help="omitted (default): the app's constant-mass study vehicle "
-        "(apps/common/study_vehicle.py) as baseline. A single registry name is a "
-        "baseline: compares it against every SCENARIOS variant "
-        "(apps/weight_aero_tradeoff/scenarios.py) applied to it, plus "
-        "the baseline itself. Two or more comma-separated registry "
-        "names instead compares those configs directly, SCENARIOS "
-        "ignored -- for candidates differing by more than a weight/C_dA "
-        "delta (a different aero model/table, motor, geometry or site), "
-        "the case that justifies this mode existing (SS30.7.2). See "
-        "--list-configs for the registry.",
-    )
-    parser.add_argument(
-        "--list-configs",
-        action="store_true",
-        help="print every registered config name with its notes' first "
-        "line, then exit",
-    )
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
 
-    if args.list_configs:
-        for name in configs.names():
-            notes = configs.get(name).notes
-            first_line = notes.splitlines()[0] if notes else ""
-            print(f"{name}: {first_line}" if first_line else name)
-        raise SystemExit(0)
-
-    cfgs = _resolve_configs(args.config)
+    baseline = study_vehicle.CONFIG
+    cfgs = [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
     runs = compare_configs(cfgs)
     print_comparison_table(runs)
 

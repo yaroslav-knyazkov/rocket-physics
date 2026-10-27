@@ -36,7 +36,7 @@ reproduces Phase 1 bit-for-bit.
 Step 14: `thrust_body` now uses the thrust curve from sim/thrust_curve.py,
 replacing the hard-coded T_BURN constant-thrust model.
 
-Step 25: the "coefficients" regime's `C_A`/`C_N`/`C_m` are no longer
+Step 25: the "coefficients" regime's `C_A`/`C_N`/`C_m_code` are no longer
 inline `Params`-constant formulas -- they are delegated to sim/aero.py,
 which is table-driven (`p.aero_table`) with the exact same constant
 formulas as the fallback (architecture.md SS19). Bit-for-bit unchanged
@@ -46,9 +46,9 @@ Step 55 (Phase 2.11 rewrite pass, architecture-28-rewrite.md SS28.5):
 `aero_force_body`/`aero_moment_y` no longer have their own `if/elif/else`
 aero-model branch at all -- both call the single `aero.coefficients(t, s,
 p, flow)` seam and read the `AeroCoeffs` bundle it returns (`C_x`, `C_z`,
-`C_m`, `C_mq`), which itself dispatches on `p.aero.model` ("constant" |
+`C_m_code`, `C_mq_code`), which itself dispatches on `p.aero.model` ("constant" |
 "linearized" | "table"). `"linearized"` is bit-for-bit the old
-"coefficients" regime; `"constant"`'s `C_x`/`C_z`/`C_m` are now true
+"coefficients" regime; `"constant"`'s `C_x`/`C_z`/`C_m_code` are now true
 dimensionless coefficients (the fix this step exists for -- see
 sim/aero.py's module docstring), so `"constant"` is now `q`-scaled like
 every other model, where it used to be a raw, atmosphere-independent
@@ -141,6 +141,14 @@ def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     time-varying thrust and automatically cuts off when the curve ends
     (returns zero after the last defined point).
 
+    Step 97 (C4, comment-only): sign convention -- positive `delta`
+    (`p.lengths.misalign_deg`, formerly `thrust_misalign_deg`) tilts the
+    thrust vector from `x_hat_r` toward `+z_hat_r`; with the thrust point
+    aft of the CoG (`aB = -(l1+l2) x_hat_r`) the resulting pitching moment
+    is `+(l1+l2)*T*sin(delta)` in the code's `_cross_y` convention. This
+    is the code's own `delta`; the paper's `theta_t` is not asserted to
+    share its sign.
+
     Step 39 (architecture.md SS23.2): `delta = p.thrust_misalign_deg`
     (converted to radians here, the same "degrees in Params, radians at
     first use" convention as `lat0_deg`/`azimuth_deg`/`wind_dir_deg`) is a
@@ -158,7 +166,7 @@ def thrust_body(t: float, s, p, hold=None) -> np.ndarray:
     return np.array([thrust * np.cos(delta), thrust * np.sin(delta)])
 
 
-def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
+def aero_force_body(t: float, s, p, flow, hold=None, fb=None, c=None) -> np.ndarray:
     """A_f = -A_x*x_hat_r - A_z*z_hat_r (main.tex SSModels > Aerodynamics),
     body frame, unconditionally -- the Phase 1 form, for every alpha, not
     just alpha = 0.
@@ -217,17 +225,26 @@ def aero_force_body(t: float, s, p, flow, hold=None) -> np.ndarray:
     is the zero-order-held value for the current tick, not a fresh
     per-substep/per-stage evaluation of the continuous law).
     """
-    c = aero.coefficients(t, s, p, flow, hold)
-    A_x = flow.q * p.aero.S * c.C_x
+    # Step 102 (D-109): `fb` is the brake fraction, computed once per RHS call by
+    # `dynamics.derivatives` and passed down; a direct caller may omit it.
+    if fb is None:
+        fb = control.airbrake_deploy_fraction(t, s, p, hold)
+    if c is None:  # Step 114: `dynamics.derivatives` passes the bundle it already computed
+        c = aero.coefficients(t, s, p, flow, hold, fb)
+    A_x =flow.q * p.aero.S * c.C_x
     A_z = flow.q * p.aero.S * c.C_z
-    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * control.airbrake_deploy_fraction(t, s, p, hold)
+    if p.control.airbrake_aero == "table":
+        # The brake's drag/normal force/moment/CP shift are inside the table's f_b
+        # axis; no separate additive term and no extra flow-direction factor.
+        return np.array([-A_x, -A_z])
+    A_brake = flow.q * p.control.airbrake_Cd * p.control.airbrake_S_max * fb
     # Step 93 (D-94a): the brake is a body-axis axial drag too, so it follows
     # the same flow-direction factor as `C_x` (architecture-34 SS34.3).
     A_brake *= aero.axial_flow_factor(flow.alpha)
     return np.array([-(A_x + A_brake), -A_z])
 
 
-def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
+def aero_moment_y(t: float, s, p, flow, hold=None, fb=None, c=None) -> float:
     """A_m = -A_m*y_hat_r (main.tex SSMoments), scalar about y.
 
     Not used by dynamics.py yet -- theta/omega aren't integrated states
@@ -237,11 +254,11 @@ def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
     a required parameter, the caller's own `flow_state(t, s, p)` result --
     see `aero_force_body`'s docstring for why reusing it is bit-for-bit.
 
-    Step 55 (architecture-28-rewrite.md SS28.5): `C_m`/`C_mq` come from the
+    Step 55 (architecture-28-rewrite.md SS28.5): `C_m_code`/`C_mq_code` come from the
     single `aero.coefficients(t, s, p, flow)` bundle, dispatched on
     `p.aero.model` ("constant" | "linearized" | "table" -- sim/aero.py's
     module docstring):
-            A_m = q * S * d_ref * c.C_m
+            A_m = q * S * d_ref * c.C_m_code
 
     The pitch-damping term (Step 44; analysis.tex SSDynamic stability;
     architecture.md SS24.4), `c_m += q_hat*c_mq` with `q_hat =
@@ -263,10 +280,16 @@ def aero_moment_y(t: float, s, p, flow, hold=None) -> float:
     `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
     unaffected, bit-for-bit. Passed through to `aero.coefficients` only
     (same reasoning as `aero_force_body`'s docstring).
+
+    Step 102 (D-109): `fb` is the brake fraction (see `aero_force_body`); only read
+    under `Control.airbrake_aero == "table"`, where an omitted `fb` is computed here.
     """
-    c = aero.coefficients(t, s, p, flow, hold)
-    A_m = flow.q * p.aero.S * p.aero.d_ref * c.C_m
-    A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq
+    if fb is None:
+        fb = control.airbrake_deploy_fraction(t, s, p, hold) if p.control.airbrake_aero == "table" else 0.0
+    if c is None:
+        c = aero.coefficients(t, s, p, flow, hold, fb)
+    A_m =flow.q * p.aero.S * p.aero.d_ref * c.C_m_code
+    A_m += 0.25 * flow.air.rho * flow.V * p.aero.S * p.aero.d_ref**2 * s[OMEGA] * c.C_mq_code
     return -A_m
 
 

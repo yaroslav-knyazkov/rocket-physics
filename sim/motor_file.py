@@ -15,7 +15,9 @@ named by `"<filename>"` (one record, or the file's only record) or
 The RASP grammar: `;`-prefixed lines are comments; a header line is a
 non-comment line whose first whitespace-separated token does not parse as
 a float (`designation diameter_mm length_mm delays m_prop_kg m_total_kg
-manufacturer`, `delays` free text, never parsed); every other non-comment,
+manufacturer`, `delays` free text, never parsed, `manufacturer` free text
+to end of line -- joined back together even when it is itself several
+whitespace-separated tokens, e.g. "Cesaroni Technology"); every other non-comment,
 non-blank line is a `time thrust` data row (extra columns beyond the first
 two are ignored, matching the `.csv` reader's tolerance). A record ends at
 the next header line or EOF -- blank lines are not load-bearing, so both
@@ -36,6 +38,8 @@ import os
 
 import numpy as np
 
+from sim import datafiles
+
 # ----------------------------------------------------------------------
 # Data
 # ----------------------------------------------------------------------
@@ -53,6 +57,10 @@ class MotorRecord:
     thrusts: np.ndarray  # N
     m_prop: float | None = None  # kg   <- RASP header field 5
     m_total: float | None = None  # kg   <- RASP header field 6
+    # Conventions audit SS11: the RASP spec gives these two fields in kg
+    # despite the field names ("prop-weight"/"total-weight"); some older
+    # third-party .eng files in circulation use grams instead, and there is
+    # no in-band way to tell one from the other -- not checked here.
     diameter: float | None = None  # m    <- RASP header field 2 (mm in file)
     length: float | None = None  # m    <- RASP header field 3 (mm in file)
     delays: str = ""  #      <- RASP header field 4, free text, never parsed
@@ -65,15 +73,18 @@ class MotorRecord:
 
 
 # ----------------------------------------------------------------------
-# Internal: path resolution
+# Back-compat shim (Step 120, D-137/F5)
 # ----------------------------------------------------------------------
 
 
 def _motors_path(filename: str) -> str:
-    # This file's parent directory is <repo>/sim/, so we go up one level
-    # to get the repo root, same as sim/thrust_curve.py did before Step 76.
-    repo_root = os.path.dirname(os.path.dirname(__file__))
-    return os.path.join(repo_root, "data", "motors", filename)
+    """Resolves exactly like `sim.datafiles.resolve(filename, "motors")`.
+    Kept as a thin wrapper around the new resolver because external
+    callers (`apps/motor_selection/scenario_sweep.py`,
+    `tests/test_scenario_sweep.py`) reach for this private helper
+    directly to stat/hash the on-disk motor file, independent of this
+    module's own record-parsing cache."""
+    return datafiles.resolve(filename, "motors")
 
 
 # ----------------------------------------------------------------------
@@ -81,15 +92,14 @@ def _motors_path(filename: str) -> str:
 # ----------------------------------------------------------------------
 
 
-def _read_csv(filename: str) -> MotorRecord:
-    """Read `data/motors/<filename>` as a two-column (time, thrust) CSV.
+def _read_csv(csv_path: str) -> MotorRecord:
+    """Read `csv_path` (already resolved by `sim.datafiles.resolve`) as a
+    two-column (time, thrust) CSV.
 
     The CSV is expected to have a comment/header line (starting with #)
     and then two columns: time [s], thrust [N].  Whitespace is allowed.
     Returns one `MotorRecord` with every metadata field `None`.
     """
-    csv_path = _motors_path(filename)
-
     times = []
     thrusts = []
     with open(csv_path, newline="") as f:
@@ -103,7 +113,7 @@ def _read_csv(filename: str) -> MotorRecord:
             thrusts.append(float(f_str))
 
     if not times:
-        raise ValueError(f"No data found in motor curve '{filename}'")
+        raise ValueError(f"No data found in motor curve '{csv_path}'")
 
     # Sort by time and remove duplicates (keep first occurrence)
     order = np.argsort(times)
@@ -113,12 +123,12 @@ def _read_csv(filename: str) -> MotorRecord:
     times = times[unique_idx]
     thrusts = thrusts[unique_idx]
 
-    designation = os.path.splitext(os.path.basename(filename))[0]
+    designation = os.path.splitext(os.path.basename(csv_path))[0]
     return MotorRecord(
         designation=designation,
         times=times,
         thrusts=thrusts,
-        source=filename,
+        source=csv_path,
     )
 
 
@@ -135,15 +145,14 @@ def _is_float(token: str) -> bool:
         return False
 
 
-def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
-    """Read `data/motors/<filename>` as one or more RASP-format records.
+def _read_rasp(rasp_path: str) -> tuple["MotorRecord", ...]:
+    """Read `rasp_path` (already resolved by `sim.datafiles.resolve`) as
+    one or more RASP-format records.
 
     See the module docstring for the grammar. Returns an empty tuple for
     a file with no header lines (e.g. comments only) rather than raising --
     that is a valid, if useless, library of zero records.
     """
-    rasp_path = _motors_path(filename)
-
     out: list[MotorRecord] = []
 
     designation = None
@@ -171,7 +180,7 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
                 length=length,
                 delays=delays,
                 manufacturer=manufacturer,
-                source=filename,
+                source=rasp_path,
             )
         )
 
@@ -186,10 +195,21 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
             tokens = stripped.split()
             if _is_float(tokens[0]):
                 # Data row: time, thrust (extra columns ignored).
+                if len(tokens) < 2:
+                    raise ValueError(
+                        f"motor file '{rasp_path}': data row {stripped!r} needs at least "
+                        "2 tokens (time, thrust), got 1"
+                    )
                 times.append(float(tokens[0]))
                 thrusts.append(float(tokens[1]))
             else:
                 # Header row: starts a new record, flush the previous one.
+                if len(tokens) < 7:
+                    raise ValueError(
+                        f"motor file '{rasp_path}': header row {stripped!r} needs 7 tokens "
+                        "(designation diameter_mm length_mm delays m_prop_kg m_total_kg "
+                        f"manufacturer), got {len(tokens)}"
+                    )
                 flush()
                 designation = tokens[0]
                 diameter = float(tokens[1]) / 1000.0
@@ -197,7 +217,10 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
                 delays = tokens[3]
                 m_prop = float(tokens[4])
                 m_total = float(tokens[5])
-                manufacturer = tokens[6]
+                # Real headers carry multi-word manufacturers ("Cesaroni
+                # Technology"); join everything from field 7 on instead of
+                # truncating to one token (conventions audit §6 item 1).
+                manufacturer = " ".join(tokens[6:])
                 times = []
                 thrusts = []
 
@@ -211,24 +234,35 @@ def _read_rasp(filename: str) -> tuple["MotorRecord", ...]:
 # ----------------------------------------------------------------------
 
 
-@functools.lru_cache(maxsize=None)
+def _records_impl(abspath: str) -> tuple[MotorRecord, ...]:
+    ext = os.path.splitext(abspath)[1].lower()
+    if ext == ".csv":
+        return (_read_csv(abspath),)
+    return _read_rasp(abspath)
+
+
+_records_cached = functools.lru_cache(maxsize=None)(_records_impl)
+
+
 def records(filename: str) -> tuple[MotorRecord, ...]:
     """Every record in `data/motors/<filename>`, dispatched on extension:
     `.csv` -> the two-column reader (one record, no metadata);
-    `.eng` / `.rasp` / anything else -> the RASP reader (N records)."""
-    ext = os.path.splitext(filename)[1].lower()
-    if ext == ".csv":
-        return (_read_csv(filename),)
-    return _read_rasp(filename)
+    `.eng` / `.rasp` / anything else -> the RASP reader (N records).
+
+    `filename` is resolved via `sim.datafiles.resolve` ("motors") before
+    the lookup, and the cache sits on the *resolved* absolute path, not
+    the raw `filename` string -- a cwd-relative name is never served a
+    stale resolution across a change of working directory between two
+    calls with the same string (see `sim/datafiles.py`'s docstring)."""
+    abspath = datafiles.resolve(filename, "motors")
+    return _records_cached(abspath)
 
 
-@functools.lru_cache(maxsize=None)
-def load(spec: str) -> MotorRecord:
-    """`"<filename>[#designation]"` -> one record. No fragment and one
-    record in the file -> that record. No fragment and several -> KeyError
-    listing every designation. Unknown designation -> the same KeyError."""
-    filename, _, fragment = spec.partition("#")
-    recs = records(filename)
+records.cache_clear = _records_cached.cache_clear
+
+
+def _load_impl(abspath: str, fragment: str) -> MotorRecord:
+    recs = _records_cached(abspath)
 
     if fragment:
         for rec in recs:
@@ -236,7 +270,7 @@ def load(spec: str) -> MotorRecord:
                 return rec
         available = ", ".join(rec.designation for rec in recs)
         raise KeyError(
-            f"unknown motor designation {fragment!r} in {filename!r}; "
+            f"unknown motor designation {fragment!r} in {abspath!r}; "
             f"available: {available}"
         )
 
@@ -245,6 +279,27 @@ def load(spec: str) -> MotorRecord:
 
     available = ", ".join(rec.designation for rec in recs)
     raise KeyError(
-        f"{filename!r} has multiple motor records; specify one with "
+        f"{abspath!r} has multiple motor records; specify one with "
         f"'#designation'; available: {available}"
     )
+
+
+_load_cached = functools.lru_cache(maxsize=None)(_load_impl)
+
+
+def load(spec: str) -> MotorRecord:
+    """`"<filename>[#designation]"` -> one record. No fragment and one
+    record in the file -> that record. No fragment and several -> KeyError
+    listing every designation. Unknown designation -> the same KeyError.
+
+    `spec.partition("#")` splits the fragment *before* any path handling
+    (preserved from before Step 120): the filename part is resolved via
+    `sim.datafiles.resolve`, the fragment is never touched by path
+    resolution. The cache sits on `(resolved abspath, fragment)`, not the
+    raw `spec` string, for the same stale-cwd reason as `records()`."""
+    filename, _, fragment = spec.partition("#")
+    abspath = datafiles.resolve(filename, "motors")
+    return _load_cached(abspath, fragment)
+
+
+load.cache_clear = _load_cached.cache_clear

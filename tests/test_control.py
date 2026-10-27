@@ -9,16 +9,17 @@ philosophy -- no fixtures, no conftest.py, plain `assert` + `math.isclose`/
 47/48 rail/parachute off-switch tests.
 """
 
+import dataclasses
 import math
 
 import numpy as np
 import pytest
 
-from sim import control, forces, thrust_curve
+from sim import control, forces, sampling, thrust_curve
 from sim.dynamics import derivatives
 from sim.flow import flow_state
 from sim.integrate import run_sim
-from sim.params import Aero, Control, Lengths, Params, Thrust, Weight
+from sim.params import Aero, Actuator, Control, Lengths, Params, Solver, Thrust, Weight
 from sim.state import State, OMEGA, VZ, Z
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
@@ -276,14 +277,14 @@ def test_aero_coeff_delta_reaches_all_four_consumers():
     consumers moves by exactly the closed-form delta its own docstring
     formula predicts (forces.py's `aero_force_body`/`aero_moment_y`;
     dynamics.py's CoP arm, isolated with its own l1-only variant so it is
-    not entangled with the C_x/C_z/C_m/C_mq checks).
+    not entangled with the C_x/C_z/C_m_code/C_mq_code checks).
     """
     dC_x, dC_z, dC_m, dC_mq, dl1 = 0.2, 0.15, 0.05, 1.0, 0.1
 
     def _delta_all(t, y, p, flow, base):
         return base._replace(
-            C_x=base.C_x + dC_x, C_z=base.C_z + dC_z, C_m=base.C_m + dC_m,
-            C_mq=base.C_mq + dC_mq, l1=base.l1 + dl1,
+            C_x=base.C_x + dC_x, C_z=base.C_z + dC_z, C_m_code=base.C_m_code + dC_m,
+            C_mq_code=base.C_mq_code + dC_mq, l1=base.l1 + dl1,
         )
 
     def _delta_l1_only(t, y, p, flow, base):
@@ -395,7 +396,9 @@ def test_after_apogee_trigger_is_false_on_the_pad_false_ascending_true_descendin
     y_descending = np.array(State(x=0.0, z=-500.0, vx=0.0, vz=10.0, theta=math.pi / 2, omega=0.0))
     assert not control.airbrake_triggered(0.0, y_ascending, p)
     assert not control.airbrake_triggered(0.0, y_pad, p)   # pad case: vz == 0.0 exactly
-    assert control.airbrake_triggered(0.0, y_descending, p)
+    # Step 97 (C1): 0.1 s pad guard -- not triggered at t < 0.1 even when descending
+    assert not control.airbrake_triggered(0.0, y_descending, p)
+    assert control.airbrake_triggered(0.1, y_descending, p)
 
 
 def test_unknown_airbrake_trigger_raises_keyerror():
@@ -461,3 +464,221 @@ def test_full_after_burnout_reproduces_the_saturated_proportional_apogee():
     alt_full = -r_full.raw.sol(apogee_t_full)[Z]
     alt_saturated = -r_saturated.raw.sol(apogee_t_saturated)[Z]
     assert alt_full == pytest.approx(alt_saturated, abs=1e-5)
+
+
+# ----------------------------------------------------------------------
+# Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
+# sampled-laws-registry.md): the sampled-law registry mechanics and
+# sample_airbrake's new dispatch branch. No law is written/tested here --
+# controllers/laws.py's own pure/stateful behaviour is tested in
+# tests/test_controllers.py; this file only proves the registry +
+# dispatch wiring sim/control.py itself owns.
+# ----------------------------------------------------------------------
+
+def _coast_scenario_params(airbrake_model: str, **extra_solver_kw) -> Params:
+    """A no-motor, already-coasting scenario: `thrust=Thrust()` (empty
+    `motor_curve`, always 0.0 N) and `y[VZ] < 0.0` (ascending) together
+    keep `_in_coast_window` True for the whole short loop these tests run
+    -- no event detection, no `run_sim`, see the ticket's own test-3 note
+    on avoiding entangling a unit test with a full flight."""
+    return Params(
+        weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4),
+        aero=Aero(S=0.005, d_ref=0.08, C_x=0.5),
+        control=Control(airbrake_model=airbrake_model),
+        solver=Solver(sample_rate_hz=10.0, method="rk4", **extra_solver_kw),
+    )
+
+
+def _coast_state() -> np.ndarray:
+    return np.array(State(x=0.0, z=-500.0, vx=0.0, vz=-10.0, theta=math.pi / 2, omega=0.0))
+
+
+def test_register_sampled_law_collides_with_a_builtin_name_raises():
+    """`register_sampled_law` raises `ValueError` for each of the three
+    BUILT-IN memoryless names, leaving `_SAMPLED_LAWS` unchanged."""
+    before = dict(control._SAMPLED_LAWS)
+    for name in ("none", "proportional", "full"):
+        with pytest.raises(ValueError):
+            control.register_sampled_law(name, lambda t_k, meas, p, state: (0.0, state))
+    assert control._SAMPLED_LAWS == before
+
+
+def test_register_sampled_law_then_known_sampled_laws_round_trips():
+    """A freshly registered, test-only name shows up in
+    `known_sampled_laws()`; cleaned up afterwards so this test leaves no
+    residue for any other test in the suite."""
+    assert "test_s107_dummy" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s107_dummy", lambda t_k, meas, p, state: (0.3, state))
+    try:
+        assert "test_s107_dummy" in control.known_sampled_laws()
+    finally:
+        del control._SAMPLED_LAWS["test_s107_dummy"]
+
+
+def test_sample_airbrake_dispatches_to_a_registered_law_once_per_tick():
+    """Calling `sample_airbrake` directly, once per synthetic tick (not
+    through `run_sim`, to avoid any RK4-substep ambiguity), calls the
+    registered law exactly once per call -- not 0, not several times."""
+    calls = []
+
+    def _counting_law(t_k, meas, p, state):
+        calls.append((t_k, meas, state))
+        return 0.3, len(calls)
+
+    assert "test_s107_counter" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s107_counter", _counting_law)
+    try:
+        p = _coast_scenario_params("test_s107_counter")
+        y = _coast_state()
+        prev = None
+        n_ticks = 6
+        for k in range(n_ticks):
+            prev = control.sample_airbrake(k * 0.1, y, p, prev)
+        assert len(calls) == n_ticks
+    finally:
+        del control._SAMPLED_LAWS["test_s107_counter"]
+
+
+def test_sample_airbrake_threads_prev_ctrl_state_across_ticks():
+    """Tick `k+1`'s own `state` argument is exactly tick `k`'s own
+    RETURNED `ctrl_state` -- the direct "prev state is threaded" proof."""
+    seen_states = []
+
+    def _recording_law(t_k, meas, p, state):
+        seen_states.append(state)
+        return 0.0, len(seen_states)  # new state == this call's own 1-based index
+
+    assert "test_s107_recorder" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s107_recorder", _recording_law)
+    try:
+        p = _coast_scenario_params("test_s107_recorder")
+        y = _coast_state()
+        prev = None
+        for k in range(4):
+            prev = control.sample_airbrake(k * 0.1, y, p, prev)
+        # seen_states[0] is None (no prior tick); seen_states[k] for k>0 must
+        # equal the (k-1)-th call's own returned ctrl_state (its 1-based index).
+        assert seen_states[0] is None
+        for k in range(1, 4):
+            assert seen_states[k] == k  # k-th call sees the (k-1)-th call's returned state (= k)
+    finally:
+        del control._SAMPLED_LAWS["test_s107_recorder"]
+
+
+def test_sample_airbrake_outside_the_coast_window_does_not_call_the_law():
+    """Outside `_in_coast_window` (here: still under thrust), the
+    registered law is never called -- the counter stays 0 and the
+    returned hold's own actuator_hold reflects `cmd=0.0`."""
+    calls = []
+
+    def _counting_law(t_k, meas, p, state):
+        calls.append(state)
+        return 0.9, state  # a nonzero command the gate must still suppress
+
+    assert "test_s107_powered" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s107_powered", _counting_law)
+    try:
+        p = Params(
+            weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4),
+            aero=Aero(S=0.005, d_ref=0.08, C_x=0.5), thrust=Thrust(motor_curve=_MOTOR_CURVE),
+            control=Control(airbrake_model="test_s107_powered"),
+            solver=Solver(sample_rate_hz=10.0, method="rk4"),
+        )
+        y = np.array(State(x=0.0, z=0.0, vx=0.0, vz=-10.0, theta=math.pi / 2, omega=0.0))
+        assert thrust_curve.thrust(0.5, y, p) > 0.0  # sanity: genuinely under power
+        hold = control.sample_airbrake(0.5, y, p, None)
+        assert len(calls) == 0
+        assert isinstance(hold, control.SampledLawHold)
+        assert hold.actuator_hold == 0.0  # actuator.model="ideal" (default): the held cmd itself
+    finally:
+        del control._SAMPLED_LAWS["test_s107_powered"]
+
+
+def test_airbrake_deploy_fraction_unwraps_sampled_law_hold_ideal_actuator():
+    """`actuator.model="ideal"`: a `SampledLawHold`'s own `actuator_hold`
+    (a bare float here) is unwrapped and returned as-is."""
+    p = _coast_scenario_params("none")  # airbrake_model irrelevant: the hold short-circuits the law
+    y = _coast_state()
+    v = control.SampledLawHold(actuator_hold=0.7, ctrl_state=None)
+    hold = sampling.Hold(t_sample=0.0, values={"airbrake": v})
+    assert control.airbrake_deploy_fraction(0.5, y, p, hold) == 0.7
+
+
+def test_airbrake_deploy_fraction_unwraps_sampled_law_hold_full_actuator():
+    """`actuator.model="full"`: a `SampledLawHold` wrapping an
+    `AirbrakeHold` is unwrapped first, then ramped exactly like a plain
+    `AirbrakeHold` would be -- the unwrap step changes nothing about the
+    ramp/passthrough logic below it."""
+    p = dataclasses.replace(
+        _coast_scenario_params("none"), actuator=Actuator(model="full", rate_open=0.5, rate_close=0.5),
+    )
+    y = _coast_state()
+    inner = control.AirbrakeHold(t_k=0.0, f_k=0.2, cmd_eff=0.9, cmd_queue=())
+    v = control.SampledLawHold(actuator_hold=inner, ctrl_state=None)
+    hold = sampling.Hold(t_sample=0.0, values={"airbrake": v})
+
+    t = 0.3
+    result = control.airbrake_deploy_fraction(t, y, p, hold)
+    expected = control._ramp(inner.f_k, inner.cmd_eff, t - inner.t_k,
+                              p.actuator.rate_open, p.actuator.rate_close, p.actuator.f_min, p.actuator.f_max)
+    assert result == expected
+    # Sanity: genuinely rate-limited (not already at cmd_eff), so this
+    # exercises the ramp, not a degenerate case.
+    assert result != inner.cmd_eff
+
+
+def test_airbrake_deploy_fraction_without_a_hold_raises_for_a_registered_sampled_law():
+    """Found during this ticket's own code-review pass (not anticipated
+    by the ticket text): a registered sampled law has no memoryless
+    evaluation of its own, so a hold-less call (e.g. a diagnostic call
+    made outside the sampled-data loop, such as sim/report.py's own
+    brake-fraction report) must fail loudly -- a clear `ValueError`, not
+    an opaque `KeyError` from `_AIRBRAKE_CONTROLLERS` (which never
+    carries a sampled-law entry)."""
+    assert "test_s107_noeval" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s107_noeval", lambda t_k, meas, p, state: (0.0, state))
+    try:
+        p = _coast_scenario_params("test_s107_noeval")
+        y = _coast_state()
+        with pytest.raises(ValueError):
+            control.airbrake_deploy_fraction(0.5, y, p)  # no hold
+    finally:
+        del control._SAMPLED_LAWS["test_s107_noeval"]
+
+
+def test_sample_airbrake_wires_the_real_baro_channel_end_to_end():
+    """Step 108: with `Sensors()` all-default and `atmosphere.model="isa"`
+    (both defaults), a registered dummy law's own `meas.h_baro` equals the
+    true AGL altitude -- end-to-end through `sample_airbrake`'s real
+    wiring (`sim.sensors.measure`), not `sensors.measure` called in
+    isolation (tests/test_sensors.py already owns that)."""
+    from sim import gravity
+
+    seen = []
+
+    def _recording_law(t_k, meas, p, state):
+        seen.append(meas)
+        return 0.0, state
+
+    assert "test_s108_e2e" not in control.known_sampled_laws()
+    control.register_sampled_law("test_s108_e2e", _recording_law)
+    try:
+        p = _coast_scenario_params("test_s108_e2e")
+        y = _coast_state()
+        control.sample_airbrake(0.1, y, p, None)
+        assert len(seen) == 1
+        assert seen[0].h_baro == pytest.approx(gravity.altitude_agl(y, p), abs=1e-9)
+    finally:
+        del control._SAMPLED_LAWS["test_s108_e2e"]
+
+
+def test_unknown_sampled_law_name_without_controllers_imported_raises_keyerror():
+    """A genuine typo in `airbrake_model` -- not a registered sampled law,
+    not a built-in name -- raises `KeyError` at the first call, the same
+    lazy SS7 convention every other unknown model-selection string uses;
+    this ticket introduces no new silent-failure mode."""
+    assert "not_a_real_law" not in control.known_sampled_laws()
+    p = _coast_scenario_params("not_a_real_law")
+    y = _coast_state()
+    with pytest.raises(KeyError):
+        control.sample_airbrake(0.5, y, p, None)

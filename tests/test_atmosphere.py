@@ -137,6 +137,48 @@ def test_density_decreases_monotonically_with_altitude():
     assert all(a > b for a, b in zip(values, values[1:]))
 
 
+# ----------------------------------------------------------------------
+# Step 105 (Phase 2.17, architecture-35-paper-alignment.md SS35.4.1/SS35.4.5,
+# D-105 dispersion hooks): `Atmosphere.dT_K`, a launch-day ISA temperature
+# offset read only by the "isa" tier.
+# ----------------------------------------------------------------------
+
+
+def test_dT_K_zero_is_bit_identical_to_the_legacy_isa_tier():
+    """The default (0.0) must be SKIPPED entirely, not added as 0.0 -- same
+    convention as every other Step 97-115 no-op field."""
+    p0 = _P
+    p_zero = params_replace(_P, {"atmosphere.dT_K": 0.0})
+    for h in (0.0, 1000.0, 11_000.0, 20_000.0, 50_000.0):
+        y = _y_at_altitude(h)
+        assert air_state(0.0, y, p_zero) == air_state(0.0, y, p0)
+
+
+@pytest.mark.parametrize("h", [0.0, 2000.0, 11_000.0, 25_000.0])
+@pytest.mark.parametrize("dT_K", [15.0, -10.0])
+def test_dT_K_offset_lowers_or_raises_density_by_the_isa_ratio(h, dT_K):
+    """A launch-day temperature offset leaves the pressure profile untouched
+    (same hydrostatic/lapse-rate formula) and adds `dT_K` straight to the
+    standard ISA temperature; density, being `p/(R_d*T)` at a FIXED `p`,
+    then scales by the analytic ratio `T_isa / (T_isa + dT_K)` -- `rho(T +
+    dT_K) = rho(T) * T / (T + dT_K)`. `dT_K = +15` (hotter) lowers density;
+    `dT_K = -10` (colder) raises it."""
+    p_base = _P
+    p_hot = params_replace(_P, {"atmosphere.dT_K": dT_K})
+    y = _y_at_altitude(h)
+    base = air_state(0.0, y, p_base)
+    hot = air_state(0.0, y, p_hot)
+
+    assert math.isclose(hot.p, base.p, rel_tol=1e-12)  # pressure profile unchanged
+    assert math.isclose(hot.T, base.T + dT_K, rel_tol=1e-12)
+    expected_rho = base.rho * base.T / (base.T + dT_K)
+    assert math.isclose(hot.rho, expected_rho, rel_tol=1e-9)
+    if dT_K > 0.0:
+        assert hot.rho < base.rho
+    else:
+        assert hot.rho > base.rho
+
+
 def test_isa_ignores_gravity_model():
     """g_isa = 9.80665 is baked into the ISA formula and must not come from
     gravity.g() / p.gravity_model (architecture.md SS14, roadmap.md Step 12

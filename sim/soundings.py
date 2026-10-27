@@ -91,7 +91,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from sim import atmosphere
+from sim import atmosphere, datafiles
 from sim.state import X
 
 
@@ -186,19 +186,7 @@ def _load_sounding_file(path: str) -> Sounding:
     )
 
 
-@functools.lru_cache(maxsize=None)
-def load_case(case: str) -> "tuple[Sounding, ...]":
-    """Load every `*.csv` in `data/soundings/<case>/` into a tuple of
-    `Sounding`. Cached so a case is read from disk once per process
-    (architecture.md SS17: "Params holds names and paths; modules hold
-    the loaded data, cached" -- same rule as `thrust_curve._load_motor_curve`).
-
-    Path resolution follows `sim/thrust_curve.py`'s `_load_motor_curve`
-    convention: absolute path from the repo root (this file's parent
-    directory is `<repo>/sim/`, so one level up is the repo root).
-    """
-    repo_root = os.path.dirname(os.path.dirname(__file__))
-    case_dir = os.path.join(repo_root, "data", "soundings", case)
+def _load_case_impl(case: str, case_dir: str) -> "tuple[Sounding, ...]":
     paths = sorted(glob.glob(os.path.join(case_dir, "*.csv")))
 
     if not paths:
@@ -207,6 +195,29 @@ def load_case(case: str) -> "tuple[Sounding, ...]":
         )
 
     return tuple(_load_sounding_file(path) for path in paths)
+
+
+_load_case_cached = functools.lru_cache(maxsize=None)(_load_case_impl)
+
+
+def load_case(case: str) -> "tuple[Sounding, ...]":
+    """Load every `*.csv` in `data/soundings/<case>/` into a tuple of
+    `Sounding`. Cached so a case is read from disk once per process
+    (architecture.md SS17: "Params holds names and paths; modules hold
+    the loaded data, cached" -- same rule as `thrust_curve._load_motor_curve`).
+
+    `case` is resolved via `sim.datafiles.resolve` ("soundings") before
+    the lookup. The cache key includes the *resolved* absolute directory
+    (not just the raw `case` string) -- a cwd-relative case is never
+    served a stale resolution across a change of working directory
+    between two calls with the same string (see `sim/datafiles.py`'s
+    docstring); `case` itself rides along only for the error message.
+    """
+    case_dir = datafiles.resolve(case, "soundings")
+    return _load_case_cached(case, case_dir)
+
+
+load_case.cache_clear = _load_case_cached.cache_clear
 
 
 # ----------------------------------------------------------------------

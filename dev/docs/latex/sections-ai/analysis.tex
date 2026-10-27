@@ -129,13 +129,19 @@ familiar ``centre of pressure behind centre of gravity'' rule, which is what
 In this report's sign of $\vec{A}_m$, a positive $C_{m,\alpha}$ is stabilising, the opposite of
 the textbook $C_{m,\alpha}<0$.
 
-\paragraph{Static margin, in calibers.} The rocketry convention divides the arm by the reference
-length and flips the sign so that a stable rocket gets a positive number:
+\paragraph{Static margin, in calibers.} $p$ is a moment reference station, not necessarily the centre
+of pressure (\autoref{sec:geometry}): the CP is the derived station at which the moment slope about it
+vanishes,
 \begin{equation}
-    \mathrm{SM} = \frac{l_p-l_g}{c}.
+    l_{cp} = l_p - c\,\frac{C_{m,\alpha}}{C_{z,\alpha}},
 \end{equation}
-The CoP then sits $\mathrm{SM}$ body diameters aft of the CoG, and \autoref{eq:static_margin} is
-equivalent to $\mathrm{SM}>-C_{m,\alpha}/C_{z,\alpha}$.
+and the rocketry convention divides the CP-to-CoG arm by the reference length, flipping the sign so a
+stable rocket gets a positive number:
+\begin{equation}
+    \mathrm{SM} = \frac{l_{cp}-l_g}{c} = \frac{l_p-l_g}{c} - \frac{C_{m,\alpha}}{C_{z,\alpha}}.
+\end{equation}
+$\mathrm{SM}>0$ is then equivalent to \autoref{eq:static_margin}; the two coincide, $l_{cp}=l_p$, exactly
+when $C_{m,\alpha}=0$ about $p$ (the degenerate case where $p$ already is the CP).
 
 \subsubsection{Dynamic stability}\label{sec:analysis_dynamic}
 The static criterion does not say what the resulting oscillation does. That needs the

@@ -1,0 +1,368 @@
+\section{Rocket 3D}\label{sec:rocket3d}
+This section lifts \autoref{sec:rocket2d} out of the pitch plane. The frames, the points, the
+forces and the translational equation of motion all survive unchanged in \emph{form} --- only the
+number of components they carry grows. One thing is genuinely new and is the whole subject here:
+rotation about three axes at once, which needs an attitude representation that does not break
+pointing straight up, a full moment-of-inertia tensor instead of the single pitch inertia $I$, and
+Euler's rotational equations in place of the scalar \autoref{eq:eom_rot}.
+
+\subsection{What 3D changes, and what it does not}\label{sec:3d_scope}
+\autoref{sec:frames} already defines a right-handed body triad
+$\hat{x}_r,\hat{y}_r,\hat{z}_r$; the planar model simply never rotated about two of those axes.
+Nothing in that definition needs amending. Likewise the points $A,g,t,p$ and the arms
+$\vec{gt},\vec{gp}$ of \autoref{eq:arms} are points and body-frame distances, not planar
+constructions, and the forces $\vec{W},\vec{T},\vec{A}_f$ generalise component-wise. Translation,
+\autoref{eq:eom_trans}, is therefore unchanged as written; only the rotation matrix taking body
+components to ground components is now a full $3\times3$ attitude matrix rather than the two lines
+of \autoref{eq:body_axes_in_ground}.
+
+So three things change, and they are the contents of this section:
+\begin{itemize}
+    \item \textbf{Attitude.} A single pitch angle $\theta_r$ cannot describe a general orientation.
+    \autoref{sec:3d_attitude} replaces it with a quaternion.
+    \item \textbf{Inertia.} The scalar $I$ of \autoref{sec:mass} is one component of a symmetric
+    tensor with six independent entries. \autoref{sec:3d_inertia} and
+    \autoref{sec:3d_admissibility} set it up, including which tensors are physically possible.
+    \item \textbf{Rotational dynamics.} \autoref{eq:eom_rot} is a scalar statement about one axis.
+    A body rotating about three axes acquires the gyroscopic term $\vec\omega\times\mathbf{I}
+    \vec\omega$, which has no planar analogue at all --- a single rotation axis has nothing to
+    precess around. \autoref{sec:3d_eom_rot}.
+\end{itemize}
+The angular velocity is now a vector, $\vec\omega = \omega_x\hat{x}_r + \omega_y\hat{y}_r +
+\omega_z\hat{z}_r$: $\omega_x$ the roll rate of \autoref{sec:roll}, $\omega_y$ the pitch rate
+written $\omega_r$ throughout \autoref{sec:rocket2d}, and $\omega_z$ the yaw rate that the planar
+model sets identically to zero (\autoref{sec:assumptions}). The identification
+$\omega_y\equiv\omega_r$ is exact, not a convention chosen here: $\hat{y}_r$ is the pitch-plane
+normal in \autoref{sec:frames} and $\theta_r$ is positive nose-up about $+\hat{y}_r$.
+
+What 3D does \emph{not} buy is better numbers for a nominal flight. For a symmetric vehicle flown
+near-vertically in a uniform wind, the 3D answer is the 2D answer: apogee, maximum dynamic
+pressure, burnout velocity and static margin are all essentially unchanged. 3D is about
+\emph{asymmetric} flight --- roll, out-of-plane wind response, sideslip, and the mass asymmetry
+this section's full tensor exists to carry.
+
+\subsection{Attitude: the quaternion}\label{sec:3d_attitude}
+A three-angle sequence is the obvious generalisation of $\theta_r$ and the wrong one here. The
+standard 3--2--1 (yaw--pitch--roll) sequence is singular at a pitch of $\pm90^\circ$, which is
+exactly where a vertically launched rocket sits for its entire boost phase: the attitude is
+perfectly well defined there, but the angles that describe it are not, and their rates diverge.
+
+Let $q=(q_0,q_1,q_2,q_3)$ be the unit quaternion representing the rotation from $\mathcal{F}_0$ to
+$\mathcal{F}_r$, scalar part first. Its kinematics are the standard result (Wertz
+\cite{wertz}, or any flight-dynamics text):
+\begin{equation} \label{eq:quat_kinematics}
+    \dot q = \tfrac12\, q \otimes \left(0,\ \vec\omega\right),
+\end{equation}
+with $\otimes$ the Hamilton product and the body rate $\vec\omega$ embedded as a pure quaternion.
+In components, which is the form actually integrated:
+\begin{equation} \label{eq:quat_kinematics_components}
+    \begin{aligned}
+        \dot q_0 &= -\tfrac12\left(q_1\omega_x + q_2\omega_y + q_3\omega_z\right), &\qquad
+        \dot q_1 &= \phantom{-}\tfrac12\left(q_0\omega_x + q_2\omega_z - q_3\omega_y\right), \\
+        \dot q_2 &= \phantom{-}\tfrac12\left(q_0\omega_y + q_3\omega_x - q_1\omega_z\right), &\qquad
+        \dot q_3 &= \phantom{-}\tfrac12\left(q_0\omega_z + q_1\omega_y - q_2\omega_x\right).
+    \end{aligned}
+\end{equation}
+There is no singularity anywhere in \autoref{eq:quat_kinematics_components}, and the price is one
+extra state and one constraint, $\lVert q\rVert = 1$.
+
+\paragraph{The planar case falls out exactly.} A pure pitch rotation is
+$q = \left(\cos\tfrac{\theta_r}{2},\ 0,\ \sin\tfrac{\theta_r}{2},\ 0\right)$. Substituting it with
+$\omega_x=\omega_z=0$ into \autoref{eq:quat_kinematics_components} kills $\dot q_0$'s $q_1,q_3$
+terms and both $\dot q_1$ and $\dot q_3$ identically, leaving
+\begin{equation} \label{eq:quat_pitch_only}
+    \dot q_0 = -\tfrac12\sin\tfrac{\theta_r}{2}\,\omega_y, \qquad
+    \dot q_2 = \phantom{-}\tfrac12\cos\tfrac{\theta_r}{2}\,\omega_y,
+\end{equation}
+which is the half-angle form of $\dot\theta_r = \omega_r$ --- the planar kinematics of
+\autoref{eq:state_kinematics}, recovered without approximation. The attitude matrix built from this
+$q$ likewise reproduces \autoref{eq:body_axes_in_ground} exactly.
+
+\paragraph{Norm drift.} \autoref{eq:quat_kinematics} preserves $\lVert q\rVert = 1$ in exact
+arithmetic only; in floating point the norm wanders. The constraint is therefore restored by
+renormalising $q$, either at every accepted integrator step or as a solver event ---
+an integration concern with no physics in it, and the drift between restorations is a measured
+quantity rather than an assumed-small one.
+\simtodo{renormalisation is not yet applied anywhere: the right-hand side deliberately does not
+project $q$, because a projection applied inside the right-hand side changes the vector field the
+error controller sees. It belongs at step boundaries, which requires the 3D integration harness
+that does not exist yet (\autoref{sec:3d_state})}
+
+\subsection{The inertia tensor}\label{sec:3d_inertia}
+In the pitch plane, all of rotational inertia is the single number $I(t)$ of
+\autoref{eq:mass_inertia}: the moment of inertia about $\hat{y}_r$ through $g$. A body rotating
+about three axes needs the full tensor, and this document takes it in its \emph{general} symmetric
+form --- six independent components, with no assumption that the body axes are principal axes and
+no assumption that the two transverse moments are equal.
+
+That is a deliberate widening of what \autoref{sec:roll_decoupling} assumes. A rocket built
+perfectly as a body of revolution about $\hat{x}_r$ has $I_{yy}=I_{zz}$ and vanishing products of
+inertia, by symmetry; the general tensor exists precisely to carry the \emph{departure} from that
+ideal --- a heavier avionics bay on one side, an off-axis payload, a bent airframe --- which is
+real on any built vehicle and which the symmetry argument cannot represent at all.
+
+\paragraph{Definitions, and the sign that matters.} Taking moments about $g$, with body-frame
+coordinates $(x,y,z)$ measured from $g$:
+\begin{equation} \label{eq:inertia_integrals}
+    \begin{aligned}
+        I_{xx} &= \int\left(y^2+z^2\right)\mathrm{d}m, &\quad
+        I_{yy} &= \int\left(x^2+z^2\right)\mathrm{d}m, &\quad
+        I_{zz} &= \int\left(x^2+y^2\right)\mathrm{d}m, \\
+        I_{xy} &= \int xy\,\mathrm{d}m, &\quad
+        I_{xz} &= \int xz\,\mathrm{d}m, &\quad
+        I_{yz} &= \int yz\,\mathrm{d}m.
+    \end{aligned}
+\end{equation}
+The first three are the moments of inertia, the last three the \emph{products} of inertia. The
+angular momentum about $g$ is $\vec{H} = \int \vec{r}\times\left(\vec\omega\times\vec{r}\right)
+\mathrm{d}m$; expanding with $\vec{r}\times(\vec\omega\times\vec{r}) = \vec\omega\,(\vec{r}\cdot
+\vec{r}) - \vec{r}\,(\vec{r}\cdot\vec\omega)$ gives, for the first component,
+\begin{equation*}
+    H_x = \omega_x\!\int\!\left(y^2+z^2\right)\mathrm{d}m - \omega_y\!\int\! xy\,\mathrm{d}m
+          - \omega_z\!\int\! xz\,\mathrm{d}m,
+\end{equation*}
+and cyclically for $H_y,H_z$. So $\vec{H}=\mathbf{I}\vec\omega$ with
+\begin{equation} \label{eq:inertia_matrix}
+    \mathbf{I} = \begin{bmatrix}
+        \phantom{-}I_{xx} & -I_{xy} & -I_{xz} \\
+        -I_{xy} & \phantom{-}I_{yy} & -I_{yz} \\
+        -I_{xz} & -I_{yz} & \phantom{-}I_{zz}
+    \end{bmatrix}.
+\end{equation}
+The minus signs are a consequence of \autoref{eq:inertia_integrals}, not a choice: they appear
+because $I_{xy}$ is defined as the integral $\int xy\,\mathrm{d}m$ rather than as the matrix entry
+itself. Both conventions are in use --- the one above is standard in aerospace texts (Hibbeler
+\cite{hibbeler}, Stevens and Lewis \cite{stevenslewis}) and is what a CAD mass-properties report
+calls ``products of inertia''; much of the physics literature instead defines the tensor
+components directly as $-\!\int x_ix_j\,\mathrm{d}m$ for $i\neq j$ and so carries no extra sign.
+\emph{Numbers transcribed from a source using the other convention will have the wrong sign on
+every off-diagonal term.} The convention of \autoref{eq:inertia_integrals} is the one used
+throughout this document and is recorded in \autoref{sec:conventions}.
+
+\paragraph{Relation to the planar $I$.} $I_{yy}$ is the quantity \autoref{sec:mass_inertia} calls
+$I$, and $I_{xx}$ is the axial inertia \autoref{sec:roll} calls $I_x$ --- the same physical numbers,
+reached from a different direction. Two differences are worth stating rather than leaving to be
+discovered:
+\begin{itemize}
+    \item \autoref{eq:mass_inertia} gives $I(t)$ as a function of time, because the propellant
+    burns and $g$ travels along the axis. The tensor of \autoref{eq:inertia_matrix} is taken
+    \emph{constant}. Where the mass model is active the two therefore agree only at the instant the
+    tensor is evaluated.
+    \item $I_{xx}$ is \emph{not} shifted by the parallel-axis theorem as $g$ travels, because axial
+    inertia is built from perpendicular distances to the axis, which an axial shift of the
+    reference point does not change. It does, however, fall with the propellant mass; it is
+    independent of $l_g(t)$, not of $m(t)$.
+\end{itemize}
+\simtodo{the simulator carries the tensor as six constant inputs, separate from the time-varying
+$I(t)$ of \autoref{eq:mass_inertia}, because the 3D path has no variable-mass model yet. A
+time-varying tensor adds the term $\dot{\mathbf{I}}\vec\omega$ to \autoref{eq:eom_rot_3d}, and
+nothing in this document yet derives $\dot{\mathbf{I}}$ for a burning grain}
+\restodo{no measured mass properties exist for the demo airframe: neither $I_{xx}$ nor the three
+products of inertia. The same airframe-geometry gap already named in \autoref{sec:backlog} for
+Barrowman and $C_{m,q}$}
+
+\subsection{Which tensors are physically possible}\label{sec:3d_admissibility}
+Not every symmetric matrix is an inertia tensor, and the constraints are sharp enough to be worth
+checking against before a tensor is trusted. Both follow from \autoref{eq:inertia_integrals} in one
+line each.
+
+\paragraph{Positive definiteness.} For any $\vec\omega$,
+\begin{equation} \label{eq:inertia_pd}
+    \vec\omega\cdot\mathbf{I}\vec\omega
+        = \int\left\lVert\vec\omega\times\vec{r}\right\rVert^2\mathrm{d}m \;\ge\; 0,
+\end{equation}
+which is twice the rotational kinetic energy. So $\mathbf{I}$ is always positive
+\emph{semi}-definite, and positive \emph{definite} unless every mass element lies on one line
+through $g$. A real vehicle is not a line, so all three principal moments --- the eigenvalues
+$\lambda_1\le\lambda_2\le\lambda_3$ of $\mathbf{I}$ --- are strictly positive.
+
+\paragraph{Triangle inequalities.} In any orthonormal body frame,
+\begin{equation} \label{eq:inertia_triangle}
+    I_{xx} + I_{yy} - I_{zz} = \int\left[\left(y^2+z^2\right)+\left(x^2+z^2\right)
+        -\left(x^2+y^2\right)\right]\mathrm{d}m = 2\!\int\! z^2\,\mathrm{d}m \;\ge\; 0,
+\end{equation}
+and cyclically; on the principal axes this reads $\lambda_1+\lambda_2\ge\lambda_3$, which is the
+binding one of the three. Positive definiteness alone is not enough: $\operatorname{diag}(1,1,10)$
+is positive definite and corresponds to no body whatever.
+
+\paragraph{Together they are sufficient.} Given $\lambda_i>0$ satisfying the triangle inequalities
+strictly, the uniform solid ellipsoid of mass $m$ with semi-axes
+\begin{equation} \label{eq:inertia_ellipsoid}
+    a^2 = \frac{5}{2m}\left(\lambda_2+\lambda_3-\lambda_1\right), \quad
+    b^2 = \frac{5}{2m}\left(\lambda_1+\lambda_3-\lambda_2\right), \quad
+    c^2 = \frac{5}{2m}\left(\lambda_1+\lambda_2-\lambda_3\right)
+\end{equation}
+has exactly those principal moments. So \autoref{eq:inertia_pd} and \autoref{eq:inertia_triangle}
+are necessary \emph{and} sufficient for a tensor to be realisable by some mass distribution: a
+check against them rejects only the impossible, with no conservatism and no tuning.
+
+\paragraph{The consequence for a slender vehicle.} Combining the two triangle inequalities that
+contain $I_{xx}$,
+\begin{equation} \label{eq:inertia_transverse_bound}
+    I_{xx} + I_{yy} - I_{zz}\ge 0 \;\;\text{and}\;\; I_{xx} + I_{zz} - I_{yy}\ge 0
+    \qquad\Longleftrightarrow\qquad
+    \left\lvert I_{yy}-I_{zz}\right\rvert \;\le\; I_{xx}.
+\end{equation}
+The two transverse moments of \emph{any} body differ by at most its axial moment. For a rocket that
+is a severe restriction, because $I_{xx}$ is two to three orders of magnitude below $I_{yy}$: with
+the demo airframe's figures ($m\approx1.5\,\mathrm{kg}$, $I_{yy}\approx0.15\,\mathrm{kg\,m^2}$, body
+radius $27\,\mathrm{mm}$, so $I_{xx}\approx5\times10^{-4}\ldots1.1\times10^{-3}\,\mathrm{kg\,m^2}$
+between a solid cylinder and a thin shell) the two transverse moments may differ by no more than
+about half a percent of their own magnitude. This is not a modelling limitation but the geometry of
+a slender body: for an axisymmetric mass distribution $\int y^2\mathrm{d}m=\int z^2\mathrm{d}m$, so
+the axial moment $I_{xx}=2\!\int\! z^2\mathrm{d}m$ \emph{is} the slack in
+\autoref{eq:inertia_triangle} --- and a slender body has very little of it to spend. The freedom
+the general tensor really adds is therefore the
+\emph{off-diagonal} one --- body axes that are not principal axes --- which carries no comparably
+narrow bound.
+
+\subsection{Rotational equations of motion}\label{sec:3d_eom_rot}
+Newton's second law for rotation is $\mathrm{d}\vec{H}/\mathrm{d}t=\vec{M}$ in the inertial frame.
+$\vec{H}$ is carried in body components, and the body frame itself rotates at $\vec\omega$, so by
+the transport theorem $\mathrm{d}\vec{H}/\mathrm{d}t\big|_{\mathcal{F}_0} = \dot{\vec{H}}
+\big|_{\mathcal{F}_r} + \vec\omega\times\vec{H}$. For a rigid body of fixed mass distribution
+$\mathbf{I}$ is constant in $\mathcal{F}_r$, so $\dot{\vec{H}}\big|_{\mathcal{F}_r} =
+\mathbf{I}\dot{\vec\omega}$, giving Euler's rotational equation in its general form:
+\begin{equation} \label{eq:eom_rot_3d}
+    \mathbf{I}\dot{\vec\omega} + \vec\omega\times\left(\mathbf{I}\vec\omega\right) = \vec{M}.
+\end{equation}
+This is the 3D replacement for \autoref{eq:eom_rot}. Two conditions are built into it and are
+easily violated by accident: moments and inertia are both taken about $g$ (or another body-fixed
+point), and $\mathbf{I}$ is constant --- a time-varying tensor adds $\dot{\mathbf{I}}\vec\omega$ on
+the left.
+
+Written out for integration, with $\vec{H}=\mathbf{I}\vec\omega$ from
+\autoref{eq:inertia_matrix}:
+\begin{equation} \label{eq:eom_momentum_3d}
+    \begin{aligned}
+        H_x &= \phantom{-}I_{xx}\omega_x - I_{xy}\omega_y - I_{xz}\omega_z, \\
+        H_y &= -I_{xy}\omega_x + I_{yy}\omega_y - I_{yz}\omega_z, \\
+        H_z &= -I_{xz}\omega_x - I_{yz}\omega_y + I_{zz}\omega_z,
+    \end{aligned}
+\end{equation}
+the rotational equation becomes a $3\times3$ linear system in $\dot{\vec\omega}$:
+\begin{equation} \label{eq:eom_rot_3d_expanded}
+    \mathbf{I}\dot{\vec\omega} = \vec{M} - \begin{bmatrix}
+        \omega_yH_z - \omega_zH_y \\ \omega_zH_x - \omega_xH_z \\ \omega_xH_y - \omega_yH_x
+    \end{bmatrix}.
+\end{equation}
+This is the form evaluated once per right-hand-side call. It is well conditioned for any admissible
+tensor (\autoref{sec:3d_admissibility}), though a slender airframe's condition number is of order
+$I_{yy}/I_{xx}\approx300$, which is reason enough to solve the system rather than form
+$\mathbf{I}^{-1}$ explicitly.
+
+\paragraph{Reduction to principal axes.} With the products of inertia zero,
+$\vec{H}=(I_{xx}\omega_x,\,I_{yy}\omega_y,\,I_{zz}\omega_z)$ and
+\autoref{eq:eom_rot_3d_expanded} separates into the classical Euler equations:
+\begin{equation} \label{eq:eom_rot_3d_diag}
+    \begin{aligned}
+        I_{xx}\dot\omega_x + \left(I_{zz}-I_{yy}\right)\omega_y\omega_z &= M_x, \\
+        I_{yy}\dot\omega_y + \left(I_{xx}-I_{zz}\right)\omega_z\omega_x &= M_y, \\
+        I_{zz}\dot\omega_z + \left(I_{yy}-I_{xx}\right)\omega_x\omega_y &= M_z.
+    \end{aligned}
+\end{equation}
+
+\paragraph{Reduction to the axisymmetric body.} Setting $I_{yy}=I_{zz}=I$ and $I_{xx}=I_x$, the
+notation of \autoref{sec:mass} and \autoref{sec:roll}:
+\begin{equation} \label{eq:eom_rot_3d_axisym}
+    \begin{aligned}
+        I_x\dot\omega_x &= M_x, \\
+        I\dot\omega_y &= M_y - \left(I_x-I\right)\omega_z\omega_x, \\
+        I\dot\omega_z &= M_z - \left(I-I_x\right)\omega_x\omega_y.
+    \end{aligned}
+\end{equation}
+The middle line is \autoref{eq:roll_gyro_pitch} exactly, which is the cross-check that the signs of
+\autoref{eq:eom_rot_3d_expanded} are right. Three features of
+\autoref{eq:eom_rot_3d_axisym} are worth naming:
+\begin{itemize}
+    \item \textbf{The roll axis carries no gyroscopic term at all} --- the coefficient would be
+    $I-I=0$. This is why the decoupled roll equation \autoref{eq:roll_airframe} of
+    \autoref{sec:roll} is not an approximation but literally the roll component of the full 3D
+    system, and why it carries over to 3D unchanged.
+    \item \textbf{With $\omega_x=0$ the transverse axes decouple} into two independent copies of
+    the planar \autoref{eq:eom_rot}. A non-rolling rocket has no pitch--yaw coupling.
+    \item \textbf{With $\omega_x=\omega_z=0$ the pitch line becomes $I\dot\omega_y=M_y$}, which is
+    \autoref{eq:eom_rot} itself. The planar model is the exact restriction of this one, not a
+    separate theory.
+\end{itemize}
+
+\paragraph{What this recovers that the planar model discarded.} \autoref{sec:roll_decoupling}
+shows the roll--pitch gyroscopic torque and the reaction wheel's own gyroscopic torque
+(\autoref{eq:roll_gyro_wheel}) are both pure \emph{yaw} torques, and that a planar model can only
+compute them and throw them away. In \autoref{eq:eom_rot_3d} they are simply there: the first as
+the $M_z$-row coupling of \autoref{eq:eom_rot_3d_axisym}, the second once the wheel's momentum is
+added to $\vec{H}$.
+\simtodo{the reaction wheel is not yet part of the 3D momentum $\vec{H}$: the 3D tensor describes
+the airframe with the wheel included and locked, as $I_x$ already does in \autoref{sec:roll}. A
+spinning wheel in 3D adds $\vec{h}_w$ to $\vec{H}$ and so a term $\vec\omega\times\vec{h}_w$ to
+\autoref{eq:eom_rot_3d}}
+
+\subsection{The moment vector}\label{sec:3d_moment}
+\autoref{eq:eom_rot} takes the bracket of thrust, aerodynamic-force and aerodynamic-moment
+contributions and projects it onto $\hat{y}_r$. The 3D moment is that same bracket \emph{without}
+the projection:
+\begin{equation} \label{eq:moment_3d}
+    \vec{M} = \vec{gt}\times\vec{T} + \vec{gp}\times\vec{A}_f + \vec{A}_m,
+\end{equation}
+with the arms of \autoref{eq:arms} read as 3-vectors and $\vec{A}_m$ now carrying roll and yaw
+components alongside the pitching one of \autoref{eq:aero_magnitudes}. Weight still contributes
+nothing, since it acts at $g$.
+
+The three components are not equally well supplied. $M_y$ is the planar pitching moment and is
+fully modelled (\autoref{sec:aero}). $M_z$, the yaw moment, needs the aerodynamic response to
+sideslip --- the same coefficients as pitch for a body of revolution, driven by the out-of-plane
+component of the relative wind instead of the in-plane one. $M_x$, the roll moment, needs fin cant
+and roll damping, which is \autoref{eq:roll_aero_moment} of \autoref{sec:roll}.
+\simtodo{only $M_y$ is wired: the simulator currently evaluates \autoref{eq:moment_3d} as
+$\vec{M}=(0,\,M_y,\,0)$ with $M_y$ taken from the planar chain, so a 3D run reproduces the planar
+pitch history and nothing more. $M_x$ and $M_z$ arrive with the 3D aerodynamic model}
+\restodo{the 3D aerodynamic moment needs the total angle of attack and the sideslip angle in place
+of the planar $\alpha$, a roll-moment coefficient from fin cant, and roll damping. The
+body-of-revolution coefficient set of \autoref{sec:aero} is already written in terms of a total
+$\alpha$, so the extension is a matter of resolving the relative wind in 3D rather than new
+coefficient data --- except for the roll pair, for which no data exists}
+
+A second gap sits in \autoref{eq:arms} rather than in the coefficients: the arms
+$\vec{gt},\vec{gp}$ carry the radial offsets $r_g,r_t$ along $-\hat{z}_r$ only, because in the
+pitch plane there is nowhere else for them to point. In 3D each becomes a two-component radial
+offset, and whether the arms follow $l_g(t)$ as the centre of gravity travels --- an open question
+already in the planar model --- becomes the same question twice over, once for pitch and once for
+yaw.
+\restodo{radial offsets as 3D vectors, and whether the moment arms track $l_g(t)$: one error term
+in the planar model, the same term in both transverse channels in 3D}
+
+\subsection{State vector, and what remains}\label{sec:3d_state}
+The seven-component planar state of \autoref{eq:state_vector} becomes thirteen:
+\begin{equation} \label{eq:state_vector_3d}
+    \vec{y} = \left(\vec{x}_r,\ \vec{v}_r,\ q,\ \vec\omega\right)
+        = \left(x,y,z,\ v_x,v_y,v_z,\ q_0,q_1,q_2,q_3,\ \omega_x,\omega_y,\omega_z\right),
+\end{equation}
+with $z$ and $v_z$ positive \emph{down} as before, $q$ the attitude of
+\autoref{sec:3d_attitude} and $\vec\omega$ the body rate. Position and velocity are resolved in
+$\mathcal{F}_0$; $\vec\omega$ is resolved in $\mathcal{F}_r$, which is what
+\autoref{eq:eom_rot_3d} is written in. The derivatives are
+$\dot{\vec{x}}_r=\vec{v}_r$ and $\dot{\vec{v}}_r=\vec{a}_r$ from \autoref{eq:eom_trans},
+$\dot q$ from \autoref{eq:quat_kinematics_components}, and $\dot{\vec\omega}$ from
+\autoref{eq:eom_rot_3d_expanded}.
+
+Mass is absent from \autoref{eq:state_vector_3d}, unlike \autoref{eq:state_vector}: the 3D
+formulation above is written for a rigid body of fixed mass distribution, consistent with the
+constant tensor of \autoref{sec:3d_inertia}.
+\simtodo{the 3D state is integrated by the same schemes as the planar one
+(\autoref{eq:rk4}), but none of the flight-phase machinery is generalised: the rail constraint
+(\autoref{sec:rail}), the canopy phase (\autoref{sec:recovery}), and the ground, apogee and
+burnout event detection are all written against \autoref{eq:state_vector}. A 3D scenario therefore
+cannot yet be flown end to end --- the rotational dynamics of this section are exercised over a
+fixed time span only. In particular the attitude freezing that \autoref{sec:rail} and
+\autoref{sec:recovery} apply to $\theta_r,\omega_r$ has no 3D counterpart yet, and must freeze
+$\dot q$ and $\dot{\vec\omega}$ together when it arrives}
+
+The validation this formulation supports today, in increasing strength: the planar restriction of
+\autoref{eq:eom_rot_3d_axisym} reproduces the pitch history of \autoref{eq:eom_rot} with the
+out-of-plane components staying identically zero; torque-free motion of an asymmetric tensor
+conserves $\lVert\mathbf{I}\vec\omega\rVert$ and the rotational kinetic energy of
+\autoref{eq:inertia_pd}; and, strongest, the angular momentum $\vec{H}$ resolved back into
+$\mathcal{F}_0$ through the attitude of \autoref{sec:3d_attitude} is constant under zero moment,
+which ties \autoref{eq:quat_kinematics_components} and \autoref{eq:eom_rot_3d} together and fails
+on any frame or convention mismatch between them.
+

@@ -75,6 +75,15 @@ def _g_radial(t: float, y: np.ndarray, p) -> float:
     itself stays the geocentric falloff radius unchanged (architecture.md
     SS25.2: `p.R_e` and `curvature_radius(p)` are different quantities,
     never substituted for one another).
+
+    Informational (conventions audit SS8.3), not a bug: this uses AGL while
+    the sibling `_g_wgs84` below uses `altitude_msl` -- for a site with
+    `Site.h0_m != 0` the two models disagree about the reference radius by
+    `h0_m` (~3e-4 g per 1000 m). There is no single "standard" radial model
+    to match here (it is itself an idealisation), so this is a documented
+    internal inconsistency, not a fix: switching to `altitude_msl` would
+    move pins for every `gravity.model = "radial"` scenario with a nonzero
+    site elevation, for a correction far below this model's own fidelity.
     """
     h = altitude_agl(y, p)
     return p.g0 * (p.gravity.R_e / (p.gravity.R_e + h)) ** 2

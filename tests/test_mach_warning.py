@@ -13,9 +13,9 @@ from sim.params import replace as params_replace
 
 
 def _demo():
-    import configs
+    from examples.worked_scenario import DEMO_SCENARIO
 
-    return configs.get("demo")
+    return DEMO_SCENARIO.config
 
 
 def test_demo_run_warns_with_peak_mach_time_and_model():

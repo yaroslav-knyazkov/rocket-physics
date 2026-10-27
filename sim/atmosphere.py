@@ -16,6 +16,7 @@ NOT call `gravity.g()` (architecture.md SS14) -- the new import exists
 solely for the surface-geometry seam, not the gravity magnitude.
 """
 
+import math
 from typing import NamedTuple
 
 import numpy as np
@@ -117,6 +118,15 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     else:
         press = p_b * np.exp(-_G_ISA * (H - H_b) / (_R_D * T_b))
 
+    # Step 105 (architecture-35 SS35.4.1/SS35.4.5, dispersion hooks): a launch-day
+    # temperature offset, applied AFTER the pressure profile (the lapse-rate/
+    # hydrostatic formula above is untouched -- this models a day that is uniformly
+    # hotter/colder than the standard atmosphere at the same pressure altitude, not a
+    # different lapse rate). `== 0.0` (the default) is skipped entirely, not added as
+    # 0.0, so every pinned flight is bit-for-bit unchanged.
+    if p.atmosphere.dT_K != 0.0:
+        T = T + p.atmosphere.dT_K
+
     rho = press / (_R_D * T)
     a = np.sqrt(_GAMMA * _R_D * T)
     mu = _MU_0 * (T / _T_0) ** 1.5 * (_T_0 + _S_MU) / (T + _S_MU)
@@ -124,6 +134,75 @@ def _isa_air_state(t: float, y: np.ndarray, p) -> AirState:
     return AirState(
         rho=float(rho), p=float(press), T=float(T), a=float(a), mu=float(mu)
     )
+
+
+def isa_pressure_altitude(p_Pa: float) -> float:
+    """Inverse of `_isa_air_state`'s own pressure column: given a static
+    pressure [Pa], returns h_msl [m] -- the altitude a barometric
+    altimeter calibrated to the STANDARD ISA profile would report for
+    that pressure, regardless of which atmosphere tier actually produced
+    it (sim/sensors.py's own baro channel, Step 108).
+
+    Algebraic inverse of the SAME `_LAYERS` table `_isa_air_state` reads
+    (not a numerical root-find) -- so `isa_pressure_altitude(p)` for a `p`
+    that came from `_isa_air_state(h).p` recovers `h` to float64 rounding,
+    WITHIN one layer (sim/sensors.py's "all-zero sensor returns the
+    truth" acceptance test relies on exactly this). `_isa_air_state`
+    itself is untouched by this function -- deliberately duplicates the
+    tiny forward-pressure core below rather than refactoring the pinned
+    function to share it (same "duplicate, don't refactor a pinned path"
+    call task-104/107 already made for their own near-identical copies).
+
+    Clamped into the forward formula's own domain
+    (`_H_MSL_MIN`/`_H_MSL_MAX`, B13) before inverting: a pressure outside
+    `[_isa_pressure_core(_H_MSL_MAX), _isa_pressure_core(_H_MSL_MIN)]` is
+    clamped to the nearer boundary first, so a pathological input cannot
+    produce a NaN/log-of-negative. In this ticket's own call pattern
+    (sim/sensors.py always feeds it a TRUE, noiseless pressure from
+    `air_state`, never a noisy one -- noise is added in altitude space,
+    AFTER this call, see §108.3.3) the clamp never actually triggers for
+    any realistic flight; it exists so this function is safe to call on
+    its own, as a public API, same defensive standing as B13 itself.
+    """
+    p_Pa = min(max(p_Pa, _ISA_P_AT_H_MSL_MAX), _ISA_P_AT_H_MSL_MIN)
+    H_b, L, T_b, p_b = _LAYERS[0]
+    for base_H, lapse, layer_T_b, layer_p_b in _LAYERS:
+        if p_Pa > layer_p_b:   # haven't climbed into this layer yet (mirrors "if H < base_H: break")
+            break
+        H_b, L, T_b, p_b = base_H, lapse, layer_T_b, layer_p_b
+    if L != 0.0:
+        T = T_b * (p_Pa / p_b) ** (-L * _R_D / _G_ISA)
+        H = H_b + (T - T_b) / L
+    else:
+        H = H_b - (_R_D * T_b / _G_ISA) * math.log(p_Pa / p_b)
+    return float(_R_ISA * H / (_R_ISA - H))
+
+
+def _isa_pressure_core(h_msl: float) -> float:
+    """Private, tiny DUPLICATE of `_isa_air_state`'s own h->pressure core
+    (table walk + T + press, nothing else) -- used ONLY to compute the two
+    module-level clamp-bound constants below, at import time. Exists so
+    `isa_pressure_altitude`'s clamp bounds are derived from `_LAYERS`
+    itself (self-consistent if the table ever changes) without importing
+    anything from, or editing a single character of, `_isa_air_state`.
+    """
+    h_msl = min(max(h_msl, _H_MSL_MIN), _H_MSL_MAX)
+    H = _R_ISA * h_msl / (_R_ISA + h_msl)
+    H_b, L, T_b, p_b = _LAYERS[0]
+    for base_H, lapse, layer_T_b, layer_p_b in _LAYERS:
+        if H < base_H:
+            break
+        H_b, L, T_b, p_b = base_H, lapse, layer_T_b, layer_p_b
+    T = T_b + L * (H - H_b)
+    if L != 0.0:
+        return p_b * (T / T_b) ** (-_G_ISA / (L * _R_D))
+    return p_b * math.exp(-_G_ISA * (H - H_b) / (_R_D * T_b))
+
+
+# Clamp bounds for isa_pressure_altitude's own input domain, derived once
+# from _isa_pressure_core (above) rather than hardcoded literals.
+_ISA_P_AT_H_MSL_MIN = _isa_pressure_core(_H_MSL_MIN)  # ~108008 Pa
+_ISA_P_AT_H_MSL_MAX = _isa_pressure_core(_H_MSL_MAX)  # ~0.37 Pa
 
 
 def sat_vapor_pressure(T_K: float) -> float:

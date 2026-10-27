@@ -14,23 +14,29 @@ hand-built two-lump composition, the SS32.3.5 exact endpoint inversion
 model passing an explicit `I_sp` straight through, header-field
 resolution and override precedence, the geometry defaults (half-length
 centroids, uniform-cylinder inertia), `l_motor_fwd`/`l_motor_aft`
-equivalence, both placement/precondition error messages, the three new
-dataclasses being frozen, and that `import configs` still performs no
-filesystem access (D-70) -- every currently-registered scenario stays on
-the `mass_model="none"` pass-through path.
+equivalence, both placement/precondition error messages, and the three
+new dataclasses being frozen. (The D-70 "import configs touches no
+filesystem except under a mass model" check and the "demo is the only
+registered config" check were deleted at Step 125, Phase 2.18 pivot --
+registry-mechanism tests with nothing left to test once
+`configs/__init__.py` became a plain re-export shim.)
+
+Also carries the D-59 endpoints/isp mass-composition-equivalence check,
+lifted here from `tests/test_config_registries.py` at the same step.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import math
-import sys
 
 import pytest
 
 import sim.mass as mass
 import sim.motor_file as motor_file
+import tests.config_variants as config_variants
 from configs.schema import Airframe, Motor, Sections, _weight_from_pieces
+from examples.worked_scenario import motor as _cti_k570_motor
 from sim.params import Thrust
 
 G0 = 9.80665
@@ -400,48 +406,32 @@ def test_motor_is_frozen():
 
 
 # ----------------------------------------------------------------------
-# import configs performs NO filesystem access (D-70)
+# D-59: endpoints/isp composition equivalence, lifted from
+# tests/test_config_registries.py at Step 125 (Phase 2.18 pivot) -- the
+# mass-composition-level half of the D-59 equivalence, using a synthetic
+# Airframe/Sections; distinct from tests/test_demo_physics.py's
+# test_demo_isp_and_endpoints_motors_agree_on_apogee, which checks the
+# same equivalence at the full-flight apogee level with the real demo
+# airframe. Neither is redundant with the other.
 # ----------------------------------------------------------------------
 
 
-def test_import_configs_reads_motor_files_only_under_a_mass_model(monkeypatch):
-    """D-70 (a): `import configs` reads a motor file only for a motor with
-    `mass_model != "none"`. Until Step 81 every registered scenario was on
-    the `"none"` pass-through path (case 0) and the import touched no file
-    at all; Step 81 registers `demo` (`cti_k570`, "endpoints"),
-    the gated case. So: re-import the whole `configs` tree from scratch,
-    record every `sim.motor_file` call, and require that the only file
-    read is `cti_k570`'s own curve -- no other motor file is read."""
-    calls = []
+def test_cti_k570_and_cti_k570_isp_compositions_agree_d59_equivalence():
+    """D-59: the same real curve under `mass_model="endpoints"`
+    (`examples.worked_scenario.motor`, every mass field derived from the
+    `.eng` header) and under `mass_model="isp"` (`cti_k570_isp`, `I_sp`
+    hand-entered to match `cti_k570`'s own measured `I_sp_eff` to 2
+    decimal places) must compose to the same `m`/`m_d`/`l_d`/`I_d`/`I_sp`
+    against a common `Airframe`/`Sections`, agreeing to 1e-3 relative --
+    the cheapest possible check on the claim that the two models are
+    just two different ways of specifying one mass history."""
+    airframe = Airframe(m=1.0, I=0.05, l=0.5)
+    sections = Sections(l_motor_aft=1.0)
 
-    def _record(fn):
-        def wrapper(arg):
-            calls.append(arg)
-            return fn(arg)
+    w_endpoints = _weight_from_pieces(airframe, sections, _cti_k570_motor, G0)
+    w_isp = _weight_from_pieces(airframe, sections, config_variants.CTI_K570_ISP, G0)
 
-        return wrapper
-
-    monkeypatch.setattr(motor_file, "load", _record(motor_file.load))
-    monkeypatch.setattr(motor_file, "records", _record(motor_file.records))
-
-    for name in list(sys.modules):
-        if name == "configs" or name.startswith("configs."):
-            del sys.modules[name]
-
-    import configs as fresh_configs
-    from configs.motors import cti_k570
-
-    for name in fresh_configs.names():
-        fresh_configs.get(name)  # exercises assemble() for every registered scenario/config
-
-    assert calls, "demo is on the gated path and must read its motor file"
-    assert set(calls) == {cti_k570.MOTOR.thrust.motor_curve}
-
-
-def test_configs_names_after_step_91():
-    """Step 91 (D-78): the one worked demo, a real motor with the mass
-    model on, is the only registered config (`--list-configs` prints one
-    line)."""
-    import configs
-
-    assert set(configs.names()) == {"demo"}
+    for field in ("m", "m_d", "l_d", "I_d", "I_sp"):
+        a = getattr(w_endpoints, field)
+        b = getattr(w_isp, field)
+        assert a == pytest.approx(b, rel=1e-3), f"{field}: {a!r} vs {b!r}"
