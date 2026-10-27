@@ -1,5 +1,8 @@
 # Architecture §33 — `configs/` down to one template + one demo per piece; D-76 (`s0.m = weight.m`) (Phase 2.16, design only)
 
+> Superseded 2026-10 by the Phase 2.18 pivot (`dev/docs/pivot-configs-and-packaging-analysis.md`); the
+> registry this document describes is archived at `dev/archive/configs-registry-2026-10/`.
+
 ## Кратко (RU)
 
 - Документ — дизайн чистки `configs/` (D-78): в каждом подпакете остаются `_TEMPLATE_*` и **один** demo; один сценарий `demo` = ракета `demo` (бывшая 54-мм `demo_75mm_k570`) + мотор `cti_k570` + `origin_msl` + `isa_dry_calm`.

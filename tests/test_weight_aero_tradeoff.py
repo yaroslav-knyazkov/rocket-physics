@@ -68,6 +68,7 @@ from apps.weight_aero_tradeoff.trade_surface import (
     save_contour_plot,
     save_surface_csv,
 )
+from examples.worked_scenario import DEMO_SCENARIO
 from sim.integrate import run_sim
 from sim.params import replace as params_replace
 
@@ -569,14 +570,12 @@ def test_mode_a_agrees_with_mode_b_trade_surface_at_shared_points():
 
 
 def test_build_surface_refuses_mass_model_on_config(monkeypatch):
-    import configs
-
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called for a mass-on config")
 
     monkeypatch.setattr("apps.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
 
-    cfg = configs.get("demo")
+    cfg = DEMO_SCENARIO.config
     with pytest.raises(ValueError, match="mass model is on"):
         build_surface(cfg, default_axes(cfg))
 

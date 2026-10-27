@@ -12,8 +12,8 @@ import pytest
 
 from apps.common.flight_stats import flight_stats
 from apps.motor_selection import scenario_sweep as ss
-from configs.scenarios.demo import SCENARIO as DEMO
 from configs.schema import Motor, assemble
+from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, motor_file
 from sim.integrate import run_sim
 from sim.params import Aero, Solver, Thrust
