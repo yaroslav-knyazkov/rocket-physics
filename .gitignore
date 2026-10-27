@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# setuptools editable-install build artifact (e.g. from an external
+# consumer's `pip install -e`, such as fx27/simulation)
+*.egg-info/
+
 # LaTeX build artifacts (local compile of dev/docs/latex/main.tex)
 dev/docs/latex/*.aux
 dev/docs/latex/*.fdb_latexmk
