@@ -628,9 +628,9 @@
       "superseded_doc": "dev/docs/pivot-apps-restructure-analysis.md (facts reference only — премисы устарели)",
       "steps": [
         {"step": 126, "title": "структурный guard-suite (tests/test_layering.py) — чистое добавление", "status": "done", "commit": "7d9833a", "result": "764/764, G1/G2/G3 все проходят чисто на сегодняшнем дереве без изменений — нарушений инвариантов не найдено. G3 осознанно ограничен корнями кода проекта (sim/apps/configs/controllers/tools/tests/examples/run_*.py), .claude/ исключён (urllib там — инструментарий Claude Code, не проекта)."},
-        {"step": 127, "title": "де-анкеринг __file__-путей вывода (5 мест, молча ломаются после переезда)", "status": "planned"},
+        {"step": 127, "title": "де-анкеринг __file__-путей вывода (5 мест, молча ломаются после переезда)", "status": "done", "commit": "f188987", "result": "output_dir()/default_output_dir() резолвятся на Path.cwd() заново при каждом вызове; sim/datafiles.py получил BundledDataMissingError (fail-fast на отвалившийся _BUNDLED); попутно найден и исправлен реальный pre-existing баг (test_airbrake_sizing.py писал в настоящий репо-шный output/ мимо tmp_path). Этот статус был пропущен коммитом 482ff16 (отмечен только 128-й) — исправлено задним числом при старте Step 129."},
         {"step": 128, "title": "снятие упаковки (FK1=R2) + чистка корня (docs/, __pycache__)", "status": "done", "commit": "884d858", "result": "767/767 (765 baseline + G6 + test_packaging_boundary rewrite). pyproject.toml упаковка снята, requirements.txt — единственный список зависимостей, корневой docs/ удалён, __pycache__ почищен, G6 (no-leftovers) добавлен. python run.py и python -m apps.* проверены с корня."},
-        {"step": 129, "title": "data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 реальных файлов моторов (cspace/, euroc-sweep/) из D:\\Projects - Ongoing\\fx27\\simulation\\data\\motors\\ в rocket-physics/data/motors/ (D-156), затем fx27/simulation архивируется/удаляется", "status": "planned"},
+        {"step": 129, "title": "data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 реальных файлов моторов (cspace/, euroc-sweep/) из ветки usage/manual-sim-testing (git show <branch>:data/motors/...) в rocket-physics/data/motors/ (D-156 + D-157 — fx27/simulation физически пропал с диска, источник исправлен на ветку rocket-physics, данные не утеряны)", "status": "planned"},
         {"step": 130, "title": "demo_scenario уходит из examples/ в apps/input/ (убирает обратную зависимость apps->examples)", "status": "planned"},
         {"step": 131, "title": "таксономия apps/<type>/<name>/ + разбор apps/common/", "status": "planned"},
         {"step": 132, "title": "controllers/ -> apps/control/flight_software/; tools/ -> apps/input/sounding_fetch/ (FK4=A)", "status": "planned"},
@@ -638,7 +638,7 @@
         {"step": 134, "title": "configs/ упраздняется: schema.py -> apps/sim/schema.py (FK3=A), шим удалён", "status": "planned"},
         {"step": 135, "title": "документация/навигация/CLAUDE.md «Профиль проекта» синхронизация", "status": "planned"}
       ],
-      "next": "Steps 126-128 закрыты (commits 7d9833a, f188987, 884d858; 767/767). Один developer-субагент был прерван usage-limit на Step 128, успешно возобновлён через SendMessage без потери работы. Передать Step 129 (data/ -> examples/data/; миграция реальных моторов из fx27/simulation; retire fx27) разработчику — возможно, со свежим спавном, т.к. контекст developer-агента уже большой (3 раунда).",
+      "next": "Steps 126-128 закрыты (commits 7d9833a, f188987, 884d858; 767/767); Step 127 отмечен done задним числом (D-157, пропуск в коммите 482ff16). Новая сессия, перед стартом Step 129 обнаружено: fx27/simulation физически пропал с диска (вероятный артефакт облачной синхронизации); данные не утеряны — 29 файлов реальных моторов читаются с ветки usage/manual-sim-testing (D-157). Передать Step 129 (data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 файлов моторов из usage/manual-sim-testing; G5) свежему спавну developer.",
       "pending_approvals": []
     }
   ],
@@ -1759,6 +1759,15 @@
       "question": "Корректировка D-154: обнаружено (журнал, запись 2026-10-27 «Первый внешний потребитель»), что fx27/simulation — отдельный репозиторий-сосед, уже созданный сегодня с реальными 29 файлами кривых моторов (data/motors/cspace/, euroc-sweep/) и editable install rocket-physics — именно тот внешний потребитель, который D-143 отменяет. Что делать с ним?",
       "choice": "Реальные данные (29 файлов) мигрируют в rocket-physics/data/motors/ (новый гитигнорный /data из D-146); после переноса fx27/simulation как отдельный репозиторий исчерпывает своё назначение и архивируется/удаляется. D-154 («/data создаётся пустым») скорректировано этим решением — на деле реальные данные были готовы к переносу с самого начала, просто лежали в соседнем репозитории.",
       "author": "user (AskUserQuestion)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-157",
+      "date": "2026-10-27",
+      "question": "Новая сессия, начало Step 129: при проверке перед миграцией выяснилось, что D:\\Projects - Ongoing\\fx27\\simulation физически исчез с диска целиком (нет папки, нет .git/.venv/README), на его месте один посторонний файл simulation$f (196 байт, похож на обрывок одной кривой тяги) -- вероятно артефакт облачной синхронизации. Откуда теперь брать 29 реальных файлов моторов?",
+      "choice": "Данные не утеряны: оригинал (до переноса в fx27/simulation) до сих пор лежит в rocket-physics на незамердженной ветке usage/manual-sim-testing (data/motors/cspace/, data/motors/euroc-sweep/, 29 файлов + README.md) -- именно оттуда их туда и переносили (запись журнала 2026-10-27). Step 129 читает их через `git show usage/manual-sim-testing:<path>`, не из fx27/simulation. Сама ветка usage/manual-sim-testing не удаляется без явного «да» (та же оговорка, что и раньше).",
+      "author": "user",
       "user_approved": true,
       "stage": "2.19"
     }
