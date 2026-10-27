@@ -28,8 +28,10 @@ forward face; `I` about the motor's own CoG) using the very same composition
 and `sim.mass` functions the solver uses, plus a provenance dict (model name,
 resolved inputs, SHA-256 of the source file). The solver is unchanged.
 
-Run: `python run_motor_sweep.py --scenario demo --motors cti_k570 --target 5000`
-(or `python -m apps.motor_selection.scenario_sweep ...`).
+Run: `python run_motor_sweep.py --motors Cesaroni_2060K570-17A.eng --target 5000`
+(or `python -m apps.motor_selection.scenario_sweep ...`). The scenario is
+always the demo scenario (`examples.worked_scenario.DEMO_SCENARIO`, Step
+124, D-139/CLI-1) -- there is no `--scenario` flag any more.
 """
 
 from __future__ import annotations
@@ -46,11 +48,10 @@ from typing import Any, Sequence
 
 import numpy as np
 
-import configs
 from apps.common.artifacts import OUTPUT_DIR
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
-from configs import motors as motor_registry
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
+from examples.worked_scenario import DEMO_SCENARIO
 from sim import aero, atmosphere, mass, motor_file, thrust_curve
 from sim.integrate import Result, run_sim
 from sim.params import Params, Thrust
@@ -406,12 +407,9 @@ def save_overlay(out: SweepResult, path: Path) -> None:
 
 
 def resolve_motor(spec: str) -> Motor:
-    """A registered `configs.motors` name, or a RASP file in `data/motors/`
-    (`file.eng[#designation]`) whose header supplies the masses (endpoints
-    model, uniform-cylinder defaults). CSV curves carry no masses and must be
-    registered as a `Motor` piece."""
-    if spec in motor_registry.MOTORS:
-        return motor_registry.get(spec)
+    """A RASP file in `data/motors/` (`file.eng[#designation]`) whose header
+    supplies the masses (endpoints model, uniform-cylinder defaults). CSV
+    curves carry no masses and are not resolvable here."""
     filename = spec.partition("#")[0]
     ext = os.path.splitext(filename)[1].lower()
     if ext != ".csv" and os.path.exists(motor_file._motors_path(filename)):
@@ -420,24 +418,21 @@ def resolve_motor(spec: str) -> Motor:
             notes="ad-hoc from the RASP file header",
         )
     raise KeyError(
-        f"unknown motor {spec!r}; registered: {', '.join(motor_registry.names())} "
-        "(or a .eng/.rasp file under data/motors/, optionally 'file#designation')"
+        f"unknown motor {spec!r}; must be a .eng/.rasp file under data/motors/ "
+        "(optionally 'file#designation') or a full path"
     )
 
 
 def main(argv: "Sequence[str] | None" = None) -> None:
     ap = argparse.ArgumentParser(description="Motor sweep v2 on a Scenario (Step 100).")
-    ap.add_argument("--scenario", required=True, help=f"registered scenario ({', '.join(configs.names())})")
-    ap.add_argument("--motors", required=True, help="comma-separated registered motor names / RASP files")
+    ap.add_argument("--motors", required=True, help="comma-separated RASP files under data/motors/")
     ap.add_argument("--target", type=float, default=None, help="target apogee [m AGL]")
     ap.add_argument("--min-tw", type=float, default=Constraints.min_tw)
     ap.add_argument("--min-margin", type=float, default=Constraints.min_margin_cal, help="calibres")
     ap.add_argument("--out-dir", default=None, help="default: output/")
     args = ap.parse_args(argv)
 
-    scenario = configs.get_scenario(args.scenario)
-    if scenario is None:
-        raise SystemExit(f"scenario {args.scenario!r} is a flat Config, not a Scenario; cannot swap motors")
+    scenario = DEMO_SCENARIO
     motors = [resolve_motor(s.strip()) for s in args.motors.split(",") if s.strip()]
     out = sweep_scenario(
         scenario, motors, Constraints(args.min_tw, args.min_margin), target=args.target
@@ -446,8 +441,8 @@ def main(argv: "Sequence[str] | None" = None) -> None:
 
     out_dir = Path(args.out_dir) if args.out_dir else OUTPUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = out_dir / f"motor_sweep_{args.scenario}.csv"
-    png_path = out_dir / f"motor_sweep_{args.scenario}_overlay.png"
+    csv_path = out_dir / f"motor_sweep_{DEMO_SCENARIO.name}.csv"
+    png_path = out_dir / f"motor_sweep_{DEMO_SCENARIO.name}_overlay.png"
     save_csv(out.rows, csv_path)
     save_overlay(out, png_path)
     print(f"\nSaved {csv_path}\nSaved {png_path}")

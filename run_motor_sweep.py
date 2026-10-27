@@ -5,9 +5,11 @@ does, without replacing the app's own
 `python -m apps.motor_selection.compare_motors` invocation
 (architecture-30-apps-4-5-and-configs.md SS30.3).
 
-Step 100 (Phase 2.17): `--scenario NAME --motors a,b,c [--target M]` routes to
-the Scenario/Motor sweep (`apps/motor_selection/scenario_sweep.py`); without
-`--scenario` the legacy App 3 runs unchanged."""
+Step 100 (Phase 2.17): `--motors a,b,c [--target M]` routes to the
+Scenario/Motor sweep (`apps/motor_selection/scenario_sweep.py`, always
+run against the demo scenario since Step 124, D-139/CLI-1 -- no
+`--scenario` flag any more); without `--motors` the legacy App 3 runs
+unchanged (it takes no CLI arguments of its own)."""
 
 import sys
 
@@ -15,7 +17,7 @@ from apps.motor_selection.compare_motors import main as legacy_main
 from apps.motor_selection.scenario_sweep import main as scenario_main
 
 if __name__ == "__main__":
-    if any(a == "--scenario" or a.startswith("--scenario=") for a in sys.argv[1:]):
+    if any(a == "--motors" or a.startswith("--motors=") for a in sys.argv[1:]):
         scenario_main()
     else:
         legacy_main()

@@ -218,13 +218,16 @@ def test_provenance_carries_model_inputs_and_file_hash():
 
 
 def test_cli_saves_table_and_overlay(tmp_path, capsys):
-    ss.main(["--scenario", "demo", "--motors", "cti_k570", "--target", "5000",
+    ss.main(["--motors", "Cesaroni_2060K570-17A.eng", "--target", "5000",
              "--out-dir", str(tmp_path)])
     assert (tmp_path / "motor_sweep_demo.csv").exists()
     assert (tmp_path / "motor_sweep_demo_overlay.png").exists()
-    assert "cti_k570" in capsys.readouterr().out
+    # `resolve_motor`'s ad-hoc-from-RASP-file branch sets Motor.name = spec
+    # (Step 124, D-139/CLI-1: no registered motor *name* to resolve to any
+    # more), so the printed table shows the file name itself.
+    assert "Cesaroni_2060K570-17A.eng" in capsys.readouterr().out
 
 
 def test_cli_unknown_motor_lists_available():
-    with pytest.raises(KeyError, match="cti_k570"):
+    with pytest.raises(KeyError, match="unknown motor 'nope'"):
         ss.resolve_motor("nope")

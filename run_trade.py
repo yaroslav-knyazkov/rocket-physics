@@ -11,16 +11,16 @@ surface first) to run:
 
 - `"surface"` (the default) -- mode (b), the 2-D weight-vs-aero trade
   surface and its iso-apogee exchange rate (Step 67, this step). Forwards
-  every other argument (`--config`, `--list-configs`, ...) unchanged to
+  every other argument unchanged to
   `apps.weight_aero_tradeoff.trade_surface.main`, which owns that
-  parsing itself (`apps/common/cli.py`) -- this wrapper only adds
-  `--mode` on top, it does not re-implement `--config`.
+  parsing itself -- this wrapper only adds `--mode` on top. Neither mode
+  takes a config-selection flag any more (Step 124, D-139/CLI-1): each
+  always runs against the app's own study vehicle
+  (`apps/common/study_vehicle.py::CONFIG`).
 - `"compare"` -- mode (a), the named-scenario comparison (Step 68,
-  `compare_configs.py`). Forwards every other argument (`--config`,
-  `--list-configs`, ...) unchanged to
+  `compare_configs.py`). Forwards every other argument unchanged to
   `apps.weight_aero_tradeoff.compare_configs.main`, which owns that
-  parsing itself -- this wrapper only adds `--mode` on top, it does not
-  re-implement `--config`.
+  parsing itself -- this wrapper only adds `--mode` on top.
 """
 
 from __future__ import annotations

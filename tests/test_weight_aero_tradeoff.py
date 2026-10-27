@@ -513,39 +513,6 @@ def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, 
     assert len(rows) == 1 + 1 + len(SCENARIOS)  # header + baseline + each variant
 
 
-def test_compare_main_comma_separated_registry_names_bypasses_scenarios(
-    tmp_path, monkeypatch, capsys
-):
-    """`--config a,b` (two or more comma-separated names): compares those
-    registry configs directly, `SCENARIOS` not consulted -- the case
-    that justifies this mode existing at all (SS30.7.2)."""
-    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
-
-    monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
-
-    from tests import config_variants
-
-    # Patch the registry the app itself holds: tests/test_motor_pieces.py
-    # purges `configs.*` from sys.modules and re-imports it, so a fresh
-    # `import configs.scenarios` here can be a different module object
-    # from the one `compare_configs` imported at load time.
-    monkeypatch.setitem(
-        compare_configs_module.configs.scenarios.SCENARIOS, "toy_05kg", config_variants.TOY_05KG
-    )
-
-    compare_main(["--config", "demo,toy_05kg"])
-
-    out = capsys.readouterr().out
-    assert "demo" in out
-    assert "toy_05kg" in out
-    assert "heavy_sleek" not in out
-    assert "light_draggy" not in out
-
-    csv_path = tmp_path / "config_comparison.csv"
-    rows = csv_path.read_text().splitlines()
-    assert len(rows) == 1 + 2  # header + exactly the two named configs
-
-
 # ----------------------------------------------------------------------
 # The cross-check (roadmap.md Step 68's "Check"): mode (a) must agree
 # with mode (b)'s TradeSurface where they overlap.
@@ -613,14 +580,3 @@ def test_build_surface_refuses_mass_model_on_config(monkeypatch):
     with pytest.raises(ValueError, match="mass model is on"):
         build_surface(cfg, default_axes(cfg))
 
-
-def test_compare_single_name_baseline_refuses_mass_model_on_config(monkeypatch):
-    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
-
-    def _must_not_be_called(*args, **kwargs):
-        raise AssertionError("run_sim must not be called for a mass-on baseline")
-
-    monkeypatch.setattr(compare_configs_module, "run_sim", _must_not_be_called)
-
-    with pytest.raises(ValueError, match="mass model is on"):
-        compare_main(["--config", "demo"])

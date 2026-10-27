@@ -81,9 +81,9 @@ from typing import Any
 from scipy.optimize import brentq
 
 from apps.common.artifacts import OUTPUT_DIR, ensure_dir
-from apps.common.cli import add_config_arg, resolve_config
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Config
+from examples.worked_scenario import DEMO_SCENARIO
 from sim.gravity import altitude_agl
 from sim.integrate import Result, run_sim
 from sim.params import Control, Params
@@ -649,15 +649,14 @@ def save_overlay(sol: AirbrakeSolution, path: Path) -> None:
 def main(argv: "list[str] | None" = None) -> None:
     """`python run_airbrake.py` / `python -m apps.airbrake_sizing.solve_cda`.
     Runs one named spec from `targets.SPECS` (`--spec`, default the main
-    burnout solve) against `--config` (default `demo`),
-    prints the SS30.6 report, writes `output/airbrake_sizing.csv` and
-    `output/airbrake_sizing_overlay.png`. `--list-configs` lists every
-    registered vehicle; running every named spec in one go is the test
-    suite's job (`tests/test_airbrake_sizing.py`), not this CLI's."""
+    burnout solve) against the demo scenario (`examples.worked_scenario.
+    DEMO_SCENARIO`), prints the SS30.6 report, writes
+    `output/airbrake_sizing.csv` and `output/airbrake_sizing_overlay.png`.
+    Running every named spec in one go is the test suite's job
+    (`tests/test_airbrake_sizing.py`), not this CLI's."""
     from apps.airbrake_sizing.targets import SPECS
 
     parser = argparse.ArgumentParser(description=__doc__)
-    add_config_arg(parser, default="demo")
     parser.add_argument(
         "--spec",
         default=next(iter(SPECS)),
@@ -666,7 +665,7 @@ def main(argv: "list[str] | None" = None) -> None:
         help="named spec from apps/airbrake_sizing/targets.py",
     )
     args = parser.parse_args(argv)
-    cfg = resolve_config(args)
+    cfg = DEMO_SCENARIO.config
     spec = SPECS[args.spec]
 
     if spec.solve_for == "none":
