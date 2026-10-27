@@ -38,11 +38,39 @@ Caching note (see the three call sites): rule 2's resolution depends on
 would silently serve a stale resolution if the cwd changes between two
 calls with the same relative string. Each call site resolves first (this
 function, uncached) and caches on the *resolved* absolute path.
+
+Phase 2.19 (Step 127, dev/docs/architecture-apps-sim-restructure.md
+SS4.4/SS5): `_BUNDLED` still points at `<repo>/data`, computed from
+`__file__` exactly as before -- that target only moves in a later step
+(129/133), not this one. What changes here is the guard below: once
+`data/` does move, this anchor would otherwise go stale *silently* (rule
+3 would resolve to a directory that no longer has the bundled files,
+with no error until some unrelated `FileNotFoundError` deep in a loader).
+The import-time check below turns that into "loudly wrong immediately" --
+the safety net for the move this anchor can't take yet.
 """
 
 import os
 
+
+class BundledDataMissingError(RuntimeError):
+    """`sim/datafiles.py`'s `_BUNDLED` directory (bare-name data lookups,
+    rule 3 above) does not exist. Raised at import time so a later `git
+    mv` of `data/` that forgets to update `_BUNDLED` fails immediately
+    and loudly here, instead of resolving bare data-file names to a
+    silently-missing directory until some unrelated loader trips over a
+    `FileNotFoundError` far from the actual cause."""
+
+
 _BUNDLED = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
+if not os.path.isdir(_BUNDLED):
+    raise BundledDataMissingError(
+        f"sim/datafiles.py expects its bundled data directory at {_BUNDLED!r} "
+        "(bare-name motor/aero/soundings lookups resolve here, rule 3 of this "
+        "module's docstring) -- it does not exist. If `data/` just moved, "
+        "update `_BUNDLED` in sim/datafiles.py to match its new location."
+    )
 
 
 def resolve(given: str, kind: str) -> str:

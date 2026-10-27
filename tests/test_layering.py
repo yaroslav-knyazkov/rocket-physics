@@ -22,6 +22,11 @@ before the first `git mv`, not aspirational.
   G3 -- network-isolation guard. Nothing outside `tools/fetch_sounding.py`
        (the project's one intentionally-networked module) may import
        `urllib`, `http`, `socket`, or `requests`.
+  G4 -- output-anchoring guard (Step 127). `apps.common.artifacts.
+       output_dir()` and `sim.report.default_output_dir()` resolve
+       relative to the current working directory *at call time*, not to
+       either module's own `__file__` location -- the regression test
+       proving Step 127's fix actually works (not just that it imports).
 
 `ENGINE_DIR` is the one constant a later step repoints (`"sim"` ->
 `"apps/sim/engine"`); nothing else in this file should need to change for
@@ -186,3 +191,25 @@ def test_g3_no_module_imports_networking_outside_fetch_sounding():
             violations.append((rel_posix, sorted(banned_hits)))
 
     assert not violations, f"Module(s) outside the network-exempt list import networking: {violations}"
+
+
+# --- G4 ----------------------------------------------------------------
+
+
+def test_g4_output_helpers_resolve_under_cwd_not_repo(monkeypatch, tmp_path):
+    """`output_dir()`/`default_output_dir()` read `Path.cwd()` at call
+    time (Step 127) -- chdir to a throwaway `tmp_path` far from
+    `REPO_ROOT` and confirm both resolve under it, not under the repo
+    these functions' own modules happen to live in."""
+    from apps.common.artifacts import output_dir
+    from sim.report import default_output_dir
+
+    monkeypatch.chdir(tmp_path)
+
+    resolved_artifacts = output_dir()
+    resolved_report = default_output_dir()
+
+    assert resolved_artifacts == tmp_path / "output"
+    assert resolved_report == tmp_path / "output"
+    assert REPO_ROOT not in resolved_artifacts.parents
+    assert REPO_ROOT not in resolved_report.parents

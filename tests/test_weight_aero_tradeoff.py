@@ -316,22 +316,18 @@ def test_default_axes_is_the_f10_11x11_box_bracketing_the_baseline():
 # ----------------------------------------------------------------------
 
 
-def test_main_end_to_end_default_grid_writes_artifacts(tmp_path, monkeypatch, capsys):
+def test_main_end_to_end_default_grid_writes_artifacts(tmp_path, capsys):
     """The full default 11x11 grid against `demo_75mm`: prints the table
     and the exchange rates, writes a CSV and a contour PNG. No apogee
     value is pinned (SS30.8) -- the actual exchange rate and wall-clock
     are reported in the Step 67 developer report, per the roadmap
     ticket, not asserted here beyond sanity bounds (rate negative and
     finite; the run completes in well under the test timeout)."""
-    import apps.weight_aero_tradeoff.trade_surface as trade_surface_module
-
-    # `trade_surface.py` does `from apps.common.artifacts import
-    # OUTPUT_DIR`, binding its own module-level name -- patch that name
-    # directly, not `apps.common.artifacts.OUTPUT_DIR` (already-bound
-    # imports do not see a later patch of the original).
-    monkeypatch.setattr(trade_surface_module, "OUTPUT_DIR", tmp_path)
-
-    main([])
+    # Step 127 (Phase 2.19): `output_dir()` is now a function, read at
+    # call time -- so routing the artifacts into `tmp_path` is just the
+    # CLI's own `--out-dir`, exercising the real public flag instead of
+    # monkeypatching the app module's internal import binding.
+    main(["--out-dir", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert "Weight-vs-aero trade surface" in out
@@ -488,15 +484,15 @@ def test_scenarios_variant_changes_exactly_its_named_fields():
 # ----------------------------------------------------------------------
 
 
-def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, capsys):
+def test_compare_main_default_scenarios_writes_artifacts(tmp_path, capsys):
     """No `--config` (the default, the study vehicle): prints the ranked
     table for the baseline plus every `SCENARIOS` variant, and writes
-    both artifacts."""
-    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+    both artifacts.
 
-    monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
-
-    compare_main([])
+    Step 127 (Phase 2.19): routed through the CLI's own `--out-dir`
+    rather than monkeypatching the app module's internal import binding
+    (`output_dir()` is now a function, read at call time)."""
+    compare_main(["--out-dir", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert "Config comparison" in out

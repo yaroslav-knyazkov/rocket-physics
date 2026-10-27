@@ -73,13 +73,14 @@ directory on `sys.path` and break `import sim`.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import dataclasses
 from pathlib import Path
 from typing import Any, Optional
 
 from apps.common import study_vehicle
-from apps.common.artifacts import OUTPUT_DIR
+from apps.common.artifacts import output_dir
 from apps.common.flight_stats import (
     FlightStats,
     _assert_derivatives_reconstructible,
@@ -316,12 +317,16 @@ def _demo_entries() -> list[MotorEntry]:
     ]
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> None:
     """Runs the configured `apps.motor_selection.motors.MOTORS` set (Step
     62) -- the per-motor dry-rocket overrides, not the override-free Step
     61 `_demo_entries()` above (which stays, unused by `main`, purely so
     the existing Step-61 tests that import it keep working bit-for-bit)."""
     from apps.motor_selection.motors import MOTORS
+
+    parser = argparse.ArgumentParser(description="App 3: motor selection sweep")
+    parser.add_argument("--out-dir", default=None, help="default: output/")
+    args = parser.parse_args(argv)
 
     # Step 86: baseline + s0 both sourced from apps/common/study_vehicle.py
     # (the same Config _demo_baseline() above re-exports .params from), so
@@ -334,9 +339,10 @@ def main() -> None:
     runs = compare_motors(MOTORS, baseline, s0)
     print_motor_table(runs)
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    csv_path = OUTPUT_DIR / "motor_selection.csv"
-    overlay_path = OUTPUT_DIR / "motor_selection_overlay.png"
+    out_dir = Path(args.out_dir) if args.out_dir else output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "motor_selection.csv"
+    overlay_path = out_dir / "motor_selection_overlay.png"
     save_motor_csv(runs, csv_path)
     save_overlay(runs, overlay_path)
     print(f"\nSaved {csv_path}")

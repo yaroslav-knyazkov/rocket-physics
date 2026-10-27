@@ -27,9 +27,26 @@ from sim.params import replace as params_replace
 from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
 from sim.state import State, X, Z, VX, VZ, THETA, OMEGA
 
-# Generated artifacts (plots, trajectory.csv) go under output/, kept out of
-# the repo root -- created on demand, gitignored wholesale (.gitignore).
-DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "output"
+def default_output_dir() -> Path:
+    """`Path.cwd() / "output"` -- generated artifacts (plots,
+    trajectory.csv) go here, kept out of the repo root, created on
+    demand, gitignored wholesale (.gitignore).
+
+    Step 127 (Phase 2.19): this used to be a module-level constant,
+    `DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "output"` --
+    anchored to *this module's own location on disk*, which keeps the
+    engine carrying repo-root knowledge it does not need and would go
+    stale the moment this file moves. A function, read at call time
+    (same `apps/common/artifacts.output_dir()` convention), has neither
+    problem. The three call sites below (`save_run_artifacts`,
+    `save_sweep_artifacts`, `run_sweep`) cannot use it as an ordinary
+    default-parameter value, though: a default *expression* is evaluated
+    once, at function-definition time (i.e. import time) -- exactly the
+    staleness this function exists to avoid, just deferred by one step.
+    Each uses `out_dir: Path | None = None` instead, resolving `out_dir
+    or default_output_dir()` in the body, so the cwd is read fresh on
+    every call."""
+    return Path.cwd() / "output"
 
 
 def flight_summary(result, p) -> dict:
@@ -294,9 +311,15 @@ def print_run_summary(result, p, s0: State) -> None:
     print(f"Downrange at impact: {downrange_impact:.4f} m")
 
 
-def save_run_artifacts(result, p, out_dir: Path = DEFAULT_OUTPUT_DIR) -> None:
+def save_run_artifacts(result, p, out_dir: "Path | None" = None) -> None:
     """Build the single-run plots, save them as PNGs, and dump the CSV
-    trajectory sample -- the Step 7/Step 27 artifact set, unchanged."""
+    trajectory sample -- the Step 7/Step 27 artifact set, unchanged.
+
+    `out_dir` defaults to `default_output_dir()` (Step 127), resolved at
+    call time rather than baked into the signature -- see that
+    function's docstring for why a default *expression* here would be
+    the wrong fix."""
+    out_dir = out_dir if out_dir is not None else default_output_dir()
     out_dir.mkdir(exist_ok=True)
 
     fig_traj = plot_trajectory(result)
@@ -328,12 +351,19 @@ def save_run_artifacts(result, p, out_dir: Path = DEFAULT_OUTPUT_DIR) -> None:
 
 
 def save_sweep_artifacts(
-    name: str, sweep_results: dict, out_dir: Path = DEFAULT_OUTPUT_DIR, title: str = "Model comparison"
+    name: str,
+    sweep_results: dict,
+    out_dir: "Path | None" = None,
+    title: str = "Model comparison",
 ) -> None:
     """Overlay plot + savefig for one sweep's results -- `name` is the
     filename stem (e.g. `"gravity"` -> `gravity_sweep.png`), `title` is the
     human-readable string passed through to
-    `sim.plotting.plot_trajectory_overlay`."""
+    `sim.plotting.plot_trajectory_overlay`.
+
+    `out_dir` defaults to `default_output_dir()` (Step 127), resolved at
+    call time -- see that function's docstring."""
+    out_dir = out_dir if out_dir is not None else default_output_dir()
     out_dir.mkdir(exist_ok=True)
     fig = plot_trajectory_overlay(
         {v: d["result"] for v, d in sweep_results.items()},
@@ -351,7 +381,7 @@ def run_sweep(
     s0: State,
     title: str,
     plot_title: str = None,
-    out_dir: Path = DEFAULT_OUTPUT_DIR,
+    out_dir: "Path | None" = None,
 ) -> dict:
     """Convenience wrapper (architecture-28-rewrite.md SS28.9, D-13): sweep
     -> print table -> overlay plot -> savefig, in one call, so `run.py`'s

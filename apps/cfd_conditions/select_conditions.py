@@ -86,12 +86,11 @@ from pathlib import Path
 
 import numpy as np
 
+from apps.common.artifacts import ensure_dir, output_dir
 from examples.worked_scenario import DEMO_SCENARIO
 from sim.flow import flow_state
 from sim.integrate import Result, run_sim
 from sim.params import Params
-
-_OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -207,8 +206,8 @@ def main() -> None:
     conditions = select_cfd_conditions(result, params, n_points=10)
     print_conditions_table(conditions)
 
-    _OUTPUT_DIR.mkdir(exist_ok=True)
-    out_path = _OUTPUT_DIR / "cfd_conditions.csv"
+    out_dir = ensure_dir(output_dir())
+    out_path = out_dir / "cfd_conditions.csv"
     save_conditions_csv(conditions, out_path)
     print(f"\nSaved {out_path}")
 

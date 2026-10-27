@@ -5,6 +5,13 @@ reads (architecture.md SS17; roadmap.md Step 26).
     python tools/fetch_sounding.py --station 72672 \\
         --datetime "2024-01-15 12:00:00" --case example_live --step-m 250
 
+Writes under `<cwd>/data/soundings/<case>/`, or under `--out-dir/<case>/`
+if given (Step 127, Phase 2.19, dev/docs/architecture-apps-sim-
+restructure.md SS4.4/SS5): before this step the base directory was
+computed from this script's own `__file__` location, which would go
+stale silently after a later move; run from the repo root (the way this
+script is actually invoked) the default behaves identically.
+
 **Never imported by `sim/`.** This is the *only* part of the project that
 touches the network (architecture.md SS17/SS21/SS22 item 4 -- a live API
 call inside `run_sim` or the RHS is rejected outright; the simulator stays
@@ -276,9 +283,9 @@ def build_source_note(url: str, step_m: float) -> str:
 # ----------------------------------------------------------------------
 
 
-def output_path(repo_root: str, case: str, station: str, dt: datetime) -> str:
+def output_path(soundings_dir: str, case: str, station: str, dt: datetime) -> str:
     fname = f"{station}_{dt.strftime('%Y%m%d%H%M')}.csv"
-    return os.path.join(repo_root, "data", "soundings", case, fname)
+    return os.path.join(soundings_dir, case, fname)
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -312,6 +319,12 @@ def parse_args(argv=None) -> argparse.Namespace:
         "--timeout", type=float, default=60.0,
         help="HTTP timeout in seconds (default: 60 -- the archive can be "
              "slow to build a full-resolution response)",
+    )
+    parser.add_argument(
+        "--out-dir", default=None,
+        help="base directory the canonical CSV is written under, as "
+             "<out-dir>/<case>/<station>_<datetime>.csv (default: "
+             "data/soundings/ under the current working directory)",
     )
     return parser.parse_args(argv)
 
@@ -348,8 +361,8 @@ def main(argv=None) -> int:
     source = build_source_note(url, args.step_m)
     text = format_canonical(args.station, time_utc, resampled, source)
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out_path = output_path(repo_root, args.case, args.station, dt)
+    soundings_dir = args.out_dir if args.out_dir else os.path.join(os.getcwd(), "data", "soundings")
+    out_path = output_path(soundings_dir, args.case, args.station, dt)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", newline="\n") as f:
         f.write(text)

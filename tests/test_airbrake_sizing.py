@@ -30,7 +30,7 @@ from apps.airbrake_sizing.solve_cda import (
 )
 from apps.airbrake_sizing.targets import SPECS
 from apps.common import study_vehicle
-from apps.common.artifacts import OUTPUT_DIR, ensure_dir
+from apps.common.artifacts import ensure_dir
 from examples.worked_scenario import DEMO_SCENARIO
 from sim import control
 from sim.integrate import Result
@@ -300,15 +300,20 @@ def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
 # ----------------------------------------------------------------------
 
 
-def test_end_to_end_against_demo_for_every_named_spec():
+def test_end_to_end_against_demo_for_every_named_spec(tmp_path):
     """Runs every spec in targets.SPECS against the app's own default
     vehicle (SPECS are sized for the demo, Step 90) and writes both artifacts. No apogee value is pinned here by
     design (roadmap.md Step 66) -- this is a smoke/wiring test, the
-    numbers are reported in the developer's own step report."""
+    numbers are reported in the developer's own step report.
+
+    Writes under `tmp_path`, not the repo's real `output/` (Step 127,
+    Phase 2.19): before this step `OUTPUT_DIR` was a fixed module-level
+    constant this test wrote into directly, leaving a stray artifact in
+    the real, gitignored `output/` on every test run."""
     cfg = DEMO_SCENARIO.config
-    ensure_dir(OUTPUT_DIR)
-    csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
-    png_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
+    ensure_dir(tmp_path)
+    csv_path = tmp_path / "airbrake_sizing.csv"
+    png_path = tmp_path / "airbrake_sizing_overlay.png"
 
     for name, spec in SPECS.items():
         if spec.solve_for == "none":

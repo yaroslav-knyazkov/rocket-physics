@@ -80,7 +80,7 @@ from typing import Any
 
 from scipy.optimize import brentq
 
-from apps.common.artifacts import OUTPUT_DIR, ensure_dir
+from apps.common.artifacts import ensure_dir, output_dir
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Config
 from examples.worked_scenario import DEMO_SCENARIO
@@ -664,6 +664,7 @@ def main(argv: "list[str] | None" = None) -> None:
         choices=sorted(SPECS),
         help="named spec from apps/airbrake_sizing/targets.py",
     )
+    parser.add_argument("--out-dir", default=None, help="default: output/")
     args = parser.parse_args(argv)
     cfg = DEMO_SCENARIO.config
     spec = SPECS[args.spec]
@@ -675,9 +676,9 @@ def main(argv: "list[str] | None" = None) -> None:
         sol = solve_airbrake(cfg, spec)
     print_solution(sol, config_name=cfg.name)
 
-    ensure_dir(OUTPUT_DIR)
-    csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
-    overlay_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
+    out_dir = ensure_dir(Path(args.out_dir) if args.out_dir else output_dir())
+    csv_path = out_dir / "airbrake_sizing.csv"
+    overlay_path = out_dir / "airbrake_sizing_overlay.png"
     save_solution_csv(sol, csv_path)
     save_overlay(sol, overlay_path)
     print(f"\nSaved {csv_path}")

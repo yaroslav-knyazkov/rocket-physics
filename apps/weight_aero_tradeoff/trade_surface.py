@@ -105,7 +105,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 from apps.common import study_vehicle
-from apps.common.artifacts import OUTPUT_DIR, ensure_dir
+from apps.common.artifacts import ensure_dir, output_dir
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Config
 from sim.integrate import run_sim
@@ -406,6 +406,7 @@ def main(argv: "Optional[list[str]]" = None) -> None:
         description="App 5 mode (b): the weight-vs-aero trade surface and "
         "its iso-apogee exchange rate"
     )
+    parser.add_argument("--out-dir", default=None, help="default: output/")
     args = parser.parse_args(argv)
     cfg = study_vehicle.CONFIG
 
@@ -420,7 +421,7 @@ def main(argv: "Optional[list[str]]" = None) -> None:
     print_exchange_rates(surface)
     print(f"\n({n_runs} runs in {elapsed:.2f} s)")
 
-    out_dir = ensure_dir(OUTPUT_DIR)
+    out_dir = ensure_dir(Path(args.out_dir) if args.out_dir else output_dir())
     csv_path = out_dir / "trade_surface.csv"
     png_path = out_dir / "trade_surface_contour.png"
     save_surface_csv(surface, csv_path)

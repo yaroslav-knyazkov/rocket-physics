@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Optional
 
 from apps.common import study_vehicle
-from apps.common.artifacts import OUTPUT_DIR, ensure_dir
+from apps.common.artifacts import ensure_dir, output_dir
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from apps.weight_aero_tradeoff.scenarios import SCENARIOS
 from configs.schema import Config
@@ -221,14 +221,15 @@ def main(argv: "Optional[list[str]]" = None) -> None:
         description="App 5 mode (a): named-configuration side-by-side "
         "comparison"
     )
-    parser.parse_args(argv)
+    parser.add_argument("--out-dir", default=None, help="default: output/")
+    args = parser.parse_args(argv)
 
     baseline = study_vehicle.CONFIG
     cfgs = [baseline] + [variant.apply(baseline) for variant in SCENARIOS]
     runs = compare_configs(cfgs)
     print_comparison_table(runs)
 
-    out_dir = ensure_dir(OUTPUT_DIR)
+    out_dir = ensure_dir(Path(args.out_dir) if args.out_dir else output_dir())
     csv_path = out_dir / "config_comparison.csv"
     png_path = out_dir / "config_comparison_overlay.png"
     save_comparison_csv(runs, csv_path)

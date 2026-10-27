@@ -48,7 +48,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from apps.common.artifacts import OUTPUT_DIR
+from apps.common.artifacts import output_dir
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
 from examples.worked_scenario import DEMO_SCENARIO
@@ -439,7 +439,7 @@ def main(argv: "Sequence[str] | None" = None) -> None:
     )
     print_table(out.rows, args.target)
 
-    out_dir = Path(args.out_dir) if args.out_dir else OUTPUT_DIR
+    out_dir = Path(args.out_dir) if args.out_dir else output_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"motor_sweep_{DEMO_SCENARIO.name}.csv"
     png_path = out_dir / f"motor_sweep_{DEMO_SCENARIO.name}_overlay.png"
