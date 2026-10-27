@@ -6,6 +6,12 @@ __pycache__/
 # consumer's `pip install -e`, such as fx27/simulation)
 *.egg-info/
 
+# Root-level docs/ -- local LaTeX build junk (pdflatex/latexmk output
+# directory when compiled outside dev/docs/latex/'s own tree), never
+# committed. NOT dev/docs/ (the real documentation tree) -- deleted and
+# ignored here, Step 128, Phase 2.19.
+/docs/
+
 # LaTeX build artifacts (local compile of dev/docs/latex/main.tex)
 dev/docs/latex/*.aux
 dev/docs/latex/*.fdb_latexmk

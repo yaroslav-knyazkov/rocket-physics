@@ -27,6 +27,16 @@ before the first `git mv`, not aspirational.
        relative to the current working directory *at call time*, not to
        either module's own `__file__` location -- the regression test
        proving Step 127's fix actually works (not just that it imports).
+  G6 -- no-leftovers guard (Step 128, first instance). As each later step
+       deletes a tree this phase retires, this guard grows one assertion
+       per deletion -- "the old path is actually gone", not just "the new
+       path exists". Step 128 retires the root `docs/` directory (pure
+       LaTeX build junk, not `dev/docs/`), so this step's one assertion is
+       that it stays gone. Steps 129+ append assertions for `sim/`,
+       `configs/`, `controllers/`, `tools/`, `apps/common/` as each is
+       actually deleted in its own step -- not before, since asserting a
+       directory's absence before the step that removes it would fail on
+       every commit until that step lands.
 
 `ENGINE_DIR` is the one constant a later step repoints (`"sim"` ->
 `"apps/sim/engine"`); nothing else in this file should need to change for
@@ -80,6 +90,13 @@ BANNED_NETWORK_IMPORT_ROOTS = frozenset({"urllib", "http", "socket", "requests"}
 NETWORK_SCAN_ROOTS = ("sim", "apps", "configs", "controllers", "tools", "tests", "examples")
 # Top-level entry scripts, scanned individually (they are files, not dirs).
 NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py", "run_motor_sweep.py", "run_trade.py")
+
+# --- G6: no-leftovers guard --------------------------------------------
+
+# Paths (relative to REPO_ROOT) that must not exist, one entry added per
+# deletion step as that step actually lands (module docstring). Step 128:
+# the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`.
+RETIRED_PATHS = ("docs",)
 
 
 def _iter_py_files(root_dir: Path):
@@ -213,3 +230,15 @@ def test_g4_output_helpers_resolve_under_cwd_not_repo(monkeypatch, tmp_path):
     assert resolved_report == tmp_path / "output"
     assert REPO_ROOT not in resolved_artifacts.parents
     assert REPO_ROOT not in resolved_report.parents
+
+
+# --- G6 ----------------------------------------------------------------
+
+
+def test_g6_retired_paths_stay_deleted():
+    """Every path in `RETIRED_PATHS` must not exist under `REPO_ROOT`.
+    Step 128 retires the root `docs/` directory (pure LaTeX build junk --
+    not `dev/docs/`, the real documentation tree, which this guard never
+    touches)."""
+    still_present = [p for p in RETIRED_PATHS if (REPO_ROOT / p).exists()]
+    assert not still_present, f"Retired path(s) still present: {still_present}"
