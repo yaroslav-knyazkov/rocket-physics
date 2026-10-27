@@ -10,7 +10,7 @@
   ],
   "excluded_modules": [],
   "complexity": "simple",
-  "current_stage": "2.17",
+  "current_stage": "2.19",
   "stages": [
     {
       "id": "1",
@@ -617,6 +617,29 @@
       "next": "Step 30 закрыт. Step 31 (3D-аэродинамика) ждёт реальных данных пользователя по геометрии/аэротаблице (ведёт туда же, что Step 101/106). Step 32 требует отдельной работы над sim/integrate.py (не покрыто текущим roadmap.md) прежде, чем 3D-сценарий можно будет провести end-to-end.",
       "pending_user": [],
       "result": "800/800 тестов на момент Step 30 (полный прогон 2026-10-25)."
+    },
+    {
+      "id": "2.19",
+      "name": "Phase 2.19 — пивот: apps/ становится корнем продукта (движок в apps/sim/engine/, configs/ уходит, data/ расщепляется, упаковка снимается)",
+      "status": "planned",
+      "dates": "спроектирована 2026-10-27",
+      "scope": "Чистая реструктуризация файлов (git mv + правка импортов), физика и численные пины не меняются. Нет внешнего потребителя — fx27/simulation прекращает быть отдельным consumer'ом, всё живёт в этом репозитории; sim/ физически переезжает в apps/sim/engine/; configs/ как формальный пакет/API упраздняется (датаклассы + assemble() переезжают в apps/sim/schema.py, FK3); apps/ раскладывается по таксономии input/sim/analysis/optimization/control/_shared; data/ расщепляется на гитигнорный /data (личные данные пользователя, создаётся пустым) и examples/data/ (демо/синтетика/фикстуры — все 14 файлов today's data/, кандидатных реальных данных в репозитории не оказалось); корневой docs/ (мусор сборки LaTeX) удаляется; pip install -e . снимается (FK1=R2) — ничего не установлено и сегодня, suite проходит без установки.",
+      "architecture_doc": "dev/docs/architecture-apps-sim-restructure.md",
+      "superseded_doc": "dev/docs/pivot-apps-restructure-analysis.md (facts reference only — премисы устарели)",
+      "steps": [
+        {"step": 126, "title": "структурный guard-suite (tests/test_layering.py) — чистое добавление", "status": "planned"},
+        {"step": 127, "title": "де-анкеринг __file__-путей вывода (5 мест, молча ломаются после переезда)", "status": "planned"},
+        {"step": 128, "title": "снятие упаковки (FK1=R2) + чистка корня (docs/, __pycache__)", "status": "planned"},
+        {"step": 129, "title": "data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 реальных файлов моторов (cspace/, euroc-sweep/) из D:\\Projects - Ongoing\\fx27\\simulation\\data\\motors\\ в rocket-physics/data/motors/ (D-156), затем fx27/simulation архивируется/удаляется", "status": "planned"},
+        {"step": 130, "title": "demo_scenario уходит из examples/ в apps/input/ (убирает обратную зависимость apps->examples)", "status": "planned"},
+        {"step": 131, "title": "таксономия apps/<type>/<name>/ + разбор apps/common/", "status": "planned"},
+        {"step": 132, "title": "controllers/ -> apps/control/flight_software/; tools/ -> apps/input/sounding_fetch/ (FK4=A)", "status": "planned"},
+        {"step": 133, "title": "ПЕРЕЕЗД ДВИЖКА: sim/ -> apps/sim/engine/ (336 строк импорта, 82 файла) — самый рискованный шаг фазы", "status": "planned"},
+        {"step": 134, "title": "configs/ упраздняется: schema.py -> apps/sim/schema.py (FK3=A), шим удалён", "status": "planned"},
+        {"step": 135, "title": "документация/навигация/CLAUDE.md «Профиль проекта» синхронизация", "status": "planned"}
+      ],
+      "next": "Git-flow: создать feature/apps-root-restructure от develop (тег pre-engine-move перед Step 133 — дешёвая страховка). Передать Step 126 разработчику (developer).",
+      "pending_approvals": []
     }
   ],
   "decisions": [
@@ -1612,6 +1635,132 @@
       "author": "user (grilling раунд 1, Q8/Q9)",
       "user_approved": true,
       "stage": "2.18"
+    },
+    {
+      "id": "D-143",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: остаётся ли rocket-physics устанавливаемым пакетом с внешним потребителем (fx27/simulation), или всё переезжает в один репозиторий?",
+      "choice": "Нет пакета, нет внешнего потребителя. fx27/simulation прекращает быть отдельным consumer'ом; вся реальная работа (данные, приложения, движок) живёт внутри rocket-physics.",
+      "author": "user (AskUserQuestion, раунд 2)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-144",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: sim/ (физический движок) остаётся top-level или физически переезжает в apps/?",
+      "choice": "Переезжает: sim/ -> apps/sim/engine/. Пользователь подтвердил этот вариант явно, зная, что он крупнее, чем изначально предполагал architect (который держал sim/ top-level, чтобы не ломать fx27-импорт) — это соображение снято решением D-143.",
+      "author": "user (AskUserQuestion, раунд 1)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-145",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: configs/ — архивировать как неиспользуемое, или это живой код (датаклассы + assemble(), ~22 импортирующих файла)?",
+      "choice": "configs/ как формальный пакет/API-поверхность упраздняется (шим __init__.py удаляется); сам функционал (Rocket/Motor/LaunchSite/Weather/Scenario + assemble()) НЕ удаляется, переезжает в apps/sim/schema.py (см. также FK3/D-151). Формулировка пользователя «discontinue the API» прочитана как «нет внешнего потребителя — не нужна формальная публичная граница», а не как запрос на редизайн датаклассов.",
+      "author": "user (AskUserQuestion, 3 раунда уточнения) + orchestrator (синтез прочтения, подтверждён пользователем неявно продолжением диалога)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-146",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: data/ — разделить на личные данные пользователя и демо/тестовые фикстуры?",
+      "choice": "/data (новый, top-level, гитигнорный, кроме data/README.md) — личные данные пользователя, не версионируются, не поставляются с инструментом; examples/data/ — весь корпус демо/синтетики/тестовых фикстур. Факт, вскрытый architect: кандидатных реальных данных (data/motors/cspace, euroc-sweep) в репозитории не оказалось — все 14 файлов today's data/ являются фикстурами, поэтому практический эффект сейчас — 14 из 14 файлов едут в examples/data/, а /data создаётся пустым. Пользователь подтвердил: именно так, добавит реальные данные позже.",
+      "author": "user (AskUserQuestion, раунд 1 + финальное уточнение)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-147",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: корневой docs/ (untracked, ~1 МБ мусора сборки LaTeX) — удалить?",
+      "choice": "Удалить. Это не dev/docs/latex/ (исходники, read-only для агентов) — чистый мусор сборки (.aux/.fdb_latexmk/.fls/.log/.out/.pdf/.synctex.gz/.toc), ничего не ссылается на него.",
+      "author": "architect (факт), не требовало отдельного вопроса пользователю — подтверждено по умолчанию",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-148",
+      "date": "2026-10-27",
+      "question": "Реструктуризация 2.19: начинать с пустой папки (копировать код в version 2) или реструктурировать репозиторий in-place?",
+      "choice": "In-place, через git mv + правку импортов, по шагам (Step 126-135), каждый шаг — один коммит + полный прогон тестов. Пустая папка не дешевле (тот же объём правок импортов) и теряет git-историю/blame и сквозную нумерацию D-NN/Step NN/B-NN.",
+      "author": "orchestrator (рекомендация), подтверждено пользователем продолжением диалога без возражений",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-149",
+      "date": "2026-10-27",
+      "question": "FK1 (architecture-apps-sim-restructure.md): сохранить pip install -e . или снять механизм упаковки?",
+      "choice": "R2 — снять. Измеренный факт: пакет не установлен в рабочем интерпретаторе сегодня (PackageNotFoundError), suite проходит целиком без установки. pyproject.toml остаётся домом для конфигурации инструментов; requirements.txt — единственный список зависимостей.",
+      "author": "user (AskUserQuestion, рекомендация architect)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-150",
+      "date": "2026-10-27",
+      "question": "FK2: глубина движка — apps/sim/engine/, плоский apps/sim/, или apps/sim/core/?",
+      "choice": "apps/sim/engine/ — фиксирует пинованное ядро как отдельную, диффуемую директорию; будущие sim-приложения становятся чистыми соседями engine/.",
+      "author": "user (AskUserQuestion, рекомендация architect)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-151",
+      "date": "2026-10-27",
+      "question": "FK3: где живёт schema.py (датаклассы + assemble())?",
+      "choice": "apps/sim/schema.py. Ядро (apps/sim/engine/) остаётся строго числовым, ровно 30 файлов; schema — тонкая входная дверь над ним.",
+      "author": "user (AskUserQuestion, рекомендация architect)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-152",
+      "date": "2026-10-27",
+      "question": "FK4: tools/fetch_sounding.py — переехать в apps/input/sounding_fetch/ или остаться в tools/ вне apps/?",
+      "choice": "Переезжает в apps/input/sounding_fetch/. Сетевой инвариант («только этот файл ходит в сеть») становится проверяемым guard-тестом (G3), а не только докстрингом.",
+      "author": "user (AskUserQuestion, рекомендация architect)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-153",
+      "date": "2026-10-27",
+      "question": "FK5: продвигать тело run.py в приложение apps/sim/baseline_run/ в этой фазе или позже?",
+      "choice": "Не в этой фазе. Фаза остаётся чистым перемещением файлов; правильное первое sim-приложение — то, что описывает vision (прогон с идентичностью/происхождением), и его стоит спроектировать отдельно.",
+      "author": "user (AskUserQuestion, рекомендация architect)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-154",
+      "date": "2026-10-27",
+      "question": "Новый /data создаётся пустым — это ожидаемо, или должен был уже содержать реальные данные пользователя?",
+      "choice": "Ожидаемо: /data создаётся пустым, пользователь добавит свои реальные кандидатные данные (моторы и т.п.) туда сам позже.",
+      "author": "user (AskUserQuestion)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-155",
+      "date": "2026-10-27",
+      "question": "dev/docs/latex/ ссылается на пути configs/ и data/, которые реструктуризация сделает устаревшими. Агентам нельзя править LaTeX — допустить дрейф?",
+      "choice": "Да, дрейф допускается осознанно; пользователь исправит ссылки сам при следующей работе над отчётом.",
+      "author": "user (AskUserQuestion)",
+      "user_approved": true,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-156",
+      "date": "2026-10-27",
+      "question": "Корректировка D-154: обнаружено (журнал, запись 2026-10-27 «Первый внешний потребитель»), что fx27/simulation — отдельный репозиторий-сосед, уже созданный сегодня с реальными 29 файлами кривых моторов (data/motors/cspace/, euroc-sweep/) и editable install rocket-physics — именно тот внешний потребитель, который D-143 отменяет. Что делать с ним?",
+      "choice": "Реальные данные (29 файлов) мигрируют в rocket-physics/data/motors/ (новый гитигнорный /data из D-146); после переноса fx27/simulation как отдельный репозиторий исчерпывает своё назначение и архивируется/удаляется. D-154 («/data создаётся пустым») скорректировано этим решением — на деле реальные данные были готовы к переносу с самого начала, просто лежали в соседнем репозитории.",
+      "author": "user (AskUserQuestion)",
+      "user_approved": true,
+      "stage": "2.19"
     }
   ],
   "deferred_decisions": [
@@ -1900,7 +2049,10 @@
     "architecture-32": "dev/docs/architecture-32-motor-separation.md",
     "handoff-2026-10-15": "dev/docs/session-2026-10-15-phase-2.16-handoff.txt",
     "data-motors-readme": "data/motors/README.md",
-    "data-soundings-readme": "data/soundings/README.md"
+    "data-soundings-readme": "data/soundings/README.md",
+    "vision": "dev/docs/vision.md",
+    "architecture_219_apps_sim_restructure": "dev/docs/architecture-apps-sim-restructure.md",
+    "pivot_apps_restructure_analysis_superseded": "dev/docs/pivot-apps-restructure-analysis.md (facts reference only, Phase 2.19 — premises obsolete)"
   },
   "branching": {
     "convention": "git-flow: master (стабильная) ← develop (интеграция) ← feature/<slug> (--no-ff мерж в develop); develop → master на закрытии фаз",
