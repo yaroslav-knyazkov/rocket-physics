@@ -2,8 +2,10 @@
 
 No registry: construct Motor/Rocket/LaunchSite/Weather/Scenario directly
 with your own values, assemble() into a Config, run_sim() it. See
-examples/worked_scenario.py for a complete, runnable, commented example
-(the REQ/OPT crib sheet the old configs/*/_TEMPLATE_*.py files used to be).
+apps/input/demo_scenario.py for a complete, commented example (the
+REQ/OPT crib sheet the old configs/*/_TEMPLATE_*.py files used to be;
+moved out of examples/worked_scenario.py at Phase 2.19, Step 130) --
+`python -m examples.worked_scenario` runs it end to end.
 
 The former file+registry convention (one file per instance, explicit
 _MODULES tuples, `configs.get(name)` lookup by string) is archived at

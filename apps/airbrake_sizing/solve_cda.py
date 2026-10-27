@@ -82,8 +82,8 @@ from scipy.optimize import brentq
 
 from apps.common.artifacts import ensure_dir, output_dir
 from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
+from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Config
-from examples.worked_scenario import DEMO_SCENARIO
 from sim.gravity import altitude_agl
 from sim.integrate import Result, run_sim
 from sim.params import Control, Params
@@ -649,7 +649,7 @@ def save_overlay(sol: AirbrakeSolution, path: Path) -> None:
 def main(argv: "list[str] | None" = None) -> None:
     """`python run_airbrake.py` / `python -m apps.airbrake_sizing.solve_cda`.
     Runs one named spec from `targets.SPECS` (`--spec`, default the main
-    burnout solve) against the demo scenario (`examples.worked_scenario.
+    burnout solve) against the demo scenario (`apps.input.demo_scenario.
     DEMO_SCENARIO`), prints the SS30.6 report, writes
     `output/airbrake_sizing.csv` and `output/airbrake_sizing_overlay.png`.
     Running every named spec in one go is the test suite's job

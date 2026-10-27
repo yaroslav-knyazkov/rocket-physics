@@ -995,7 +995,7 @@ def test_demo_descent_without_recovery_is_dissipative_not_free_fall_faster():
     below the drag-free bound) instead of blowing up."""
     import warnings
 
-    from examples.worked_scenario import DEMO_SCENARIO
+    from apps.input.demo_scenario import DEMO_SCENARIO
     from sim.mach_warning import MachRangeWarning
     from sim.params import replace as params_replace
 
@@ -1022,7 +1022,7 @@ def test_apogee_triggered_parachute_ignores_the_pad_sag():
     (vz > 0) for ~ms; the apogee-triggered chute must still deploy at apogee."""
     import warnings
 
-    from examples.worked_scenario import DEMO_SCENARIO
+    from apps.input.demo_scenario import DEMO_SCENARIO
     from sim.mach_warning import MachRangeWarning
     from sim.params import replace as params_replace
 

@@ -177,13 +177,14 @@ def _run_fresh_interpreter(code: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_import_worked_scenario_first_has_no_circular_import():
+def test_import_apps_input_demo_scenario_first_has_no_circular_import():
     # Step 125 (Phase 2.18 pivot): the former `configs.scenarios.demo`
-    # registry module is archived; `examples.worked_scenario` is the
-    # live worked example now, and the thing worth checking first-import
-    # order against `configs` for.
+    # registry module is archived; `apps.input.demo_scenario` (moved out
+    # of `examples.worked_scenario` at Step 130, which now just re-
+    # exports it) is where `DEMO_SCENARIO` is actually built, and the
+    # thing worth checking first-import order against `configs` for.
     _run_fresh_interpreter(
-        "import examples.worked_scenario\nprint(examples.worked_scenario.DEMO_SCENARIO.name)\n"
+        "import apps.input.demo_scenario\nprint(apps.input.demo_scenario.DEMO_SCENARIO.name)\n"
     )
 
 

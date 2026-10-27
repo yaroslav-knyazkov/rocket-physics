@@ -51,6 +51,7 @@ import pytest
 
 from apps.common import study_vehicle
 from apps.common.flight_stats import flight_stats
+from apps.input.demo_scenario import DEMO_SCENARIO
 from apps.weight_aero_tradeoff.compare_configs import (
     ConfigRun,
     compare_configs,
@@ -68,7 +69,6 @@ from apps.weight_aero_tradeoff.trade_surface import (
     save_contour_plot,
     save_surface_csv,
 )
-from examples.worked_scenario import DEMO_SCENARIO
 from sim.integrate import run_sim
 from sim.params import replace as params_replace
 

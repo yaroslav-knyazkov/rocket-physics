@@ -31,7 +31,7 @@ from apps.airbrake_sizing.solve_cda import (
 from apps.airbrake_sizing.targets import SPECS
 from apps.common import study_vehicle
 from apps.common.artifacts import ensure_dir
-from examples.worked_scenario import DEMO_SCENARIO
+from apps.input.demo_scenario import DEMO_SCENARIO
 from sim import control
 from sim.integrate import Result
 from sim.params import replace as params_replace

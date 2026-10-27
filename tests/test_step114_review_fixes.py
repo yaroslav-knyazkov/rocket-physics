@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
 from apps.motor_selection import scenario_sweep as ss
 from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, dynamics, thrust_curve
 from sim.dynamics import derivatives
 from sim.flow import flow_state

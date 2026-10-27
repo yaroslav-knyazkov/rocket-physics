@@ -31,17 +31,17 @@ their own `python -m apps....` invocation or their root wrapper
 `run_trade.py`).
 """
 
-from examples.worked_scenario import DEMO_SCENARIO
+from apps.input.demo_scenario import DEMO_SCENARIO
 from sim import report
 from sim.integrate import run_sim
 from sim.params import replace as params_replace
 
 
 def main() -> None:
-    # Step 123 (Phase 2.18, D-139/D-140): the one demo
-    # (examples/worked_scenario.py -- a real Cesaroni K570 on a 54 mm
-    # airframe, mass model ON) instead of the former 0.5 kg toy; single
-    # source of truth shared with App 2
+    # Step 123 (Phase 2.18, D-139/D-140), moved to apps/input/ at Step 130:
+    # the one demo (apps/input/demo_scenario.py -- a real Cesaroni K570 on
+    # a 54 mm airframe, mass model ON) instead of the former 0.5 kg toy;
+    # single source of truth shared with App 2
     # (apps/cfd_conditions/select_conditions.py).
     cfg = DEMO_SCENARIO.config
     params = cfg.params

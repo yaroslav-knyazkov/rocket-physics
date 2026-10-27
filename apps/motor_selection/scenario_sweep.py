@@ -30,8 +30,9 @@ resolved inputs, SHA-256 of the source file). The solver is unchanged.
 
 Run: `python run_motor_sweep.py --motors Cesaroni_2060K570-17A.eng --target 5000`
 (or `python -m apps.motor_selection.scenario_sweep ...`). The scenario is
-always the demo scenario (`examples.worked_scenario.DEMO_SCENARIO`, Step
-124, D-139/CLI-1) -- there is no `--scenario` flag any more.
+always the demo scenario (`apps.input.demo_scenario.DEMO_SCENARIO`, Step
+124, D-139/CLI-1, moved from `examples.worked_scenario` at Step 130) --
+there is no `--scenario` flag any more.
 """
 
 from __future__ import annotations
@@ -50,8 +51,8 @@ import numpy as np
 
 from apps.common.artifacts import output_dir
 from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
+from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
-from examples.worked_scenario import DEMO_SCENARIO
 from sim import aero, atmosphere, mass, motor_file, thrust_curve
 from sim.integrate import Result, run_sim
 from sim.params import Params, Thrust

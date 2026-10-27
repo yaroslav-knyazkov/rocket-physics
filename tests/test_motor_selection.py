@@ -539,7 +539,7 @@ if __name__ == "__main__":
 def test_mass_model_on_baseline_is_refused_before_any_integration(monkeypatch):
     """D-82: App 3 is a constant-mass study; a mass-on baseline (the
     integrator reads mass from y[M]) is refused before any `run_sim`."""
-    from examples.worked_scenario import DEMO_SCENARIO
+    from apps.input.demo_scenario import DEMO_SCENARIO
 
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called for a mass-on baseline")

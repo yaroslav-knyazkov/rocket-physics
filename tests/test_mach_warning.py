@@ -13,7 +13,7 @@ from sim.params import replace as params_replace
 
 
 def _demo():
-    from examples.worked_scenario import DEMO_SCENARIO
+    from apps.input.demo_scenario import DEMO_SCENARIO
 
     return DEMO_SCENARIO.config
 

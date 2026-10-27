@@ -11,8 +11,8 @@ import warnings
 import numpy as np
 import pytest
 
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
 from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, thrust_curve
 from sim.dynamics import derivatives
 from sim.params import Aero, Lengths, Params, Thrust, Weight

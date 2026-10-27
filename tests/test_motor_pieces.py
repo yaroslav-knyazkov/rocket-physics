@@ -35,8 +35,8 @@ import pytest
 import sim.mass as mass
 import sim.motor_file as motor_file
 import tests.config_variants as config_variants
+from apps.input.demo_scenario import motor as _cti_k570_motor
 from configs.schema import Airframe, Motor, Sections, _weight_from_pieces
-from examples.worked_scenario import motor as _cti_k570_motor
 from sim.params import Thrust
 
 G0 = 9.80665
@@ -418,7 +418,7 @@ def test_motor_is_frozen():
 
 def test_cti_k570_and_cti_k570_isp_compositions_agree_d59_equivalence():
     """D-59: the same real curve under `mass_model="endpoints"`
-    (`examples.worked_scenario.motor`, every mass field derived from the
+    (`apps.input.demo_scenario.motor`, every mass field derived from the
     `.eng` header) and under `mass_model="isp"` (`cti_k570_isp`, `I_sp`
     hand-entered to match `cti_k570`'s own measured `I_sp_eff` to 2
     decimal places) must compose to the same `m`/`m_d`/`l_d`/`I_d`/`I_sp`
