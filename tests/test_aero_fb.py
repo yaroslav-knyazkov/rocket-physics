@@ -21,6 +21,7 @@ from sim.flow import flow_state
 from sim.integrate import run_sim
 from sim.params import Aero, Control, Lengths, Params, Thrust, Weight
 from sim.state import State, Z
+from tests.datadir import AERO_DIR
 
 _ALPHAS = (-10, 0, 10)
 _MACHS = (0.5, 2.0)
@@ -63,7 +64,7 @@ def _apogee(res):
 
 @contextlib.contextmanager
 def _table(name, text):
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "aero", name)
+    path = os.path.join(AERO_DIR, name)
     with open(path, "w") as f:
         f.write(text)
     aero._load_table.cache_clear()

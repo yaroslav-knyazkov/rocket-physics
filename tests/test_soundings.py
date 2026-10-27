@@ -23,11 +23,7 @@ from sim.soundings import (
     project_latlon,
 )
 from sim.state import State, X
-
-
-_CASE_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
+from tests.datadir import SOUNDINGS_DIR as _CASE_DIR
 
 
 # ----------------------------------------------------------------------

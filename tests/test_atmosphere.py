@@ -29,12 +29,9 @@ from sim.params import replace as params_replace
 from sim.soundings import interp_altitude as soundings_interp_altitude
 from sim.soundings import load_case
 from sim.state import State, X, Z
+from tests.datadir import SOUNDINGS_DIR as _SOUNDINGS_DIR
 
 _P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
-
-_SOUNDINGS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
 
 
 def _y_at_altitude(h: float) -> np.ndarray:

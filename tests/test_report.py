@@ -14,8 +14,7 @@ from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Solver, Weight
 from sim.report import _CM_SLOPE_STEP, stability_check, static_margin_cal
 from sim.state import State
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
+from tests.datadir import AERO_DIR as _AERO_DIR
 
 
 @contextlib.contextmanager

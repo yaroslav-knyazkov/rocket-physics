@@ -18,9 +18,8 @@ from sim.flow import flow_state
 from sim.forces import aero_moment_y
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
+from tests.datadir import AERO_DIR as _AERO_DIR
 from tests.test_scenario_sweep import LARGE
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
 
 
 @contextlib.contextmanager

@@ -27,6 +27,13 @@ before the first `git mv`, not aspirational.
        relative to the current working directory *at call time*, not to
        either module's own `__file__` location -- the regression test
        proving Step 127's fix actually works (not just that it imports).
+  G5 -- fixture-root consistency guard (Step 129). `tests/datadir.py`
+       (test-side) and `sim/datafiles.py`'s `_BUNDLED` (library-side) are
+       two independent constants naming the same bundled-fixture
+       directory (`examples/data/`, since Step 129's `data/` ->
+       `examples/data/` split). Nothing enforces they stay in sync except
+       this guard -- it is the regression test for exactly the kind of
+       drift a future `git mv` of one but not the other would cause.
   G6 -- no-leftovers guard (Step 128, first instance). As each later step
        deletes a tree this phase retires, this guard grows one assertion
        per deletion -- "the old path is actually gone", not just "the new
@@ -230,6 +237,25 @@ def test_g4_output_helpers_resolve_under_cwd_not_repo(monkeypatch, tmp_path):
     assert resolved_report == tmp_path / "output"
     assert REPO_ROOT not in resolved_artifacts.parents
     assert REPO_ROOT not in resolved_report.parents
+
+
+# --- G5 ----------------------------------------------------------------
+
+
+def test_g5_bundled_data_anchor_matches_sim_datafiles():
+    """`tests.datadir.MOTORS_DIR` (test-side) and `sim.datafiles.resolve
+    ("placeholder.csv", "motors")` (library-side `_BUNDLED`) must agree on
+    where the bundled fixture tree lives, and that tree must sit under
+    `<repo>/examples/data` -- the regression test keeping the two
+    independent "bundled tree" constants this module's docstring
+    describes from drifting apart after a future `git mv`."""
+    from sim import datafiles
+    from tests.datadir import MOTORS_DIR
+
+    resolved = datafiles.resolve("placeholder.csv", "motors")
+
+    assert resolved == os.path.join(MOTORS_DIR, "placeholder.csv")
+    assert Path(resolved).resolve().is_relative_to((REPO_ROOT / "examples" / "data").resolve())
 
 
 # --- G6 ----------------------------------------------------------------

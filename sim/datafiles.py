@@ -40,14 +40,18 @@ calls with the same relative string. Each call site resolves first (this
 function, uncached) and caches on the *resolved* absolute path.
 
 Phase 2.19 (Step 127, dev/docs/architecture-apps-sim-restructure.md
-SS4.4/SS5): `_BUNDLED` still points at `<repo>/data`, computed from
-`__file__` exactly as before -- that target only moves in a later step
-(129/133), not this one. What changes here is the guard below: once
-`data/` does move, this anchor would otherwise go stale *silently* (rule
-3 would resolve to a directory that no longer has the bundled files,
-with no error until some unrelated `FileNotFoundError` deep in a loader).
-The import-time check below turns that into "loudly wrong immediately" --
-the safety net for the move this anchor can't take yet.
+SS4.4/SS5): the import-time check below (`BundledDataMissingError`) was
+added one step before `_BUNDLED`'s target actually moved, so that a
+later `git mv` of `data/` that forgot to update `_BUNDLED` would fail
+loudly here instead of resolving bare data-file names to a silently
+missing directory until some unrelated loader tripped over a
+`FileNotFoundError` far from the actual cause.
+
+Step 129 is that move: `_BUNDLED` now points at `<repo>/examples/data`
+(bundled example motors/aero/soundings fixtures, read by the test suite
+and this repo's own example scenarios), not `<repo>/data` (gitignored,
+the user's own personal data -- see `data/README.md`). `tests/datadir.py`
+holds the test-side mirror of this same `examples/data` anchor.
 """
 
 import os
@@ -62,7 +66,7 @@ class BundledDataMissingError(RuntimeError):
     `FileNotFoundError` far from the actual cause."""
 
 
-_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "data")
 
 if not os.path.isdir(_BUNDLED):
     raise BundledDataMissingError(

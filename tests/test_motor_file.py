@@ -14,10 +14,7 @@ import numpy as np
 import pytest
 
 from sim import motor_file
-
-_MOTORS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "data", "motors"
-)
+from tests.datadir import MOTORS_DIR as _MOTORS_DIR
 
 
 def _write_temp_motor_file(name: str, text: str):

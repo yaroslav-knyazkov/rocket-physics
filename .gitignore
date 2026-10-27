@@ -12,6 +12,18 @@ __pycache__/
 # ignored here, Step 128, Phase 2.19.
 /docs/
 
+# Root-level data/ -- the user's own personal data (real motor curves,
+# real soundings, etc.), never committed. NOT examples/data/ (the bundled
+# fixture corpus the test suite and example scenarios read) -- split out
+# here, Step 129, Phase 2.19. The one tracked exception (`README.md`)
+# gives a fresh clone the bare directory with no personal data inside it.
+# NOTE: `/data/*` (not `/data/`) -- git never looks inside a fully
+# ignored directory to apply a `!`-negation to one of its files, so
+# ignoring the directory itself would silently swallow the negation
+# below too.
+/data/*
+!/data/README.md
+
 # LaTeX build artifacts (local compile of dev/docs/latex/main.tex)
 dev/docs/latex/*.aux
 dev/docs/latex/*.fdb_latexmk

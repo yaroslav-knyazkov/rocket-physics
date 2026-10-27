@@ -20,12 +20,9 @@ from sim.params import replace as params_replace
 from sim.soundings import load_case
 from sim.state import State, VX, X, Z
 from sim.wind import wind_horizontal_enu, wind_inertial
+from tests.datadir import SOUNDINGS_DIR as _SOUNDINGS_DIR
 
-_MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv, see tests/test_thrust_curve.py
-
-_SOUNDINGS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
+_MOTOR_CURVE = "placeholder.csv"  # examples/data/motors/placeholder.csv, see tests/test_thrust_curve.py
 
 
 # ----------------------------------------------------------------------

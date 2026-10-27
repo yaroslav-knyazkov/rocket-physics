@@ -17,8 +17,7 @@ from examples.worked_scenario import DEMO_SCENARIO as DEMO
 from sim import aero, motor_file
 from sim.integrate import run_sim
 from sim.params import Aero, Solver, Thrust
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
+from tests.datadir import AERO_DIR as _AERO_DIR
 
 
 def _csv_motor(name, curve, m_prop, m_total, **kw):

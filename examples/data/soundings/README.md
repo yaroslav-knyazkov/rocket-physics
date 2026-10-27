@@ -1,7 +1,9 @@
-# data/soundings/
+# examples/data/soundings/
 
 Radiosonde cases, selected through `soundings.case` (one directory per case,
-one CSV per station). Three categories, one directory each:
+one CSV per station). This is the bundled fixture corpus (Phase 2.19, Step
+129) -- your own personal sounding data goes in the gitignored root `data/`
+instead, see `data/README.md`. Three categories, one directory each:
 
 | directory | category | who reads it |
 |---|---|---|

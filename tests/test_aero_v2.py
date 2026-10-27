@@ -16,8 +16,7 @@ from sim.integrate import run_sim
 from sim.params import Aero, Lengths, Params, Solver, Weight
 from sim.state import M as IM
 from sim.state import State
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
+from tests.datadir import AERO_DIR as _AERO_DIR
 
 _BODY = (
     "alpha_deg,M,C_A,C_N,C_m,{arm}\n"
