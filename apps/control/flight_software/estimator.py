@@ -72,9 +72,9 @@ def step(t: float, h_baro: float, prev, *, model: str = "stub", p=None):
 
     Unknown `model` raises ValueError here -- the one validation point
     for this field (sim/integrate.py cannot eagerly guard it without
-    importing controllers/, which sim/ never does; see the ticket's own
-    §108.8.2 for why this is a deliberate, documented asymmetry with
-    airbrake_model/actuator.model's eager guards).
+    importing apps/control/flight_software/, which sim/ never does; see
+    the ticket's own §108.8.2 for why this is a deliberate, documented
+    asymmetry with airbrake_model/actuator.model's eager guards).
     """
     if model == "stub":
         return _step_stub(t, h_baro, prev)

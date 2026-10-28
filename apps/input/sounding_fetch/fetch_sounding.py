@@ -2,7 +2,7 @@
 Wyoming archive and write it in the canonical CSV format `sim/soundings.py`
 reads (architecture.md SS17; roadmap.md Step 26).
 
-    python tools/fetch_sounding.py --station 72672 \\
+    python apps/input/sounding_fetch/fetch_sounding.py --station 72672 \\
         --datetime "2024-01-15 12:00:00" --case example_live --step-m 250
 
 Writes under `<cwd>/data/soundings/<case>/`, or under `--out-dir/<case>/`
@@ -65,7 +65,7 @@ from typing import NamedTuple
 import numpy as np
 
 _BASE_URL = "https://weather.arcc.uwyo.edu/wsgi/sounding"
-_USER_AGENT = "rocket-trajectory-sim/tools/fetch_sounding.py (hand-run, single request)"
+_USER_AGENT = "rocket-trajectory-sim/apps/input/sounding_fetch/fetch_sounding.py (hand-run, single request)"
 
 # Raw response header row, used to distinguish real CSV data from the
 # archive's plain-text "no data" message (same status either way is a 404,

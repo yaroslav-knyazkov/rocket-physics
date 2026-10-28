@@ -10,9 +10,9 @@ Why a new module and not `sim/control.py` (task-109 SS109.4, D-134):
    that owns a dispatch" (`params.py`'s docstring), and `Params.roll`'s
    owner is this module.
 2. Boundary isolation: Step 108 (parallel) touches `sim/sensors.py` and
-   `controllers/estimator.py`, widening `sim/control.py`'s measurement
-   path. This module must not import `sim.control` or `sim.sampling`, and
-   does not need to.
+   `apps/control/flight_software/estimator.py`, widening
+   `sim/control.py`'s measurement path. This module must not import
+   `sim.control` or `sim.sampling`, and does not need to.
 3. The laws here are memoryless -- pure functions of `(t, y, p)`,
    re-evaluated at every RHS call, exactly like `control._proportional_
    airbrake`. A roll law *with* memory would register a sampled channel in

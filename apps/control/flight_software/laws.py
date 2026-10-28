@@ -1,8 +1,8 @@
 """Sampled, stateful airbrake laws (Phase 2.17 Milestone M3, architecture-
 35-paper-alignment.md SS35.4.4) -- registered into sim.control at
-controllers/__init__.py's own import time, never called directly by
-sim/. Each law has the signature fn(t_k, meas, p, state) -> (cmd, state)
-sim.control.register_sampled_law documents.
+apps/control/flight_software/__init__.py's own import time, never called
+directly by sim/. Each law has the signature fn(t_k, meas, p, state) ->
+(cmd, state) sim.control.register_sampled_law documents.
 """
 
 import math
@@ -10,7 +10,7 @@ from typing import NamedTuple, Optional
 
 import numpy as np
 
-from controllers import estimator
+from apps.control.flight_software import estimator
 
 
 def drag_aware_predicted_apogee(h: float, v: float, g: float, m: float, k: float) -> float:

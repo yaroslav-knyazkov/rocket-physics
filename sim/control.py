@@ -75,12 +75,21 @@ t=0", the same semantics `Recovery.deploy_time == 0.0` already carries.
 
 Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-sampled-
 laws-registry.md): `register_sampled_law`/`known_sampled_laws` let a
-STATEFUL law (estimator + controller, outside this module -- `controllers/
-laws.py`) plug into the same `p.control.airbrake_model` dispatch key the
-three memoryless laws already use, read only by `sample_airbrake` under
+STATEFUL law (estimator + controller, outside this module --
+`apps/control/flight_software/laws.py`) plug into the same
+`p.control.airbrake_model` dispatch key the three memoryless laws
+already use, read only by `sample_airbrake` under
 `p.solver.sample_rate_hz > 0.0` (`sim/integrate.py`'s eager guard rejects
 any other combination before integration starts). `_proportional_airbrake`
 and the other two memoryless laws are not edited by this step.
+
+Import direction stays `apps -> sim`: this module never imports
+`apps.control.flight_software` (Step 132, architecture-apps-sim-
+restructure.md SS4.1). `apps/control/*` is still the one app type whose
+code is *called by* the integrator during a run -- execution direction is
+the reverse of import direction, and registration into `_SAMPLED_LAWS`
+below is a runtime side effect of importing `apps.control.flight_software`
+once, which is why relocating it cannot move a pin.
 """
 
 import math
@@ -437,9 +446,10 @@ def known_actuator_models() -> "tuple[str, ...]":
 # ----------------------------------------------------------------------
 # Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
 # sampled-laws-registry.md): the sampled-law registry -- any STATEFUL
-# estimator+law pair (controllers/laws.py) can plug into the same
-# p.control.airbrake_model dispatch key the three memoryless laws above
-# already use. No law is written in this module -- see controllers/.
+# estimator+law pair (apps/control/flight_software/laws.py) can plug
+# into the same p.control.airbrake_model dispatch key the three
+# memoryless laws above already use. No law is written in this module
+# -- see apps/control/flight_software/.
 # ----------------------------------------------------------------------
 
 

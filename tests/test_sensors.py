@@ -115,8 +115,8 @@ def test_lag_out_of_order_tick_holds_previous_estimate_instead_of_overflowing():
     """Found during this ticket's own code-review pass: a repeated/out-of-
     order tick (`dt <= 0.0`) must not feed a large positive argument into
     `math.exp` (OverflowError) -- same "hold the previous estimate
-    unchanged" guard controllers/estimator.py's `_step_alpha_beta` already
-    uses for the identical class of input."""
+    unchanged" guard apps/control/flight_software/estimator.py's
+    `_step_alpha_beta` already uses for the identical class of input."""
     p = _base_params(baro_tau_s=0.01)  # a small tau makes -dt/tau large for any dt < 0
     y = _y_at_h_msl(500.0)
     prev = sensors.SensorState(t_prev=10.0, h_lag_prev=123.0)

@@ -470,8 +470,8 @@ def test_full_after_burnout_reproduces_the_saturated_proportional_apogee():
 # Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
 # sampled-laws-registry.md): the sampled-law registry mechanics and
 # sample_airbrake's new dispatch branch. No law is written/tested here --
-# controllers/laws.py's own pure/stateful behaviour is tested in
-# tests/test_controllers.py; this file only proves the registry +
+# apps/control/flight_software/laws.py's own pure/stateful behaviour is
+# tested in tests/test_controllers.py; this file only proves the registry +
 # dispatch wiring sim/control.py itself owns.
 # ----------------------------------------------------------------------
 

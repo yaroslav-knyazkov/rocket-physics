@@ -10,17 +10,21 @@ before the first `git mv`, not aspirational.
 
   G1 -- import-direction guard. The engine (`sim/` today, `apps/sim/
        engine/` after a later step) must never import `apps`, `examples`,
-       `tests`, `tools`, or `controllers`. This is the project's existing
-       "the engine never imports the application layer" rule
-       (architecture.md), enforced here for the first time instead of
-       resting on a docstring promise.
+       or `tests`. This is the project's existing "the engine never
+       imports the application layer" rule (architecture.md), enforced
+       here for the first time instead of resting on a docstring promise.
+       `tools`/`controllers` were dropped from this list at Step 132 once
+       both directories were deleted -- `apps` already covers their new
+       locations under `apps/control/flight_software` and
+       `apps/input/sounding_fetch`, so the two dropped entries were
+       already redundant, not a loosening of the guard.
   G2 -- importability guard. Every `.py` module under the engine,
-       `apps/`, `configs/`, `controllers/` must be importable by its
-       dotted name. This is the guard that later catches a file orphaned
-       by a `git mv` (moved, but nothing imports it any more, and it
-       silently rots).
-  G3 -- network-isolation guard. Nothing outside `tools/fetch_sounding.py`
-       (the project's one intentionally-networked module) may import
+       `apps/`, `configs/` must be importable by its dotted name. This is
+       the guard that later catches a file orphaned by a `git mv` (moved,
+       but nothing imports it any more, and it silently rots).
+  G3 -- network-isolation guard. Nothing outside
+       `apps/input/sounding_fetch/fetch_sounding.py` (the project's one
+       intentionally-networked module, moved here at Step 132) may import
        `urllib`, `http`, `socket`, or `requests`.
   G4 -- output-anchoring guard (Step 127). `apps.common.artifacts.
        output_dir()` and `sim.report.default_output_dir()` resolve
@@ -39,19 +43,21 @@ before the first `git mv`, not aspirational.
        per deletion -- "the old path is actually gone", not just "the new
        path exists". Step 128 retires the root `docs/` directory (pure
        LaTeX build junk, not `dev/docs/`), so this step's one assertion is
-       that it stays gone. Steps 129+ append assertions for `sim/`,
-       `configs/`, `controllers/`, `tools/`, `apps/common/` as each is
-       actually deleted in its own step -- not before, since asserting a
-       directory's absence before the step that removes it would fail on
-       every commit until that step lands.
+       that it stays gone. Step 131 added `apps/common/`; Step 132 adds
+       `controllers/` and `tools/` (both deleted once their contents moved
+       to `apps/control/flight_software/` and `apps/input/sounding_fetch/`
+       respectively). Steps 133+ append assertions for `sim/`, `configs/`
+       as each is actually deleted in its own step -- not before, since
+       asserting a directory's absence before the step that removes it
+       would fail on every commit until that step lands.
 
 `ENGINE_DIR` is the one constant a later step repoints (`"sim"` ->
 `"apps/sim/engine"`); nothing else in this file should need to change for
 that move.
 
 Scope note (G3): the walk below covers the project's own source tree --
-`sim/`, `apps/`, `configs/`, `controllers/`, `tools/`, `tests/`,
-`examples/`, and the top-level `run_*.py` entry scripts -- not `.claude/`.
+`sim/`, `apps/`, `configs/`, `tests/`, `examples/`, and the top-level
+`run_*.py` entry scripts -- not `.claude/`.
 `.claude/` is Claude Code harness tooling (CLAUDE.md's "Профиль проекта"
 table never lists it as project code), and two of its scripts
 (`.claude/scripts/wt.py`, `.claude/hooks/telegram_notify.py`) legitimately
@@ -76,25 +82,25 @@ ENGINE_DIR = "sim"
 
 # The engine may never import any of these (stdlib / numpy / scipy /
 # matplotlib / anything rooted at the engine package itself are fine).
-BANNED_ENGINE_IMPORT_ROOTS = frozenset({"apps", "examples", "tests", "tools", "controllers"})
+BANNED_ENGINE_IMPORT_ROOTS = frozenset({"apps", "examples", "tests"})
 
 # --- G2: importability guard ------------------------------------------------
 
 # Trees walked for "every module importable by dotted name" (today's
 # layout; `apps/sim/engine` folds the engine into `apps/` in a later step).
-IMPORTABILITY_ROOTS = (ENGINE_DIR, "apps", "configs", "controllers")
+IMPORTABILITY_ROOTS = (ENGINE_DIR, "apps", "configs")
 
 # --- G3: network-isolation guard --------------------------------------------
 
 # The project's one intentionally-networked module (relative to REPO_ROOT,
 # forward slashes -- normalised for comparison below).
-NETWORK_EXEMPT_FILES = frozenset({"tools/fetch_sounding.py"})
+NETWORK_EXEMPT_FILES = frozenset({"apps/input/sounding_fetch/fetch_sounding.py"})
 
 BANNED_NETWORK_IMPORT_ROOTS = frozenset({"urllib", "http", "socket", "requests"})
 
 # Project source roots scanned for G3 -- see the "Scope note" in the
 # module docstring for why `.claude/` is not in this list.
-NETWORK_SCAN_ROOTS = ("sim", "apps", "configs", "controllers", "tools", "tests", "examples")
+NETWORK_SCAN_ROOTS = ("sim", "apps", "configs", "tests", "examples")
 # Top-level entry scripts, scanned individually (they are files, not dirs).
 NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py", "run_motor_sweep.py", "run_trade.py")
 
@@ -103,7 +109,7 @@ NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py",
 # Paths (relative to REPO_ROOT) that must not exist, one entry added per
 # deletion step as that step actually lands (module docstring). Step 128:
 # the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`.
-RETIRED_PATHS = ("docs", "apps/common")
+RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools")
 
 
 def _iter_py_files(root_dir: Path):

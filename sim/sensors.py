@@ -1,8 +1,8 @@
 """Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
-baro-pressure sensing channel a registered sampled law (controllers/)
-reads through -- the REAL sensor, replacing Step 107's own
-`sim.control._ideal_measurement` stub at its one call site
-(sim/control.py's sample_airbrake, SS107.12).
+baro-pressure sensing channel a registered sampled law
+(apps/control/flight_software/) reads through -- the REAL sensor,
+replacing Step 107's own `sim.control._ideal_measurement` stub at its
+one call site (sim/control.py's sample_airbrake, SS107.12).
 
 Pipeline, in order: true pressure (sim.atmosphere.air_state, whichever
 tier is active) -> ISA pressure-altitude inversion (sim.atmosphere.
@@ -13,10 +13,11 @@ Sensors fields default to inert, so sim.sensors.measure reproduces the
 truth altitude bit-for-bit under the default "isa" atmosphere tier.
 
 sim/ layering: this module is part of sim/ (reads sim.atmosphere,
-sim.control's Measurement type), NOT controllers/ -- the sensor's own
-physics belongs with the plant, same status as sim.control's actuator
-model (Step 103). controllers/ never sees the true state `y`; it only
-ever sees this module's own `Measurement` output.
+sim.control's Measurement type), NOT apps/control/flight_software/ --
+the sensor's own physics belongs with the plant, same status as
+sim.control's actuator model (Step 103). apps/control/flight_software/
+never sees the true state `y`; it only ever sees this module's own
+`Measurement` output.
 """
 
 from __future__ import annotations
@@ -71,10 +72,10 @@ def measure(t: float, y: np.ndarray, p, prev: "Optional[SensorState]") -> "tuple
             # `-dt/tau` strongly positive, and `math.exp` of a large
             # positive argument raises `OverflowError` -- a hard crash,
             # not a graceful degradation. Same guard, same "hold the
-            # previous estimate unchanged" convention, as controllers/
-            # estimator.py's own `_step_alpha_beta` dt<=0.0 branch (this
-            # ticket, sibling code path) already uses for the identical
-            # class of input.
+            # previous estimate unchanged" convention, as
+            # apps/control/flight_software/estimator.py's own
+            # `_step_alpha_beta` dt<=0.0 branch (this ticket, sibling
+            # code path) already uses for the identical class of input.
             h_lag = prev.h_lag_prev
         else:
             h_lag = h_press + (prev.h_lag_prev - h_press) * math.exp(-dt / s.baro_tau_s)

@@ -228,8 +228,8 @@ class Control:
     # estimator a registered sampled law's own estimator.step call uses.
     # "stub" (default) is Step 107's own two-point backward difference,
     # UNCHANGED, bit-for-bit; "alpha_beta" is Step 108's real filter
-    # (gains below). Read only by controllers/laws.py -- unreachable
-    # (inert) under every memoryless airbrake_model value, same standing
+    # (gains below). Read only by apps/control/flight_software/laws.py --
+    # unreachable (inert) under every memoryless airbrake_model value, same standing
     # as airbrake_ki/onboard_* above.
     estimator_model: str = "stub"     # stub | alpha_beta
     estimator_alpha: float = 0.5      # alpha_beta only: position gain, dimensionless (0, 1)
