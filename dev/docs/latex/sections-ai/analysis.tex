@@ -143,6 +143,60 @@ stable rocket gets a positive number:
 $\mathrm{SM}>0$ is then equivalent to \autoref{eq:static_margin}; the two coincide, $l_{cp}=l_p$, exactly
 when $C_{m,\alpha}=0$ about $p$ (the degenerate case where $p$ already is the CP).
 
+\subsection{Flight-path angle and the point-mass gravity turn}\label{sec:analysis_flightpath}
+Everything above tracks the \emph{nose} direction $\theta_r$. The trajectory itself is set by the
+\emph{velocity} direction, and the two differ by the angle of attack. Define the flight-path angle
+$\theta_v$, the angle of $\vec{v}_r$ above the horizon (conventionally written $\gamma$; here
+$\theta_v$, since $\gamma_r$ is the roll angle of \autoref{sec:roll}), by the same construction as
+\autoref{eq:body_axes_in_ground}:
+\begin{equation}\label{eq:vel_axes_in_ground}
+    \hat{x}_v = \cos\theta_v\,\hat{x}_0 - \sin\theta_v\,\hat{z}_0, \qquad
+    \hat{z}_v = \sin\theta_v\,\hat{x}_0 + \cos\theta_v\,\hat{z}_0, \qquad
+    \vec{v}_r = V\hat{x}_v,
+\end{equation}
+so that $v_x=V\cos\theta_v$, $v_z=-V\sin\theta_v$ and $\theta_v=\operatorname{atan2}(-v_z,v_x)$:
+positive climbing, since $\hat{z}_0$ points down. In the pitch plane and in still air the three
+angles close exactly,
+\begin{equation}\label{eq:alpha_closure}
+    \alpha = \theta_r - \theta_v,
+\end{equation}
+which is the simulator's $\alpha=\operatorname{atan2}(v_{rel,z},v_{rel,x})$ of
+\autoref{sec:relwind} written in ground-frame terms. With wind, $\theta_v$ in
+\autoref{eq:alpha_closure} is the air-relative flight-path angle.
+
+\paragraph{The point-mass limit.} Strip the airframe of its rotational degree of freedom: no
+aerodynamic normal force, thrust along the velocity vector ($\theta_t=0$ and $\alpha=0$, so
+$\hat{x}_v=\hat{x}_r$), a flat non-rotating Earth ($\hat{z}_g=\hat{z}_0$, $\varphi=0$), still air
+(so the path speed is the airspeed, $V=v_{rel}$) and drag $D$
+antiparallel to $\vec{v}_r$. Then \autoref{eq:eom_trans} reduces to
+$m\vec{a}_r = mg\hat{z}_0 + (T-D)\hat{x}_v$, while differentiating
+\autoref{eq:vel_axes_in_ground} gives
+\begin{equation}\label{eq:accel_in_vel_axes}
+    \vec{a}_r = \dot{V}\hat{x}_v - V\dot\theta_v\,\hat{z}_v .
+\end{equation}
+Projecting on $\hat{z}_v$, where $\hat{z}_0\cdot\hat{z}_v=\cos\theta_v$ and weight is the only
+contributor, and on $\hat{x}_v$:
+\begin{gather}
+    \dot\theta_v = -\frac{g}{V}\cos\theta_v, \label{eq:flightpath_rate}\\
+    m\dot{V} = T - D - mg\sin\theta_v. \label{eq:speed_rate}
+\end{gather}
+\autoref{eq:flightpath_rate} is the \emph{gravity turn}: gravity alone bends the velocity vector, at
+a rate $g/V$ modulated by $\cos\theta_v$. It vanishes when the flight is vertical
+($\theta_v=\pm90^\circ$), where gravity is purely decelerating and turns nothing, and is largest
+when level, $\dot\theta_v=-g/V$. A faster rocket turns less per unit time --- the reason a high
+thrust-to-weight launch holds its initial attitude. Holding $V$ fixed, \autoref{eq:flightpath_rate}
+integrates to
+\begin{equation}\label{eq:gravity_turn_closed}
+    \tan\!\left(\frac{\pi}{4}+\frac{\theta_v}{2}\right)
+        = \tan\!\left(\frac{\pi}{4}+\frac{\theta_{v,0}}{2}\right) e^{-gt/V},
+\end{equation}
+so $\theta_v\to-90^\circ$ with time constant $V/g$.
+
+This is a \emph{cruder} model than \autoref{eq:eom_trans}--\autoref{eq:eom_rot}, not a refinement of
+them: it carries no moment, no inertia and no angle of attack, and the simulator never integrates it.
+Its uses are the two below --- a closed-form estimate to check the integrator against, and the
+justification of the short-period approximation that follows.
+
 \subsubsection{Dynamic stability}\label{sec:analysis_dynamic}
 The static criterion does not say what the resulting oscillation does. That needs the
 \textbf{pitch-damping derivative} $C_{m,q}$, the sensitivity of $C_m$ to the non-dimensional pitch
@@ -174,9 +228,15 @@ which separates into a stiffness term and a damping term,
         = \frac{qS}{I}\bigl[(l_g-l_p)C_{z,\alpha}-c\,C_{m,\alpha}\bigr], \qquad
     M_q \equiv \frac{qSc^2}{2v_{rel}I}C_{m,q}.
 \end{equation}
-$M_\alpha$ is negative for a statically stable airframe and $M_q$ is positive for $C_{m,q}>0$. In
-the short-period approximation the flight-path angle changes slowly over one oscillation, so
-$\mathrm{d}\alpha/\mathrm{d}t\approx\omega_r$ and
+$M_\alpha$ is negative for a statically stable airframe and $M_q$ is positive for $C_{m,q}>0$.
+Eliminating $\theta_r$ in favour of $\alpha$ through \autoref{eq:alpha_closure}
+($\omega_r=\dot\alpha+\dot\theta_v$, $\varepsilon_r=\ddot\alpha+\ddot\theta_v$) turns
+$\varepsilon_r=M_\alpha\alpha-M_q\omega_r$ into an exact statement,
+\begin{equation}\label{eq:short_period_exact}
+    \ddot\alpha + M_q\dot\alpha - M_\alpha\alpha
+        = -\left(\ddot\theta_v + M_q\dot\theta_v\right),
+\end{equation}
+whose right-hand side is the entire content of the short-period approximation: dropping it gives
 \begin{equation}
     \frac{\mathrm{d}^2\alpha}{\mathrm{d}t^2} + M_q\frac{\mathrm{d}\alpha}{\mathrm{d}t} - M_\alpha\alpha = 0,
 \end{equation}
@@ -185,6 +245,21 @@ with natural frequency and damping ratio
     \omega_n = \sqrt{-M_\alpha}, \qquad \zeta = \frac{M_q}{2\omega_n} = \frac{M_q}{2\sqrt{-M_\alpha}},
 \end{equation}
 valid only for $M_\alpha<0$; otherwise the disturbance grows rather than oscillates.
+
+\autoref{eq:flightpath_rate} makes the dropped term quantitative instead of merely ``slow''. With
+$|\dot\theta_v|\le g/V$ and $\ddot\theta_v=O\!\left((g/V)^2+g\dot V/V^2\right)$, the dominant
+neglected term is $M_q\dot\theta_v=2\zeta\omega_n\dot\theta_v$. Measuring it against the retained
+stiffness $M_\alpha\alpha\sim\omega_n^2\hat\alpha$ for an oscillation of amplitude $\hat\alpha$, and
+writing
+\begin{equation}\label{eq:flightpath_ratio}
+    \Lambda \equiv \frac{g/V}{\omega_n} = \frac{g}{V\sqrt{-M_\alpha}},
+\end{equation}
+the approximation holds when $2\zeta\Lambda\ll\hat\alpha$ and $\Lambda^2\ll\hat\alpha$ --- in short,
+$\Lambda\ll1$: the flight-path angle must drift through much less than the oscillation amplitude in
+one short period, $\Delta\theta_v\approx2\pi\Lambda\ll\hat\alpha$. Since $\Lambda\propto1/V$, the
+approximation is at its weakest at low airspeed --- on and just off the rail, and near the apogee of
+a lofted flight --- and strongest through the high-$q$ part of the boost. Near-vertical flight
+relaxes it independently of speed, because $\cos\theta_v\to0$ suppresses $\dot\theta_v$ directly.
 
 The distributed-force argument above gives an estimate. A component $i$ with normal-force slope
 $C_{z,\alpha,i}$ (referred to $S$) at a distance $s_i$ from the CoG adds a moment proportional to

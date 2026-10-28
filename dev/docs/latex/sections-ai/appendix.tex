@@ -82,6 +82,9 @@ $q$ & \texttt{flow.q} & dynamic pressure & Pa \\
 $v_{rel}$, $\vec{v}_{rel}$ & \texttt{flow.V} & airspeed; relative-wind vector & m/s \\
 $v_{rel,x}$, $v_{rel,z}$ & --- & relative-velocity components in $\mathcal{F}_r$ & m/s \\
 $\alpha$ & \texttt{flow.alpha} & angle of attack & rad \\
+$\theta_v$ & not implemented (derivable: \texttt{atan2(-vz, vx)}, or \texttt{theta - alpha} in still air) & flight-path angle, velocity vector above the horizon & rad \\
+$\hat{x}_v$, $\hat{z}_v$ & --- & velocity-axis unit vectors (\autoref{eq:vel_axes_in_ground}) & --- \\
+$V$ & \texttt{flow.V} (air-relative $v_{rel}$); $|\vec{v}_r|$ inertially & point-mass path speed; $V=v_{rel}$ in still air & m/s \\
 $w_{up}$ & not implemented & updraft speed ($w_z=-w_{up}$) & m/s \\
 $v_{ref}$ & turbulence setting & fixed reference airspeed of the Dryden spectrum & m/s \\
 \hline
@@ -116,13 +119,18 @@ $\hat{\omega}=\omega_r c/(2v_{rel})$ & --- & non-dimensional pitch rate & --- \\
 $M_{\theta_t}=(l_g-l_t)\,T\sin\theta_t$ & --- & misalignment disturbance torque & N\,m \\
 $s_i$ & --- & position of a body point relative to the CoG ($C_{m,q}$ derivation) & m \\
 $M_\alpha$, $M_q$, $\omega_n$, $\zeta$ & --- & short-period parameters & $\mathrm{1/s^2}$, 1/s, rad/s, --- \\
+$\Lambda=(g/V)/\omega_n$ & --- & flight-path drift rate against the short-period frequency & --- \\
 \end{longtable}
 }
 Some letters carry two meanings, told apart by context: $g$ is the centre of gravity, the
 gravitational acceleration, and as a subscript both the point ($l_g$, $r_g$) and the gravity
 direction ($\hat{z}_g$); $t$ as a point differs from time $t$; $h$ is the RK4 step in
 \autoref{sec:states} but the altitude elsewhere. $l_p$ is only the aerodynamic reference point; in
-the code \texttt{p.weight.l\_p} is the propellant centroid (the motor's $l_{g,m}$).
+the code \texttt{p.weight.l\_p} is the propellant centroid (the motor's $l_{g,m}$). $\theta$ now
+carries three subscripted meanings: body pitch ($\theta_r$), thrust-line angle ($\theta_t$) and
+flight-path angle ($\theta_v$, \autoref{sec:analysis_flightpath}). The conventional symbol for the
+flight-path angle, $\gamma$, is deliberately not used here, since $\gamma_r$ already names the roll
+angle (\autoref{sec:roll}).
 
 \section{Model inventory}\label{sec:eom_inventory}
 Every symbol on the right-hand sides of \autoref{eq:eom_trans_expanded} and

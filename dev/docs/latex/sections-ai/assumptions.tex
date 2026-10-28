@@ -26,6 +26,12 @@ later, unless stated otherwise.
     written.
     \item \textbf{Turbulence.} The Dryden spectrum is driven at a fixed reference airspeed, not the
     rocket's own, and has no vertical component. It is off by default.
+    \item \textbf{Point-mass gravity turn.} The flight-path-angle rate of
+    \autoref{eq:flightpath_rate} (\autoref{sec:analysis_flightpath}) is an analysis-only model: it
+    strips the airframe of its rotational degree of freedom entirely (no aerodynamic normal force,
+    thrust aligned with the velocity vector, a flat non-rotating Earth, still air) and is never
+    integrated by the simulator, which always carries the full rotational dynamics of
+    \autoref{eq:eom_rot}.
     \item \textbf{Roll.} The roll freedom of \autoref{sec:roll} is exact in the pitch plane, but
     the yaw torques that roll and the wheel produce --- \autoref{eq:roll_gyro_pitch}'s
     $(I_x-I)\omega_z\omega_x$ and \autoref{eq:roll_gyro_wheel}'s $\omega_rh_w$ --- cannot be
