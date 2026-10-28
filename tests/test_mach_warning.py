@@ -7,9 +7,9 @@ import warnings
 import pytest
 
 from apps.input import study_vehicle
-from sim.integrate import run_sim
-from sim.mach_warning import MachRangeWarning, peak_mach
-from sim.params import replace as params_replace
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.mach_warning import MachRangeWarning, peak_mach
+from apps.sim.engine.params import replace as params_replace
 
 
 def _demo():
@@ -59,7 +59,7 @@ def test_table_model_above_limit_is_exempt(monkeypatch):
     # Same fast flight, but labelled "table": the check must stay silent.
     # (Only the model label is swapped on the finished Result's params --
     # the check reads nothing else from the aero group.)
-    from sim.mach_warning import warn_if_mach_blind
+    from apps.sim.engine.mach_warning import warn_if_mach_blind
 
     table_params = params_replace(result_constant.params, {"aero.model": "table"})
     table_result = result_constant._replace(params=table_params)

@@ -1,4 +1,4 @@
-"""Local air state, three tiers behind one interface (architecture.md SS14;
+"""apps/sim/engine/atmosphere.py -- Local air state, three tiers behind one interface (architecture.md SS14;
 main.tex SSModels > Atmosphere; roadmap.md Step 12).
 
 Tier 1, "isa" (pure-formula International Standard Atmosphere), was
@@ -20,7 +20,7 @@ import math
 from typing import NamedTuple
 
 import numpy as np
-from sim.gravity import altitude_msl
+from apps.sim.engine.gravity import altitude_msl
 
 
 class AirState(NamedTuple):
@@ -268,7 +268,7 @@ def _sounding_air_state(t: float, y: np.ndarray, p) -> AirState:
     # Imported here, not at module level, to avoid a circular import:
     # sim.soundings imports sim.atmosphere (for the shared ISA constants
     # and layer table used in its above-top extrapolation).
-    from sim import soundings
+    from apps.sim.engine import soundings
 
     h_msl = altitude_msl(y, p)
     snd = soundings.load_case(p.soundings.case)[0]
@@ -313,7 +313,7 @@ def _field_air_state(t: float, y: np.ndarray, p) -> AirState:
     """
     # Imported here, not at module level, same circular-import reason as
     # `_sounding_air_state` above.
-    from sim import soundings
+    from apps.sim.engine import soundings
 
     h_msl = altitude_msl(y, p)
     state = soundings.interp_field(p.soundings.case, y, h_msl, p)

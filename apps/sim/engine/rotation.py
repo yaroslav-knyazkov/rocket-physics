@@ -1,4 +1,4 @@
-"""Non-inertial (Coriolis) frame correction (main.tex SSModels > Non-inertial
+"""apps/sim/engine/rotation.py -- Non-inertial (Coriolis) frame correction (main.tex SSModels > Non-inertial
 frame corrections; latex/sections/models.tex SS"Non-inertial frame
 corrections (Earth's rotation)"; architecture.md SS4/SS12 "the
 model-selection seam"; roadmap.md Step 37).
@@ -89,7 +89,7 @@ for them to couple to.
 
 import numpy as np
 
-from sim.state import VX, VZ
+from apps.sim.engine.state import VX, VZ
 
 OMEGA_EARTH = 7.2921e-5  # Earth's angular velocity magnitude [rad/s] (WGS84/IERS)
 

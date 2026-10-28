@@ -9,11 +9,11 @@ import warnings
 import numpy as np
 import pytest
 
-from sim import aero
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Solver, Weight
-from sim.report import _CM_SLOPE_STEP, stability_check, static_margin_cal
-from sim.state import State
+from apps.sim.engine import aero
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Solver, Weight
+from apps.sim.engine.report import _CM_SLOPE_STEP, stability_check, static_margin_cal
+from apps.sim.engine.state import State
 from tests.datadir import AERO_DIR as _AERO_DIR
 
 
@@ -59,8 +59,8 @@ def test_static_margin_series_matches_cg_travel():
     # divided by d_ref -- cross-check the first point against the same formula computed
     # independently via aero's own per-coefficient slope helpers (not a hand-typed literal:
     # the correction term is new with this step, see sim/report.py S116.3).
-    from sim import mass
-    from sim.flow import flow_state
+    from apps.sim.engine import mass
+    from apps.sim.engine.flow import flow_state
     y0 = r.raw.sol(0.0)
     l_g0 = mass.cog_position(mass.propellant_mass(y0[6], p), p)
     flow0 = flow_state(0.0, y0, p)

@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather
-from sim import thrust_curve
-from sim.dynamics import derivatives
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight, with_solver
-from sim.state import M, State
+from apps.sim.engine import thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.state import M, State
 
 _CURVES = ["placeholder.csv", "Cesaroni_2060K570-17A.eng"]
 _G0 = 9.80665

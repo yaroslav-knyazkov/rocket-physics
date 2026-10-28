@@ -1,4 +1,4 @@
-"""Aerodynamic coefficients C_x(alpha, M), C_z(alpha, M), C_m_code(alpha, M),
+"""apps/sim/engine/aero.py -- Aerodynamic coefficients C_x(alpha, M), C_z(alpha, M), C_m_code(alpha, M),
 C_mq_code(alpha, M) and the CoP-to-CoG distance l1(alpha, M) -- an explicit
 three-way model dispatch (architecture-28-rewrite.md SS28.5; supersedes the
 table-vs-constant-fallback shape of roadmap.md Step 25 / architecture.md
@@ -109,8 +109,8 @@ from typing import NamedTuple
 
 import numpy as np
 
-from sim import datafiles, mass
-from sim.state import M as _IDX_M
+from apps.sim.engine import datafiles, mass
+from apps.sim.engine.state import M as _IDX_M
 
 # Step 99 (D-111): C_m sign conventions. "code" = the simulator's (positive C_m is
 # nose-down, so a restoring moment has a positive dC_m/dalpha); "standard" = textbook
@@ -852,7 +852,7 @@ def coefficients(t: float, y: np.ndarray, p, flow, hold=None, fb: float = 0.0) -
     # precedent as sim/flow.py's `_wind_inertial` / sim/forces.py's
     # `parachute_drag_inertial` deferring their own `from sim import wind`
     # for the identical reason.
-    from sim import control
+    from apps.sim.engine import control
 
     return control.aero_coeff_delta(t, y, p, flow, base, hold)
 

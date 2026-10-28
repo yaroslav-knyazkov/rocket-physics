@@ -19,18 +19,18 @@ matplotlib.use("Agg")  # headless: this must run before pyplot is imported
 import matplotlib.figure
 import numpy as np
 
-from sim.gravity import altitude_agl, g
-from sim.integrate import Result, run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
-from sim.params import replace as params_replace
-from sim.plotting import (
+from apps.sim.engine.gravity import altitude_agl, g
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.plotting import (
     _dense_time_grid,
     plot_time_histories,
     plot_trajectory,
     plot_trajectory_overlay,
 )
-from sim.report import flight_summary, sweep
-from sim.state import State, X, Z
+from apps.sim.engine.report import flight_summary, sweep
+from apps.sim.engine.state import State, X, Z
 
 # Same base scenario as run.py's own default (motor_curve="placeholder.csv",
 # aero_model="constant" -- Phase 1 style constant axial drag), so the

@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import assemble
-from sim import report
-from sim.integrate import run_sim
+from apps.sim.engine import report
+from apps.sim.engine.integrate import run_sim
 
 if __name__ == "__main__":
     cfg = assemble(DEMO_SCENARIO)

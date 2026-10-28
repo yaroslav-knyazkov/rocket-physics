@@ -9,13 +9,13 @@ import os
 import numpy as np
 import pytest
 
-from sim import aero, mass
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Solver, Weight
-from sim.state import M as IM
-from sim.state import State
+from apps.sim.engine import aero, mass
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Solver, Weight
+from apps.sim.engine.state import M as IM
+from apps.sim.engine.state import State
 from tests.datadir import AERO_DIR as _AERO_DIR
 
 _BODY = (

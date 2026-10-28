@@ -87,11 +87,11 @@ from apps._shared.artifacts import ensure_dir, output_dir
 from apps._shared.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Config
-from sim.gravity import altitude_agl
-from sim.integrate import Result, run_sim
-from sim.params import Control, Params
-from sim.params import replace as params_replace
-from sim.plotting import plot_trajectory_overlay
+from apps.sim.engine.gravity import altitude_agl
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Control, Params
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.plotting import plot_trajectory_overlay
 
 # F19: measured spread across the full [0, 10] m^2 bound range under
 # "after_apogee" is 2.4e-3 m -- pure solver (adaptive-step) jitter, against

@@ -1,4 +1,4 @@
-"""Thrust curve model: time-thrust table lookup via np.interp, plus the
+"""apps/sim/engine/thrust_curve.py -- Thrust curve model: time-thrust table lookup via np.interp, plus the
 altitude pressure correction on top (roadmap.md Step 16).
 
 The public function `thrust(t, s, p)` returns the instantaneous thrust
@@ -44,7 +44,7 @@ import functools
 
 import numpy as np
 
-from sim import atmosphere, motor_file
+from apps.sim.engine import atmosphere, motor_file
 
 # ----------------------------------------------------------------------
 # Internal caching helpers

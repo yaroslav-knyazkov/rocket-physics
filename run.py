@@ -32,9 +32,9 @@ their own `python -m apps....` invocation or their root wrapper
 """
 
 from apps.input.demo_scenario import DEMO_SCENARIO
-from sim import report
-from sim.integrate import run_sim
-from sim.params import replace as params_replace
+from apps.sim.engine import report
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import replace as params_replace
 
 
 def main() -> None:

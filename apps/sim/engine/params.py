@@ -1,4 +1,4 @@
-"""Simulation parameters.
+"""apps/sim/engine/params.py -- Simulation parameters.
 
 Units: strict SI throughout (kg, m, s, N, N*m). Angles are in radians
 internally; degrees only ever appear at the edges (run.py inputs, plot

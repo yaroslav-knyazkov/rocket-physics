@@ -1,4 +1,4 @@
-"""3D-vector wrappers around the existing Phase-1/2D force functions
+"""apps/sim/engine/forces3d.py -- 3D-vector wrappers around the existing Phase-1/2D force functions
 (sim/forces.py) -- roadmap.md Step 29, architecture.md Phase 3.
 
 Every force here is returned in its *natural* frame, same discipline as
@@ -73,11 +73,11 @@ through this adapter at all.
 
 import numpy as np
 
-from sim import aero, control, dynamics
-from sim import forces as forces2d
-from sim import quaternion
-from sim.flow import flow_state
-from sim.state3d import OMEGA, Q, R, V
+from apps.sim.engine import aero, control, dynamics
+from apps.sim.engine import forces as forces2d
+from apps.sim.engine import quaternion
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.state3d import OMEGA, Q, R, V
 
 
 def _s2d(s: np.ndarray) -> np.ndarray:

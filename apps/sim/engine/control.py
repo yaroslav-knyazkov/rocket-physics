@@ -1,4 +1,4 @@
-"""Feedback control (architecture.md SS27.3). Every controller here is a
+"""apps/sim/engine/control.py -- Feedback control (architecture.md SS27.3). Every controller here is a
 pure, memoryless function of (t, y, p) -- see SS27.3's determinism-contract
 note for why: solve_ivp's RHS is evaluated at arbitrary/repeated/rejected
 times, so no controller may carry state across calls (no integral term, no
@@ -97,7 +97,7 @@ from typing import Any, Callable, NamedTuple, Optional
 
 import numpy as np
 
-from sim import gravity, sensors, thrust_curve
+from apps.sim.engine import gravity, sensors, thrust_curve
 # `AeroCoeffs` is needed only for this module's own type hints (the Step 57
 # seam below), never called into at import time -- safe to import at module
 # level here. The opposite direction (sim.aero calling into this module)
@@ -105,8 +105,8 @@ from sim import gravity, sensors, thrust_curve
 # needs it, breaking the cycle -- same precedent as sim/flow.py's
 # `_wind_inertial` / sim/forces.py's `parachute_drag_inertial` deferring
 # their own `from sim import wind` for the same reason.
-from sim.aero import AeroCoeffs
-from sim.state import VZ
+from apps.sim.engine.aero import AeroCoeffs
+from apps.sim.engine.state import VZ
 
 
 def _no_airbrake(t: float, y: np.ndarray, p) -> float:

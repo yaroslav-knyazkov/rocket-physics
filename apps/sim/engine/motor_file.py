@@ -1,4 +1,4 @@
-"""Motor file readers: `.csv` (one record, no metadata) and the RASP
+"""apps/sim/engine/motor_file.py -- Motor file readers: `.csv` (one record, no metadata) and the RASP
 grammar (`.eng` / `.rasp` / anything else, N records per file).
 
 Phase 2.16, Step 76 (architecture-32-motor-separation.md SS32.4, D-63..D-65).
@@ -38,7 +38,7 @@ import os
 
 import numpy as np
 
-from sim import datafiles
+from apps.sim.engine import datafiles
 
 # ----------------------------------------------------------------------
 # Data

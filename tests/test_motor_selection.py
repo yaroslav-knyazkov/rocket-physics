@@ -27,9 +27,9 @@ from apps.optimization.motor_selection.compare_motors import (
     flight_stats,
 )
 from apps.optimization.motor_selection.motors import MOTORS
-from sim.integrate import Result, run_sim
-from sim.params import Lengths, Params, Weight, replace as params_replace, with_solver
-from sim.state import State, X
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Lengths, Params, Weight, replace as params_replace, with_solver
+from apps.sim.engine.state import State, X
 
 # Nominal total impulse per fixture (dev/docs/architecture-29-motor-selection.md
 # SS29.5's table; also pinned independently, against the raw-knot
@@ -85,8 +85,8 @@ def test_closed_form_acceleration_near_ignition_peak():
     tight tolerance. This is the load-bearing assertion that the
     derivatives-re-evaluation path has the right indices, frame and units
     (architecture-29-motor-selection.md F7)."""
-    from sim import dynamics, thrust_curve
-    from sim.state import VX, VZ
+    from apps.sim.engine import dynamics, thrust_curve
+    from apps.sim.engine.state import VX, VZ
 
     baseline = _demo_baseline()
     p = params_replace(baseline, {"thrust.motor_curve": "synthetic_large.csv"})
@@ -109,7 +109,7 @@ def test_finite_difference_cross_check_of_peak_acceleration():
     centred finite difference of the dense-output velocity straddling
     t=0.05 s must agree with the closed form (and hence with the
     `dynamics.derivatives` re-evaluation above) to within 1%."""
-    from sim.state import VX, VZ
+    from apps.sim.engine.state import VX, VZ
 
     baseline = _demo_baseline()
     p = params_replace(baseline, {"thrust.motor_curve": "synthetic_large.csv"})

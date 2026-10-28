@@ -56,11 +56,11 @@ from apps._shared.artifacts import output_dir
 from apps._shared.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
-from sim import aero, atmosphere, mass, motor_file, thrust_curve
-from sim.integrate import Result, run_sim
-from sim.params import Params, Thrust
-from sim.plotting import plot_trajectory_overlay
-from sim.report import static_margin_cal
+from apps.sim.engine import aero, atmosphere, mass, motor_file, thrust_curve
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Params, Thrust
+from apps.sim.engine.plotting import plot_trajectory_overlay
+from apps.sim.engine.report import static_margin_cal
 
 # Constraint names (the strings stored in `SweepRow.failed`).
 NO_APOGEE = "no_apogee"

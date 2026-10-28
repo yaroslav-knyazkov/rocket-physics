@@ -1,4 +1,4 @@
-"""Gravitational acceleration magnitude and direction (main.tex SSModels >
+"""apps/sim/engine/gravity.py -- Gravitational acceleration magnitude and direction (main.tex SSModels >
 Gravity; architecture.md SS12 "the dispatch-dict extension of the SS4
 seam", SS13 "sim/gravity.py -- gravity models", SS23.1 "non-parallel
 gravity").
@@ -59,7 +59,7 @@ h = 0 that every magnitude model reduces to.
 
 import numpy as np
 
-from sim.state import X, Z
+from apps.sim.engine.state import X, Z
 
 
 def _g_constant(t: float, y: np.ndarray, p) -> float:

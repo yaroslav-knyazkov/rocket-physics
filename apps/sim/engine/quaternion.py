@@ -1,4 +1,4 @@
-"""Quaternion algebra for Phase 3 attitude (roadmap.md Step 28; architecture.md
+"""apps/sim/engine/quaternion.py -- Quaternion algebra for Phase 3 attitude (roadmap.md Step 28; architecture.md
 "Phase 3"; dev/docs/latex/research/3d_equations_of_motion.md SS2).
 
 Pure algebra: no `Params`/`State` dependency, no dynamics, nothing imported

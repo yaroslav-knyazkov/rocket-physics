@@ -1,4 +1,4 @@
-"""Relative wind, angle of attack, and altitude conventions (architecture.md
+"""apps/sim/engine/flow.py -- Relative wind, angle of attack, and altitude conventions (architecture.md
 SS15; main.tex SS"Relative wind and angle of attack").
 
 This is Step 9's slice of the eventual `Flow` -- `V`, `alpha`, `u_hat`,
@@ -25,9 +25,9 @@ from typing import NamedTuple
 
 import numpy as np
 
-from sim.frames import to_body
-from sim.state import THETA, VX, VZ
-from sim.atmosphere import AirState, air_state
+from apps.sim.engine.frames import to_body
+from apps.sim.engine.state import THETA, VX, VZ
+from apps.sim.engine.atmosphere import AirState, air_state
 
 
 class Flow(NamedTuple):
@@ -60,7 +60,7 @@ def _wind_inertial(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
     `wind.wind_inertial` -- B11's future landing site; accepted and
     ignored by `wind.wind_inertial` itself today.
     """
-    from sim import wind
+    from apps.sim.engine import wind
 
     return wind.wind_inertial(t, y, p, hold)
 

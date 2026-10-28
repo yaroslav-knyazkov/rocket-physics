@@ -1,4 +1,4 @@
-"""Wind velocity in the inertial frame, three tiers behind one interface
+"""apps/sim/engine/wind.py -- Wind velocity in the inertial frame, three tiers behind one interface
 (architecture.md SS16; main.tex SSModels > Wind; roadmap.md Step 21).
 
 Tier 1, "analytic" (constant direction + power-law shear + optional
@@ -59,7 +59,7 @@ import functools
 
 import numpy as np
 
-from sim.gravity import altitude_agl, altitude_msl
+from apps.sim.engine.gravity import altitude_agl, altitude_msl
 
 
 def _no_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
@@ -343,7 +343,7 @@ def _sounding_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     # sim.atmosphere's `_sounding_air_state`/`_field_air_state`: this
     # module would otherwise need sim.soundings at import time, and
     # sim.soundings imports sim.atmosphere for its shared ISA constants.
-    from sim import soundings
+    from apps.sim.engine import soundings
 
     h_msl = altitude_msl(y, p)
     snd = soundings.load_case(p.soundings.case)[0]
@@ -371,7 +371,7 @@ def _field_wind(t: float, y: np.ndarray, p) -> tuple[float, float]:
     """
     # Imported here, not at module level, same circular-import reason as
     # `_sounding_wind` above.
-    from sim import soundings
+    from apps.sim.engine import soundings
 
     h_msl = altitude_msl(y, p)
     state = soundings.interp_field(p.soundings.case, y, h_msl, p)

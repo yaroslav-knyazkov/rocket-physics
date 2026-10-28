@@ -32,10 +32,10 @@ from apps.optimization.airbrake_sizing.targets import SPECS
 from apps.input import study_vehicle
 from apps._shared.artifacts import ensure_dir
 from apps.input.demo_scenario import DEMO_SCENARIO
-from sim import control
-from sim.integrate import Result
-from sim.params import replace as params_replace
-from sim.state import VZ
+from apps.sim.engine import control
+from apps.sim.engine.integrate import Result
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import VZ
 
 _CFG = study_vehicle.CONFIG
 

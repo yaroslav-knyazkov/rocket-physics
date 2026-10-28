@@ -1,4 +1,4 @@
-"""Simulation state vector.
+"""apps/sim/engine/state.py -- Simulation state vector.
 
 Frame convention: single NED-like inertial frame, z DOWN (see params.py /
 architecture.md SS2). Angles in radians.

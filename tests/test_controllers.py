@@ -23,10 +23,10 @@ from scipy.integrate import solve_ivp
 
 import apps.control.flight_software  # noqa: F401  (import-time side effect: registers the two laws below)
 from apps.control.flight_software import estimator, laws
-from sim import control
-from sim.integrate import run_sim
-from sim.params import with_solver
-from sim.state import Z
+from apps.sim.engine import control
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import with_solver
+from apps.sim.engine.state import Z
 from tests.test_control import _launch_params, _launch_state, _LAUNCH_AERO, _LAUNCH_WEIGHT
 
 
@@ -116,7 +116,7 @@ def test_estimator_step_backward_difference_on_a_linear_ramp():
 
 
 def test_alpha_beta_first_call_returns_zero_velocity():
-    from sim.params import Params, Weight
+    from apps.sim.engine.params import Params, Weight
 
     p = Params(weight=Weight(m=0.5, I=0.05))  # default Control: estimator_alpha/beta at their defaults
     h_hat, v_hat, state = estimator.step(0.0, 100.0, None, model="alpha_beta", p=p)
@@ -128,7 +128,7 @@ def test_alpha_beta_converges_on_a_noiseless_constant_velocity_ramp():
     """`h(t) = h0 + v0*t`, fed exactly every tick: after enough ticks for
     the filter's own geometric transient to decay, `h_hat`/`v_hat`
     converge to `h(t)`/`v0` within a tight tolerance."""
-    from sim.params import Control, Params, Weight
+    from apps.sim.engine.params import Control, Params, Weight
 
     h0, v0, dt = 10.0, 5.0, 0.1
     p = Params(weight=Weight(m=0.5, I=0.05), control=Control(estimator_alpha=0.5, estimator_beta=0.1667))
@@ -148,7 +148,7 @@ def test_alpha_beta_attenuates_noise_relative_to_the_raw_sigma():
     (known sigma): the filtered `h_hat` series has a materially smaller
     sample std than the raw noise sigma (loose, empirical bound -- not a
     pinned steady-state-variance formula, §108.2's own disclosure)."""
-    from sim.params import Control, Params, Weight
+    from apps.sim.engine.params import Control, Params, Weight
 
     rng = np.random.default_rng(12345)
     sigma, dt, h_true = 2.0, 0.1, 500.0

@@ -1,4 +1,4 @@
-"""Forces and moments, each returned in its *natural* frame (architecture.md
+"""apps/sim/engine/forces.py -- Forces and moments, each returned in its *natural* frame (architecture.md
 SS4, "the model-swap seam"). Every function has the final signature
 `f(t, s, p) -> ...` from day one, so Phase 2 only ever rewrites a function
 *body* here -- call sites in dynamics.py never change.
@@ -106,9 +106,9 @@ relationship it already has with `gravity.py`/`thrust_curve.py`/`aero.py`.
 
 import numpy as np
 
-from sim import aero, control, gravity, thrust_curve
-from sim.flow import flow_state
-from sim.state import M, OMEGA, VX, VZ
+from apps.sim.engine import aero, control, gravity, thrust_curve
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.state import M, OMEGA, VX, VZ
 
 
 def weight_inertial(t: float, s, p) -> np.ndarray:
@@ -343,7 +343,7 @@ def parachute_drag_inertial(t: float, s: np.ndarray, p, hold=None) -> np.ndarray
         return np.zeros(2)
     # Local import: circular-import avoidance, same precedent as flow.py's
     # own `_wind_inertial` (that module's docstring).
-    from sim import wind
+    from apps.sim.engine import wind
 
     flow = flow_state(t, s, p, hold)
     v_rel_i = np.array([s[VX], s[VZ]]) - wind.wind_inertial(t, s, p, hold)

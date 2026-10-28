@@ -31,7 +31,7 @@ math.pi / 2`).
 from __future__ import annotations
 
 from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
-from sim.params import Aero, Lengths, Site, Thrust
+from apps.sim.engine.params import Aero, Lengths, Site, Thrust
 
 # Step 124 (Phase 2.18, D-139/CLI-1): inlined, not imported from
 # `configs/sites/origin_msl.py` / `configs/weather/isa_dry_calm.py` (the

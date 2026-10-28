@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 
 from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
-from sim import inertia
-from sim.params import Inertia, Roll
+from apps.sim.engine import inertia
+from apps.sim.engine.params import Inertia, Roll
 
 
 # ----------------------------------------------------------------------

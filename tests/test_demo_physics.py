@@ -31,8 +31,8 @@ from apps.input.demo_scenario import site as _demo_site
 from apps.input.demo_scenario import weather as _demo_weather
 from apps.optimization.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Scenario
-from sim.integrate import run_sim
-from sim.state import M
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.state import M
 from tests import config_variants
 from tests.test_configs import _toy_05kg_literal
 
@@ -205,8 +205,8 @@ def test_demo_lands_under_its_main_canopy():
 
     import numpy as np
 
-    from sim.integrate import run_sim
-    from sim.mach_warning import MachRangeWarning
+    from apps.sim.engine.integrate import run_sim
+    from apps.sim.engine.mach_warning import MachRangeWarning
 
     cfg = DEMO_SCENARIO.config
     with warnings.catch_warnings():

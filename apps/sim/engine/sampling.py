@@ -1,4 +1,4 @@
-"""Sampled-data / zero-order-hold (ZOH) support (architecture-28-rewrite.md
+"""apps/sim/engine/sampling.py -- Sampled-data / zero-order-hold (ZOH) support (architecture-28-rewrite.md
 SS28.8) -- the capability backlog items B11 (state-coupled turbulence) and
 B12 (sampled-rate PID airbrake) were both waiting on, and nothing else.
 
@@ -49,7 +49,7 @@ call. No controller is written here or in `sim/control.py`.
 
 from typing import Any, NamedTuple, Optional
 
-from sim import control
+from apps.sim.engine import control
 
 
 class Hold(NamedTuple):

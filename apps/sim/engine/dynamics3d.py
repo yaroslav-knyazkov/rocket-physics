@@ -1,4 +1,4 @@
-"""3D equations of motion -- translation (roadmap.md Step 29) and rotation
+"""apps/sim/engine/dynamics3d.py -- 3D equations of motion -- translation (roadmap.md Step 29) and rotation
 (Step 30, task-30-3d-rotational-dynamics.md). The 3D analogue of
 sim/dynamics.py's `derivatives`, one dimension up, for the 13-component
 state `[r(3), v(3), q(4), omega(3)]` (sim/state3d.py).
@@ -54,16 +54,16 @@ tests/test_dynamics3d.py.
 
 import numpy as np
 
-from sim import inertia
-from sim import quaternion
-from sim.forces3d import (
+from apps.sim.engine import inertia
+from apps.sim.engine import quaternion
+from apps.sim.engine.forces3d import (
     aero_force_body_3d,
     flow_fb_coeffs_3d,
     moment_body_3d,
     thrust_body_3d,
     weight_inertial_3d,
 )
-from sim.state3d import N, OMEGA, Q, R, V
+from apps.sim.engine.state3d import N, OMEGA, Q, R, V
 
 
 def derivatives_3d(t: float, y: np.ndarray, p) -> np.ndarray:

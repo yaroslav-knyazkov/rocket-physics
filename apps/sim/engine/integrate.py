@@ -1,4 +1,4 @@
-"""solve_ivp wrapper, events, Result (architecture.md SS5).
+"""apps/sim/engine/integrate.py -- solve_ivp wrapper, events, Result (architecture.md SS5).
 
 Owns all `scipy.integrate.solve_ivp` machinery -- event functions,
 dense output. The equations of motion themselves live in dynamics.py;
@@ -92,10 +92,10 @@ from typing import Any, NamedTuple, Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import aero, control, dynamics, forces, roll
-from sim.dynamics import derivatives
-from sim.state import State, VZ, Z, to_vector
-from sim import gravity, thrust_curve
+from apps.sim.engine import aero, control, dynamics, forces, roll
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.state import State, VZ, Z, to_vector
+from apps.sim.engine import gravity, thrust_curve
 
 
 class Result(NamedTuple):
@@ -317,7 +317,7 @@ def _run_rk4(p, s0: State, t_max: float, dt: float, sample_rate_hz: float = 0.0)
     if sampling_on:
         # Local import (module docstring): the default RK45 path, and the
         # un-sampled rk4 path, must never import/touch sim.sampling at all.
-        from sim import sampling
+        from apps.sim.engine import sampling
 
         T_s = 1.0 / sample_rate_hz
         n_sub_f = T_s / dt
@@ -524,7 +524,7 @@ def _run_segmented_rk45(p, s0: State, t_max: float, sample_rate_hz: float,
     verbatim: `_ground_event` (terminal) every segment; the other four
     first-occurrence-only across the whole run via `_pending_events`.
     """
-    from sim import sampling  # local import -- Step 59's own precedent;
+    from apps.sim.engine import sampling  # local import -- Step 59's own precedent;
                                # never imported on the default RK45 path
                                # or the un-sampled rk4 path.
 
@@ -791,6 +791,6 @@ def run_sim(p, s0: State) -> Result:
 def _warn_if_mach_blind(result: Result) -> None:
     """Step 92 (D-83): pure diagnostic, never alters `result`. Imported
     lazily -- `sim.mach_warning` pulls in `sim.flow`."""
-    from sim.mach_warning import warn_if_mach_blind
+    from apps.sim.engine.mach_warning import warn_if_mach_blind
 
     warn_if_mach_blind(result, stacklevel=4)

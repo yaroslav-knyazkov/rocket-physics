@@ -25,8 +25,8 @@ import pytest
 from apps.input import study_vehicle
 from apps.optimization.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Config, Variant
-from sim.params import Aero, Lengths, Params, Thrust, Weight
-from sim.state import State
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import State
 from tests import config_variants
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]

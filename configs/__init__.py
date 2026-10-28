@@ -18,7 +18,7 @@ from __future__ import annotations
 from configs.schema import (
     Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Variant, Weather, assemble,
 )
-from sim.params import (
+from apps.sim.engine.params import (
     Aero, Atmosphere, Control, Lengths, Recovery, Site, Solver, Soundings, Thrust, Wind,
 )
 

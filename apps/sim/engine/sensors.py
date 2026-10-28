@@ -1,4 +1,4 @@
-"""Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
+"""apps/sim/engine/sensors.py -- Step 108 (architecture-35-paper-alignment.md SS35.4.4, D-115): the
 baro-pressure sensing channel a registered sampled law
 (apps/control/flight_software/) reads through -- the REAL sensor,
 replacing Step 107's own `sim.control._ideal_measurement` stub at its
@@ -27,10 +27,10 @@ from typing import TYPE_CHECKING, NamedTuple, Optional
 
 import numpy as np
 
-from sim import atmosphere
+from apps.sim.engine import atmosphere
 
 if TYPE_CHECKING:
-    from sim.control import Measurement
+    from apps.sim.engine.control import Measurement
 
 
 class SensorState(NamedTuple):
@@ -56,7 +56,7 @@ def measure(t: float, y: np.ndarray, p, prev: "Optional[SensorState]") -> "tuple
     needs it) -- no shape change to where `Measurement` lives, unlike the
     ticket's OTHER listed fallback (moving the class into this module).
     """
-    from sim.control import Measurement
+    from apps.sim.engine.control import Measurement
 
     s = p.sensors
     air = atmosphere.air_state(t, y, p)

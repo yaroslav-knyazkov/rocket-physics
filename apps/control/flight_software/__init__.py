@@ -11,7 +11,7 @@ sim.control.known_sampled_laws() is empty until this module's own
 import-time side effect runs once.
 """
 
-from sim import control
+from apps.sim.engine import control
 
 from apps.control.flight_software import laws
 

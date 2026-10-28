@@ -70,8 +70,8 @@ from apps.analysis.weight_aero_tradeoff.trade_surface import (
     save_contour_plot,
     save_surface_csv,
 )
-from sim.integrate import run_sim
-from sim.params import replace as params_replace
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import replace as params_replace
 
 
 def _demo_cfg():

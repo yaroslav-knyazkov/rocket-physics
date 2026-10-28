@@ -1,4 +1,4 @@
-"""The mass model: m(t), l_B(t), I(t) -- the one place the
+"""apps/sim/engine/mass.py -- The mass model: m(t), l_B(t), I(t) -- the one place the
 two-lumped-mass model and the rigid-lump composition live
 (dev/docs/architecture-32-motor-separation.md SS32.3; main.tex SSsec:mass).
 

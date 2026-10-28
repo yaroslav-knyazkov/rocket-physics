@@ -26,10 +26,10 @@ import pytest
 from apps.analysis.ensemble import ensemble as ens
 from apps._shared.flight_stats import flight_stats
 from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Solver, Thrust, Weight
-from sim.params import replace as params_replace
-from sim.state import State
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Solver, Thrust, Weight
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import State
 
 _BASE_SCENARIO = Scenario(
     name="ensemble_test",

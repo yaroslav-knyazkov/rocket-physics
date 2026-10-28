@@ -14,9 +14,9 @@ from apps._shared.flight_stats import flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
 from apps.optimization.motor_selection import scenario_sweep as ss
 from configs.schema import Motor, assemble
-from sim import aero, motor_file
-from sim.integrate import run_sim
-from sim.params import Aero, Solver, Thrust
+from apps.sim.engine import aero, motor_file
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Solver, Thrust
 from tests.datadir import AERO_DIR as _AERO_DIR
 
 
@@ -175,7 +175,7 @@ def test_history_matches_simulated_burn_state_mass():
     m_sim = res.raw.sol(t)[6] - DEMO.rocket.airframe.m
     assert np.max(np.abs(h.m - m_sim)) < 1e-9
     # vehicle CG from airframe + motor history == the dynamics' CG
-    from sim import mass
+    from apps.sim.engine import mass
     l_fwd = DEMO.rocket.sections.l_motor_aft - motor_file.load(DEMO.motor.thrust.motor_curve).length
     af = DEMO.rocket.airframe
     l_veh = (af.m * af.l + h.m * (l_fwd + h.l_cg)) / (af.m + h.m)

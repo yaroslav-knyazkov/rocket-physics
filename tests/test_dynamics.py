@@ -24,14 +24,14 @@ import math
 
 import numpy as np
 
-from sim import forces, wind
-from sim.atmosphere import air_state
-from sim.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives, on_rail, rail_distance
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Recovery, Site, Thrust, Weight, Wind, with_solver
-from sim.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
-from sim.state import M, OMEGA, THETA, VX, VZ, State, X, Z
+from apps.sim.engine import forces, wind
+from apps.sim.engine.atmosphere import air_state
+from apps.sim.engine.dynamics import _cog_position, _moment_of_inertia, _propellant_mass, derivatives, on_rail, rail_distance
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Gravity, Lengths, Params, Recovery, Site, Thrust, Weight, Wind, with_solver
+from apps.sim.engine.rotation import OMEGA_EARTH, coriolis_inplane, coriolis_lateral_diagnostic, omega_components
+from apps.sim.engine.state import M, OMEGA, THETA, VX, VZ, State, X, Z
 
 
 def test_rk4_agrees_with_rk45_on_apogee_and_impact():
@@ -996,8 +996,8 @@ def test_demo_descent_without_recovery_is_dissipative_not_free_fall_faster():
     import warnings
 
     from apps.input.demo_scenario import DEMO_SCENARIO
-    from sim.mach_warning import MachRangeWarning
-    from sim.params import replace as params_replace
+    from apps.sim.engine.mach_warning import MachRangeWarning
+    from apps.sim.engine.params import replace as params_replace
 
     cfg = DEMO_SCENARIO.config
     p = params_replace(cfg.params, {"recovery.model": "none"})
@@ -1023,8 +1023,8 @@ def test_apogee_triggered_parachute_ignores_the_pad_sag():
     import warnings
 
     from apps.input.demo_scenario import DEMO_SCENARIO
-    from sim.mach_warning import MachRangeWarning
-    from sim.params import replace as params_replace
+    from apps.sim.engine.mach_warning import MachRangeWarning
+    from apps.sim.engine.params import replace as params_replace
 
     cfg = DEMO_SCENARIO.config
     p = params_replace(

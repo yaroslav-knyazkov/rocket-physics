@@ -13,10 +13,10 @@ import pytest
 
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
 from configs.schema import assemble
-from sim import aero, thrust_curve
-from sim.dynamics import derivatives
-from sim.params import Aero, Lengths, Params, Thrust, Weight
-from sim.state import M, State
+from apps.sim.engine import aero, thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import M, State
 from tests.datadir import AERO_DIR as _AERO_DIR
 _HDR = "alpha_deg,M,C_A,C_N,C_m,l_p_m\n"
 _BODY = "-10,0.5,0.35,-0.5,0.1,1.0\n0,0.5,0.3,0.0,0.0,1.0\n10,0.5,0.35,0.5,-0.1,1.0\n"

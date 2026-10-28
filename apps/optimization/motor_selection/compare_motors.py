@@ -88,11 +88,11 @@ from apps._shared.flight_stats import (
     _assert_derivatives_reconstructible,
     flight_stats,
 )
-from sim.integrate import Result, run_sim
-from sim.params import Params
-from sim.params import replace as params_replace
-from sim.plotting import plot_trajectory_overlay
-from sim.state import State
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Params
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.plotting import plot_trajectory_overlay
+from apps.sim.engine.state import State
 
 # Step 64: MotorStats/flight_stats moved to apps/_shared/flight_stats.py
 # (dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5) -- Apps 4/5 want

@@ -53,12 +53,12 @@ import dataclasses
 
 import numpy as np
 
-from sim import dynamics, thrust_curve
-from sim.flow import flow_state
-from sim.gravity import altitude_agl
-from sim.integrate import Result
-from sim.params import Params
-from sim.state import VX, VZ, X
+from apps.sim.engine import dynamics, thrust_curve
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.gravity import altitude_agl
+from apps.sim.engine.integrate import Result
+from apps.sim.engine.params import Params
+from apps.sim.engine.state import VX, VZ, X
 
 # The house dense-grid size (sim/report.py, apps/analysis/cfd_conditions/
 # select_conditions.py both use 2000-4000-point grids over the window they

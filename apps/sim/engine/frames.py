@@ -1,4 +1,4 @@
-"""Body <-> inertial rotation -- the ONLY place `sin`/`cos` appear
+"""apps/sim/engine/frames.py -- Body <-> inertial rotation -- the ONLY place `sin`/`cos` appear
 (architecture.md SS2, "The single rotation function").
 
 Frame convention: single NED-like inertial frame, z DOWN (architecture.md

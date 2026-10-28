@@ -16,11 +16,11 @@ import math
 import numpy as np
 import pytest
 
-from sim import control, sampling
-from sim.integrate import run_sim
-from sim.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
-from sim.params import replace as params_replace
-from sim.state import State, to_vector, width
+from apps.sim.engine import control, sampling
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import State, to_vector, width
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 

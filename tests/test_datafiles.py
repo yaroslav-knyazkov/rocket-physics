@@ -12,7 +12,7 @@ import shutil
 
 import pytest
 
-from sim import datafiles, motor_file
+from apps.sim.engine import datafiles, motor_file
 from tests.datadir import DATA as _DATA
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(__file__))

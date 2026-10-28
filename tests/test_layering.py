@@ -9,13 +9,21 @@ step in the phase is checked against a safety net that is known-good
 before the first `git mv`, not aspirational.
 
   G1 -- import-direction guard. The engine (`sim/` today, `apps/sim/
-       engine/` after a later step) must never import `apps`, `examples`,
-       or `tests`. This is the project's existing "the engine never
-       imports the application layer" rule (architecture.md), enforced
-       here for the first time instead of resting on a docstring promise.
-       `tools`/`controllers` were dropped from this list at Step 132 once
-       both directories were deleted -- `apps` already covers their new
-       locations under `apps/control/flight_software` and
+       engine/` after Step 133) must never import `apps`, `examples`, or
+       `tests` -- EXCEPT itself: `apps.sim.engine` (and anything under it)
+       is exempt from the `apps` ban, since the engine's own internal
+       cross-module imports necessarily root at `apps` once the engine
+       lives under `apps/sim/engine/` (architecture-apps-sim-restructure.md
+       SS4.4, the G1 row of the guard table, line 435: "assert no
+       import/from targets `apps` (other than `apps.sim.engine`),
+       `examples`, `tests`..." -- this exemption was always part of the
+       design, just unreachable/dead until Step 133 actually moved the
+       engine under `apps/`). This is the project's existing "the engine
+       never imports the application layer" rule (architecture.md),
+       enforced here for the first time instead of resting on a docstring
+       promise. `tools`/`controllers` were dropped from this list at Step
+       132 once both directories were deleted -- `apps` already covers
+       their new locations under `apps/control/flight_software` and
        `apps/input/sounding_fetch`, so the two dropped entries were
        already redundant, not a loosening of the guard.
   G2 -- importability guard. Every `.py` module under the engine,
@@ -46,14 +54,20 @@ before the first `git mv`, not aspirational.
        that it stays gone. Step 131 added `apps/common/`; Step 132 adds
        `controllers/` and `tools/` (both deleted once their contents moved
        to `apps/control/flight_software/` and `apps/input/sounding_fetch/`
-       respectively). Steps 133+ append assertions for `sim/`, `configs/`
-       as each is actually deleted in its own step -- not before, since
-       asserting a directory's absence before the step that removes it
-       would fail on every commit until that step lands.
+       respectively). Step 133 adds `sim/` (actually deleted by its `git
+       mv` to `apps/sim/engine/`); Step 134 will append `configs/` the
+       same way, once it is actually deleted in its own step -- not
+       before, since asserting a directory's absence before the step that
+       removes it would fail on every commit until that step lands.
 
 `ENGINE_DIR` is the one constant a later step repoints (`"sim"` ->
-`"apps/sim/engine"`); nothing else in this file should need to change for
-that move.
+`"apps/sim/engine"`). Step 133 is the one exception to "nothing else in
+this file should need to change for that move": the engine's own
+internal imports now root at `apps` too (same first component as the
+real application layer), so G1's check needed the `apps.sim.engine`
+exemption spelled out above, and G6 needed its `sim/` assertion added --
+both already anticipated by this docstring and by the architecture doc's
+own G1 spec, not new decisions made here.
 
 Scope note (G3): the walk below covers the project's own source tree --
 `sim/`, `apps/`, `configs/`, `tests/`, `examples/`, and the top-level
@@ -78,11 +92,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # --- G1: import-direction guard -------------------------------------------
 
 # The one line a later step repoints: "sim" -> "apps/sim/engine".
-ENGINE_DIR = "sim"
+ENGINE_DIR = "apps/sim/engine"
 
 # The engine may never import any of these (stdlib / numpy / scipy /
 # matplotlib / anything rooted at the engine package itself are fine).
 BANNED_ENGINE_IMPORT_ROOTS = frozenset({"apps", "examples", "tests"})
+
+# G1's one exception to the "apps" ban: the engine's own internal
+# cross-module imports (derived from ENGINE_DIR, not hardcoded) -- see the
+# module docstring's G1 entry / architecture-apps-sim-restructure.md:435.
+_ENGINE_SELF_PREFIX = ENGINE_DIR.replace("/", ".")
 
 # --- G2: importability guard ------------------------------------------------
 
@@ -108,8 +127,9 @@ NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py",
 
 # Paths (relative to REPO_ROOT) that must not exist, one entry added per
 # deletion step as that step actually lands (module docstring). Step 128:
-# the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`.
-RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools")
+# the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`. Step
+# 133: `sim/`, actually deleted by its `git mv` to `apps/sim/engine/`.
+RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools", "sim")
 
 
 def _iter_py_files(root_dir: Path):
@@ -143,6 +163,29 @@ def _import_roots(tree: ast.Module) -> set[str]:
     return roots
 
 
+def _import_full_names(tree: ast.Module) -> set[str]:
+    """Full dotted names (not reduced to the first component, unlike
+    `_import_roots`) of every absolute `import`/`from ... import` target in
+    `tree`. G1-only: needed to tell an engine-internal self-import
+    (`apps.sim.engine.*`) apart from a real cross-layer import of `apps`
+    itself -- both share the same first component now that the engine
+    lives under `apps/sim/engine/` (Step 133). G2/G3 keep using
+    `_import_roots` unchanged; this is a separate function, not a change
+    to its return shape, so their behaviour is untouched. Relative imports
+    (`level > 0`) are skipped, same as `_import_roots`."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level and node.level > 0:
+                continue
+            if node.module:
+                names.add(node.module)
+    return names
+
+
 def _module_dotted_name(py_file: Path) -> str:
     """Dotted module name of `py_file`, relative to `REPO_ROOT` (e.g.
     `apps/common/artifacts.py` -> `apps.common.artifacts`;
@@ -160,12 +203,24 @@ def _module_dotted_name(py_file: Path) -> str:
 def test_g1_engine_never_imports_application_layer():
     """The engine (`ENGINE_DIR`) never imports `apps`, `examples`, `tests`,
     `tools`, or `controllers` -- the project's "engine never imports the
-    application layer" rule, mechanically verified."""
+    application layer" rule, mechanically verified. EXCEPT itself:
+    `apps.sim.engine` (and anything under it) is exempt from the `apps`
+    ban -- the engine's own internal cross-module imports necessarily root
+    at `apps` now that the engine lives under `apps/sim/engine/` (Step
+    133), and architecture-apps-sim-restructure.md:435 already specifies
+    this exemption as part of G1's design, not a loosening added here."""
     violations = []
     engine_root = REPO_ROOT / ENGINE_DIR
     for py_file in _iter_py_files(engine_root):
         tree = _parsed_imports(py_file)
-        banned_hits = _import_roots(tree) & BANNED_ENGINE_IMPORT_ROOTS
+        banned_hits = set()
+        for name in _import_full_names(tree):
+            root = name.split(".")[0]
+            if root not in BANNED_ENGINE_IMPORT_ROOTS:
+                continue
+            if root == "apps" and (name == _ENGINE_SELF_PREFIX or name.startswith(_ENGINE_SELF_PREFIX + ".")):
+                continue
+            banned_hits.add(root)
         if banned_hits:
             violations.append((py_file.relative_to(REPO_ROOT), sorted(banned_hits)))
 
@@ -232,7 +287,7 @@ def test_g4_output_helpers_resolve_under_cwd_not_repo(monkeypatch, tmp_path):
     `REPO_ROOT` and confirm both resolve under it, not under the repo
     these functions' own modules happen to live in."""
     from apps._shared.artifacts import output_dir
-    from sim.report import default_output_dir
+    from apps.sim.engine.report import default_output_dir
 
     monkeypatch.chdir(tmp_path)
 
@@ -255,7 +310,7 @@ def test_g5_bundled_data_anchor_matches_sim_datafiles():
     `<repo>/examples/data` -- the regression test keeping the two
     independent "bundled tree" constants this module's docstring
     describes from drifting apart after a future `git mv`."""
-    from sim import datafiles
+    from apps.sim.engine import datafiles
     from tests.datadir import MOTORS_DIR
 
     resolved = datafiles.resolve("placeholder.csv", "motors")

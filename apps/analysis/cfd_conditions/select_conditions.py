@@ -90,9 +90,9 @@ import numpy as np
 
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps.input.demo_scenario import DEMO_SCENARIO
-from sim.flow import flow_state
-from sim.integrate import Result, run_sim
-from sim.params import Params
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import Result, run_sim
+from apps.sim.engine.params import Params
 
 
 @dataclasses.dataclass(frozen=True)

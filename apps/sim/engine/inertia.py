@@ -1,4 +1,4 @@
-"""The full symmetric moment-of-inertia tensor and general Euler's
+"""apps/sim/engine/inertia.py -- The full symmetric moment-of-inertia tensor and general Euler's
 rotational equations of motion for the 3D rotational dynamics (Step 30,
 task-30-3d-rotational-dynamics.md SS30.1-30.3; dev/docs/latex/sections-ai/
 rocket-3d.tex SSsec:3d_inertia, SSsec:3d_admissibility, SSsec:3d_eom_rot).

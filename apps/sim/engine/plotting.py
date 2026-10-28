@@ -1,4 +1,4 @@
-"""Result -> figures (architecture.md SS5, SS6).
+"""apps/sim/engine/plotting.py -- Result -> figures (architecture.md SS5, SS6).
 
 Step 45 (Phase 2.8; architecture.md SS25.5): the plotted altitude is
 `gravity.altitude_agl(y, r.params)`, not a re-typed `-y[Z]` -- this module
@@ -13,9 +13,9 @@ stay in radians everywhere else.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sim.gravity import altitude_agl
-from sim.integrate import Result
-from sim.state import X, VX, VZ, THETA, OMEGA
+from apps.sim.engine.gravity import altitude_agl
+from apps.sim.engine.integrate import Result
+from apps.sim.engine.state import X, VX, VZ, THETA, OMEGA
 
 
 def _dense_time_grid(r: Result, n: int = 500) -> np.ndarray:

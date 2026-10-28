@@ -1,4 +1,4 @@
-"""Sounding data: file format, loader, altitude interpolation, and
+"""apps/sim/engine/soundings.py -- Sounding data: file format, loader, altitude interpolation, and
 horizontal (tier-3) combination across stations (architecture.md SS17;
 roadmap.md Steps 17 and 19).
 
@@ -91,8 +91,8 @@ from typing import NamedTuple
 
 import numpy as np
 
-from sim import atmosphere, datafiles
-from sim.state import X
+from apps.sim.engine import atmosphere, datafiles
+from apps.sim.engine.state import X
 
 
 class Sounding(NamedTuple):

@@ -12,16 +12,16 @@ import math
 
 import numpy as np
 
-from sim import control, forces
-from sim.atmosphere import air_state
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import (
+from apps.sim.engine import control, forces
+from apps.sim.engine.atmosphere import air_state
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import (
     Aero, Control, Gravity, Lengths, Params, Recovery, Site, Thrust, Weight, with_solver,
 )
-from sim.rotation import coriolis_inplane
-from sim.state import M, VX, VZ, State, Z
+from apps.sim.engine.rotation import coriolis_inplane
+from apps.sim.engine.state import M, VX, VZ, State, Z
 
 _LENGTHS = Lengths(l1=0.3, l2=0.4)
 

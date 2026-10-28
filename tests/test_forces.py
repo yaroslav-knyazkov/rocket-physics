@@ -11,14 +11,14 @@ import math
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import aero, thrust_curve
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
-from sim.frames import to_inertial
-from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight, with_solver
-from sim.state import M, OMEGA, THETA, VX, VZ, X, Z, State, to_vector
+from apps.sim.engine import aero, thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
+from apps.sim.engine.frames import to_inertial
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Gravity, Lengths, Params, Site, Thrust, Weight, with_solver
+from apps.sim.engine.state import M, OMEGA, THETA, VX, VZ, X, Z, State, to_vector
 
 
 def test_thrust_moment_is_zero_on_axis():
@@ -944,7 +944,7 @@ def test_pitch_damping_now_applies_under_constant_regime_too():
 
 
 def _axial_params(model, **ctl):
-    from sim.params import Control
+    from apps.sim.engine.params import Control
 
     return Params(
         weight=Weight(m=0.5, I=0.05),

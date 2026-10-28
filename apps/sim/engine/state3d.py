@@ -1,4 +1,4 @@
-"""3D state vector (roadmap.md Step 29; architecture.md Phase 3).
+"""apps/sim/engine/state3d.py -- 3D state vector (roadmap.md Step 29; architecture.md Phase 3).
 
 13-component layout `[r(3), v(3), q(4), omega(3)]` -- same NED-like inertial
 frame as sim/state.py (z DOWN, architecture.md SS2), extended to 3D with y

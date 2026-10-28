@@ -9,9 +9,9 @@ import math
 
 import numpy as np
 
-from sim.flow import flow_state
-from sim.params import Aero, Lengths, Params, Weight
-from sim.state import State
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.params import Aero, Lengths, Params, Weight
+from apps.sim.engine.state import State
 
 # Parameters for existing tests (Step 9)
 _P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
@@ -69,7 +69,7 @@ def test_flow_state_is_internally_consistent_at_nonzero_alpha():
     flow = flow_state(0.0, y, _P)
 
     # Reconstruct (u, w) from V, alpha and compare to a direct rotation.
-    from sim.frames import to_body
+    from apps.sim.engine.frames import to_body
 
     u, w = to_body(np.array([30.0, -10.0]), theta)
     assert math.isclose(flow.V, math.hypot(u, w), rel_tol=1e-12)

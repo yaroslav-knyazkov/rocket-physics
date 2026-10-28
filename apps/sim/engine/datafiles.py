@@ -1,4 +1,4 @@
-"""Data-file/directory path resolution: one 3-rule function, shared by
+"""apps/sim/engine/datafiles.py -- Data-file/directory path resolution: one 3-rule function, shared by
 every loader that reads from `data/<kind>/` (`sim/motor_file.py`,
 `sim/aero.py`, `sim/soundings.py`).
 
@@ -58,7 +58,7 @@ import os
 
 
 class BundledDataMissingError(RuntimeError):
-    """`sim/datafiles.py`'s `_BUNDLED` directory (bare-name data lookups,
+    """`apps/sim/engine/datafiles.py`'s `_BUNDLED` directory (bare-name data lookups,
     rule 3 above) does not exist. Raised at import time so a later `git
     mv` of `data/` that forgets to update `_BUNDLED` fails immediately
     and loudly here, instead of resolving bare data-file names to a
@@ -66,14 +66,14 @@ class BundledDataMissingError(RuntimeError):
     `FileNotFoundError` far from the actual cause."""
 
 
-_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "data")
+_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "examples", "data")
 
 if not os.path.isdir(_BUNDLED):
     raise BundledDataMissingError(
-        f"sim/datafiles.py expects its bundled data directory at {_BUNDLED!r} "
+        f"apps/sim/engine/datafiles.py expects its bundled data directory at {_BUNDLED!r} "
         "(bare-name motor/aero/soundings lookups resolve here, rule 3 of this "
         "module's docstring) -- it does not exist. If `data/` just moved, "
-        "update `_BUNDLED` in sim/datafiles.py to match its new location."
+        "update `_BUNDLED` in apps/sim/engine/datafiles.py to match its new location."
     )
 
 

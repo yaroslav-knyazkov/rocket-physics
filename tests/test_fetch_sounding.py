@@ -25,7 +25,7 @@ from apps.input.sounding_fetch.fetch_sounding import (
     parse_response,
     resample_rows,
 )
-from sim.soundings import _load_sounding_file
+from apps.sim.engine.soundings import _load_sounding_file
 
 
 # ----------------------------------------------------------------------

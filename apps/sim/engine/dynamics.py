@@ -1,4 +1,4 @@
-"""Equations of motion -- the ONLY place the EOM appear (architecture.md SS3).
+"""apps/sim/engine/dynamics.py -- Equations of motion -- the ONLY place the EOM appear (architecture.md SS3).
 
 Step 5 scope note (translation): `theta` no longer has to be pi/2 -- the
 body-to-inertial rotation lives in `frames.py` (architecture.md SS2, "The
@@ -130,12 +130,12 @@ SS109.1.4), not an approximation.
 
 import numpy as np
 
-from sim import aero, control, forces, mass, roll, thrust_curve
-from sim.flow import flow_state
-from sim.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
-from sim.frames import to_inertial
-from sim.rotation import coriolis_inplane
-from sim.state import GAMMA, M, OMEGA, OMEGA_W, OMEGA_X, THETA, VX, VZ, X, Z, width
+from apps.sim.engine import aero, control, forces, mass, roll, thrust_curve
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.forces import aero_force_body, aero_moment_y, thrust_body, weight_inertial
+from apps.sim.engine.frames import to_inertial
+from apps.sim.engine.rotation import coriolis_inplane
+from apps.sim.engine.state import GAMMA, M, OMEGA, OMEGA_W, OMEGA_X, THETA, VX, VZ, X, Z, width
 
 
 def _cross_y(a: np.ndarray, b: np.ndarray) -> float:

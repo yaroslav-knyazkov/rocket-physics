@@ -18,7 +18,7 @@ import math
 
 import pytest
 
-from sim.mass import (
+from apps.sim.engine.mass import (
     Lump,
     combine,
     cog_position,
@@ -28,7 +28,7 @@ from sim.mass import (
     total_impulse,
     uniform_cylinder_I,
 )
-from sim.params import Params, Weight
+from apps.sim.engine.params import Params, Weight
 
 
 def test_combine_one_lump_reproduces_it_to_1e15_relative_not_bitwise():

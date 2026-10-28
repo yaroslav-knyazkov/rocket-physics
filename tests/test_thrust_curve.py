@@ -4,9 +4,9 @@ import math
 
 import numpy as np
 
-from sim.thrust_curve import _load_motor_curve, thrust
-from sim.params import Lengths, Params, Thrust, Weight
-from sim.state import State
+from apps.sim.engine.thrust_curve import _load_motor_curve, thrust
+from apps.sim.engine.params import Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import State
 from tests.datadir import MOTORS_DIR
 
 

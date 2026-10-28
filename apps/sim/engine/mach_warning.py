@@ -1,4 +1,4 @@
-"""sim/mach_warning.py -- run-time diagnostic for Mach-blind drag models
+"""apps/sim/engine/mach_warning.py -- run-time diagnostic for Mach-blind drag models
 (Phase 2.16, Step 92, dev/docs/architecture-33-configs-one-demo.md SS33.12,
 D-83).
 
@@ -21,7 +21,7 @@ import warnings
 
 import numpy as np
 
-from sim.flow import flow_state
+from apps.sim.engine.flow import flow_state
 
 MACH_LIMIT = 0.8
 _MACH_INDEPENDENT_MODELS = ("constant", "linearized")

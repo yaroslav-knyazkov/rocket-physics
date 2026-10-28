@@ -1,4 +1,4 @@
-"""Step 109 (task-109-roll-reaction-wheel.md; other-dynamics.tex SSRoll and
+"""apps/sim/engine/roll.py -- Step 109 (task-109-roll-reaction-wheel.md; other-dynamics.tex SSRoll and
 the reaction wheel): the decoupled 2D roll degree of freedom about x_hat_r,
 and the reaction wheel that can drive it.
 
@@ -47,7 +47,7 @@ has no axis for. What that hides is stated there, not here.
 
 from typing import Callable
 
-from sim.state import GAMMA, OMEGA_W, OMEGA_X
+from apps.sim.engine.state import GAMMA, OMEGA_W, OMEGA_X
 
 
 def aero_moment_x(t, y, p, flow) -> float:

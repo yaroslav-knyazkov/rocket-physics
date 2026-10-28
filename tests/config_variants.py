@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from apps.input import study_vehicle
 from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
-from sim.params import Aero, Atmosphere, Lengths, Site, Thrust, Wind
+from apps.sim.engine.params import Aero, Atmosphere, Lengths, Site, Thrust, Wind
 
 # ----------------------------------------------------------------------
 # toy_05kg

@@ -11,12 +11,12 @@ import os
 
 import numpy as np
 
-from sim import aero
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight, with_solver
-from sim.state import OMEGA, State
+from apps.sim.engine import aero
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.state import OMEGA, State
 from tests.datadir import AERO_DIR
 
 
@@ -225,7 +225,7 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     alpha0 = math.radians(10.0)
     theta0 = math.pi / 2 + alpha0
 
-    from sim import atmosphere
+    from apps.sim.engine import atmosphere
 
     y_rest = np.array(State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0))
     a0 = atmosphere.air_state(0.0, y_rest, p).a

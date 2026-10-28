@@ -59,7 +59,7 @@ no `__main__` block.
 from __future__ import annotations
 
 from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Sections, Weather
-from sim.params import Aero, Atmosphere, Lengths, Recovery, Site, Solver, Soundings, Thrust, Wind
+from apps.sim.engine.params import Aero, Atmosphere, Lengths, Recovery, Site, Solver, Soundings, Thrust, Wind
 
 # ----------------------------------------------------------------------
 # rocket -- configs/rockets/demo.py's ROCKET, field-for-field

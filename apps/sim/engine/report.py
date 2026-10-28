@@ -1,4 +1,4 @@
-"""Orchestration layer above `sim/plotting.py` (architecture-28-rewrite.md
+"""apps/sim/engine/report.py -- Orchestration layer above `sim/plotting.py` (architecture-28-rewrite.md
 SS28.9): build a figure, print a summary/table, save artifacts to disk.
 
 Step 58 moves this whole layer out of `run.py`, which Step 57 left still
@@ -18,14 +18,14 @@ from pathlib import Path
 
 import numpy as np
 
-from sim import aero, control
-from sim.flow import flow_state
-from sim.gravity import altitude_agl
-from sim.integrate import run_sim
-from sim.params import Params
-from sim.params import replace as params_replace
-from sim.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
-from sim.state import State, X, Z, VX, VZ, THETA, OMEGA
+from apps.sim.engine import aero, control
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.gravity import altitude_agl
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Params
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.plotting import plot_time_histories, plot_trajectory, plot_trajectory_overlay
+from apps.sim.engine.state import State, X, Z, VX, VZ, THETA, OMEGA
 
 def default_output_dir() -> Path:
     """`Path.cwd() / "output"` -- generated artifacts (plots,

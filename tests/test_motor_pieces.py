@@ -32,12 +32,12 @@ import math
 
 import pytest
 
-import sim.mass as mass
-import sim.motor_file as motor_file
+import apps.sim.engine.mass as mass
+import apps.sim.engine.motor_file as motor_file
 import tests.config_variants as config_variants
 from apps.input.demo_scenario import motor as _cti_k570_motor
 from configs.schema import Airframe, Motor, Sections, _weight_from_pieces
-from sim.params import Thrust
+from apps.sim.engine.params import Thrust
 
 G0 = 9.80665
 _K570 = "Cesaroni_2060K570-17A.eng"  # data/motors/ -- SS32.3.1 F5's fixture
