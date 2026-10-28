@@ -1262,8 +1262,91 @@
     "B39 (cosmetic, не блокирует): 2 теста в tests/test_configs.py носят устаревшие имена (тело корректно под новый шим, имя — нет) — найдено финальным QA-проходом Step 125."
    ],
    "pending_user": []
+  },
+  {
+   "id": "2.19",
+   "name": "Phase 2.19 — пивот: apps/ становится корнем продукта (движок в apps/sim/engine/, configs/ уходит, data/ расщепляется, упаковка снимается)",
+   "status": "done_pending_merge",
+   "pending_approvals": [],
+   "dates": "спроектирована 2026-10-27, все 10 шагов (126-135) закрыты в ночь 2026-10-27/28",
+   "scope": "Чистая реструктуризация файлов (git mv + правка импортов), физика и численные пины не меняются. Нет внешнего потребителя — fx27/simulation прекращает быть отдельным consumer'ом, всё живёт в этом репозитории; sim/ физически переезжает в apps/sim/engine/; configs/ как формальный пакет/API упраздняется (датаклассы + assemble() переезжают в apps/sim/schema.py, FK3); apps/ раскладывается по таксономии input/sim/analysis/optimization/control/_shared; data/ расщепляется на гитигнорный /data (личные данные пользователя, создаётся пустым) и examples/data/ (демо/синтетика/фикстуры — все 14 файлов today's data/, кандидатных реальных данных в репозитории не оказалось); корневой docs/ (мусор сборки LaTeX) удаляется; pip install -e . снимается (FK1=R2) — ничего не установлено и сегодня, suite проходит без установки.",
+   "architecture_doc": "dev/docs/architecture-apps-sim-restructure.md",
+   "superseded_doc": "dev/docs/pivot-apps-restructure-analysis.md (facts reference only — премисы устарели)",
+   "steps": [
+    {
+     "step": 126,
+     "title": "структурный guard-suite (tests/test_layering.py) — чистое добавление",
+     "status": "done",
+     "commit": "7d9833a",
+     "result": "764/764, G1/G2/G3 все проходят чисто на сегодняшнем дереве без изменений — нарушений инвариантов не найдено. G3 осознанно ограничен корнями кода проекта (sim/apps/configs/controllers/tools/tests/examples/run_*.py), .claude/ исключён (urllib там — инструментарий Claude Code, не проекта)."
+    },
+    {
+     "step": 127,
+     "title": "де-анкеринг __file__-путей вывода (5 мест, молча ломаются после переезда)",
+     "status": "done",
+     "commit": "f188987",
+     "result": "output_dir()/default_output_dir() резолвятся на Path.cwd() заново при каждом вызове; sim/datafiles.py получил BundledDataMissingError (fail-fast на отвалившийся _BUNDLED); попутно найден и исправлен реальный pre-existing баг (test_airbrake_sizing.py писал в настоящий репо-шный output/ мимо tmp_path). Этот статус был пропущен коммитом 482ff16 (отмечен только 128-й) — исправлено задним числом при старте Step 129."
+    },
+    {
+     "step": 128,
+     "title": "снятие упаковки (FK1=R2) + чистка корня (docs/, __pycache__)",
+     "status": "done",
+     "commit": "884d858",
+     "result": "767/767 (765 baseline + G6 + test_packaging_boundary rewrite). pyproject.toml упаковка снята, requirements.txt — единственный список зависимостей, корневой docs/ удалён, __pycache__ почищен, G6 (no-leftovers) добавлен. python run.py и python -m apps.* проверены с корня."
+    },
+    {
+     "step": 129,
+     "title": "data/ -> examples/data/ (14 файлов); новый гитигнорный /data; миграция 29 реальных файлов моторов (cspace/, euroc-sweep/) из ветки usage/manual-sim-testing (git show <branch>:data/motors/...) в rocket-physics/data/motors/ (D-156 + D-157 — fx27/simulation физически пропал с диска, источник исправлен на ветку rocket-physics, данные не утеряны)",
+     "status": "done",
+     "commit": "0e29d6b",
+     "result": "768/768, 0 failed, 53 warnings, 764.55s (медленнее обычного — см. CLAUDE.md заметку). 14 фикстур git-mv в examples/data/; sim/datafiles.py _BUNDLED retarget; tests/datadir.py (новый, test-side зеркало); 13 тестовых файлов переведены на него; guard G5 добавлен; data/README.md (RU) + examples/data/{motors,soundings}/README.md переписаны. Отдельно (без коммита, т.к. гитигнорно): 29 реальных файлов моторов (2 cspace/ + 27 euroc-sweep/) извлечены через `git archive usage/manual-sim-testing` в data/motors/ — на диске, не версионируются, git status чист. fx27/simulation уже физически не существует — архивировать/удалять нечего, D-156 закрыт этим фактом."
+    },
+    {
+     "step": 130,
+     "title": "demo_scenario уходит из examples/ в apps/input/ (убирает обратную зависимость apps->examples)",
+     "status": "done",
+     "commit": "9f69743",
+     "result": "DEMO_SCENARIO (+rocket/motor/site/weather, все REQ|OPT комментарии вербатим) перенесён в apps/input/demo_scenario.py; apps/input/ — implicit namespace package (без __init__.py, как и apps/ сам), таксономия Step 131 не предвстроена. examples/worked_scenario.py сжат до тонкого раннера (~30 строк). Импорты обновлены в 3 apps + run.py + 13 тестах. Временный bridge-test (field-for-field equality assemble(DEMO_SCENARIO)) подтвердил 0 сдвинутых пинов, удалён перед коммитом. code-review поймал один косметический огрызок (имя тестовой функции всё ещё 'worked_scenario') — исправлено. 768/768, 0 failed, 745.19s — второй подряд медленный прогон (см. CLAUDE.md заметку о ~765с Step 129; возможно начинает выглядеть как паттерн, не разовая аномалия)."
+    },
+    {
+     "step": 131,
+     "title": "таксономия apps/<type>/<name>/ + разбор apps/common/",
+     "status": "done",
+     "commit": "26bbeac",
+     "result": "apps/common/ разобран: artifacts.py+flight_stats.py -> apps/_shared/ (общая apps-инфраструктура), study_vehicle.py -> apps/input/ (литерал, как demo_scenario.py), ensemble.py -> apps/analysis/ensemble/ (Монте-Карло драйвер). apps/cfd_conditions/, apps/weight_aero_tradeoff/ -> apps/analysis/; apps/motor_selection/, apps/airbrake_sizing/ -> apps/optimization/. apps/common/ и 5 расплющенных директорий удалены. __init__.py добавлены во все пакеты apps/ (голые докстринги, без ре-экспортов, SS4.3). 6 внутренних apps.*-модулей + 5 раннеров + 12 тестов перепривязаны; test_apps_common.py -> test_apps_shared.py (переименован). tests/test_layering.py: RETIRED_PATHS += apps/common; G4 починен (реально битый import apps.common.artifacts, не только докстрингпроза — единственное отклонение от тикета). D-158: L3 архидока исправлен — apps.input.* признан легитимным третьим исключением (литералы-данные, как _shared для кода), поймано самим разработчиком при верификации против доковской фразы «none». Независимая проверка оркестратора: git diff --stat (42 файла, 268+/214-), git grep подтверждён пустым (кроме докстринг-прозы test_layering.py), полный прогон тестов оркестратором отдельно от разработчика. 768/768, 0 failed, 748.07s — ТРЕТИЙ подряд медленный прогон (764.55/745.19/748.07с против базовых ~220-390с) — это уже паттерн, не аномалия, см. журнал."
+    },
+    {
+     "step": 132,
+     "title": "controllers/ -> apps/control/flight_software/; tools/ -> apps/input/sounding_fetch/ (FK4=A)",
+     "status": "done",
+     "commit": "8834c15",
+     "result": "controllers/ (laws.py, estimator.py, __init__.py) -> apps/control/flight_software/, __init__.py сохранил реальную регистрационную логику (import-time side effect, control.register_sampled_law) на новом пути — единственное документированное исключение из «голый докстринг» правила этой фазы. tools/fetch_sounding.py -> apps/input/sounding_fetch/fetch_sounding.py (FK4, уже решено пользователем). controllers/ и tools/ удалены. sim/{control,params,roll,sensors}.py — только докстринг/комментарии (sim/ так и не импортирует apps/). 5 тестовых файлов обновлены; tests/test_layering.py: BANNED_ENGINE_IMPORT_ROOTS/IMPORTABILITY_ROOTS лишились избыточных 'tools'/'controllers' (apps/ их уже покрывает), NETWORK_EXEMPT_FILES перенаправлен, RETIRED_PATHS += controllers, tools (G6). Независимая проверка оркестратора: git diff --stat (15 файлов, +101/-80, ровно ожидаемый набор), git grep подтверждён пустым, построчные диффы sim/*.py и всех 5 тестов сверены построчно с тикетом — отклонений нет. Собственный полный прогон оркестратора (отдельно от разработчика): 768/768, 0 failed, 749.50s — ЧЕТВЁРТЫЙ подряд медленный прогон в том же узком диапазоне (764.55/745.19/748.07/749.50с), паттерн подтверждён устойчиво."
+    },
+    {
+     "step": 133,
+     "title": "ПЕРЕЕЗД ДВИЖКА: sim/ -> apps/sim/engine/ (336 строк импорта, 82 файла) — самый рискованный шаг фазы",
+     "status": "done",
+     "commit": "8b5f794",
+     "result": "git mv sim apps/sim/engine (30 файлов, renames, не delete+add — подтверждено git status). Скриптовый (не ручной) rewrite 338 строк импорта (268+67+3) по 80 файлам — и внутренние cross-module импорты движка, и все внешние потребители. apps/sim/engine/datafiles.py: _BUNDLED-глубина 2->4 dirname(), защищено fail-fast проверкой Step127. Докстринг-строка-1 всех 30 файлов движка получила self-path citation (apps/sim/engine/<name>.py --), как в apps/_shared и др. с Step130-132. tests/test_layering.py: ENGINE_DIR -> apps/sim/engine; G1 потребовал РЕАЛЬНОЙ правки (не только константы) — новый _import_full_names хелпер (G2/G3 не задеты) разрешает движку импортировать себя (apps.sim.engine.*) — ровно то исключение, что архидока уже специфицировала строкой 435, не новое решение; одобрено оркестратором как узкий фикс. RETIRED_PATHS += sim (G6). Один РЕАЛЬНЫЙ регресс пойман и исправлен на этапе собственной верификации разработчика: tests/test_gravity.py — subprocess-код-строка (sys.modules проверка) всё ещё says 'sim.gravity'/'sim.flow' (скрипт корректно не трогал строковые литералы — это не прокоз-проза, а исполняемый код) — исправлено, подтверждено вторым полным прогоном. Независимая проверка оркестратора: собственный content-equality check по всем 30 файлам движка (тег pre-engine-move vs новые файлы, игнорируя импорт-строки и 1-ю строку докстринга) — 0 неожиданных отличий (datafiles.py отличается только в 3 санкционированных правках Step3). git grep подтверждён пустым вне докстринг-прозы (cosmetic, как и в Step131-132, отложено на Step135). 768/768, 0 failed, ДВАЖДЫ (756.79с первый прогон поймал regression test_gravity, 801.44с второй — чисто после фикса)."
+    },
+    {
+     "step": 134,
+     "title": "configs/ упраздняется: schema.py -> apps/sim/schema.py (FK3=A), шим удалён",
+     "status": "done",
+     "commit": "83f0b78",
+     "result": "configs/schema.py -> apps/sim/schema.py (git mv), configs/__init__.py удалён (чистый re-export шим — SS4.3 упраздняет фасад проектно). configs/ директория удалена целиком. Механический rewrite configs.schema->apps.sim.schema по 23 внешним файлам (нет ни одного файла, использующего голую from configs import X форму шима — доковский кейс '~6 сайтов становятся двумя строками' не применим к текущему дереву). tests/test_configs.py -> tests/test_schema.py (зеркалит переименование модуля, тот же паттерн что test_apps_common->test_apps_shared в Step131); test_import_configs_package_first_has_no_circular_import удалён (премиса — риск circular-import через шим — больше не существует); сиблинг-тест сохранён. Побочный фоллаут переименования (не scope creep, прямое следствие): реальный импорт в test_demo_physics.py + 2 прозо-цитаты пути в study_vehicle.py/test_weight_aero_tradeoff.py — исправлены тем же шагом. 2 косметические правки прозы (examples/worked_scenario.py, test_worked_scenario_example.py — устаревшие 'import configs'/'import sim' + устаревший apps/motor_selection/ путь). apps/sim/schema.py докстринг: path-citation + 2 параграфа actionable-guidance переписаны под реальность голого модуля; историческая SS30-32 нарратив не трогалась (это задача Step135). tests/test_layering.py: RETIRED_PATHS += configs (G6), единственная правка. 767 passed, 0 failed (768 baseline минус 1 намеренно удалённый тест, подтверждено — больше ничего не изменилось). Независимая проверка оркестратора в 8 меньших чанках после повторных ~240с килов одиночных долгих full-suite вызовов из главной сессии (специфично для main-потока, не для субагентов — их собственные одиночные 750-800с full-suite вызовы всю фазу шли чисто) — все 47 тестовых файлов покрыты, 767/0 воспроизведено точно."
+    },
+    {
+     "step": 135,
+     "title": "документация/навигация/CLAUDE.md «Профиль проекта» синхронизация",
+     "status": "done",
+     "commit": "1123835",
+     "result": "Исправлены устаревшие цитаты пути на бандловые фикстуры (data/<kind>/ -> examples/data/<kind>/, переехавшие на Step129) в run.py, apps/input/demo_scenario.py, apps/sim/engine/aero.py — отличая их от до сих пор верных обобщённых упоминаний data/<kind>/ (личная директория пользователя, не трогались). apps/sim/engine/datafiles.py: докстринг сам себе противоречил (rule3 говорил про бандл 'data/<kind>/', хотя Step129-параграф в том же докстринге уже верно говорил про examples/data) — исправлено + список модулей обновлён на apps/sim/engine/ пути. examples/data/{motors,soundings}/README.md: устаревшие пути поправлены (sim/* -> apps/sim/engine/*, apps/motor_selection/ -> apps/optimization/motor_selection/, apps/common/ -> apps/_shared/, tools/fetch_sounding.py -> apps/input/sounding_fetch/). data/README.md — уже чист. dev/docs/architecture.md + roadmap.md: по одному pointer-разделу для Phase2.19 (конвенция 'lives in a separate file' с Phase2.11), файлы НЕ читались целиком (оба уже за 150K порогом — 300K/220K), правка точечная через Grep-анкер. В backlog зафиксировано, не создано (пред-существующие гэпы старше этой фазы): нет корневого README.md вообще; нет dev/docs/index.md/log.md/tag.md; architecture.md/roadmap.md также пропускают Phases 2.16-2.18 (не только 2.19) — решение пользователя нужно, не делалось самовольно. Два неавторизованных scratch-файла (documentation-агент без Bash пытался обойти ограничение) найдены untracked и удалены оркестратором до коммита. 767 passed, 0 failed — независимая проверка оркестратора в 7 чанках (все 47 тестовых файлов), без изменений от Step134 baseline. **Все 10 шагов Фазы 2.19 (126-135) закрыты.**"
+    }
+   ],
+   "next": "ВСЕ 10 шагов (126-135) закрыты (commits 7d9833a, f188987, 884d858, 0e29d6b, 9f69743, 26bbeac, 8834c15, 8b5f794, 83f0b78, 1123835, +CLAUDE.md sync c740d92) — 767/768 (минус 1 намеренно удалённый тест configs-шима), 0 сдвинутых пинов на всей фазе. git tag pre-engine-move стоит на коммите перед Step133 (f79dd6d), не удалять. ЕДИНСТВЕННОЕ, что остаётся — approval-гейт: показать пользователю `git log feature/apps-root-restructure ^develop --oneline` (12 коммитов) и 3 backlog-пункта (нет корневого README.md; нет dev/docs/index.md/log.md/tag.md; architecture.md/roadmap.md пропускают Phases 2.16-2.18) через AskUserQuestion, получить явное «да», затем merge --no-ff в develop (git-flow). НЕ мержить без ответа пользователя."
   }
  ],
  "decisions": [],
- "generated": "2026-10-27"
+ "generated": "2026-10-28"
 }
