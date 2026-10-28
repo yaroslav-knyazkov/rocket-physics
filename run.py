@@ -42,7 +42,7 @@ def main() -> None:
     # the one demo (apps/input/demo_scenario.py -- a real Cesaroni K570 on
     # a 54 mm airframe, mass model ON) instead of the former 0.5 kg toy;
     # single source of truth shared with App 2
-    # (apps/cfd_conditions/select_conditions.py).
+    # (apps/analysis/cfd_conditions/select_conditions.py).
     cfg = DEMO_SCENARIO.config
     params = cfg.params
     state0 = cfg.s0

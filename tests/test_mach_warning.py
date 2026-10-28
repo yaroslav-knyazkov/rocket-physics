@@ -6,7 +6,7 @@ import warnings
 
 import pytest
 
-from apps.common import study_vehicle
+from apps.input import study_vehicle
 from sim.integrate import run_sim
 from sim.mach_warning import MachRangeWarning, peak_mach
 from sim.params import replace as params_replace

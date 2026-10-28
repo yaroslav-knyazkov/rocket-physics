@@ -1,6 +1,8 @@
-"""apps/weight_aero_tradeoff/trade_surface.py -- App 5 mode (b): the 2-D
-weight-vs-aero trade surface and its exchange rate (Step 67, roadmap.md;
-dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.1).
+"""apps/analysis/weight_aero_tradeoff/trade_surface.py -- App 5 mode (b):
+the 2-D weight-vs-aero trade surface and its exchange rate (Step 67,
+roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.1;
+moved here from apps/weight_aero_tradeoff/trade_surface.py at Phase 2.19
+Step 131, dev/docs/architecture-apps-sim-restructure.md).
 
 **What this answers.** "If a fairing change costs me N grams and saves me
 M cm^2 of C_dA, is it worth it?" -- the trade surface turns that into a
@@ -104,9 +106,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-from apps.common import study_vehicle
-from apps.common.artifacts import ensure_dir, output_dir
-from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
+from apps.input import study_vehicle
+from apps._shared.artifacts import ensure_dir, output_dir
+from apps._shared.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from configs.schema import Config
 from sim.integrate import run_sim
 from sim.params import replace as params_replace
@@ -210,7 +212,7 @@ def build_surface(cfg: Config, axes: TradeAxes) -> TradeSurface:
 
     Raises `ValueError` if `cfg.params.aero.S == 0.0` (no `C_x` can
     realise a nonzero `C_dA` at zero reference area) and propagates
-    `apps.common.flight_stats`'s `sample_rate_hz` guard (F8) once,
+    `apps._shared.flight_stats`'s `sample_rate_hz` guard (F8) once,
     pre-flight, rather than on the first grid point -- the same
     fail-fast reasoning `compare_motors.compare_motors`'s own pre-flight
     pass applies.
@@ -395,12 +397,12 @@ def save_contour_plot(s: TradeSurface, path: Path) -> None:
 
 def main(argv: "Optional[list[str]]" = None) -> None:
     """Self-sufficient entry point: `python -m
-    apps.weight_aero_tradeoff.trade_surface` (the apps keep their own
-    invocation, architecture.md SS30.3) or `run_trade.py --mode surface`
+    apps.analysis.weight_aero_tradeoff.trade_surface` (the apps keep their
+    own invocation, architecture.md SS30.3) or `run_trade.py --mode surface`
     (the default mode, the only one this step builds)."""
     import argparse
 
-    from apps.weight_aero_tradeoff.scenarios import default_axes
+    from apps.analysis.weight_aero_tradeoff.scenarios import default_axes
 
     parser = argparse.ArgumentParser(
         description="App 5 mode (b): the weight-vs-aero trade surface and "

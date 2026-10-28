@@ -103,7 +103,7 @@ NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py",
 # Paths (relative to REPO_ROOT) that must not exist, one entry added per
 # deletion step as that step actually lands (module docstring). Step 128:
 # the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`.
-RETIRED_PATHS = ("docs",)
+RETIRED_PATHS = ("docs", "apps/common")
 
 
 def _iter_py_files(root_dir: Path):
@@ -225,7 +225,7 @@ def test_g4_output_helpers_resolve_under_cwd_not_repo(monkeypatch, tmp_path):
     time (Step 127) -- chdir to a throwaway `tmp_path` far from
     `REPO_ROOT` and confirm both resolve under it, not under the repo
     these functions' own modules happen to live in."""
-    from apps.common.artifacts import output_dir
+    from apps._shared.artifacts import output_dir
     from sim.report import default_output_dir
 
     monkeypatch.chdir(tmp_path)

@@ -1,6 +1,8 @@
-"""apps/weight_aero_tradeoff/compare_configs.py -- App 5 mode (a):
-named-configuration side-by-side comparison (Step 68, roadmap.md;
-dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.2).
+"""apps/analysis/weight_aero_tradeoff/compare_configs.py -- App 5 mode
+(a): named-configuration side-by-side comparison (Step 68, roadmap.md;
+dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.2; moved here from
+apps/weight_aero_tradeoff/compare_configs.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 **Why this mode exists at all, given mode (b)'s trade surface
 (`trade_surface.py`, Step 67) already answers "what does a (delta-mass,
@@ -12,7 +14,7 @@ site. The moment a configuration difference is not expressible as
 `(delta_m, delta_C_dA)`, the surface cannot answer it, and only a genuine
 side-by-side run can -- the case this module exists for.
 
-Same shape as `apps/motor_selection/compare_motors.py`'s
+Same shape as `apps/optimization/motor_selection/compare_motors.py`'s
 `compare_motors`, deliberately (SS30.7.2): ranked by apogee descending,
 `None` apogee last, the ascent-window stats bundle per row, plain
 fixed-width table, CSV, overlay PNG via `sim.plotting.plot_trajectory_
@@ -25,18 +27,18 @@ The two columns that make this a *weight-vs-aero trade* table rather
 than a generic comparison table are `mass_kg` (`params.weight.m`) and
 `cda_axial` (`aero.S * aero.C_x`, `None` unless `aero.model ==
 "constant"`) -- the same suppression rule
-`apps/airbrake_sizing/solve_cda.py`'s own `_cda_rocket_and_total` already
-applies to its `cda_rocket` column: under `"linearized"`/`"table"` the
-airframe's own `C_dA` is Mach/alpha-dependent, so no single number is
-honest to report there, even though the row's apogee is still a real,
-comparable number.
+`apps/optimization/airbrake_sizing/solve_cda.py`'s own
+`_cda_rocket_and_total` already applies to its `cda_rocket` column: under
+`"linearized"`/`"table"` the airframe's own `C_dA` is Mach/alpha-dependent,
+so no single number is honest to report there, even though the row's
+apogee is still a real, comparable number.
 
 **Inputs (SS30.7.2).** No CLI selection any more (Step 124, D-139/CLI-1):
 this mode always compares the app's own constant-mass study vehicle
-(`apps/common/study_vehicle.py::CONFIG`) as a *baseline* against every
-`apps.weight_aero_tradeoff.scenarios.SCENARIOS` entry applied to it (via
-`Variant.apply`/`Config.with_variant`, Step 63's machinery), plus the
-baseline itself.
+(`apps/input/study_vehicle.py::CONFIG`) as a *baseline* against every
+`apps.analysis.weight_aero_tradeoff.scenarios.SCENARIOS` entry applied to
+it (via `Variant.apply`/`Config.with_variant`, Step 63's machinery), plus
+the baseline itself.
 """
 
 from __future__ import annotations
@@ -47,10 +49,10 @@ import dataclasses
 from pathlib import Path
 from typing import Optional
 
-from apps.common import study_vehicle
-from apps.common.artifacts import ensure_dir, output_dir
-from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
-from apps.weight_aero_tradeoff.scenarios import SCENARIOS
+from apps.input import study_vehicle
+from apps._shared.artifacts import ensure_dir, output_dir
+from apps._shared.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
+from apps.analysis.weight_aero_tradeoff.scenarios import SCENARIOS
 from configs.schema import Config
 from sim.integrate import Result, run_sim
 from sim.plotting import plot_trajectory_overlay
@@ -71,7 +73,7 @@ class ConfigRun:
 
 def _cda_axial(cfg: Config) -> "float | None":
     """`aero.S * aero.C_x` if `aero.model == "constant"`, else `None` --
-    exactly `apps.airbrake_sizing.solve_cda._cda_rocket_and_total`'s own
+    exactly `apps.optimization.airbrake_sizing.solve_cda._cda_rocket_and_total`'s own
     rule for its `cda_rocket` column (module docstring)."""
     if cfg.params.aero.model != "constant":
         return None
@@ -81,7 +83,7 @@ def _cda_axial(cfg: Config) -> "float | None":
 def evaluate_config(cfg: Config) -> ConfigRun:
     """`run_sim` -> `flight_stats` -> `ConfigRun`. THE objective-function
     seam, same role as `compare_motors.evaluate_motor` and
-    `apps.airbrake_sizing.solve_cda.apogee_for_cda`: one config in, one
+    `apps.optimization.airbrake_sizing.solve_cda.apogee_for_cda`: one config in, one
     scored run out, no printing, no I/O, no global state.
 
     The `sample_rate_hz` guard (F8) is checked here, before `run_sim`
@@ -102,7 +104,7 @@ def evaluate_config(cfg: Config) -> ConfigRun:
 def compare_configs(cfgs: "list[Config]") -> "list[ConfigRun]":
     """Evaluate every config, ranked by apogee altitude descending
     (`None` apogee -- a config that cannot fly -- sorts last). The exact
-    tie-breaking rule `apps.motor_selection.compare_motors.compare_motors`
+    tie-breaking rule `apps.optimization.motor_selection.compare_motors.compare_motors`
     already uses, mirrored here rather than reinvented.
 
     Pre-flight validation pass: check the `sample_rate_hz` guard (F8) for
@@ -159,7 +161,7 @@ def print_comparison_table(runs: "list[ConfigRun]") -> None:
         "(cda_axial is nan unless aero.model == \"constant\" -- under "
         "\"linearized\"/\"table\" the airframe's own C_dA is Mach/alpha-"
         "dependent, so no single number is honest to report there; "
-        "apps/airbrake_sizing/solve_cda.py's cda_rocket applies the same "
+        "apps/optimization/airbrake_sizing/solve_cda.py's cda_rocket applies the same "
         "rule)"
     )
     print(
@@ -210,13 +212,14 @@ def save_overlay(runs: "list[ConfigRun]", path: Path) -> None:
 
 def main(argv: "Optional[list[str]]" = None) -> None:
     """Self-sufficient entry point: `python -m
-    apps.weight_aero_tradeoff.compare_configs` or `run_trade.py --mode
-    compare` (forwarding every other argument, same pattern `run_trade.py
-    --mode surface` already uses for `trade_surface.main`). No CLI
-    selection (Step 124, D-139/CLI-1): always the app's own constant-mass
-    study vehicle (`apps/common/study_vehicle.py::CONFIG`) as baseline,
-    compared against every `apps.weight_aero_tradeoff.scenarios.SCENARIOS`
-    variant applied to it, plus the baseline itself."""
+    apps.analysis.weight_aero_tradeoff.compare_configs` or `run_trade.py
+    --mode compare` (forwarding every other argument, same pattern
+    `run_trade.py --mode surface` already uses for `trade_surface.main`).
+    No CLI selection (Step 124, D-139/CLI-1): always the app's own
+    constant-mass study vehicle (`apps/input/study_vehicle.py::CONFIG`) as
+    baseline, compared against every
+    `apps.analysis.weight_aero_tradeoff.scenarios.SCENARIOS` variant
+    applied to it, plus the baseline itself."""
     parser = argparse.ArgumentParser(
         description="App 5 mode (a): named-configuration side-by-side "
         "comparison"

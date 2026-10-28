@@ -162,7 +162,7 @@ def test_negative_l_ref_is_rejected():  # QA-10
 
 
 def test_sweep_duplicate_motor_names_are_rejected():  # QA-6
-    from apps.motor_selection import scenario_sweep as ss
+    from apps.optimization.motor_selection import scenario_sweep as ss
     from tests.test_scenario_sweep import LARGE, _scn
 
     with pytest.raises(ValueError, match="duplicate"):
@@ -170,7 +170,7 @@ def test_sweep_duplicate_motor_names_are_rejected():  # QA-6
 
 
 def test_cli_empty_motor_list_is_an_error(tmp_path):  # QA-7
-    from apps.motor_selection import scenario_sweep as ss
+    from apps.optimization.motor_selection import scenario_sweep as ss
 
     with pytest.raises((SystemExit, ValueError)):
         ss.main(["--scenario", "demo", "--motors", ",", "--out-dir", str(tmp_path)])

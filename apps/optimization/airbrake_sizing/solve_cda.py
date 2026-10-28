@@ -1,4 +1,7 @@
-"""App 4 -- airbrake C_dA determination against the real solver.
+"""apps/optimization/airbrake_sizing/solve_cda.py -- App 4: airbrake
+C_dA determination against the real solver (moved here from
+apps/airbrake_sizing/solve_cda.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 Answers the user's own framing of their `temp/AB_01.m` + `AB_01_sim.m` pair:
 "smn like this but this time I have proper solver." The MATLAB precedent
@@ -67,7 +70,7 @@ that names the cause instead of a `fminbnd` call that returns a
 plausible-looking bound with a "converged" flag.
 
 Run with `python run_airbrake.py` (root wrapper, D-29) or
-`python -m apps.airbrake_sizing.solve_cda` from the repo root.
+`python -m apps.optimization.airbrake_sizing.solve_cda` from the repo root.
 """
 
 from __future__ import annotations
@@ -80,8 +83,8 @@ from typing import Any
 
 from scipy.optimize import brentq
 
-from apps.common.artifacts import ensure_dir, output_dir
-from apps.common.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
+from apps._shared.artifacts import ensure_dir, output_dir
+from apps._shared.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Config
 from sim.gravity import altitude_agl
@@ -121,7 +124,8 @@ class AirbrakeSpec:
     """One airbrake-sizing study input (SS30.6.1/SS30.6's "API consequences").
 
     A target apogee is a *mission requirement*, not a vehicle property --
-    `AirbrakeSpec` instances live in `apps/airbrake_sizing/targets.py`
+    `AirbrakeSpec` instances live in
+    `apps/optimization/airbrake_sizing/targets.py`
     (D-23 style), never in `configs/`.
     """
 
@@ -188,7 +192,7 @@ def apogee_for_cda(
     cda: float, cfg: Config, spec: AirbrakeSpec
 ) -> "tuple[float | None, Result, Params]":
     """This app's objective-function seam, the role `evaluate_motor` plays
-    in App 3 (`apps/motor_selection/compare_motors.py`): one scalar in, one
+    in App 3 (`apps/optimization/motor_selection/compare_motors.py`): one scalar in, one
     apogee *altitude* out (not the apogee *time* `Result.events["apogee"]`
     carries), no printing, no I/O, no global state.
 
@@ -388,7 +392,7 @@ def _warn_if_airbrake_already_set(cfg: Config) -> None:
             f"NOTE: config {cfg.name!r} already set control.airbrake_* "
             f"(model={c.airbrake_model!r}, trigger={c.airbrake_trigger!r}, "
             f"deploy_time={c.airbrake_deploy_time}, Cd={c.airbrake_Cd}, "
-            f"S_max={c.airbrake_S_max}) -- apps.airbrake_sizing owns this "
+            f"S_max={c.airbrake_S_max}) -- apps.optimization.airbrake_sizing owns this "
             "group entirely and has overridden it with its own solution."
         )
 
@@ -647,14 +651,15 @@ def save_overlay(sol: AirbrakeSolution, path: Path) -> None:
 
 
 def main(argv: "list[str] | None" = None) -> None:
-    """`python run_airbrake.py` / `python -m apps.airbrake_sizing.solve_cda`.
+    """`python run_airbrake.py` / `python -m
+    apps.optimization.airbrake_sizing.solve_cda`.
     Runs one named spec from `targets.SPECS` (`--spec`, default the main
     burnout solve) against the demo scenario (`apps.input.demo_scenario.
     DEMO_SCENARIO`), prints the SS30.6 report, writes
     `output/airbrake_sizing.csv` and `output/airbrake_sizing_overlay.png`.
     Running every named spec in one go is the test suite's job
     (`tests/test_airbrake_sizing.py`), not this CLI's."""
-    from apps.airbrake_sizing.targets import SPECS
+    from apps.optimization.airbrake_sizing.targets import SPECS
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -662,7 +667,7 @@ def main(argv: "list[str] | None" = None) -> None:
         default=next(iter(SPECS)),
         metavar="NAME",
         choices=sorted(SPECS),
-        help="named spec from apps/airbrake_sizing/targets.py",
+        help="named spec from apps/optimization/airbrake_sizing/targets.py",
     )
     parser.add_argument("--out-dir", default=None, help="default: output/")
     args = parser.parse_args(argv)

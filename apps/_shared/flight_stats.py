@@ -1,16 +1,18 @@
-"""apps/common/flight_stats.py -- the shared flight-stats reduction
-(Step 64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5).
+"""apps/_shared/flight_stats.py -- the shared flight-stats reduction
+(Step 64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5;
+moved here from apps/common/flight_stats.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
-Moved verbatim out of `apps/motor_selection/compare_motors.py` (Step
-61/62, `dev/docs/architecture-29-motor-selection.md` SS29.2-SS29.6), where it
-was `MotorStats`/`flight_stats`. Promoted because App 3 was never the only
-customer (SS30.2 F11): Apps 4/5 (airbrake `C_dA` determination, mass/drag
-trade) want the exact same ascent-window reduction over a `Result`, and
-three apps independently re-deriving the same numerics is precisely the
-duplication this project pins against. `compare_motors.py` now re-exports
-`FlightStats` as `MotorStats` so nothing downstream moves (SS30.2 F11,
-`tests/test_motor_selection.py` imports `flight_stats` -- never
-`MotorStats` -- so the rename is invisible to the existing suite).
+Moved verbatim out of `apps/optimization/motor_selection/compare_motors.py`
+(Step 61/62, `dev/docs/architecture-29-motor-selection.md` SS29.2-SS29.6),
+where it was `MotorStats`/`flight_stats`. Promoted because App 3 was never
+the only customer (SS30.2 F11): Apps 4/5 (airbrake `C_dA` determination,
+mass/drag trade) want the exact same ascent-window reduction over a
+`Result`, and three apps independently re-deriving the same numerics is
+precisely the duplication this project pins against. `compare_motors.py`
+now re-exports `FlightStats` as `MotorStats` so nothing downstream moves
+(SS30.2 F11, `tests/test_motor_selection.py` imports `flight_stats` --
+never `MotorStats` -- so the rename is invisible to the existing suite).
 
 Zero behavioural change from the Step 61/62 version: same ascent window,
 same `dynamics.derivatives` re-evaluation for an exact acceleration, same
@@ -58,7 +60,7 @@ from sim.integrate import Result
 from sim.params import Params
 from sim.state import VX, VZ, X
 
-# The house dense-grid size (sim/report.py, apps/cfd_conditions/
+# The house dense-grid size (sim/report.py, apps/analysis/cfd_conditions/
 # select_conditions.py both use 2000-4000-point grids over the window they
 # reduce) -- SS29.4.2.
 _ASCENT_GRID_N = 2000

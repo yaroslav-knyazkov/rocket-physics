@@ -1,5 +1,7 @@
-"""apps/airbrake_sizing/targets.py -- the study input literal (D-23 style,
-`dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6).
+"""apps/optimization/airbrake_sizing/targets.py -- the study input
+literal (D-23 style, `dev/docs/architecture-30-apps-4-5-and-configs.md`
+SS30.6; moved here from apps/airbrake_sizing/targets.py at Phase 2.19
+Step 131, dev/docs/architecture-apps-sim-restructure.md).
 
 A target apogee is a *mission requirement*, not a property of the vehicle:
 the same default vehicle (`configs.demo`) gets re-solved against several
@@ -24,7 +26,7 @@ distinguishes):
 
 from __future__ import annotations
 
-from apps.airbrake_sizing.solve_cda import AirbrakeSpec
+from apps.optimization.airbrake_sizing.solve_cda import AirbrakeSpec
 
 SPECS: "dict[str, AirbrakeSpec]" = {
     # The main case: size the brake for an apogee target, deployed at

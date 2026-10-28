@@ -1,4 +1,6 @@
-"""App 2 -- CFD condition selector.
+"""apps/analysis/cfd_conditions/select_conditions.py -- App 2: CFD
+condition selector (moved here from apps/cfd_conditions/select_conditions.py
+at Phase 2.19 Step 131, dev/docs/architecture-apps-sim-restructure.md).
 
 Answers the question that has to be answered *before* CFD is run at all:
 out of everything a flight passes through, which (V, AoA, M, Re) combinations
@@ -86,7 +88,7 @@ from pathlib import Path
 
 import numpy as np
 
-from apps.common.artifacts import ensure_dir, output_dir
+from apps._shared.artifacts import ensure_dir, output_dir
 from apps.input.demo_scenario import DEMO_SCENARIO
 from sim.flow import flow_state
 from sim.integrate import Result, run_sim

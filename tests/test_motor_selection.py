@@ -1,4 +1,4 @@
-"""Tests for apps/motor_selection/compare_motors.py (App 3, roadmap.md Step
+"""Tests for apps/optimization/motor_selection/compare_motors.py (App 3, roadmap.md Step
 61, architecture-29-motor-selection.md SS29.2-SS29.6).
 
 Per that design doc (SS29.5, "This document pins no expected apogee
@@ -17,7 +17,7 @@ import math
 import numpy as np
 import pytest
 
-from apps.motor_selection.compare_motors import (
+from apps.optimization.motor_selection.compare_motors import (
     MotorEntry,
     _demo_baseline,
     _demo_entries,
@@ -26,7 +26,7 @@ from apps.motor_selection.compare_motors import (
     evaluate_motor,
     flight_stats,
 )
-from apps.motor_selection.motors import MOTORS
+from apps.optimization.motor_selection.motors import MOTORS
 from sim.integrate import Result, run_sim
 from sim.params import Lengths, Params, Weight, replace as params_replace, with_solver
 from sim.state import State, X
@@ -288,7 +288,7 @@ def test_sample_rate_hz_nonzero_raises_before_run_sim(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called once the guard fires")
 
-    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.optimization.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
     baseline = with_solver(_demo_baseline(), method="rk4", sample_rate_hz=1000.0)
     entry = MotorEntry(name="x", motor_curve="placeholder.csv")
@@ -395,7 +395,7 @@ def test_motor_curve_conflict_raises_before_any_integration(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called once build_params raises")
 
-    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.optimization.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
     baseline = _demo_baseline()
     entries = [
@@ -419,7 +419,7 @@ def test_typo_group_raises_attribute_error_before_any_integration(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called once replace raises")
 
-    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.optimization.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
     baseline = _demo_baseline()
     entry = MotorEntry(
@@ -439,7 +439,7 @@ def test_typo_field_raises_type_error_before_any_integration(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called once replace raises")
 
-    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.optimization.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
     baseline = _demo_baseline()
     entry = MotorEntry(
@@ -470,7 +470,7 @@ def test_no_overrides_default_reproduces_step61_bit_for_bit():
 
 
 def test_motors_module_equal_impulse_pair_stays_override_free():
-    """The two H-class entries in `apps.motor_selection.motors.MOTORS`
+    """The two H-class entries in `apps.optimization.motor_selection.motors.MOTORS`
     must stay override-free on purpose (SS29.7), so the equal-impulse-pair
     comparison still isolates burn-profile effects on an identical
     airframe."""
@@ -493,7 +493,7 @@ def test_motors_module_small_and_large_get_distinct_casings():
 
 
 def test_compare_motors_end_to_end_with_mixed_overrides():
-    """Full pipeline, `apps.motor_selection.motors.MOTORS` (a mix of
+    """Full pipeline, `apps.optimization.motor_selection.motors.MOTORS` (a mix of
     overridden and override-free entries), end to end through
     `compare_motors`: every entry produces a run, ranked by apogee, and the
     overridden entries' `Params` actually carry their overrides through to
@@ -544,7 +544,7 @@ def test_mass_model_on_baseline_is_refused_before_any_integration(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called for a mass-on baseline")
 
-    monkeypatch.setattr("apps.motor_selection.compare_motors.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.optimization.motor_selection.compare_motors.run_sim", _must_not_be_called)
 
     cfg = DEMO_SCENARIO.config
     assert cfg.params.weight.m_d is not None

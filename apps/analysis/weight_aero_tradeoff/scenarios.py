@@ -1,23 +1,26 @@
-"""apps/weight_aero_tradeoff/scenarios.py -- the default trade-surface
-grid (Step 67, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md
-SS30.7.1).
+"""apps/analysis/weight_aero_tradeoff/scenarios.py -- the default
+trade-surface grid (Step 67, roadmap.md;
+dev/docs/architecture-30-apps-4-5-and-configs.md SS30.7.1; moved here from
+apps/weight_aero_tradeoff/scenarios.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 Per the project's D-23 convention (a Python literal, every number
-commented with *why*, same style as `apps/motor_selection/motors.py`):
-this module carries F10's measured default box, not a derivation buried
-in `trade_surface.py`.
+commented with *why*, same style as `apps/optimization/motor_selection/
+motors.py`): this module carries F10's measured default box, not a
+derivation buried in `trade_surface.py`.
 
 **Two different kinds of literal on the two axes, deliberately:**
 
 - The **C_dA axis is relative**: `[0.5, 1.5] x` whatever config's own
   baseline `C_dA = aero.S * aero.C_x` happens to be. This is what makes
   the default grid "bracket the baseline" (SS30.7.1) for *any* `--config`
-  the app is pointed at, not just the study vehicle (`apps/common/study_vehicle.py`) -- a config with a very
-  different C_dA still gets a box centred on its own value.
+  the app is pointed at, not just the study vehicle (`apps/input/
+  study_vehicle.py`) -- a config with a very different C_dA still gets a
+  box centred on its own value.
 - The **mass axis is an absolute literal**, `[1.0, 2.5] kg`: it is F10's
   measured band around the study vehicle's own 1.5 kg baseline, the same way
-  `apps/motor_selection/motors.py`'s motor list is specific to that one
-  demo airframe rather than derived from whatever config is loaded. A
+  `apps/optimization/motor_selection/motors.py`'s motor list is specific to
+  that one demo airframe rather than derived from whatever config is loaded. A
   vehicle with a very different mass scale (a 50 kg vehicle, say) would
   want its own band -- this is a known limitation of a literal default,
   not a bug (flagged in the Step 67 developer report as a judgment call:
@@ -33,7 +36,7 @@ runs in ~5.75 s (47.5 ms/run) on the architect's own measurement. This
 tree's own measured wall-clock against the study vehicle's
 `"placeholder.csv"` motor is higher (~39 s / ~320 ms per grid point,
 Step 67 developer report) -- `run_sim` itself is still ~45 ms/run, in
-line with F10, but `apps.common.flight_stats.flight_stats`'s own
+line with F10, but `apps._shared.flight_stats.flight_stats`'s own
 ascent-window reduction (re-evaluating `dynamics.derivatives`/`flow_state`
 over a ~4000-point grid per flight) dominates at this config's longer
 flight times. Not re-pinned here (expected order of magnitude, not an
@@ -45,7 +48,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from apps.weight_aero_tradeoff.trade_surface import TradeAxes
+from apps.analysis.weight_aero_tradeoff.trade_surface import TradeAxes
 from configs.schema import Config, Variant
 
 # C_dA axis: relative multipliers of cfg's own baseline C_dA = aero.S * aero.C_x.

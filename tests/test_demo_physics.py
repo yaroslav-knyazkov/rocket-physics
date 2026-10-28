@@ -24,12 +24,12 @@ import math
 
 import pytest
 
-from apps.common import study_vehicle
+from apps.input import study_vehicle
 from apps.input.demo_scenario import DEMO_SCENARIO
 from apps.input.demo_scenario import rocket as _demo_rocket
 from apps.input.demo_scenario import site as _demo_site
 from apps.input.demo_scenario import weather as _demo_weather
-from apps.motor_selection.compare_motors import _demo_baseline
+from apps.optimization.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Scenario
 from sim.integrate import run_sim
 from sim.state import M

@@ -1,4 +1,4 @@
-"""Tests for apps/motor_selection/scenario_sweep.py (Step 100, Phase 2.17,
+"""Tests for apps/optimization/motor_selection/scenario_sweep.py (Step 100, Phase 2.17,
 architecture-35 SS35.4.5, D-113): motor sweep v2 on Motor/Scenario, plus the
 B26 thin slice (`derive_history` + provenance)."""
 
@@ -10,9 +10,9 @@ import os
 import numpy as np
 import pytest
 
-from apps.common.flight_stats import flight_stats
+from apps._shared.flight_stats import flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
-from apps.motor_selection import scenario_sweep as ss
+from apps.optimization.motor_selection import scenario_sweep as ss
 from configs.schema import Motor, assemble
 from sim import aero, motor_file
 from sim.integrate import run_sim

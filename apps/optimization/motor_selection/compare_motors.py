@@ -1,11 +1,13 @@
-"""App 3 -- motor selection sweep.
+"""apps/optimization/motor_selection/compare_motors.py -- App 3: motor
+selection sweep (moved here from apps/motor_selection/compare_motors.py
+at Phase 2.19 Step 131, dev/docs/architecture-apps-sim-restructure.md).
 
 Answers the question the user asked for directly: "of these N motors, flown
 on *this* airframe under *this* one environment, which gives the highest
 apogee -- and what does each one cost me in peak velocity, peak
 acceleration, peak dynamic pressure and flight time?"
 
-This is a pure *consumer* of `sim/`, on the `apps/cfd_conditions/
+This is a pure *consumer* of `sim/`, on the `apps/analysis/cfd_conditions/
 select_conditions.py` ("App 2") precedent: it builds one `Params` per motor
 via `sim.params.replace`, calls `sim.integrate.run_sim` once per motor,
 post-processes each `Result`, and prints/saves a table ranked by apogee. It
@@ -60,15 +62,15 @@ thing" defect this repo has already been bitten by (`aero_model` vs
 a frozen dataclass via `default_factory`, not a shared mutable default),
 so every Step 61 entry/test/demo scenario that does not specify it is
 bit-for-bit unchanged. The actual per-motor configuration data (which
-motor gets which overrides) lives in `apps/motor_selection/motors.py`
+motor gets which overrides) lives in
+`apps/optimization/motor_selection/motors.py`
 (SS29.8, D-23: a Python literal, not CSV/JSON/YAML -- `None` is a
 meaningful override value, the key set is open and per-entry sparse, and
 every number here is commented with *why*).
 
-Run with `python -m apps.motor_selection.compare_motors` from the repo
-root -- `apps/` has no `__init__.py` anywhere (an implicit namespace
-package), so running the file by path instead would put the script's own
-directory on `sys.path` and break `import sim`.
+Run with `python -m apps.optimization.motor_selection.compare_motors` from
+the repo root -- running the file by path instead would put the script's
+own directory on `sys.path` and break `import sim`.
 """
 
 from __future__ import annotations
@@ -79,9 +81,9 @@ import dataclasses
 from pathlib import Path
 from typing import Any, Optional
 
-from apps.common import study_vehicle
-from apps.common.artifacts import output_dir
-from apps.common.flight_stats import (
+from apps.input import study_vehicle
+from apps._shared.artifacts import output_dir
+from apps._shared.flight_stats import (
     FlightStats,
     _assert_derivatives_reconstructible,
     flight_stats,
@@ -92,7 +94,7 @@ from sim.params import replace as params_replace
 from sim.plotting import plot_trajectory_overlay
 from sim.state import State
 
-# Step 64: MotorStats/flight_stats moved to apps/common/flight_stats.py
+# Step 64: MotorStats/flight_stats moved to apps/_shared/flight_stats.py
 # (dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5) -- Apps 4/5 want
 # the same ascent-window reduction App 3 pioneered (SS30.2 F11). Re-exported
 # under the original name so nothing downstream moves:
@@ -299,10 +301,10 @@ def save_overlay(runs: list[MotorRun], path: Path) -> None:
 def _demo_baseline() -> Params:
     """The architect's synthetic 1.5 kg / 75 mm vehicle (D-26) -- Step 86
     (dev/docs/architecture-33-configs-one-demo.md SS33.4.3, D-79): a
-    one-line re-export of `apps.common.study_vehicle.CONFIG.params`, kept
+    one-line re-export of `apps.input.study_vehicle.CONFIG.params`, kept
     under this name only because `tests/test_motor_selection.py` imports it
     unedited (F11). The full provenance/rationale for these numbers lives
-    once, in `apps/common/study_vehicle.py`'s own docstring.
+    once, in `apps/input/study_vehicle.py`'s own docstring.
     """
     return study_vehicle.CONFIG.params
 
@@ -318,17 +320,18 @@ def _demo_entries() -> list[MotorEntry]:
 
 
 def main(argv: "list[str] | None" = None) -> None:
-    """Runs the configured `apps.motor_selection.motors.MOTORS` set (Step
-    62) -- the per-motor dry-rocket overrides, not the override-free Step
-    61 `_demo_entries()` above (which stays, unused by `main`, purely so
-    the existing Step-61 tests that import it keep working bit-for-bit)."""
-    from apps.motor_selection.motors import MOTORS
+    """Runs the configured `apps.optimization.motor_selection.motors.MOTORS`
+    set (Step 62) -- the per-motor dry-rocket overrides, not the
+    override-free Step 61 `_demo_entries()` above (which stays, unused by
+    `main`, purely so the existing Step-61 tests that import it keep
+    working bit-for-bit)."""
+    from apps.optimization.motor_selection.motors import MOTORS
 
     parser = argparse.ArgumentParser(description="App 3: motor selection sweep")
     parser.add_argument("--out-dir", default=None, help="default: output/")
     args = parser.parse_args(argv)
 
-    # Step 86: baseline + s0 both sourced from apps/common/study_vehicle.py
+    # Step 86: baseline + s0 both sourced from apps/input/study_vehicle.py
     # (the same Config _demo_baseline() above re-exports .params from), so
     # the study vehicle's initial state is not a second, separately
     # maintained literal.

@@ -1,4 +1,4 @@
-"""Tests for apps/airbrake_sizing/ -- App 4, airbrake C_dA determination
+"""Tests for apps/optimization/airbrake_sizing/ -- App 4, airbrake C_dA determination
 against the real solver (roadmap.md Step 66,
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6/SS30.8).
 
@@ -17,8 +17,8 @@ import math
 import numpy as np
 import pytest
 
-from apps.airbrake_sizing import solve_cda
-from apps.airbrake_sizing.solve_cda import (
+from apps.optimization.airbrake_sizing import solve_cda
+from apps.optimization.airbrake_sizing.solve_cda import (
     AirbrakeSpec,
     apogee_for_cda,
     apogee_for_deploy_time,
@@ -28,9 +28,9 @@ from apps.airbrake_sizing.solve_cda import (
     save_solution_csv,
     solve_airbrake,
 )
-from apps.airbrake_sizing.targets import SPECS
-from apps.common import study_vehicle
-from apps.common.artifacts import ensure_dir
+from apps.optimization.airbrake_sizing.targets import SPECS
+from apps.input import study_vehicle
+from apps._shared.artifacts import ensure_dir
 from apps.input.demo_scenario import DEMO_SCENARIO
 from sim import control
 from sim.integrate import Result
@@ -280,7 +280,7 @@ def test_config_that_never_leaves_the_pad_raises_naming_the_config(monkeypatch):
 
 
 def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
-    """The inherited F8 guard (`apps.common.flight_stats`): a sampled-data
+    """The inherited F8 guard (`apps._shared.flight_stats`): a sampled-data
     `Params` must be rejected before `run_sim` is ever called."""
 
     def _must_not_be_called(*args, **kwargs):
@@ -334,7 +334,7 @@ def test_named_apogee_target_specs_converge_with_margin():
     """Step 96: the named apogee-target specs reach the 1e-2 m acceptance
     with margin (brentq's xtol is derived from the acceptance, not a fixed
     constant that only just fit)."""
-    from apps.airbrake_sizing.targets import SPECS
+    from apps.optimization.airbrake_sizing.targets import SPECS
 
     for name in ("burnout_3850m", "timer_3850m", "when_to_pop"):
         spec = SPECS[name]

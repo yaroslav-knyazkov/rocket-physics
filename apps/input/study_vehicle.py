@@ -1,17 +1,20 @@
-"""apps/common/study_vehicle.py -- the constant-mass study vehicle (Phase
-2.16, Step 86, dev/docs/architecture-33-configs-one-demo.md SS33.3.1, D-79).
+"""apps/input/study_vehicle.py -- the constant-mass study vehicle (Phase
+2.16, Step 86, dev/docs/architecture-33-configs-one-demo.md SS33.3.1, D-79;
+moved here from apps/common/study_vehicle.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 The 1.5 kg / 75 mm vehicle that Apps 3 and 5 (and the tests of Apps 3/4/5)
 study. It is a STUDY INPUT, the same kind as
-`apps/motor_selection/motors.py::MOTORS`,
-`apps/weight_aero_tradeoff/scenarios.py::SCENARIOS` and
-`apps/airbrake_sizing/targets.py::SPECS`: it is not registered in
-`configs/`, not listed by `--list-configs`, and not a template for users.
+`apps/optimization/motor_selection/motors.py::MOTORS`,
+`apps/analysis/weight_aero_tradeoff/scenarios.py::SCENARIOS` and
+`apps/optimization/airbrake_sizing/targets.py::SPECS`: it is not registered
+in `configs/`, not listed by `--list-configs`, and not a template for users.
 
 Provenance (carried over from the former `configs/rockets/demo_75mm.py` and
 `configs/motors/placeholder.py`): copied number-for-number, including its
-justifying docstring, from `apps/motor_selection/compare_motors.py`'s
-`_demo_baseline()` (D-26, user-approved at Step 62). The mass model is OFF
+justifying docstring, from `apps/optimization/motor_selection/
+compare_motors.py`'s `_demo_baseline()` (D-26, user-approved at Step 62).
+The mass model is OFF
 (`m_d=None`, constant mass): the motor is `Thrust(motor_curve=
 "placeholder.csv")`, "replaced per entry; never read as-is", since every
 App-3 caller overrides `thrust.motor_curve` per `MotorEntry` before running.

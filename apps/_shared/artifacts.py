@@ -1,9 +1,11 @@
-"""apps/common/artifacts.py -- the shared output-directory helper (Step
-64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5).
+"""apps/_shared/artifacts.py -- the shared output-directory helper (Step
+64, roadmap.md; dev/docs/architecture-30-apps-4-5-and-configs.md SS30.5;
+moved here from apps/common/artifacts.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
-`output_dir()` is `Path.cwd() / "output"`, both `apps/cfd_conditions/
-select_conditions.py` and `apps/motor_selection/compare_motors.py` used
-to hand-roll separately (as `_OUTPUT_DIR`/`OUTPUT_DIR`, each anchored off
+`output_dir()` is `Path.cwd() / "output"`, both `apps/analysis/cfd_conditions/
+select_conditions.py` and `apps/optimization/motor_selection/compare_motors.py`
+used to hand-roll separately (as `_OUTPUT_DIR`/`OUTPUT_DIR`, each anchored off
 its own `__file__` instead). Defined once here so a future app (or a
 future migration of the existing two) has one place to import it from.
 
@@ -24,10 +26,10 @@ constant would freeze whatever the *importing* process's cwd happened to
 be the first time this module was imported, which is the same kind of
 staleness, just one step removed. Every known call site has been
 converted to call it instead of reading a constant (see
-`apps/motor_selection/{compare_motors,scenario_sweep}.py`,
-`apps/weight_aero_tradeoff/{trade_surface,compare_configs}.py`,
-`apps/airbrake_sizing/solve_cda.py`, `apps/cfd_conditions/
-select_conditions.py`) -- no deprecated alias needed.
+`apps/optimization/motor_selection/{compare_motors,scenario_sweep}.py`,
+`apps/analysis/weight_aero_tradeoff/{trade_surface,compare_configs}.py`,
+`apps/optimization/airbrake_sizing/solve_cda.py`, `apps/analysis/
+cfd_conditions/select_conditions.py`) -- no deprecated alias needed.
 """
 
 from __future__ import annotations

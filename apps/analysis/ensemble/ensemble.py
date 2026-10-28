@@ -1,5 +1,8 @@
-"""apps/common/ensemble.py -- dispersion hooks + Monte-Carlo ensemble runner
-(Step 105, Phase 2.17, dev/docs/architecture-35-paper-alignment.md SS35.4.5).
+"""apps/analysis/ensemble/ensemble.py -- dispersion hooks + Monte-Carlo
+ensemble runner (Step 105, Phase 2.17,
+dev/docs/architecture-35-paper-alignment.md SS35.4.5; moved here from
+apps/common/ensemble.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 `sim/` itself stays single-run (no Monte Carlo inside the physics engine);
 this module lives in the apps layer and drives many single `run_sim`-shaped
@@ -381,7 +384,7 @@ def run_ensemble(
 def save_csv(result: EnsembleResult, path) -> None:
     """Structured table -> CSV, one row per sample -- same "structured
     output table + CSV export" convention as
-    `apps/motor_selection/scenario_sweep.py`'s `SweepRow`/`save_csv`.
+    `apps/optimization/motor_selection/scenario_sweep.py`'s `SweepRow`/`save_csv`.
     Plain stdlib `csv`, not `np.savetxt`: the table mixes float columns with
     the string `error` column, which `np.savetxt` cannot format in one call.
     """

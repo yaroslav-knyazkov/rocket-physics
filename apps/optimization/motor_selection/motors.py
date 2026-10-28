@@ -1,5 +1,8 @@
-"""Per-motor dry-rocket configuration (Step 62,
-`dev/docs/architecture-29-motor-selection.md` SS29.7/SS29.8, decision D-23).
+"""apps/optimization/motor_selection/motors.py -- per-motor dry-rocket
+configuration (Step 62, `dev/docs/architecture-29-motor-selection.md`
+SS29.7/SS29.8, decision D-23; moved here from
+apps/motor_selection/motors.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 The user's own framing: "for each motor I can also select dry rocket
 parameters (for smaller motors the casing is smaller)." This module is
@@ -33,7 +36,7 @@ config edit, not a code change.
 
 from __future__ import annotations
 
-from apps.motor_selection.compare_motors import MotorEntry
+from apps.optimization.motor_selection.compare_motors import MotorEntry
 
 MOTORS: list[MotorEntry] = [
     MotorEntry(

@@ -1,5 +1,8 @@
-"""App 3 v2 -- motor sweep on `Scenario` + `Motor` (Step 100, Phase 2.17,
-dev/docs/architecture-35-paper-alignment.md SS35.4.5, D-113).
+"""apps/optimization/motor_selection/scenario_sweep.py -- App 3 v2: motor
+sweep on `Scenario` + `Motor` (Step 100, Phase 2.17,
+dev/docs/architecture-35-paper-alignment.md SS35.4.5, D-113; moved here
+from apps/motor_selection/scenario_sweep.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md).
 
 Input: one `Scenario` (rocket, site, weather) and a list of `Motor` pieces.
 Per motor: `assemble(replace(scenario, motor=m))` -> `run_sim` -> one
@@ -29,7 +32,7 @@ and `sim.mass` functions the solver uses, plus a provenance dict (model name,
 resolved inputs, SHA-256 of the source file). The solver is unchanged.
 
 Run: `python run_motor_sweep.py --motors Cesaroni_2060K570-17A.eng --target 5000`
-(or `python -m apps.motor_selection.scenario_sweep ...`). The scenario is
+(or `python -m apps.optimization.motor_selection.scenario_sweep ...`). The scenario is
 always the demo scenario (`apps.input.demo_scenario.DEMO_SCENARIO`, Step
 124, D-139/CLI-1, moved from `examples.worked_scenario` at Step 130) --
 there is no `--scenario` flag any more.
@@ -49,8 +52,8 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from apps.common.artifacts import output_dir
-from apps.common.flight_stats import _assert_derivatives_reconstructible, flight_stats
+from apps._shared.artifacts import output_dir
+from apps._shared.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
 from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
 from sim import aero, atmosphere, mass, motor_file, thrust_curve

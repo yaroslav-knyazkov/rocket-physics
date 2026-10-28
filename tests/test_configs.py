@@ -2,7 +2,7 @@
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4/SS30.8).
 
 Per SS30.8: the two exact-equality pins against `run.py`'s literal and
-`apps.motor_selection.compare_motors._demo_baseline()` are the primary
+`apps.optimization.motor_selection.compare_motors._demo_baseline()` are the primary
 checks (this is what makes a later migration, roadmap Step 69, a provable
 no-op), then `derive`'s no-silent-reset property, `Variant.apply`/
 `Config.with_variant` equivalence, and no circular import.
@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from apps.common import study_vehicle
-from apps.motor_selection.compare_motors import _demo_baseline
+from apps.input import study_vehicle
+from apps.optimization.motor_selection.compare_motors import _demo_baseline
 from configs.schema import Config, Variant
 from sim.params import Aero, Lengths, Params, Thrust, Weight
 from sim.state import State
@@ -49,7 +49,7 @@ def _toy_05kg_s0() -> State:
 
 
 def _study_75mm_literal() -> Params:
-    """The study vehicle's numbers (apps/common/study_vehicle.py), typed out
+    """The study vehicle's numbers (apps/input/study_vehicle.py), typed out
     independently here so the pin below is a real one, not a tautology."""
     return Params(
         weight=Weight(m=1.5, I=0.08),
@@ -209,10 +209,10 @@ def test_import_configs_package_first_has_no_circular_import():
 
 _RUN_PY = (_PROJECT_ROOT / "run.py").read_text()
 _SELECT_CONDITIONS_PY = (
-    _PROJECT_ROOT / "apps" / "cfd_conditions" / "select_conditions.py"
+    _PROJECT_ROOT / "apps" / "analysis" / "cfd_conditions" / "select_conditions.py"
 ).read_text()
 _COMPARE_MOTORS_PY = (
-    _PROJECT_ROOT / "apps" / "motor_selection" / "compare_motors.py"
+    _PROJECT_ROOT / "apps" / "optimization" / "motor_selection" / "compare_motors.py"
 ).read_text()
 
 
