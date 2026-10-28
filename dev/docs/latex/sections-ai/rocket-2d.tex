@@ -48,7 +48,9 @@ Motion through the air produces an aerodynamic force and, about a reference poin
     q = \tfrac12\rho v_{rel}^2.
 \end{equation}
 Here $q$ is the dynamic pressure, $S$ the reference area, $c$ the reference length and
-$C_x,C_z,C_m$ the coefficients, all supplied by \autoref{sec:aero}.
+$C_x,C_z,C_m$ the coefficients, all supplied by \autoref{sec:aero}. The simulator's code calls $C_m$
+\texttt{C\_m\_code} internally, flagging the nose-down sign convention discussed in
+\autoref{sec:analysis_dynamic}.
 
 \subsection{Geometry}\label{sec:geometry}
 Each force acts at its own point on the rocket:

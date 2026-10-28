@@ -156,8 +156,11 @@ by $\Delta\alpha_i\approx+\omega_r s_i/v_{rel}$. Fins well aft see the largest s
 resulting normal-force change against its arm gives a moment proportional to $\omega_r$, present
 even at $\alpha=0$.
 
-With the sign of $\vec{A}_m$ used here, a positive $C_m$ pitches the nose \emph{down}. A
-statically stable, aft-finned airframe therefore has $C_{m,q}>0$: a positive (nose-up) pitch rate
+With the sign of $\vec{A}_m$ used here, a positive $C_m$ pitches the nose \emph{down}. The simulator's
+code flags this non-standard sign by renaming the internal quantity to \texttt{C\_m\_code}, keeping the
+plain name \texttt{C\_m} reserved at the code's I/O boundary (config files, CSV aero-table headers) for
+the standard convention when a user declares \texttt{cm\_convention: standard}. A statically stable,
+aft-finned airframe therefore has $C_{m,q}>0$: a positive (nose-up) pitch rate
 produces an additional positive (nose-down) moment, opposing the rotation.
 
 Linearising \autoref{eq:moment_aligned} with this term (and $C_{z,0}=C_{m,0}=0$),
