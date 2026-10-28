@@ -10,7 +10,7 @@
   ],
   "excluded_modules": [],
   "complexity": "simple",
-  "current_stage": "2.19",
+  "current_stage": "2.17",
   "stages": [
     {
       "id": "1",
@@ -621,7 +621,8 @@
     {
       "id": "2.19",
       "name": "Phase 2.19 — пивот: apps/ становится корнем продукта (движок в apps/sim/engine/, configs/ уходит, data/ расщепляется, упаковка снимается)",
-      "status": "done_pending_merge",
+      "status": "done",
+      "merged": "2026-10-28, merge commit в develop (feature/apps-root-restructure --no-ff, 144 файла, 767/767 после мержа), пользователь одобрил merge явным «да». Ветка feature/apps-root-restructure не удалена (на случай, если понадобится) — удалить по желанию пользователя.",
       "archived": true
     }
   ],
@@ -1770,6 +1771,15 @@
       "choice": "Разрешено применить узкий фикс: сравнивать полное dotted-имя импорта (не первый компонент), исключить apps.sim.engine-префиксные self-импорты движка из бана на 'apps'. Это НЕ новое архитектурное решение — архидока (architecture-apps-sim-restructure.md:435) УЖЕ специфицировала ровно это исключение в самом описании G1 ('apps (other than apps.sim.engine)'), просто оно было мёртвым кодом до этого шага. Оркестратор одобрил без пользовательского гейта на основании точного совпадения с уже одобренной спекой.",
       "author": "orchestrator",
       "user_approved": false,
+      "stage": "2.19"
+    },
+    {
+      "id": "D-160",
+      "date": "2026-10-28",
+      "question": "Merge-гейт: все 10 шагов Фазы 2.19 (126-135) закрыты и независимо перепроверены (content-equality, full-suite, построчные диффы), 767/768 (минус 1 намеренно удалённый тест), 0 сдвинутых пинов за всю фазу. Мержить feature/apps-root-restructure --no-ff в develop сейчас?",
+      "choice": "Да, мержить сейчас. Выполнено: checkout develop, merge --no-ff (144 файла, 1967+/1177-), полный прогон на develop после мержа чанками (все 47 тестовых файлов) — 767/767, push origin/develop (f04e426..eceba2f). Ветка feature/apps-root-restructure не удалена.",
+      "author": "user",
+      "user_approved": true,
       "stage": "2.19"
     }
   ],
