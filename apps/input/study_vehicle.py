@@ -20,7 +20,7 @@ The mass model is OFF
 App-3 caller overrides `thrust.motor_curve` per `MotorEntry` before running.
 It still flies on its own (162.75 N*s on 1.5 kg clears the pad easily).
 Do NOT change `motor_curve` to `"synthetic_large.csv"`: the exact-equality
-pin in `tests/test_configs.py` depends on it staying `"placeholder.csv"`.
+pin in `tests/test_schema.py` depends on it staying `"placeholder.csv"`.
 `sections` is left at its default -- no measured section geometry.
 
 `s0` is omitted (derives "on the pad, nose along the rail" from
@@ -30,7 +30,7 @@ math.pi / 2`).
 
 from __future__ import annotations
 
-from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
+from apps.sim.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
 from apps.sim.engine.params import Aero, Lengths, Site, Thrust
 
 # Step 124 (Phase 2.18, D-139/CLI-1): inlined, not imported from

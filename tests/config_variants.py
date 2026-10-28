@@ -24,7 +24,7 @@ keep their meaning. None of them is registered in `configs/`.
 from __future__ import annotations
 
 from apps.input import study_vehicle
-from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
+from apps.sim.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
 from apps.sim.engine.params import Aero, Atmosphere, Lengths, Site, Thrust, Wind
 
 # ----------------------------------------------------------------------

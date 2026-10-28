@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
-from configs.schema import assemble
+from apps.sim.schema import assemble
 from apps.sim.engine import aero, report
 from apps.sim.engine.dynamics import derivatives
 from apps.sim.engine.flow import flow_state

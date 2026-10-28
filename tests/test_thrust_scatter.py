@@ -11,7 +11,7 @@ import math
 import numpy as np
 import pytest
 
-from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather
+from apps.sim.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather
 from apps.sim.engine import thrust_curve
 from apps.sim.engine.dynamics import derivatives
 from apps.sim.engine.integrate import run_sim

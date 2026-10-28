@@ -11,7 +11,7 @@ import pytest
 
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
 from apps.optimization.motor_selection import scenario_sweep as ss
-from configs.schema import assemble
+from apps.sim.schema import assemble
 from apps.sim.engine import aero, dynamics, thrust_curve
 from apps.sim.engine.dynamics import derivatives
 from apps.sim.engine.flow import flow_state

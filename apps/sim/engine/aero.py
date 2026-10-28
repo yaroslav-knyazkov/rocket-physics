@@ -501,7 +501,7 @@ def _resolve_arm(base: "AeroCoeffs", y, p) -> "AeroCoeffs":
 
 def validate(p) -> None:
     """Fail-fast checks for the Step-99 aero options, called from
-    `configs.schema.assemble` (and usable directly): known `cm_convention`;
+    `apps.sim.schema.assemble` (and usable directly): known `cm_convention`;
     with a CP station, a CoG station when the mass model is off, and no
     nozzle cant (the thrust arm keeps its legacy `-(l1 + l2)` expression, which
     is meaningless for station configs -- on-axis thrust has zero moment, so

@@ -55,7 +55,7 @@ import numpy as np
 from apps._shared.artifacts import output_dir
 from apps._shared.flight_stats import _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
-from configs.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
+from apps.sim.schema import Airframe, Motor, Scenario, Sections, _weight_from_pieces, assemble
 from apps.sim.engine import aero, atmosphere, mass, motor_file, thrust_curve
 from apps.sim.engine.integrate import Result, run_sim
 from apps.sim.engine.params import Params, Thrust
@@ -153,7 +153,7 @@ def derive_history(
 ) -> MotorHistory:
     """The motor's own `t, m(t), l_cg(t), I(t)` (see module docstring).
 
-    Built from `configs.schema._weight_from_pieces` on a zero-mass airframe at
+    Built from `apps.sim.schema._weight_from_pieces` on a zero-mass airframe at
     station 0 (so the resolution of header fields, endpoint inversion and
     defaults is the assembly code itself), then `sim.mass` -- the same
     functions `sim.dynamics` calls. The mass follows the solver's law

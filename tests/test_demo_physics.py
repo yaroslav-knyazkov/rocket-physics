@@ -30,11 +30,11 @@ from apps.input.demo_scenario import rocket as _demo_rocket
 from apps.input.demo_scenario import site as _demo_site
 from apps.input.demo_scenario import weather as _demo_weather
 from apps.optimization.motor_selection.compare_motors import _demo_baseline
-from configs.schema import Scenario
+from apps.sim.schema import Scenario
 from apps.sim.engine.integrate import run_sim
 from apps.sim.engine.state import M
 from tests import config_variants
-from tests.test_configs import _toy_05kg_literal
+from tests.test_schema import _toy_05kg_literal
 
 # ----------------------------------------------------------------------
 # Piece-level slice equality against the independent reconstructions

@@ -23,7 +23,7 @@ import textwrap
 
 import pytest
 
-from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
+from apps.sim.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
 from apps.sim.engine.params import (
     Aero,
     Atmosphere,

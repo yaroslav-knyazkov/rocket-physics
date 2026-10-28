@@ -10,9 +10,9 @@ this module lives in the apps layer and drives many single `run_sim`-shaped
 
 Two kinds of perturbed input, told apart by `Dispersion.stage`:
 
-- `"scenario"` -- a field that lives on the `configs.schema.Scenario` tree
+- `"scenario"` -- a field that lives on the `apps.sim.schema.Scenario` tree
   itself (airframe mass/CG/inertia, motor, rail, ...). `Weight` is DERIVED
-  inside `configs.schema.assemble` (SS32.3, `_weight_from_pieces`), so a
+  inside `apps.sim.schema.assemble` (SS32.3, `_weight_from_pieces`), so a
   perturbed airframe mass only takes effect through a fresh `assemble` call,
   not a post-hoc `Params` patch.
 - `"params"` -- a dotted `Params` path (`aero.cx_scale`, `atmosphere.dT_K`,
@@ -51,7 +51,7 @@ from typing import Any, Callable, NamedTuple, Sequence
 
 import numpy as np
 
-from configs.schema import Config, Scenario, assemble
+from apps.sim.schema import Config, Scenario, assemble
 
 __all__ = [
     "Dispersion",
@@ -140,7 +140,7 @@ def _apply_scenario_path(path: str) -> Callable[[Scenario, float], Scenario]:
 
 def _apply_params_path(path: str) -> Callable[[Scenario, float], Scenario]:
     def apply(sc: Scenario, value: float) -> Scenario:
-        # Staged into Scenario.overrides -- configs.schema.assemble applies
+        # Staged into Scenario.overrides -- apps.sim.schema.assemble applies
         # it via sim.params.replace itself, in assemble's own order (notably
         # "s0 AFTER overrides", SS31.4), not a second, independent code path.
         return dataclasses.replace(sc, overrides={**sc.overrides, path: value})

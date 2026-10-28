@@ -129,7 +129,9 @@ NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py",
 # deletion step as that step actually lands (module docstring). Step 128:
 # the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`. Step
 # 133: `sim/`, actually deleted by its `git mv` to `apps/sim/engine/`.
-RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools", "sim")
+# Step 134: `configs/`, actually deleted once its `schema.py` moved to
+# `apps/sim/schema.py` and its `__init__.py` shim was removed.
+RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools", "sim", "configs")
 
 
 def _iter_py_files(root_dir: Path):

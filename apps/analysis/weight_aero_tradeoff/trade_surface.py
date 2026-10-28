@@ -109,7 +109,7 @@ from scipy.interpolate import RegularGridInterpolator
 from apps.input import study_vehicle
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps._shared.flight_stats import _assert_derivatives_reconstructible, flight_stats
-from configs.schema import Config
+from apps.sim.schema import Config
 from apps.sim.engine.integrate import run_sim
 from apps.sim.engine.params import replace as params_replace
 

@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
-from configs.schema import assemble
+from apps.sim.schema import assemble
 from apps.sim.engine import aero, integrate
 from apps.sim.engine.aero import AeroRangeWarning
 from apps.sim.engine.integrate import run_sim

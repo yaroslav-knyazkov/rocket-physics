@@ -1,4 +1,4 @@
-"""configs/schema.py -- `Config` and `Variant` (Step 63, roadmap.md,
+"""apps/sim/schema.py -- `Config` and `Variant` (Step 63, roadmap.md,
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4).
 
 Both frozen dataclasses, both trivially constructible, no inheritance, no
@@ -8,13 +8,10 @@ every tool including `run.py`. `Variant` is a *named delta* against some
 `Config` -- the generalisation of App 3's `MotorEntry.overrides`, for
 studies that compare N perturbations of one baseline.
 
-Importing this module: config modules (`configs/<name>.py`) must do
-`from configs.schema import Config`, **never** `from configs import
-Config`. `configs/__init__.py` imports every config module to build the
-registry, so a config module reaching back into the package's own (at
-that point still partially-initialised) namespace would be a circular
-import. Importing this submodule directly, as above, is always safe --
-`configs/schema.py` has no dependency on `configs/__init__.py`.
+Importing this module: this is now a plain top-level module, not a
+package submodule -- `apps/sim/schema.py` has no `__init__.py` re-export
+shim anywhere above it in `apps/sim/`. Import it directly: `from
+apps.sim.schema import Config`.
 
 Step 71 (`dev/docs/architecture-31-config-separation.md` SS31.4) adds four
 more frozen dataclasses -- `Rocket`, `LaunchSite`, `Weather`, `Scenario`
@@ -48,12 +45,8 @@ alignment.md SS35.6, D-114) adds one more group, `actuator`, owned by
 already is, not a run-level concern.
 
 The import rule above now also applies to pieces: piece modules do
-`from configs.schema import Rocket`, **never** `from configs import
-Rocket`, and a piece never reaches up into `configs.scenarios`,
-`configs.rockets`, `configs.sites` or `configs.weather` -- those
-subpackages do not exist yet as of this step (Step 72 adds them); this
-step only adds the piece *types* and the assembly function they
-compose through.
+`from apps.sim.schema import Rocket` -- a plain top-level import, no
+package-level shim to avoid.
 """
 
 from __future__ import annotations

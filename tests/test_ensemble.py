@@ -25,7 +25,7 @@ import pytest
 
 from apps.analysis.ensemble import ensemble as ens
 from apps._shared.flight_stats import flight_stats
-from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
+from apps.sim.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
 from apps.sim.engine.integrate import run_sim
 from apps.sim.engine.params import Aero, Lengths, Params, Solver, Thrust, Weight
 from apps.sim.engine.params import replace as params_replace

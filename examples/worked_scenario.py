@@ -12,15 +12,16 @@ module's own docstring for the full REQ/OPT crib sheet on every field.
 Run with `python -m examples.worked_scenario` from the repo root
 (`examples/` has no `__init__.py`, the same implicit-namespace-package
 convention `apps/` uses -- running this file directly by path instead
-would put `examples/` on `sys.path` and break `import configs`/`import
-sim`, see `apps/motor_selection/compare_motors.py`'s own docstring for
-the same warning).
+would put `examples/` on `sys.path` and break every `apps.*` import this
+file uses (e.g. `apps.input.demo_scenario`, `apps.sim.schema`), see
+`apps/optimization/motor_selection/compare_motors.py`'s own docstring
+for the same warning).
 """
 
 from __future__ import annotations
 
 from apps.input.demo_scenario import DEMO_SCENARIO
-from configs.schema import assemble
+from apps.sim.schema import assemble
 from apps.sim.engine import report
 from apps.sim.engine.integrate import run_sim
 

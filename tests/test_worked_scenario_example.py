@@ -7,9 +7,10 @@ importable -- this is a permanent test, unlike
 Invoked as `python -m examples.worked_scenario` rather than by file path:
 `examples/` has no `__init__.py` (the same implicit-namespace-package
 convention `apps/` uses), so running the file directly by path would put
-`examples/` itself on `sys.path` and break `import configs`/`import sim`
-(see `apps/motor_selection/compare_motors.py`'s own docstring for the
-same warning); `-m` resolves it as a package from the repo root instead.
+`examples/` itself on `sys.path` and break every `apps.*` import the
+file uses (see `apps/optimization/motor_selection/compare_motors.py`'s
+own docstring for the same warning); `-m` resolves it as a package from
+the repo root instead.
 """
 
 from __future__ import annotations

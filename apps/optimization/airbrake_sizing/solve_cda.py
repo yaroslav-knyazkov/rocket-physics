@@ -86,7 +86,7 @@ from scipy.optimize import brentq
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps._shared.flight_stats import FlightStats, _assert_derivatives_reconstructible, flight_stats
 from apps.input.demo_scenario import DEMO_SCENARIO
-from configs.schema import Config
+from apps.sim.schema import Config
 from apps.sim.engine.gravity import altitude_agl
 from apps.sim.engine.integrate import Result, run_sim
 from apps.sim.engine.params import Control, Params

@@ -49,7 +49,7 @@ from __future__ import annotations
 import numpy as np
 
 from apps.analysis.weight_aero_tradeoff.trade_surface import TradeAxes
-from configs.schema import Config, Variant
+from apps.sim.schema import Config, Variant
 
 # C_dA axis: relative multipliers of cfg's own baseline C_dA = aero.S * aero.C_x.
 _CDA_LOW_MULT = 0.5

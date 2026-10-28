@@ -58,7 +58,7 @@ no `__main__` block.
 
 from __future__ import annotations
 
-from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Sections, Weather
+from apps.sim.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Sections, Weather
 from apps.sim.engine.params import Aero, Atmosphere, Lengths, Recovery, Site, Solver, Soundings, Thrust, Wind
 
 # ----------------------------------------------------------------------

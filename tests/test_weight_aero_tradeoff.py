@@ -440,7 +440,7 @@ def test_cda_axial_is_s_times_cx_under_constant_aero_model():
 
 def test_scenarios_variant_changes_exactly_its_named_fields():
     """Confirms the same no-silent-reset property
-    `tests/test_configs.py`'s own `test_derive_changes_exactly_the_
+    `tests/test_schema.py`'s own `test_derive_changes_exactly_the_
     named_fields` already pins at the `Config.derive` level holds through
     this app's own usage path: applying each `scenarios.SCENARIOS` entry
     to the baseline changes exactly its own `overrides` keys and leaves

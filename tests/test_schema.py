@@ -1,4 +1,4 @@
-"""Tests for configs/ (Step 63, roadmap.md,
+"""Tests for `apps/sim/schema.py` (Step 63, roadmap.md,
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.4/SS30.8).
 
 Per SS30.8: the two exact-equality pins against `run.py`'s literal and
@@ -24,7 +24,7 @@ import pytest
 
 from apps.input import study_vehicle
 from apps.optimization.motor_selection.compare_motors import _demo_baseline
-from configs.schema import Config, Variant
+from apps.sim.schema import Config, Variant
 from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight
 from apps.sim.engine.state import State
 from tests import config_variants
@@ -186,15 +186,6 @@ def test_import_apps_input_demo_scenario_first_has_no_circular_import():
     _run_fresh_interpreter(
         "import apps.input.demo_scenario\nprint(apps.input.demo_scenario.DEMO_SCENARIO.name)\n"
     )
-
-
-def test_import_configs_package_first_has_no_circular_import():
-    # `configs.names()` no longer exists on the Step-125 re-export shim
-    # (D-141/Cfg-1) -- check `configs.Scenario` instead, an attribute
-    # exported both before and after that shim swap (Part 3/4 of this
-    # step), so this test stays green across the whole pivot, not just
-    # at the end of it.
-    _run_fresh_interpreter("import configs\nprint(configs.Scenario)\n")
 
 
 # ----------------------------------------------------------------------

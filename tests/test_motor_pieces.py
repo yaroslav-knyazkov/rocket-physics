@@ -36,7 +36,7 @@ import apps.sim.engine.mass as mass
 import apps.sim.engine.motor_file as motor_file
 import tests.config_variants as config_variants
 from apps.input.demo_scenario import motor as _cti_k570_motor
-from configs.schema import Airframe, Motor, Sections, _weight_from_pieces
+from apps.sim.schema import Airframe, Motor, Sections, _weight_from_pieces
 from apps.sim.engine.params import Thrust
 
 G0 = 9.80665
