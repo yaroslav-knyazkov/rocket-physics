@@ -9,18 +9,17 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from apps.motor_selection import scenario_sweep as ss
-from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
-from sim import aero, dynamics, thrust_curve
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.forces import aero_moment_y
-from sim.params import Aero, Lengths, Params, Thrust, Weight
-from sim.state import State
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
+from apps.optimization.motor_selection import scenario_sweep as ss
+from apps.sim.schema import assemble
+from apps.sim.engine import aero, dynamics, thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.forces import aero_moment_y
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import State
+from tests.datadir import AERO_DIR as _AERO_DIR
 from tests.test_scenario_sweep import LARGE
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
 
 
 @contextlib.contextmanager

@@ -1,5 +1,6 @@
-"""Tests for apps/weight_aero_tradeoff/trade_surface.py (App 5 mode (b),
-roadmap.md Step 67) and apps/weight_aero_tradeoff/compare_configs.py (App
+"""Tests for apps/analysis/weight_aero_tradeoff/trade_surface.py (App 5
+mode (b), roadmap.md Step 67) and
+apps/analysis/weight_aero_tradeoff/compare_configs.py (App
 5 mode (a), roadmap.md Step 68), dev/docs/architecture-30-apps-4-5-and-
 configs.md SS30.7.1/SS30.7.2/SS30.8.
 
@@ -49,16 +50,17 @@ import math
 import numpy as np
 import pytest
 
-from apps.common import study_vehicle
-from apps.common.flight_stats import flight_stats
-from apps.weight_aero_tradeoff.compare_configs import (
+from apps.input import study_vehicle
+from apps._shared.flight_stats import flight_stats
+from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.analysis.weight_aero_tradeoff.compare_configs import (
     ConfigRun,
     compare_configs,
     evaluate_config,
 )
-from apps.weight_aero_tradeoff.compare_configs import main as compare_main
-from apps.weight_aero_tradeoff.scenarios import SCENARIOS, default_axes
-from apps.weight_aero_tradeoff.trade_surface import (
+from apps.analysis.weight_aero_tradeoff.compare_configs import main as compare_main
+from apps.analysis.weight_aero_tradeoff.scenarios import SCENARIOS, default_axes
+from apps.analysis.weight_aero_tradeoff.trade_surface import (
     TradeAxes,
     build_surface,
     count_unflyable,
@@ -68,9 +70,8 @@ from apps.weight_aero_tradeoff.trade_surface import (
     save_contour_plot,
     save_surface_csv,
 )
-from examples.worked_scenario import DEMO_SCENARIO
-from sim.integrate import run_sim
-from sim.params import replace as params_replace
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import replace as params_replace
 
 
 def _demo_cfg():
@@ -316,22 +317,18 @@ def test_default_axes_is_the_f10_11x11_box_bracketing_the_baseline():
 # ----------------------------------------------------------------------
 
 
-def test_main_end_to_end_default_grid_writes_artifacts(tmp_path, monkeypatch, capsys):
+def test_main_end_to_end_default_grid_writes_artifacts(tmp_path, capsys):
     """The full default 11x11 grid against `demo_75mm`: prints the table
     and the exchange rates, writes a CSV and a contour PNG. No apogee
     value is pinned (SS30.8) -- the actual exchange rate and wall-clock
     are reported in the Step 67 developer report, per the roadmap
     ticket, not asserted here beyond sanity bounds (rate negative and
     finite; the run completes in well under the test timeout)."""
-    import apps.weight_aero_tradeoff.trade_surface as trade_surface_module
-
-    # `trade_surface.py` does `from apps.common.artifacts import
-    # OUTPUT_DIR`, binding its own module-level name -- patch that name
-    # directly, not `apps.common.artifacts.OUTPUT_DIR` (already-bound
-    # imports do not see a later patch of the original).
-    monkeypatch.setattr(trade_surface_module, "OUTPUT_DIR", tmp_path)
-
-    main([])
+    # Step 127 (Phase 2.19): `output_dir()` is now a function, read at
+    # call time -- so routing the artifacts into `tmp_path` is just the
+    # CLI's own `--out-dir`, exercising the real public flag instead of
+    # monkeypatching the app module's internal import binding.
+    main(["--out-dir", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert "Weight-vs-aero trade surface" in out
@@ -368,7 +365,7 @@ def test_save_contour_plot_and_save_surface_csv_smoke(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# App 5 mode (a): apps/weight_aero_tradeoff/compare_configs.py (Step 68)
+# App 5 mode (a): apps/analysis/weight_aero_tradeoff/compare_configs.py (Step 68)
 # ----------------------------------------------------------------------
 #
 # Mirrors tests/test_motor_selection.py's own ordering/degenerate-flight
@@ -410,7 +407,7 @@ def test_compare_configs_ranking_non_increasing_with_none_last():
 
 def test_cda_axial_is_none_under_table_aero_model():
     """`cda_axial` is `None` unless `aero.model == "constant"` -- the
-    same suppression rule `apps.airbrake_sizing.solve_cda`'s
+    same suppression rule `apps.optimization.airbrake_sizing.solve_cda`'s
     `_cda_rocket_and_total` already applies to its `cda_rocket` column.
     `solver.t_max` is bounded well below the default 300 s here: this
     table + geometry combination is statically marginal and the adaptive
@@ -443,7 +440,7 @@ def test_cda_axial_is_s_times_cx_under_constant_aero_model():
 
 def test_scenarios_variant_changes_exactly_its_named_fields():
     """Confirms the same no-silent-reset property
-    `tests/test_configs.py`'s own `test_derive_changes_exactly_the_
+    `tests/test_schema.py`'s own `test_derive_changes_exactly_the_
     named_fields` already pins at the `Config.derive` level holds through
     this app's own usage path: applying each `scenarios.SCENARIOS` entry
     to the baseline changes exactly its own `overrides` keys and leaves
@@ -488,15 +485,15 @@ def test_scenarios_variant_changes_exactly_its_named_fields():
 # ----------------------------------------------------------------------
 
 
-def test_compare_main_default_scenarios_writes_artifacts(tmp_path, monkeypatch, capsys):
+def test_compare_main_default_scenarios_writes_artifacts(tmp_path, capsys):
     """No `--config` (the default, the study vehicle): prints the ranked
     table for the baseline plus every `SCENARIOS` variant, and writes
-    both artifacts."""
-    import apps.weight_aero_tradeoff.compare_configs as compare_configs_module
+    both artifacts.
 
-    monkeypatch.setattr(compare_configs_module, "OUTPUT_DIR", tmp_path)
-
-    compare_main([])
+    Step 127 (Phase 2.19): routed through the CLI's own `--out-dir`
+    rather than monkeypatching the app module's internal import binding
+    (`output_dir()` is now a function, read at call time)."""
+    compare_main(["--out-dir", str(tmp_path)])
 
     out = capsys.readouterr().out
     assert "Config comparison" in out
@@ -573,7 +570,7 @@ def test_build_surface_refuses_mass_model_on_config(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("run_sim must not be called for a mass-on config")
 
-    monkeypatch.setattr("apps.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
+    monkeypatch.setattr("apps.analysis.weight_aero_tradeoff.trade_surface.run_sim", _must_not_be_called)
 
     cfg = DEMO_SCENARIO.config
     with pytest.raises(ValueError, match="mass model is on"):

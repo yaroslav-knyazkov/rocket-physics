@@ -18,10 +18,10 @@ import math
 
 import numpy as np
 
-from sim import control, sampling
-from sim.integrate import run_sim
-from sim.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
-from sim.state import State
+from apps.sim.engine import control, sampling
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Actuator, Aero, Control, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.state import State
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 

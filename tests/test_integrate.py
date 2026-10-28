@@ -10,15 +10,15 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp as _scipy_solve_ivp
 
-from sim.integrate import (
+from apps.sim.engine.integrate import (
     _apogee_event, _burnout_event, _ground_event, _parachute_deploy_event,
     _pending_events, _rail_exit_event, _SegmentedSol, run_sim,
 )
-from sim.params import (
+from apps.sim.engine.params import (
     Aero, Atmosphere, Gravity, Lengths, Params, Recovery, Site, Soundings, Thrust, Weight, Wind,
     with_solver,
 )
-from sim.state import State, Z, to_vector
+from apps.sim.engine.state import State, Z, to_vector
 
 
 # data/motors/placeholder.csv burns from t=0 (thrust=0) up through an

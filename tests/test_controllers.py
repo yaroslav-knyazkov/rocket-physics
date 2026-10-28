@@ -1,14 +1,15 @@
-"""Tests for controllers/ -- the flight-software package (Phase 2.17
-Milestone M3, architecture-35-paper-alignment.md SS35.4.4, task-107-
-sampled-laws-registry.md): the drag-aware predicted-apogee closed form,
-the estimator stub, and the two registered sampled laws
+"""Tests for apps/control/flight_software/ -- the flight-software package
+(Phase 2.17 Milestone M3, architecture-35-paper-alignment.md SS35.4.4,
+task-107-sampled-laws-registry.md): the drag-aware predicted-apogee
+closed form, the estimator stub, and the two registered sampled laws
 (`proportional_drag`/`pi_apogee`).
 
-`import controllers` (below) is REQUIRED before `"proportional_drag"`/
-`"pi_apogee"` are resolvable through `run_sim` -- see controllers/
-__init__.py's own docstring. Reuses tests.test_control's shared launch
-scenario (`_launch_params`/`_launch_state`/`_LAUNCH_WEIGHT`/`_LAUNCH_AERO`)
-via a plain cross-test-file import, the same house precedent
+`import apps.control.flight_software` (below) is REQUIRED before
+`"proportional_drag"`/`"pi_apogee"` are resolvable through `run_sim` --
+see apps/control/flight_software/__init__.py's own docstring. Reuses
+tests.test_control's shared launch scenario (`_launch_params`/
+`_launch_state`/`_LAUNCH_WEIGHT`/`_LAUNCH_AERO`) via a plain
+cross-test-file import, the same house precedent
 tests/test_step114_review_fixes.py already uses for
 tests.test_scenario_sweep.LARGE.
 """
@@ -20,12 +21,12 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-import controllers  # noqa: F401  (import-time side effect: registers the two laws below)
-from controllers import estimator, laws
-from sim import control
-from sim.integrate import run_sim
-from sim.params import with_solver
-from sim.state import Z
+import apps.control.flight_software  # noqa: F401  (import-time side effect: registers the two laws below)
+from apps.control.flight_software import estimator, laws
+from apps.sim.engine import control
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import with_solver
+from apps.sim.engine.state import Z
 from tests.test_control import _launch_params, _launch_state, _LAUNCH_AERO, _LAUNCH_WEIGHT
 
 
@@ -84,7 +85,7 @@ def test_drag_aware_predictor_continuous_near_k_zero():
 
 
 # ----------------------------------------------------------------------
-# controllers/estimator.py -- stub only (Step 108 replaces the body)
+# apps/control/flight_software/estimator.py -- stub only (Step 108 replaces the body)
 # ----------------------------------------------------------------------
 
 
@@ -109,13 +110,13 @@ def test_estimator_step_backward_difference_on_a_linear_ramp():
 
 
 # ----------------------------------------------------------------------
-# controllers/estimator.py -- the real alpha_beta filter (Step 108,
+# apps/control/flight_software/estimator.py -- the real alpha_beta filter (Step 108,
 # task-108-sensors-estimator.md SS108.6, tests 8-13)
 # ----------------------------------------------------------------------
 
 
 def test_alpha_beta_first_call_returns_zero_velocity():
-    from sim.params import Params, Weight
+    from apps.sim.engine.params import Params, Weight
 
     p = Params(weight=Weight(m=0.5, I=0.05))  # default Control: estimator_alpha/beta at their defaults
     h_hat, v_hat, state = estimator.step(0.0, 100.0, None, model="alpha_beta", p=p)
@@ -127,7 +128,7 @@ def test_alpha_beta_converges_on_a_noiseless_constant_velocity_ramp():
     """`h(t) = h0 + v0*t`, fed exactly every tick: after enough ticks for
     the filter's own geometric transient to decay, `h_hat`/`v_hat`
     converge to `h(t)`/`v0` within a tight tolerance."""
-    from sim.params import Control, Params, Weight
+    from apps.sim.engine.params import Control, Params, Weight
 
     h0, v0, dt = 10.0, 5.0, 0.1
     p = Params(weight=Weight(m=0.5, I=0.05), control=Control(estimator_alpha=0.5, estimator_beta=0.1667))
@@ -147,7 +148,7 @@ def test_alpha_beta_attenuates_noise_relative_to_the_raw_sigma():
     (known sigma): the filtered `h_hat` series has a materially smaller
     sample std than the raw noise sigma (loose, empirical bound -- not a
     pinned steady-state-variance formula, §108.2's own disclosure)."""
-    from sim.params import Control, Params, Weight
+    from apps.sim.engine.params import Control, Params, Weight
 
     rng = np.random.default_rng(12345)
     sigma, dt, h_true = 2.0, 0.1, 500.0
@@ -207,7 +208,7 @@ def test_proportional_drag_and_pi_apogee_run_with_alpha_beta_estimator():
 
 
 # ----------------------------------------------------------------------
-# controllers/laws.py -- proportional_drag / pi_apogee, called directly
+# apps/control/flight_software/laws.py -- proportional_drag / pi_apogee, called directly
 # (not through run_sim), so each law's own pure/stateful behaviour is
 # tested independently of the registry/dispatch wiring tests/test_control.py
 # already owns.

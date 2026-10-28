@@ -19,9 +19,9 @@ import math
 import numpy as np
 import pytest
 
-from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
-from sim import inertia
-from sim.params import Inertia, Roll
+from apps.sim.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
+from apps.sim.engine import inertia
+from apps.sim.engine.params import Inertia, Roll
 
 
 # ----------------------------------------------------------------------
@@ -267,7 +267,7 @@ def test_torque_free_motion_conserves_angular_momentum_and_energy():
 
 
 def test_validate_rejects_a_tensor_that_disagrees_with_roll_I_x():
-    """task-30 SS30.8.3 check 4, via `configs.schema.assemble` (SS30.9
+    """task-30 SS30.8.3 check 4, via `apps.sim.schema.assemble` (SS30.9
     #14): `Roll.I_x` and `Inertia.I_xx` are the same physical quantity
     (axial MOI, wheel included and locked) reached by two independent
     config paths; a config that disagrees with itself about it is

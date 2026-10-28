@@ -1,5 +1,7 @@
-"""Tests for apps/common/ensemble.py (Step 105, Phase 2.17,
-dev/docs/architecture-35-paper-alignment.md SS35.4.5): dispersion hooks
+"""Tests for apps/analysis/ensemble/ensemble.py (Step 105, Phase 2.17,
+dev/docs/architecture-35-paper-alignment.md SS35.4.5; moved here from
+apps/common/ensemble.py at Phase 2.19 Step 131,
+dev/docs/architecture-apps-sim-restructure.md): dispersion hooks
 (`Aero.cx_scale`, `Atmosphere.dT_K`) + the Monte-Carlo ensemble runner.
 
 `cx_scale`'s own pin/monotonicity test lives here (not tests/test_aero.py):
@@ -21,13 +23,13 @@ import math
 import numpy as np
 import pytest
 
-from apps.common import ensemble as ens
-from apps.common.flight_stats import flight_stats
-from configs.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Solver, Thrust, Weight
-from sim.params import replace as params_replace
-from sim.state import State
+from apps.analysis.ensemble import ensemble as ens
+from apps._shared.flight_stats import flight_stats
+from apps.sim.schema import Airframe, LaunchSite, Motor, Rocket, Scenario, Weather, assemble
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Solver, Thrust, Weight
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import State
 
 _BASE_SCENARIO = Scenario(
     name="ensemble_test",

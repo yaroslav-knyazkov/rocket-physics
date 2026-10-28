@@ -9,12 +9,12 @@ import warnings
 import numpy as np
 import pytest
 
-from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
-from sim import aero, integrate
-from sim.aero import AeroRangeWarning
-from sim.integrate import run_sim
-from sim.params import Aero, Recovery, Solver
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
+from apps.sim.schema import assemble
+from apps.sim.engine import aero, integrate
+from apps.sim.engine.aero import AeroRangeWarning
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Recovery, Solver
 from tests.test_scenario_sweep import LARGE
 
 S_REF = 0.00229

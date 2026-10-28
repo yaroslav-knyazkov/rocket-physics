@@ -3,8 +3,9 @@
 Step 73 registry switch-over (`configs.get` delegating to
 `configs.scenarios`); the registry itself is now archived at
 `dev/archive/configs-registry-2026-10/`, so every check here is sourced
-from `examples.worked_scenario.DEMO_SCENARIO` instead of `configs.get`/
-`configs.rockets`/etc.
+from `apps.input.demo_scenario.DEMO_SCENARIO` (moved there from
+`examples.worked_scenario` at Phase 2.19, Step 130) instead of
+`configs.get`/`configs.rockets`/etc.
 
 What is left: the headline demo-scenario physics pins (mass model on,
 composed masses, the `I_sp_eff` SS32.3.4 F5 pin, station-convention
@@ -23,17 +24,17 @@ import math
 
 import pytest
 
-from apps.common import study_vehicle
-from apps.motor_selection.compare_motors import _demo_baseline
-from configs.schema import Scenario
-from examples.worked_scenario import DEMO_SCENARIO
-from examples.worked_scenario import rocket as _demo_rocket
-from examples.worked_scenario import site as _demo_site
-from examples.worked_scenario import weather as _demo_weather
-from sim.integrate import run_sim
-from sim.state import M
+from apps.input import study_vehicle
+from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.input.demo_scenario import rocket as _demo_rocket
+from apps.input.demo_scenario import site as _demo_site
+from apps.input.demo_scenario import weather as _demo_weather
+from apps.optimization.motor_selection.compare_motors import _demo_baseline
+from apps.sim.schema import Scenario
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.state import M
 from tests import config_variants
-from tests.test_configs import _toy_05kg_literal
+from tests.test_schema import _toy_05kg_literal
 
 # ----------------------------------------------------------------------
 # Piece-level slice equality against the independent reconstructions
@@ -117,9 +118,10 @@ def test_demo_75mm_highland_site_and_weather_are_the_new_pieces():
 # checks below are Step 81's own: the composition's actual numbers, the
 # station-convention sanity check, and the headline burnout-mass claim
 # (D-59) measured on a real curve rather than argued. Sourced from
-# `examples.worked_scenario.DEMO_SCENARIO` since the Phase 2.18 pivot
-# (Step 125) -- field-identical to the former `configs.get("demo")`
-# (Step 122's bridge test proved this before the registry was archived).
+# `apps.input.demo_scenario.DEMO_SCENARIO` since the Phase 2.18 pivot
+# (Step 125; moved from `examples.worked_scenario` at Step 130) --
+# field-identical to the former `configs.get("demo")` (Step 122's bridge
+# test proved this before the registry was archived).
 # ----------------------------------------------------------------------
 
 
@@ -203,8 +205,8 @@ def test_demo_lands_under_its_main_canopy():
 
     import numpy as np
 
-    from sim.integrate import run_sim
-    from sim.mach_warning import MachRangeWarning
+    from apps.sim.engine.integrate import run_sim
+    from apps.sim.engine.mach_warning import MachRangeWarning
 
     cfg = DEMO_SCENARIO.config
     with warnings.catch_warnings():

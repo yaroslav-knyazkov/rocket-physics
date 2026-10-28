@@ -23,8 +23,8 @@ import textwrap
 
 import pytest
 
-from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
-from sim.params import (
+from apps.sim.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Sections, Weather, assemble
+from apps.sim.engine.params import (
     Aero,
     Atmosphere,
     Control,
@@ -39,7 +39,7 @@ from sim.params import (
     Weight,
     Wind,
 )
-from sim.state import State
+from apps.sim.engine.state import State
 
 
 def _minimal_rocket(name: str = "rocket") -> Rocket:

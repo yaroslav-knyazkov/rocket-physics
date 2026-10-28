@@ -31,18 +31,18 @@ their own `python -m apps....` invocation or their root wrapper
 `run_trade.py`).
 """
 
-from examples.worked_scenario import DEMO_SCENARIO
-from sim import report
-from sim.integrate import run_sim
-from sim.params import replace as params_replace
+from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.sim.engine import report
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import replace as params_replace
 
 
 def main() -> None:
-    # Step 123 (Phase 2.18, D-139/D-140): the one demo
-    # (examples/worked_scenario.py -- a real Cesaroni K570 on a 54 mm
-    # airframe, mass model ON) instead of the former 0.5 kg toy; single
-    # source of truth shared with App 2
-    # (apps/cfd_conditions/select_conditions.py).
+    # Step 123 (Phase 2.18, D-139/D-140), moved to apps/input/ at Step 130:
+    # the one demo (apps/input/demo_scenario.py -- a real Cesaroni K570 on
+    # a 54 mm airframe, mass model ON) instead of the former 0.5 kg toy;
+    # single source of truth shared with App 2
+    # (apps/analysis/cfd_conditions/select_conditions.py).
     cfg = DEMO_SCENARIO.config
     params = cfg.params
     state0 = cfg.s0
@@ -69,7 +69,7 @@ def main() -> None:
         title="Gravity model comparison",
     )
 
-    # (b) ISA vs. a real sounding (station LKPR, data/soundings/example,
+    # (b) ISA vs. a real sounding (station LKPR, examples/data/soundings/example,
     # Step 17), where roadmap.md Step 27 expects the comparison to "show
     # where the real atmosphere matters". Uses aero.model="linearized" so
     # alpha actually drives a nonzero normal-force/moment slope (every

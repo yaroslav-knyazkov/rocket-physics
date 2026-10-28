@@ -12,17 +12,17 @@ import math
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from sim import inertia
-from sim.dynamics import derivatives
-from sim.dynamics3d import derivatives_3d
-from sim.forces3d import moment_body_3d
-from sim.integrate import run_sim
-from sim.params import Aero, Inertia, Lengths, Params, Thrust, Weight, with_solver
-from sim.quaternion import from_euler, to_dcm, to_euler
-from sim.state import OMEGA as OMEGA_2D
-from sim.state import THETA as THETA_2D
-from sim.state import State
-from sim.state3d import OMEGA, Q, R, V
+from apps.sim.engine import inertia
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.dynamics3d import derivatives_3d
+from apps.sim.engine.forces3d import moment_body_3d
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Inertia, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.quaternion import from_euler, to_dcm, to_euler
+from apps.sim.engine.state import OMEGA as OMEGA_2D
+from apps.sim.engine.state import THETA as THETA_2D
+from apps.sim.engine.state import State
+from apps.sim.engine.state3d import OMEGA, Q, R, V
 
 # Same zero-net-moment scenario as
 # test_dynamics.test_rk4_agrees_with_rk45_on_apogee_and_impact:

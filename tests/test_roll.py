@@ -12,13 +12,13 @@ import math
 import numpy as np
 import pytest
 
-from sim import roll
-from sim.dynamics import derivatives, on_rail
-from sim.flow import flow_state
-from sim.frames import to_inertial
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Roll, Site, Solver, Weight
-from sim.state import (
+from apps.sim.engine import roll
+from apps.sim.engine.dynamics import derivatives, on_rail
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.frames import to_inertial
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Roll, Site, Solver, Weight
+from apps.sim.engine.state import (
     GAMMA,
     OMEGA_W,
     OMEGA_X,

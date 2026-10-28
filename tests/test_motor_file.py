@@ -13,11 +13,8 @@ import os
 import numpy as np
 import pytest
 
-from sim import motor_file
-
-_MOTORS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "data", "motors"
-)
+from apps.sim.engine import motor_file
+from tests.datadir import MOTORS_DIR as _MOTORS_DIR
 
 
 def _write_temp_motor_file(name: str, text: str):
@@ -327,7 +324,7 @@ def test_load_motor_curve_delegation_matches_motor_file(filename):
     """`sim.thrust_curve._load_motor_curve` now delegates to
     `sim.motor_file.load`; confirm the two agree exactly, for every
     existing .csv fixture, closing the loop on the delegation itself."""
-    from sim.thrust_curve import _load_motor_curve
+    from apps.sim.engine.thrust_curve import _load_motor_curve
 
     times, thrusts = _load_motor_curve(filename)
     rec = motor_file.load(filename)

@@ -11,7 +11,7 @@ import os
 import numpy as np
 import pytest
 
-from sim.gravity import (
+from apps.sim.engine.gravity import (
     _R_chi,
     altitude_agl,
     altitude_msl,
@@ -20,9 +20,9 @@ from sim.gravity import (
     ground_depth,
     z_hat_g,
 )
-from sim.params import Lengths, Params, Weight
-from sim.params import replace as params_replace
-from sim.state import State, X, Z
+from apps.sim.engine.params import Lengths, Params, Weight
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import State, X, Z
 
 _P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
 
@@ -609,9 +609,9 @@ def test_gravity_module_has_no_flow_dependency():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     code = (
         "import sys\n"
-        "import sim.gravity\n"
-        "assert 'sim.flow' not in sys.modules, sorted("
-        "m for m in sys.modules if m.startswith('sim.'))\n"
+        "import apps.sim.engine.gravity\n"
+        "assert 'apps.sim.engine.flow' not in sys.modules, sorted("
+        "m for m in sys.modules if m.startswith('apps.sim.engine.'))\n"
     )
     result = subprocess.run(
         [sys.executable, "-c", code], cwd=project_root,

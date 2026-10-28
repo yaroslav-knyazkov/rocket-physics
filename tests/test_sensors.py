@@ -11,9 +11,9 @@ import math
 import numpy as np
 import pytest
 
-from sim import atmosphere, control, gravity, sensors
-from sim.params import Params, Sensors, Site, Solver, Weight, with_solver
-from sim.state import State
+from apps.sim.engine import atmosphere, control, gravity, sensors
+from apps.sim.engine.params import Params, Sensors, Site, Solver, Weight, with_solver
+from apps.sim.engine.state import State
 
 
 def _y_at_h_msl(h_msl: float) -> np.ndarray:
@@ -115,8 +115,8 @@ def test_lag_out_of_order_tick_holds_previous_estimate_instead_of_overflowing():
     """Found during this ticket's own code-review pass: a repeated/out-of-
     order tick (`dt <= 0.0`) must not feed a large positive argument into
     `math.exp` (OverflowError) -- same "hold the previous estimate
-    unchanged" guard controllers/estimator.py's `_step_alpha_beta` already
-    uses for the identical class of input."""
+    unchanged" guard apps/control/flight_software/estimator.py's
+    `_step_alpha_beta` already uses for the identical class of input."""
     p = _base_params(baro_tau_s=0.01)  # a small tau makes -dt/tau large for any dt < 0
     y = _y_at_h_msl(500.0)
     prev = sensors.SensorState(t_prev=10.0, h_lag_prev=123.0)
@@ -180,7 +180,7 @@ def test_all_three_effects_composed_smoke_test():
 
 
 def test_sample_airbrake_freezes_sens_state_outside_coast_window():
-    from sim.params import Aero, Control, Lengths, Thrust
+    from apps.sim.engine.params import Aero, Control, Lengths, Thrust
 
     assert "test_s108_dummy" not in control.known_sampled_laws()
     control.register_sampled_law("test_s108_dummy", lambda t_k, meas, p, state: (0.0, state))

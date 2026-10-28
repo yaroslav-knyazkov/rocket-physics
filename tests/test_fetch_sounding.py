@@ -1,5 +1,5 @@
 """Test the parsing/resampling/formatting logic of
-tools/fetch_sounding.py (roadmap.md Step 26).
+apps/input/sounding_fetch/fetch_sounding.py (roadmap.md Step 26).
 
 Only the pure logic is exercised here -- `parse_response`, `resample_rows`,
 `format_canonical` -- against a hand-captured sample of the archive's real
@@ -16,8 +16,7 @@ import math
 
 import numpy as np
 
-from sim.soundings import _load_sounding_file
-from tools.fetch_sounding import (
+from apps.input.sounding_fetch.fetch_sounding import (
     RawRow,
     SoundingFetchError,
     build_source_note,
@@ -26,6 +25,7 @@ from tools.fetch_sounding import (
     parse_response,
     resample_rows,
 )
+from apps.sim.engine.soundings import _load_sounding_file
 
 
 # ----------------------------------------------------------------------

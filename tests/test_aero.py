@@ -11,12 +11,13 @@ import os
 
 import numpy as np
 
-from sim import aero
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Lengths, Params, Thrust, Weight, with_solver
-from sim.state import OMEGA, State
+from apps.sim.engine import aero
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight, with_solver
+from apps.sim.engine.state import OMEGA, State
+from tests.datadir import AERO_DIR
 
 
 # ----------------------------------------------------------------------
@@ -103,9 +104,7 @@ def test_table_rejects_non_rectangular_grid():
     table raises ValueError with the offending file name, not a silent
     misinterpretation.
     """
-    bad_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "aero", "test_bad_grid.csv"
-    )
+    bad_path = os.path.join(AERO_DIR, "test_bad_grid.csv")
     with open(bad_path, "w") as f:
         f.write("# malformed: M=1.0 is missing the alpha=10 row\n")
         f.write("alpha_deg,M,C_A,C_N,C_m,l1_m\n")
@@ -226,7 +225,7 @@ def test_cop_travel_moment_uses_table_l1_not_constant_pl1():
     alpha0 = math.radians(10.0)
     theta0 = math.pi / 2 + alpha0
 
-    from sim import atmosphere
+    from apps.sim.engine import atmosphere
 
     y_rest = np.array(State(x=0.0, z=0.0, vx=0.0, vz=0.0, theta=theta0, omega=0.0))
     a0 = atmosphere.air_state(0.0, y_rest, p).a
@@ -394,9 +393,7 @@ def test_C_mq_table_with_column_interpolates_like_C_m_and_ignores_params_constan
     interpolation error) and at a bracketed, interpolated point, against
     `p.c_mq` set to a deliberately wrong sentinel value.
     """
-    test_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "aero", "test_c_mq_table.csv"
-    )
+    test_path = os.path.join(AERO_DIR, "test_c_mq_table.csv")
     with open(test_path, "w") as f:
         f.write("# test fixture: same grid as example.csv, plus a c_mq column\n")
         f.write("alpha_deg,M,C_A,C_N,C_m,l1_m,c_mq\n")
@@ -639,9 +636,7 @@ def test_example_table_axial_coefficient_flips_at_180_deg():
 
 
 def test_full_range_table_is_authoritative_and_not_flipped():
-    test_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "aero", "test_full_range_table.csv"
-    )
+    test_path = os.path.join(AERO_DIR, "test_full_range_table.csv")
     with open(test_path, "w") as f:
         f.write("# test fixture: alpha grid reaches reversed flow\n")
         f.write("alpha_deg,M,C_A,C_N,C_m,l1_m\n")

@@ -1,4 +1,4 @@
-"""Tests for apps/airbrake_sizing/ -- App 4, airbrake C_dA determination
+"""Tests for apps/optimization/airbrake_sizing/ -- App 4, airbrake C_dA determination
 against the real solver (roadmap.md Step 66,
 `dev/docs/architecture-30-apps-4-5-and-configs.md` SS30.6/SS30.8).
 
@@ -17,8 +17,8 @@ import math
 import numpy as np
 import pytest
 
-from apps.airbrake_sizing import solve_cda
-from apps.airbrake_sizing.solve_cda import (
+from apps.optimization.airbrake_sizing import solve_cda
+from apps.optimization.airbrake_sizing.solve_cda import (
     AirbrakeSpec,
     apogee_for_cda,
     apogee_for_deploy_time,
@@ -28,14 +28,14 @@ from apps.airbrake_sizing.solve_cda import (
     save_solution_csv,
     solve_airbrake,
 )
-from apps.airbrake_sizing.targets import SPECS
-from apps.common import study_vehicle
-from apps.common.artifacts import OUTPUT_DIR, ensure_dir
-from examples.worked_scenario import DEMO_SCENARIO
-from sim import control
-from sim.integrate import Result
-from sim.params import replace as params_replace
-from sim.state import VZ
+from apps.optimization.airbrake_sizing.targets import SPECS
+from apps.input import study_vehicle
+from apps._shared.artifacts import ensure_dir
+from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.sim.engine import control
+from apps.sim.engine.integrate import Result
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.state import VZ
 
 _CFG = study_vehicle.CONFIG
 
@@ -280,7 +280,7 @@ def test_config_that_never_leaves_the_pad_raises_naming_the_config(monkeypatch):
 
 
 def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
-    """The inherited F8 guard (`apps.common.flight_stats`): a sampled-data
+    """The inherited F8 guard (`apps._shared.flight_stats`): a sampled-data
     `Params` must be rejected before `run_sim` is ever called."""
 
     def _must_not_be_called(*args, **kwargs):
@@ -300,15 +300,20 @@ def test_sample_rate_hz_raises_before_the_first_run_sim(monkeypatch):
 # ----------------------------------------------------------------------
 
 
-def test_end_to_end_against_demo_for_every_named_spec():
+def test_end_to_end_against_demo_for_every_named_spec(tmp_path):
     """Runs every spec in targets.SPECS against the app's own default
     vehicle (SPECS are sized for the demo, Step 90) and writes both artifacts. No apogee value is pinned here by
     design (roadmap.md Step 66) -- this is a smoke/wiring test, the
-    numbers are reported in the developer's own step report."""
+    numbers are reported in the developer's own step report.
+
+    Writes under `tmp_path`, not the repo's real `output/` (Step 127,
+    Phase 2.19): before this step `OUTPUT_DIR` was a fixed module-level
+    constant this test wrote into directly, leaving a stray artifact in
+    the real, gitignored `output/` on every test run."""
     cfg = DEMO_SCENARIO.config
-    ensure_dir(OUTPUT_DIR)
-    csv_path = OUTPUT_DIR / "airbrake_sizing.csv"
-    png_path = OUTPUT_DIR / "airbrake_sizing_overlay.png"
+    ensure_dir(tmp_path)
+    csv_path = tmp_path / "airbrake_sizing.csv"
+    png_path = tmp_path / "airbrake_sizing_overlay.png"
 
     for name, spec in SPECS.items():
         if spec.solve_for == "none":
@@ -329,7 +334,7 @@ def test_named_apogee_target_specs_converge_with_margin():
     """Step 96: the named apogee-target specs reach the 1e-2 m acceptance
     with margin (brentq's xtol is derived from the acceptance, not a fixed
     constant that only just fit)."""
-    from apps.airbrake_sizing.targets import SPECS
+    from apps.optimization.airbrake_sizing.targets import SPECS
 
     for name in ("burnout_3850m", "timer_3850m", "when_to_pop"):
         spec = SPECS[name]

@@ -1,15 +1,9 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "rocket-physics"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = ["numpy==2.5.4", "scipy>=1.18,<2", "matplotlib>=3.11,<4"]
-
-[project.optional-dependencies]
-dev = ["pytest>=8"]
-
-[tool.setuptools]
-packages = ["sim", "configs"]        # CORE only -- apps/, tests/, tools/ deliberately absent.
+# Step 128 (Phase 2.19, dev/docs/architecture-apps-sim-restructure.md
+# SS4.4/SS5, FK1=R2, user-approved): the packaging mechanism (`[build-
+# system]`, `[project]` dependencies, `[tool.setuptools]`) is retired --
+# the project is not `pip install`-ed in the working interpreter and
+# everything already works without it, so the install mechanism goes
+# away *before* any files move, rather than needing its `packages` list
+# rewritten at every later step. `requirements.txt` is now the single
+# dependency declaration (runtime + dev). This file survives only as a
+# home for tool configuration that isn't packaging -- there is none yet.

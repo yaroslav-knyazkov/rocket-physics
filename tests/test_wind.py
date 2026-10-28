@@ -12,20 +12,17 @@ import os
 import numpy as np
 import pytest
 
-import sim.flow as flow_mod
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Gravity, Lengths, Params, Site, Soundings, Thrust, Weight, Wind, with_solver
-from sim.params import replace as params_replace
-from sim.soundings import load_case
-from sim.state import State, VX, X, Z
-from sim.wind import wind_horizontal_enu, wind_inertial
+import apps.sim.engine.flow as flow_mod
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Gravity, Lengths, Params, Site, Soundings, Thrust, Weight, Wind, with_solver
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.soundings import load_case
+from apps.sim.engine.state import State, VX, X, Z
+from apps.sim.engine.wind import wind_horizontal_enu, wind_inertial
+from tests.datadir import SOUNDINGS_DIR as _SOUNDINGS_DIR
 
-_MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv, see tests/test_thrust_curve.py
-
-_SOUNDINGS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
+_MOTOR_CURVE = "placeholder.csv"  # examples/data/motors/placeholder.csv, see tests/test_thrust_curve.py
 
 
 # ----------------------------------------------------------------------
@@ -831,8 +828,8 @@ def test_tier2_and_tier3_field_read_the_same_h_msl_as_atmosphere():
     Confirmed at a curved, non-zero-downrange state against the committed
     `example` case.
     """
-    from sim import soundings
-    from sim.gravity import altitude_msl
+    from apps.sim.engine import soundings
+    from apps.sim.engine.gravity import altitude_msl
 
     p = params_replace(
         Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4)),

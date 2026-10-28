@@ -15,7 +15,7 @@ keep their meaning. None of them is registered in `configs/`.
 - `HIGHLAND_SITE`, `BREEZY_WEATHER`, `HIGHLAND`: from
   `configs/sites/highland_1500m.py`, `configs/weather/breezy_isa.py` and
   `configs/scenarios/demo_75mm_highland.py`, composed with the study
-  vehicle (`apps/common/study_vehicle.py`).
+  vehicle (`apps/input/study_vehicle.py`).
 - `CTI_K570_ISP`: from `configs/motors/cti_k570_isp.py` (the D-59 "isp"
   twin of `cti_k570`).
 - `ALL`: every variant Config, for the "every test variant flies" test.
@@ -23,9 +23,9 @@ keep their meaning. None of them is registered in `configs/`.
 
 from __future__ import annotations
 
-from apps.common import study_vehicle
-from configs.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
-from sim.params import Aero, Atmosphere, Lengths, Site, Thrust, Wind
+from apps.input import study_vehicle
+from apps.sim.schema import Airframe, Config, LaunchSite, Motor, Rocket, Scenario, Weather
+from apps.sim.engine.params import Aero, Atmosphere, Lengths, Site, Thrust, Wind
 
 # ----------------------------------------------------------------------
 # toy_05kg

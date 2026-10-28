@@ -13,14 +13,15 @@ import os
 import numpy as np
 import pytest
 
-from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
-from sim import aero, report
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Control, Lengths, Params, Thrust, Weight
-from sim.state import State, Z
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
+from apps.sim.schema import assemble
+from apps.sim.engine import aero, report
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Control, Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import State, Z
+from tests.datadir import AERO_DIR
 
 _ALPHAS = (-10, 0, 10)
 _MACHS = (0.5, 2.0)
@@ -63,7 +64,7 @@ def _apogee(res):
 
 @contextlib.contextmanager
 def _table(name, text):
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "aero", name)
+    path = os.path.join(AERO_DIR, name)
     with open(path, "w") as f:
         f.write(text)
     aero._load_table.cache_clear()
@@ -220,7 +221,7 @@ def test_static_margin_shifts_with_fb_and_diagnostic_shows_it():
 
 
 def test_fb_computed_once_per_rhs_call(monkeypatch):
-    from sim import control
+    from apps.sim.engine import control
 
     n = [0]
     orig = control.airbrake_deploy_fraction

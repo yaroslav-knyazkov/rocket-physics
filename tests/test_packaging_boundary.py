@@ -1,11 +1,17 @@
-"""Static guard on `pyproject.toml`'s packaging boundary (Phase 2.18,
-Step 121: D-138/F7).
+"""Static guard on `pyproject.toml`'s packaging mechanism (Phase 2.18,
+Step 121: D-138/F7 -- originally "CORE is `sim` + `configs` only";
+Phase 2.19, Step 128: FK1=R2 retired the packaging mechanism entirely).
 
-CORE (installable) is `sim` + `configs` only -- `apps/`, `tests/`,
-`tools/` are deliberately absent from `[tool.setuptools].packages`. This
-is a structural check on the committed `pyproject.toml` content, not a
-live install simulation (the install-time boundary behaviour itself was
-already measured by the architect on a mock repo, per the design doc).
+The project is not `pip install`-ed in the working interpreter and
+everything works anyway, so `[build-system]`/`[project]`/
+`[tool.setuptools]` were removed from `pyproject.toml` before any files
+move (Step 128) -- rewriting a `packages` list at every later step would
+have been pure overhead for a mechanism nothing here exercises.
+`requirements.txt` is the single dependency declaration now. This file's
+job flips from "packaging boundary is exactly sim+configs" to "packaging
+config does not exist" -- the regression test catching a later step
+*reintroducing* `[tool.setuptools]` without an explicit decision, not a
+live install simulation either way.
 """
 
 import os
@@ -19,15 +25,16 @@ def _load_pyproject() -> dict:
         return tomllib.load(f)
 
 
-def test_core_packages_are_exactly_sim_and_configs():
+def test_pyproject_has_no_build_system_table():
     data = _load_pyproject()
-    packages = data["tool"]["setuptools"]["packages"]
-    assert packages == ["sim", "configs"]
+    assert "build-system" not in data
 
 
-def test_apps_tests_tools_are_not_packaged():
+def test_pyproject_has_no_project_table():
     data = _load_pyproject()
-    packages = data["tool"]["setuptools"]["packages"]
-    assert "apps" not in packages
-    assert "tests" not in packages
-    assert "tools" not in packages
+    assert "project" not in data
+
+
+def test_pyproject_has_no_setuptools_packaging_config():
+    data = _load_pyproject()
+    assert "tool" not in data or "setuptools" not in data.get("tool", {})

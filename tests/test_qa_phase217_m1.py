@@ -11,14 +11,13 @@ import warnings
 import numpy as np
 import pytest
 
-from configs.schema import assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
-from sim import aero, thrust_curve
-from sim.dynamics import derivatives
-from sim.params import Aero, Lengths, Params, Thrust, Weight
-from sim.state import M, State
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
+from apps.sim.schema import assemble
+from apps.sim.engine import aero, thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.params import Aero, Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import M, State
+from tests.datadir import AERO_DIR as _AERO_DIR
 _HDR = "alpha_deg,M,C_A,C_N,C_m,l_p_m\n"
 _BODY = "-10,0.5,0.35,-0.5,0.1,1.0\n0,0.5,0.3,0.0,0.0,1.0\n10,0.5,0.35,0.5,-0.1,1.0\n"
 
@@ -163,7 +162,7 @@ def test_negative_l_ref_is_rejected():  # QA-10
 
 
 def test_sweep_duplicate_motor_names_are_rejected():  # QA-6
-    from apps.motor_selection import scenario_sweep as ss
+    from apps.optimization.motor_selection import scenario_sweep as ss
     from tests.test_scenario_sweep import LARGE, _scn
 
     with pytest.raises(ValueError, match="duplicate"):
@@ -171,7 +170,7 @@ def test_sweep_duplicate_motor_names_are_rejected():  # QA-6
 
 
 def test_cli_empty_motor_list_is_an_error(tmp_path):  # QA-7
-    from apps.motor_selection import scenario_sweep as ss
+    from apps.optimization.motor_selection import scenario_sweep as ss
 
     with pytest.raises((SystemExit, ValueError)):
         ss.main(["--scenario", "demo", "--motors", ",", "--out-dir", str(tmp_path)])

@@ -13,7 +13,7 @@ import os
 import numpy as np
 import pytest
 
-from sim.atmosphere import (
+from apps.sim.engine.atmosphere import (
     _G_ISA,
     _R_D,
     _R_ISA,
@@ -22,19 +22,16 @@ from sim.atmosphere import (
     sat_vapor_pressure,
     virtual_temperature,
 )
-from sim.gravity import altitude_msl
-from sim.integrate import run_sim
-from sim.params import Aero, Atmosphere, Lengths, Params, Site, Soundings, Thrust, Weight, with_solver
-from sim.params import replace as params_replace
-from sim.soundings import interp_altitude as soundings_interp_altitude
-from sim.soundings import load_case
-from sim.state import State, X, Z
+from apps.sim.engine.gravity import altitude_msl
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Atmosphere, Lengths, Params, Site, Soundings, Thrust, Weight, with_solver
+from apps.sim.engine.params import replace as params_replace
+from apps.sim.engine.soundings import interp_altitude as soundings_interp_altitude
+from apps.sim.engine.soundings import load_case
+from apps.sim.engine.state import State, X, Z
+from tests.datadir import SOUNDINGS_DIR as _SOUNDINGS_DIR
 
 _P = Params(weight=Weight(m=0.5, I=0.05), lengths=Lengths(l1=0.3, l2=0.4))
-
-_SOUNDINGS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
 
 
 def _y_at_altitude(h: float) -> np.ndarray:

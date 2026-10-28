@@ -12,9 +12,9 @@ import os
 import numpy as np
 import pytest
 
-from sim import atmosphere
-from sim.params import Lengths, Params, Site, Soundings, Weight
-from sim.soundings import (
+from apps.sim.engine import atmosphere
+from apps.sim.engine.params import Lengths, Params, Site, Soundings, Weight
+from apps.sim.engine.soundings import (
     _resample_case,
     interp_altitude,
     interp_field,
@@ -22,12 +22,8 @@ from sim.soundings import (
     load_case,
     project_latlon,
 )
-from sim.state import State, X
-
-
-_CASE_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "data", "soundings"
-)
+from apps.sim.engine.state import State, X
+from tests.datadir import SOUNDINGS_DIR as _CASE_DIR
 
 
 # ----------------------------------------------------------------------

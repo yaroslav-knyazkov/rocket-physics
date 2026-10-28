@@ -1,2 +1,9 @@
+# Runtime dependencies (Step 128, Phase 2.19: moved here from pyproject.toml's
+# retired [project.dependencies] -- this file is now the single dependency
+# declaration, runtime + dev).
+numpy==2.5.4
+scipy>=1.18,<2
+matplotlib>=3.11,<4
+
+# Dev/test dependency (was pyproject.toml's [project.optional-dependencies] dev).
 pytest>=8
-# runtime dependencies (numpy/scipy/matplotlib): see pyproject.toml [project.dependencies]

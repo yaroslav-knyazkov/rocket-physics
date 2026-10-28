@@ -1,0 +1,110 @@
+"""apps/sim/engine/flow.py -- Relative wind, angle of attack, and altitude conventions (architecture.md
+SS15; main.tex SS"Relative wind and angle of attack").
+
+This is Step 9's slice of the eventual `Flow` -- `V`, `alpha`, `u_hat`,
+`n_hat` only. architecture.md SS15 also specifies `q`, `M`, `Re` and `air`
+fields, but those need sim/atmosphere.py, which does not exist until Step
+12/13 (roadmap.md Step 13: "Flow gains air, q, M, Re"). Adding them now
+would mean fabricating an atmosphere model out of turn, so `Flow` here is
+the Step-9 subset; Step 13 extends it, it does not replace it.
+
+Step 21: `_wind_inertial` now delegates to `sim.wind.wind_inertial`
+(architecture.md SS16) instead of the inline zeros stub. Its default,
+`p.wind_model == "none"`, still returns exactly zero, so every result
+computed before this step is unchanged.
+
+Step 45 (Phase 2.8): the altitude conventions (`altitude_agl`/`altitude_msl`)
+that used to live here have moved to `sim/gravity.py`, beside the
+surface-curvature construction (`curvature_radius`/`ground_depth`) they are
+now derived from (architecture.md SS25.3) -- `gravity.altitude_agl(y, p)` is
+`-gravity.ground_depth(0.0, y, p)`. `flow_state`/`Flow`/`_wind_inertial`
+here are untouched; this module never called either helper.
+"""
+
+from typing import NamedTuple
+
+import numpy as np
+
+from apps.sim.engine.frames import to_body
+from apps.sim.engine.state import THETA, VX, VZ
+from apps.sim.engine.atmosphere import AirState, air_state
+
+
+class Flow(NamedTuple):
+    V: float          # |v_rel| [m/s]
+    alpha: float      # angle of attack [rad], atan2(w, u)
+    u_hat: np.ndarray  # (cos alpha, sin alpha) -- body-frame, main.tex u_hat
+    n_hat: np.ndarray  # (-sin alpha, cos alpha) -- body-frame, main.tex n_hat
+    air: AirState      # local air state (density, pressure, temperature, speed of sound, viscosity)
+    q: float           # dynamic pressure [Pa]
+    M: float           # Mach number [-]
+    Re: float          # Reynolds number [-]
+
+
+def _wind_inertial(t: float, y: np.ndarray, p, hold=None) -> np.ndarray:
+    """Wind velocity in the inertial frame, (w_x, w_z) -- delegates to
+    sim.wind.wind_inertial (architecture.md SS16, roadmap.md Step 21).
+
+    Imported locally, not at module level, kept as originally structured at
+    Step 21 (the original circular-import reason -- `sim.wind` importing
+    `sim.flow.altitude_agl` -- no longer applies after Step 45 moved that
+    helper to `sim.gravity`, architecture.md SS25.3, but this function
+    keeps the local import unchanged: touching `flow.py`'s import structure
+    is out of Step 45's scope).
+
+    Kept as a function (not inlined at the call site) so flow_state itself
+    never changes when the wind model changes.
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is accepted
+    (default `None`) and threaded straight through to
+    `wind.wind_inertial` -- B11's future landing site; accepted and
+    ignored by `wind.wind_inertial` itself today.
+    """
+    from apps.sim.engine import wind
+
+    return wind.wind_inertial(t, y, p, hold)
+
+
+def flow_state(t: float, y: np.ndarray, p, hold=None) -> Flow:
+    """v_rel = to_body(v_i - v_w, theta); V = |v_rel|; alpha = atan2(w, u);
+    u_hat, n_hat per main.tex SS"Relative wind and angle of attack".
+
+    Degenerate case V = 0 (on the pad at t = 0): alpha = atan2(0, 0) = 0 in
+    Python, no exception -- no guard needed (architecture.md SS15).
+
+    Step 59 (architecture-28-rewrite.md SS28.8): `hold` is an optional
+    `sim.sampling.Hold`, default `None` -- every pre-Step-59 call site is
+    unaffected, bit-for-bit. Threaded through to `_wind_inertial` only
+    (B11's future landing site; this function has no sampled channel of
+    its own).
+    """
+    v_i = np.array([y[VX], y[VZ]])
+    v_w = _wind_inertial(t, y, p, hold)
+    u, w = to_body(v_i - v_w, y[THETA])
+
+    V = float(np.hypot(u, w))
+    alpha = float(np.arctan2(w, u))
+    u_hat = np.array([np.cos(alpha), np.sin(alpha)])
+    n_hat = np.array([-np.sin(alpha), np.cos(alpha)])
+
+    # Get air state from atmosphere model
+    air = air_state(t, y, p)
+
+    # Compute derived quantities
+    q = 0.5 * air.rho * V**2
+    M = V / air.a if air.a != 0.0 else 0.0
+    # Step 97 (C2/B32.4, D-118 option c): Reynolds length is `l_ref`, falling
+    # back to `d_ref` when `l_ref == 0.0` (the default). Neither choice is
+    # "wrong" in isolation -- diameter is the standard Re for crossflow/base-
+    # pressure correlations (Jorgensen TR R-474, Hoerner), body length is the
+    # standard Re for skin-friction drag (OpenRocket techdoc SS3.4.1,
+    # Barrowman) -- but this single `Re` feeds no model today (consumed only
+    # by test expectations, not by aero.py/forces.py/dynamics.py), so which
+    # correlation it is "for" is undefined until one is built. See conventions
+    # audit SS3: a future Re-dependent model (backlog B30 item 3) should get
+    # its own length-based Re_L rather than reuse this field.
+    l_re = p.aero.l_ref if p.aero.l_ref != 0.0 else p.aero.d_ref
+    Re = air.rho * V * l_re / air.mu if air.mu != 0.0 else 0.0
+
+    return Flow(V=V, alpha=alpha, u_hat=u_hat, n_hat=n_hat,
+                air=air, q=q, M=M, Re=Re)

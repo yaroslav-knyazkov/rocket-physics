@@ -4,14 +4,15 @@ import math
 
 import numpy as np
 
-from sim.thrust_curve import _load_motor_curve, thrust
-from sim.params import Lengths, Params, Thrust, Weight
-from sim.state import State
+from apps.sim.engine.thrust_curve import _load_motor_curve, thrust
+from apps.sim.engine.params import Lengths, Params, Thrust, Weight
+from apps.sim.engine.state import State
+from tests.datadir import MOTORS_DIR
 
 
 def test_load_motor_curve():
     """Test loading the placeholder motor curve (ignition spike, settle,
-    sustain, tail-off to zero -- see data/motors/placeholder.csv).
+    sustain, tail-off to zero -- see examples/data/motors/placeholder.csv).
     """
     times, thrusts = _load_motor_curve("placeholder.csv")
 
@@ -115,7 +116,7 @@ def test_thrust_interpolation():
     """Test interpolation with a custom curve."""
     # Create a test curve file
     import os
-    test_curve_path = os.path.join(os.path.dirname(__file__), "..", "data", "motors", "test_curve.csv")
+    test_curve_path = os.path.join(MOTORS_DIR, "test_curve.csv")
     with open(test_curve_path, "w") as f:
         f.write("# Test curve\n")
         f.write("0.0, 0.0\n")

@@ -15,12 +15,12 @@ import math
 import numpy as np
 import pytest
 
-from sim import control, forces, sampling, thrust_curve
-from sim.dynamics import derivatives
-from sim.flow import flow_state
-from sim.integrate import run_sim
-from sim.params import Aero, Actuator, Control, Lengths, Params, Solver, Thrust, Weight
-from sim.state import State, OMEGA, VZ, Z
+from apps.sim.engine import control, forces, sampling, thrust_curve
+from apps.sim.engine.dynamics import derivatives
+from apps.sim.engine.flow import flow_state
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Actuator, Control, Lengths, Params, Solver, Thrust, Weight
+from apps.sim.engine.state import State, OMEGA, VZ, Z
 
 _MOTOR_CURVE = "placeholder.csv"  # data/motors/placeholder.csv
 
@@ -470,8 +470,8 @@ def test_full_after_burnout_reproduces_the_saturated_proportional_apogee():
 # Step 107 (architecture-35-paper-alignment.md SS35.4.4, task-107-
 # sampled-laws-registry.md): the sampled-law registry mechanics and
 # sample_airbrake's new dispatch branch. No law is written/tested here --
-# controllers/laws.py's own pure/stateful behaviour is tested in
-# tests/test_controllers.py; this file only proves the registry +
+# apps/control/flight_software/laws.py's own pure/stateful behaviour is
+# tested in tests/test_controllers.py; this file only proves the registry +
 # dispatch wiring sim/control.py itself owns.
 # ----------------------------------------------------------------------
 
@@ -652,7 +652,7 @@ def test_sample_airbrake_wires_the_real_baro_channel_end_to_end():
     true AGL altitude -- end-to-end through `sample_airbrake`'s real
     wiring (`sim.sensors.measure`), not `sensors.measure` called in
     isolation (tests/test_sensors.py already owns that)."""
-    from sim import gravity
+    from apps.sim.engine import gravity
 
     seen = []
 

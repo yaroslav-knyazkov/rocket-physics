@@ -1,4 +1,4 @@
-"""Tests for apps/motor_selection/scenario_sweep.py (Step 100, Phase 2.17,
+"""Tests for apps/optimization/motor_selection/scenario_sweep.py (Step 100, Phase 2.17,
 architecture-35 SS35.4.5, D-113): motor sweep v2 on Motor/Scenario, plus the
 B26 thin slice (`derive_history` + provenance)."""
 
@@ -10,15 +10,14 @@ import os
 import numpy as np
 import pytest
 
-from apps.common.flight_stats import flight_stats
-from apps.motor_selection import scenario_sweep as ss
-from configs.schema import Motor, assemble
-from examples.worked_scenario import DEMO_SCENARIO as DEMO
-from sim import aero, motor_file
-from sim.integrate import run_sim
-from sim.params import Aero, Solver, Thrust
-
-_AERO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "aero")
+from apps._shared.flight_stats import flight_stats
+from apps.input.demo_scenario import DEMO_SCENARIO as DEMO
+from apps.optimization.motor_selection import scenario_sweep as ss
+from apps.sim.schema import Motor, assemble
+from apps.sim.engine import aero, motor_file
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine.params import Aero, Solver, Thrust
+from tests.datadir import AERO_DIR as _AERO_DIR
 
 
 def _csv_motor(name, curve, m_prop, m_total, **kw):
@@ -176,7 +175,7 @@ def test_history_matches_simulated_burn_state_mass():
     m_sim = res.raw.sol(t)[6] - DEMO.rocket.airframe.m
     assert np.max(np.abs(h.m - m_sim)) < 1e-9
     # vehicle CG from airframe + motor history == the dynamics' CG
-    from sim import mass
+    from apps.sim.engine import mass
     l_fwd = DEMO.rocket.sections.l_motor_aft - motor_file.load(DEMO.motor.thrust.motor_curve).length
     af = DEMO.rocket.airframe
     l_veh = (af.m * af.l + h.m * (l_fwd + h.l_cg)) / (af.m + h.m)
