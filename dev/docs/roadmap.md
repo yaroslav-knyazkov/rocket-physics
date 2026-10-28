@@ -2209,6 +2209,12 @@ registration contract beyond what that test already covers.
 
 ---
 
+## Phase 2.19 — apps/ becomes the product root (Steps 126-134) — COMPLETE
+
+See `dev/docs/architecture-apps-sim-restructure.md` for the full design and step tickets.
+
+---
+
 ## Phase 3 — 3D, full 6-DOF
 
 ### Attitude representation: quaternions — recommended

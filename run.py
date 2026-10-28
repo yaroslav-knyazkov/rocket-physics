@@ -69,7 +69,7 @@ def main() -> None:
         title="Gravity model comparison",
     )
 
-    # (b) ISA vs. a real sounding (station LKPR, data/soundings/example,
+    # (b) ISA vs. a real sounding (station LKPR, examples/data/soundings/example,
     # Step 17), where roadmap.md Step 27 expects the comparison to "show
     # where the real atmosphere matters". Uses aero.model="linearized" so
     # alpha actually drives a nonzero normal-force/moment slope (every

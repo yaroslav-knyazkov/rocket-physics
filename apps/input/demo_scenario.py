@@ -125,7 +125,7 @@ motor = Motor(
     name="cti_k570",  # REQ, - -- identifies this piece
     thrust=Thrust(  # REQ in practice, Thrust group -- owns Params.thrust whole: the curve file,
                      #                 nozzle exit area, reference pressure
-        motor_curve="Cesaroni_2060K570-17A.eng",  # REQ, filename under data/motors/ -- the real
+        motor_curve="Cesaroni_2060K570-17A.eng",  # REQ, filename under examples/data/motors/ -- the real
                                                     #      vendor-published RASP file
     ),
     mass_model="endpoints",  # OPT, none | isp | endpoints -- "endpoints" derives I_sp from the
@@ -134,7 +134,7 @@ motor = Motor(
     # m_total, m_prop, length, diameter, l_case, l_prop, I_case, I_prop0, l_cog_0, l_cog_f, I_0, I_f
     notes=(
         "Cesaroni K570 (17A delay), real vendor-published RASP file "
-        "(data/motors/Cesaroni_2060K570-17A.eng). Measured/derived from "
+        "(examples/data/motors/Cesaroni_2060K570-17A.eng). Measured/derived from "
         "the file itself (SS32.3.1 F5): I_sp_eff ~= 212.41 s, J ~= 2062.22 "
         "N*s (trapezoid over the loaded curve, including the (0,0) prepend "
         "sim/motor_file.py applies to RASP records), m_prop=0.990 kg, "

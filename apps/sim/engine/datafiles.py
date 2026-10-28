@@ -1,6 +1,6 @@
 """apps/sim/engine/datafiles.py -- Data-file/directory path resolution: one 3-rule function, shared by
-every loader that reads from `data/<kind>/` (`sim/motor_file.py`,
-`sim/aero.py`, `sim/soundings.py`).
+every loader that reads from `data/<kind>/` (`apps/sim/engine/motor_file.py`,
+`apps/sim/engine/aero.py`, `apps/sim/engine/soundings.py`).
 
 Phase 2.18, Step 120 (D-137/F5). Before this step, each of the three
 loaders carried its own 2-line "resolve relative to this repo's own
@@ -29,7 +29,7 @@ Three rules, in priority order:
    time, never cached), not this repo's own location. An external user's
    cwd-relative path.
 3. `given` is a bare name (no separator at all) -> this library's own
-   bundled `data/<kind>/<given>`, preserved byte-for-byte for every name
+   bundled `examples/data/<kind>/<given>`, preserved byte-for-byte for every name
    already registered/tested in this repo -- today's only behaviour,
    now one of three.
 

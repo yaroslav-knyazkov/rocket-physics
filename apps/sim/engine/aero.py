@@ -67,7 +67,7 @@ nose, `x_ref`; the arm is `l_p_m - l_g(t)` with `l_g` from `sim/mass.py`, or
 `Lengths.l_g` with the mass model off) must be present. A `# cm_convention: code|standard` header line
 (default `code`) declares the sign of `C_m`; `standard` is flipped on load.
 The thrust-point arm keeps its legacy `-(l1 + l2)` expression, so a station
-config must have `misalign_deg == 0` (`validate`). `data/aero/example.csv` is
+config must have `misalign_deg == 0` (`validate`). `examples/data/aero/example.csv` is
 unchanged; `example_v2.csv` is its v2 sibling.
 
 Step 102 (Phase 2.17, D-109): an optional `f_b` column (air-brake deployment

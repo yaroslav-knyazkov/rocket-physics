@@ -4500,3 +4500,7 @@ worked mix-and-match demo (`demo_75mm_highland` — the same vehicle module at a
 "how do I add my own" guide. One honest amendment the ticketing exposed: D-45's "zero test edits" is
 "no test edits **other than the two module-path strings the `git mv` itself renames**", since
 `tests/test_configs.py:206` imports a seed module by path.
+
+## 32. Phase 2.19 — apps/ becomes the product root — *lives in a separate file*
+
+**→ `dev/docs/architecture-apps-sim-restructure.md`** (Steps 126-134; COMPLETE).
