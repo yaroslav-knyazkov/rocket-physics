@@ -564,7 +564,7 @@
         "C_m LaTeX sync (da11e44, D-126 follow-up, явный запрос пользователя 2026-10-28): закрыт разрыв §117.11 тикета Step 117 — добавлены 2 чисто аддитивных уточняющих предложения (rocket-2d.tex's eq:aero_magnitudes, analysis.tex's \"positive C_m pitches nose down\"), указывающих на внутреннее имя code.C_m_code и свободную границу I/O (cm_convention). Ноль правок уравнений/чисел, ноль пин-риска, developer подтвердил чистый diff (+8/-3 строки, только обёртка предложений)."
       ],
       "tests": "800 passed / 0 failed (полный прогон 2026-10-25, после Step 30 + QA; +35 новых тестов над бейзлайном 765: +15 Step 109, +20 Step 30; C_m LaTeX sync 2026-10-28 не трогает код/тесты)",
-      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). Новый тикет в работе: dev/docs/task-studies-tbd-point-mass-flightpath.md (architect, упрощённая point-mass flight-path-angle динамика dgamma/dt=-(g/V)cos(gamma) по запросу пользователя 2026-10-28 — LaTeX-обоснование + код отдельным шагом, см. decision log). C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3.",
+      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). D-163: тикет dev/docs/task-136-137-point-mass-flight-path-angle.md одобрен (theta_v, Option B диагностика сначала, replace analysis.tex assertion) — Step 136 (paper note, developer) и Step 137 (flight_stats.py диагностика, tdd) запускаются параллельно. Step 138 (standalone estimator, Option A) GATED, не начат. C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3.",
       "open_items": [
         "QA-9 (test quality, minor) частично закрыт Step 115 (таблица eta Jorgensen теперь запинена против первоисточника); остаётся: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
       ],
@@ -1796,6 +1796,15 @@
       "date": "2026-10-28",
       "question": "Пользователь запросил добавить \"simplified rotational dynamics dtheta/dt = -g*cos(gamma)/V\" (классическое point-mass flight-path-angle уравнение гравитационного поворота). Оркестратор поднял реальную коллизию обозначений (theta=pitch, gamma=roll уже заняты в State) и спросил: LaTeX-документация, код, или оба?",
       "choice": "И то, и то. В работе: architect получил задачу (1) предложить непротиворечивое обозначение (не theta/gamma), (2) вывести уравнение и дать текст для analysis.tex (район short-period approximation, ~строки 174-176 — там уже есть неформализованное утверждение \"flight-path angle changes slowly\"), НЕ редактируя .tex файлы напрямую (гонка с конкурентной C_m-правкой), (3) оформить тикет на код как отдельную новую uprощённую point-mass траекторную опцию (НЕ замена существующей rigid-body динамики) с decision_required по открытым вопросам. Результат архитектора — на утверждение пользователю до реализации кода и до фактической правки LaTeX.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.17"
+    },
+    {
+      "id": "D-163",
+      "date": "2026-10-28",
+      "question": "Architect scoped D-162 into dev/docs/task-136-137-point-mass-flight-path-angle.md with 3 user-facing forks: D-1 symbol (theta_v / gamma_v / bare gamma), D-2 code scope (B diagnostic-only / A estimator-only / C both B-then-A), D-3 replace-vs-add-alongside the unproven analysis.tex assertion.",
+      "choice": "D-1: theta_v (only option with no visually-confusable near-twin -- gamma_v would differ from gamma_r/roll by one subscript for an unrelated quantity). D-2: Option B first (diagnostic over existing runs only) -- Option A (standalone apps/analysis/point_mass/ estimator) explicitly GATED, not started. D-3: replace the assertion at analysis.tex:177-179 with the rigorous Lambda<<1 derivation. D-4 (CLI-exposed vs library-only for the gated Option A) deferred -- not relevant until A is approved. Assigned step numbers: TBD-0 (paper note) = Step 136, TBD-1 (diagnostic) = Step 137; ticket file renamed accordingly.",
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
