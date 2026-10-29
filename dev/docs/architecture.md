@@ -4501,6 +4501,93 @@ worked mix-and-match demo (`demo_75mm_highland` — the same vehicle module at a
 "no test edits **other than the two module-path strings the `git mv` itself renames**", since
 `tests/test_configs.py:206` imports a seed module by path.
 
+## 31a. Phase 2.16 — motor separation: a `Motor` config piece, composed mass, real .eng/.rasp curves, one demo, axial drag sign fix (Steps 75-96) — COMPLETE — *lives in three separate files*
+
+**→ `docs/architecture-32-motor-separation.md`**, **→ `docs/architecture-33-configs-one-demo.md`**,
+**→ `docs/architecture-34-axial-drag-sign.md`** (three design docs, one phase; branch
+`feature/motor-config-separation`).
+
+§31a continues §31's config split by giving the motor its own reusable piece: `Motor` (impulse
+class, `.eng`/`.rasp` curve, nozzle geometry) composed into mass/thrust via new `sim/mass.py` +
+`sim/motor_file.py` modules and registered in `configs/motors/`, alongside an `Airframe`/`Sections`
+schema split. Eighteen decision forks **D-56 … D-73** (§32.10) — relayed by the orchestrator with an
+explicit instruction not to block ("decide it yourself, document it as a recommendation"),
+implemented the same night and confirmed the next morning. Steps 75-81 land the separation plus the
+first real-motor demo (CTI K570); Steps 82-83 add REQ/OPT template-field documentation and the
+`data/` README.
+
+§33 (**D-76 … D-83**, Steps 85-91) then collapses `configs/` from "one template + several demos per
+piece" to one template + exactly **one** demo per piece (`demo`, formerly `demo_75mm_k570`), after
+finding Apps 3 and 5 silently assume constant mass and would stop reflecting `weight.m` once the
+mass model is switched on — the fix (**D-79**) moves that assumption's vehicle into
+`apps/common/study_vehicle.py` as a *study* input, not a second demo config. Step 92 adds a
+Mach > 0.8 accuracy warning (**D-83**). §34 (**D-91 … D-97**, Step 93) fixes a real bug surfaced by
+flying the new demo: the axial aero force always pointed tailward regardless of flow direction, so a
+tail-first fall was *accelerated* instead of decelerated — the fix is a `clip(cos α / cos 85°, −1, 1)`
+multiplier on `C_x` and the airbrake term (one Mach-test pin moves, 2.57 → 1.75 m/s peak axial; the
+remaining 488 tests stay bit-for-bit); the same document adds the demo's main parachute and a
+pad-deployment guard (Steps 94-96). **Step 84 (LaTeX sync with this phase) was explicitly deferred by
+the user** — out of scope, not forgotten.
+
+## 31b. Phase 2.17 — bring the simulator in line with the approved report ("paper-alignment") — IN PROGRESS — *lives in a separate file*
+
+**→ `docs/architecture-35-paper-alignment.md`**, plus one ticket per step under
+`docs/task-104-segmented-rk45.md`, `task-107-sampled-laws-registry.md`,
+`task-108-sensors-estimator.md`, `task-109-roll-reaction-wheel.md`, `task-116-lp-relabel.md`,
+`task-117-cm-rename.md`, `task-118-axial-cos2-hybrid.md`, `task-119-b36-fix.md`,
+`task-136-137-point-mass-flight-path-angle.md`.
+
+§31b plans the phase in the order of the user's three goals — motor selection for a second vehicle
+configuration, a maximum airbrake spec for both configurations, and the start of a discrete/ZOH
+controller — rather than by paper section. Minimal-fix set: the Coriolis-under-canopy and mass-floor
+bugs (**B32**), motor-derived mass flow with independent impulse/burn-time dispersions, an aero table
+with the CP station `l_p` measured from the nose (**B33**) and an explicit `C_m` sign convention
+(**B31**), App 3 rebuilt against the `Motor` registry, a second vehicle configuration, the airbrake
+as an optional table axis `f_b` (the old additive path stays available), an actuator model, a Monte
+Carlo ensemble, then controller work: a drag-aware apogee predictor, a barometric sensing channel
+plus an alpha-beta estimator, and a closed-loop scaffold. Decision forks **D-109 … D-118** (§35.7/
+§35.8) cover the phase's opt-in gates; every new feature defaults to reproducing today's numeric pins
+bit-for-bit.
+
+**Status: still in progress, not complete — this entry may still grow.** Steps 97-119 are done:
+real-motor mass-flow fixes, aero table v2 (`l_p`/`cm_convention`), the motor sweep/export, the
+Jorgensen large-α table extension (**D-120**, unblocking RK45 on a tail-first fall), the airbrake as
+a table axis (Step 102), an actuator model (**D-114**, Step 103), an opt-in segmented-RK45 integrator
+path for sampled-data/ZOH mode giving an ~11-12x ensemble speedup (**D-116/D-128**, Step 104),
+dispersion hooks plus a `ProcessPoolExecutor` ensemble runner (Step 105), the industry-conventions audit
+(`docs/conventions-industry-standard-analysis.md`) and its safe-subset fixes (**D-125** `l_p`
+relabel, **D-126** `C_m_code` rename, **D-127** axial cos²-shaped hybrid outside the 85° plateau,
+**D-128** the table-mode `c_mq` sign fallback), the sampled-laws registry and drag-aware predictor
+(Step 107), the baro sensor plus alpha-beta estimator (Step 108), and 2D roll dynamics with a
+reaction wheel (Step 109). Steps 136-137 (**D-162**) added a point-mass flight-path-angle
+(gravity-turn) paper note and a `flight_stats.py` diagnostic for `theta_v`/`Lambda`; the dependent
+Step 138 (a standalone estimator, Option A) is gated, not started. **Blocked on the user supplying
+real vehicle data** — mass/CG/MOI, geometry, aero table, candidate motors, airbrake and mission for
+both configurations (Steps 101/106 wait on the same input). Last known-good full run: 774/774.
+
+## 31c. Phase 2.18 — retire the `configs/` registry, drop library packaging (the "configs/ pivot") (Steps 120-125) — COMPLETE — *lives in a separate file*
+
+**→ `docs/pivot-configs-and-packaging-analysis.md`** (16 decision forks F1-F16 in its own §6;
+branch `feature/configs-pivot`, merged to `develop` via `e27e662` on 2026-10-27).
+
+§31c answers the user's request to drop the "one file per instance + registry" convention in
+`configs/*` in favour of building `Motor`/`Rocket`/… as ordinary classes in the user's own script,
+outside an installed package — GUI out of scope. The key finding: `configs/schema.py` (`Motor`,
+`Rocket`, `LaunchSite`, `Weather`, `Scenario`, `assemble()`) already *is* what that asks for — it
+depends only on `sim.*` and never looks at a registry — so the pivot only removes the layer sitting
+on top of it. Six steps, one commit each: **120** (`25f626d`) `sim/datafiles.py`'s three-rule path
+resolver (absolute path as given; a path with a separator, relative to cwd; a bare name, the
+library's own `data/<kind>/`); **121** (`3bc407e`) a `pyproject.toml` packaging boundary
+(`packages = ["sim", "configs"]`, proving by omission that `apps`/`tests` are not installable);
+**122** (`3087c28`) `examples/worked_scenario.py`, one consolidated crib-sheet replacing the five
+`_TEMPLATE_*.py` files, byte-identical in substance to the old registry's `demo` scenario; **123**
+(`5503669`) twelve call sites repointed onto `examples.worked_scenario.DEMO_SCENARIO`; **124**
+(`09d9e73`) `apps/` fully decoupled from the registry (`apps/common/cli.py` deleted); **125**
+(`c858381`) the whole `configs/{rockets,sites,weather,motors,scenarios}/` registry archived to
+`dev/archive/configs-registry-2026-10/` (`git mv`, not delete+add) behind a 20-name re-export shim at
+`configs/__init__.py`, tagged `pre-pivot-configs-registry`. No numeric pin moved across the phase.
+Final count: 761/761.
+
 ## 32. Phase 2.19 — apps/ becomes the product root — *lives in a separate file*
 
 **→ `dev/docs/architecture-apps-sim-restructure.md`** (Steps 126-134; COMPLETE).
