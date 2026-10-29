@@ -1819,6 +1819,24 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.19"
+    },
+    {
+      "id": "D-165",
+      "date": "2026-10-29",
+      "question": "User asked whether D:\\Projects - Ongoing\\fx27\\simulation could be recreated with rocket-physics instead of relying on the RocketPy library it currently wraps (PointMassRocket/PointMassMotor/Flight 3DOF). Orchestrator read the actual fx27 code (not just the .venv) and compared feature-for-feature.",
+      "choice": "Confirmed: rocket-physics already covers and exceeds everything fx27/simulation does (point-mass 3DOF flight, motor comparison table, drag/mass root-find for target apogee, airbrake C_DA sizing -- all have direct rocket-physics equivalents, generally more capable). Side finding: fx27/simulation/data/ holds real motor thrust-curve CSVs (2 cspace + 26 euroc candidates) and 2 real launch-site configs -- a partial match for the Phase 2.17 vehicle-data blocker (motor candidates specifically), though still missing CG/MOI/geometry/real aero table. User's decision: will implement fx27 in their own code later, declined migrating this data into rocket-physics for now. No action taken.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.17"
+    },
+    {
+      "id": "D-166",
+      "date": "2026-10-29",
+      "question": "With docs backlog done and fx27 migration deferred by the user, orchestrator asked what to pick up next given no silently-unblocked work remained (everything else in deferred_decisions was already user-deferred). Options: fix stale LaTeX paths (needs explicit LaTeX-edit approval), scope Step 32 (3D integrator, Phase 3), or stop.",
+      "choice": "Fix stale LaTeX paths. Done: appendix.tex (6 refs), plus 2 extra files found by developer during a full sections-ai/ sweep -- models.tex (1 ref) and introduction.tex (3 refs) -- all sim/configs/tools pre-restructure paths corrected to the apps/ tree. Path-string-only, zero notation/physics content change; code-vs-paper.md and latex/research/ deliberately left untouched (dated historical snapshots). Committed aa235f2. Step 32 (3D integrator) and vehicle-data blockers remain open, not started.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.17"
     }
   ],
   "deferred_decisions": [
