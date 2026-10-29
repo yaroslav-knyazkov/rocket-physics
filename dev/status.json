@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-10-28",
+  "updated": "2026-10-29",
   "active_modules": [
     "architect",
     "developer",
@@ -1810,27 +1810,18 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
+    },
+    {
+      "id": "D-164",
+      "date": "2026-10-29",
+      "question": "Three Phase-2.19-era doc backlog items were open (flagged by documentation at Step135, never actioned): no root README.md; no dev/docs/index.md/log.md/tag.md navigation; architecture.md/roadmap.md skip Phases 2.16-2.18 entirely. No unblocked autonomous work existed otherwise (2.17/Phase 3 still waiting on user vehicle data), so orchestrator asked which backlog item(s) to pick up, then scope questions for each.",
+      "choice": "All three, all recommended options: (1) full user-facing README.md, not a stub; (2) build index.md/log.md/tag.md from scratch now; (3) full backfill of architecture.md/roadmap.md for 2.16-2.18 (not a stub/pointer-only). Done: README.md (new), dev/docs/index.md/log.md/tag.md (new), architecture.md/roadmap.md backfilled -- non-disruptive insertion (31a/31b/31c in architecture.md, no renumbering; confirmed no internal cross-ref to section 32 exists first). documentation spawned on sonnet instead of its haiku default for the nav+backfill task (reason: cross-referencing ~50 docs + reconstructing historical entries matching an established dense technical style across two 150KB+ files -- heavier than routine README/audit sync). One real gap caught on independent verification (Steps 104/105 missing from the first Phase 2.17 backfill pass) and fixed in a second round via SendMessage before commit. Committed 15bbd40.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.19"
     }
   ],
   "deferred_decisions": [
-    {
-      "date": "2026-10-27",
-      "topic": "Нет корневого README.md вообще (найдено Step135, documentation) — не создан этой фазой (это пред-существующий пробел, не её вина), нужно решение пользователя: писать ли, что в него, кто пишет",
-      "stage": "2.19",
-      "status": "flagged, backlog"
-    },
-    {
-      "date": "2026-10-27",
-      "topic": "Нет dev/docs/index.md/log.md/tag.md (навигационные файлы, которые по CLAUDE.md должен вести documentation) — найдено Step135, никогда не существовали для этого проекта",
-      "stage": "2.19",
-      "status": "flagged, backlog"
-    },
-    {
-      "date": "2026-10-27",
-      "topic": "dev/docs/architecture.md и roadmap.md пропускают Phases 2.16, 2.17, 2.18 целиком (есть только до 2.15, затем прыжок на 2.19) — найдено Step135, пред-существующий пробел старше этой фазы, не забэкфиллено самовольно",
-      "stage": "2.19",
-      "status": "flagged, backlog"
-    },
     {
       "date": "2026-10-15",
       "topic": "Step 84: синхронизация LaTeX с Phase 2.16 — отложено, LaTeX не трогать",
