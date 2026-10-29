@@ -24,7 +24,7 @@ $A$ & --- & nose tip, origin of all lengths & --- \\
 $g$ & --- & centre of gravity & --- \\
 $t$ & --- & thrust application point & --- \\
 $p$ & --- & aerodynamic reference point (centre of pressure) & --- \\
-$l_g$ & \texttt{mass.cog\_position(m\_p, p)}; local \texttt{l\_B} in \texttt{sim/dynamics.py} (mass model only) & axial distance $A\to g$ & m \\
+$l_g$ & \texttt{mass.cog\_position(m\_p, p)}; local \texttt{l\_B} in \texttt{apps/sim/engine/dynamics.py} (mass model only) & axial distance $A\to g$ & m \\
 $r_g$ & \texttt{p.lengths.u\_B} & radial offset of $g$ & m \\
 $l_t$ & not stored; $l_t-l_g$ = \texttt{p.lengths.l1 + p.lengths.l2} & axial distance $A\to t$ & m \\
 $r_t$ & \texttt{p.lengths.u\_C} & radial offset of $t$ & m \\
@@ -32,16 +32,16 @@ $l_p$ & not stored; $l_p-l_g$ = \texttt{l1} (row below) & axial distance $A\to p
 $r_p\equiv0$ & --- & no radial offset of $p$, by definition & m \\
 $l_p-l_g$ & \texttt{p.lengths.l1}; \texttt{aero.coefficients(\dots).l1} (varies under the table model) & arm $g\to p$, positive with $p$ aft & m \\
 $l_t-l_p$ & \texttt{p.lengths.l2} & arm $p\to t$ & m \\
-$\vec{gt}$, $\vec{gp}$ & \texttt{aB}, \texttt{aA} in \texttt{sim/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
+$\vec{gt}$, $\vec{gp}$ & \texttt{aB}, \texttt{aA} in \texttt{apps/sim/engine/dynamics.py} & position of $t$, $p$ relative to $g$ & m \\
 $\theta_t$ & $-$\texttt{np.radians(}\allowbreak\texttt{p.lengths.misalign\_deg)} & thrust-line angle from $\hat{x}_r$ & rad (code: deg) \\
 \hline
 \multicolumn{4}{l}{\textbf{Mass}} \\
 \hline
 $m$, $I$ & \texttt{p.weight.m}, \texttt{p.weight.I}, or \texttt{mass.moment\_of\_inertia} & mass; pitch moment of inertia about $g$ & kg, $\mathrm{kg\,m^2}$ \\
-$m_r$ & \texttt{airframe.m} (\texttt{configs/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
+$m_r$ & \texttt{airframe.m} (\texttt{apps/sim/schema.py}); \texttt{p.weight.m\_d} also includes the casing & dry-rocket mass (constant) & kg \\
 $m_m(t)$ & \texttt{mass.propellant\_mass(m, p)} (\texttt{y[M]} $-$ \texttt{m\_d}) is the propellant only; $m_m$ adds the casing $m_f$ & motor mass (casing and propellant), burned down to $m_f$ & kg \\
 $m_0$, $m_f$ & \texttt{motor.m\_total}; $m_f$ = \texttt{m\_total - m\_prop} & motor mass at ignition, at burnout & kg \\
-$\dot m_m$ & \texttt{dydt[M]} in \texttt{sim/dynamics.py} (the state $m$ follows it) & motor mass flow, negative & kg/s \\
+$\dot m_m$ & \texttt{dydt[M]} in \texttt{apps/sim/engine/dynamics.py} (the state $m$ follows it) & motor mass flow, negative & kg/s \\
 $\Delta m$ & \texttt{motor.m\_prop} & burned mass $m_0-m_f$ & kg \\
 $\mathrm{ISP}$ & \texttt{p.weight.I\_sp}; \texttt{motor.I\_sp} & specific impulse & s \\
 $g_0$ & \texttt{p.g0} & standard gravity & $\mathrm{m/s^2}$ \\
@@ -93,12 +93,12 @@ $v_{ref}$ & turbulence setting & fixed reference airspeed of the Dryden spectrum
 $\vec{y}=(x,z,v_x,$ $v_z,\theta_r,\omega_r,m)$ & \texttt{y[X,}\allowbreak\texttt{Z,}\allowbreak\texttt{VX,}\allowbreak\texttt{VZ,}\allowbreak\texttt{THETA,}\allowbreak\texttt{OMEGA,}\allowbreak\texttt{M]} & integrated state vector & m, m/s, rad, rad/s, kg \\
 $\theta_r$ & \texttt{y[THETA]} & pitch angle & rad \\
 $\omega_r$ & \texttt{y[OMEGA]} & pitch rate & rad/s \\
-$\varepsilon_r$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{sim/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
+$\varepsilon_r$ & \texttt{M\_y / I} ($\mathrm{d}\omega/\mathrm{d}t$ in \texttt{apps/sim/engine/dynamics.py}) & angular acceleration & $\mathrm{rad/s^2}$ \\
 $\vec{x}_r$ & \texttt{y[X]}, \texttt{y[Z]} & position in $\mathcal{F}_0$ & m \\
 $\vec{v}_r$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity in $\mathcal{F}_0$ & m/s \\
 $\vec{v}_g$ & \texttt{y[VX]}, \texttt{y[VZ]} & CoG velocity (the same vector as $\vec{v}_r$) & m/s \\
 $v_x$, $v_z$ & \texttt{y[VX]}, \texttt{y[VZ]} & velocity components in $\mathcal{F}_0$ & m/s \\
-$\vec{a}_r$ & \texttt{a\_i} in \texttt{sim/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
+$\vec{a}_r$ & \texttt{a\_i} in \texttt{apps/sim/engine/dynamics.py} & acceleration in $\mathcal{F}_0$ & $\mathrm{m/s^2}$ \\
 $m_{launch}$ & \texttt{s0.m}; \texttt{p.weight.m} & liftoff mass $m(0)$ & kg \\
 $h$ & \texttt{p.solver.dt} & fixed RK4 step & s \\
 $\theta_{rail}$, $L_{rail}$, $s_{rail}$, $\hat{e}_{rail}$ & \texttt{p.site.rail\_angle\_deg}, \texttt{p.site.L\_rail}, \texttt{rail\_distance}, \texttt{\_e\_rail} & rail elevation, length, distance travelled, direction & rad, m, m, --- \\
