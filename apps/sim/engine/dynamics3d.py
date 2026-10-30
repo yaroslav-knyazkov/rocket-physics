@@ -50,12 +50,42 @@ throughout. Step 30's own stronger check (task-30 SS30.10.3): the same
 holds for a genuinely rotating, non-zero-moment flight once
 `p.inertia.model == "tensor"` with a diagonal tensor -- see
 tests/test_dynamics3d.py.
+
+Step 32, sub-step 32.4 (architecture-37-step32-3d-integration-harness.md
+D-32.5): the rail and parachute attitude freeze -- the 3D twin of
+`sim.dynamics.derivatives`'s own `on_rail`/`chuted` branch
+(`dynamics.py:394-432`). The freeze is a property of the equations of
+motion (a mechanical constraint: rail buttons / canopy risers prevent
+rotation), so it lives HERE, not in the integrator -- exactly as it does
+in 2D, and splitting one physical constraint across two modules would be
+wrong. The two predicates are reused VERBATIM on this module's own
+`forces3d._s2d` projection: `dynamics.on_rail(_s2d(y), p)`,
+`forces.parachute_deployed(t, _s2d(y), p)`. While on the rail OR under
+canopy: `dydt[Q] = 0.0` AND `dydt[OMEGA] = 0.0` (both halves of the
+attitude state frozen -- the 3D twin of 2D's `dydt[THETA] = 0` plus
+`dydt[OMEGA] = 0`, since in 3D the attitude derivative is `q_dot`, not a
+scalar). Translation is NOT frozen in either case: on the rail,
+acceleration is projected onto the exact 3D rail embedding `e_rail_3d =
+(cos eps, 0, -sin eps)` (`_e_rail_3d` below, built from
+`dynamics._e_rail(p)` by inserting a zero y-component -- exact, since
+`Site` carries no rail azimuth relative to `+x`, the same argument this
+module's force wrappers make for gravity/thrust); under the canopy,
+`forces.parachute_drag_inertial` is evaluated on the same 2D projection
+and embedded `(Fx, 0, Fz)` -- exact, since a round canopy's drag does
+not depend on body attitude (axisymmetric).
+
+`p.site.L_rail <= 0.0` (default) and `p.recovery.model == "none"`
+(default) make both predicates false from the first call, so this branch
+is unreachable for every existing 3D test -- `tests/test_dynamics3d.py`'s
+8 tests must not move, and the Step 32 sub-step 32.3 `rk4` pin (both
+defaults) must not move either; if either moves, the freeze branch is
+leaking into the unconstrained path.
 """
 
 import numpy as np
 
-from apps.sim.engine import inertia
-from apps.sim.engine import quaternion
+from apps.sim.engine import dynamics, forces, inertia, quaternion
+from apps.sim.engine import forces3d
 from apps.sim.engine.forces3d import (
     aero_force_body_3d,
     flow_fb_coeffs_3d,
@@ -64,6 +94,16 @@ from apps.sim.engine.forces3d import (
     weight_inertial_3d,
 )
 from apps.sim.engine.state3d import N, OMEGA, Q, R, V
+
+
+def _e_rail_3d(p) -> np.ndarray:
+    """`(cos eps, 0, -sin eps)` -- the exact 3D embedding of
+    `dynamics._e_rail(p)` (module docstring, D-32.5): insert a zero
+    y-component into the 2D rail unit vector `(cos eps, -sin eps)`. No
+    new parameter, no new physics -- `Site` has no rail-azimuth field, so
+    an out-of-plane rail is not expressible."""
+    e2d = dynamics._e_rail(p)
+    return np.array([e2d[0], 0.0, e2d[1]])
 
 
 def derivatives_3d(t: float, y: np.ndarray, p) -> np.ndarray:
@@ -78,7 +118,7 @@ def derivatives_3d(t: float, y: np.ndarray, p) -> np.ndarray:
 
     dydt = np.empty(N)
     dydt[R] = v
-    dydt[Q] = quaternion.q_dot(q, omega)
+
     # Step 30 (task-30-3d-rotational-dynamics.md SS30.5.1): the rotational
     # block. `model == "none"` (the default) is prescribed-rate kinematics
     # -- see module docstring; `model == "tensor"` is Euler's rotational
@@ -96,15 +136,58 @@ def derivatives_3d(t: float, y: np.ndarray, p) -> np.ndarray:
     # identical (same pure functions, same inputs), just not paid for
     # twice. The `model == "none"` branch is unaffected -- `moment_body_3d`
     # is never called there, so there is nothing to share.
+    #
+    # `domega_dt` is computed unconditionally here (not assigned straight
+    # into `dydt[OMEGA]`) because Step 32's rail/parachute freeze below
+    # may discard it -- the same shape the 2D `derivatives` has always
+    # had: `M_y`/`pitch_moment` is computed every call, and only the
+    # unconstrained branch actually uses it.
     if p.inertia.model == "none":
         A_b = aero_force_body_3d(t, y, p)
-        dydt[OMEGA] = 0.0
+        domega_dt = np.zeros(3)
     else:
         flow, fb, coeffs = flow_fb_coeffs_3d(t, y, p)
         A_b = aero_force_body_3d(t, y, p, flow, fb, coeffs)
         I_b = inertia.tensor(p.inertia)
         M_b = moment_body_3d(t, y, p, flow, fb, coeffs)
-        dydt[OMEGA] = inertia.omega_dot(I_b, omega, M_b)
+        domega_dt = inertia.omega_dot(I_b, omega, M_b)
 
-    dydt[V] = (W_i + quaternion.to_dcm(q) @ (T_b + A_b)) / p.weight.m
+    F_i = W_i + quaternion.to_dcm(q) @ (T_b + A_b)
+
+    # Step 32 (D-32.5, module docstring): the rail/parachute attitude
+    # freeze. One shared `_s2d` projection (`flow_fb_coeffs_3d`'s own
+    # sharing precedent); `on_the_rail` short-circuits `chuted`, the same
+    # order `dynamics.derivatives`'s own `elif` uses. Both predicates are
+    # false from the first call whenever `p.site.L_rail <= 0.0` (default)
+    # and `p.recovery.model == "none"` (default), so everything below is
+    # bit-for-bit the pre-32.4 behaviour for every existing 3D test/pin.
+    s2d = forces3d._s2d(y)
+    on_the_rail = dynamics.on_rail(s2d, p)
+    chuted = (not on_the_rail) and forces.parachute_deployed(t, s2d, p)
+
+    if on_the_rail:
+        # Rail buttons react every transverse force component and
+        # prevent rotation (2D's own SS27.1 argument, one dimension up):
+        # project the already-computed inertial force onto the exact 3D
+        # rail embedding.
+        e = _e_rail_3d(p)
+        a_i = F_i / p.weight.m
+        dydt[V] = np.dot(a_i, e) * e
+    elif chuted:
+        # The canopy drag is natively inertial (module docstring) and is
+        # ADDED to F_i, not routed through it -- mirrors 2D's
+        # `a_chute = (F_i + F_chute) / m` exactly.
+        F_chute_2d = forces.parachute_drag_inertial(t, s2d, p, None)
+        F_chute_3d = np.array([F_chute_2d[0], 0.0, F_chute_2d[1]])
+        dydt[V] = (F_i + F_chute_3d) / p.weight.m
+    else:
+        dydt[V] = F_i / p.weight.m
+
+    if on_the_rail or chuted:
+        dydt[Q] = 0.0
+        dydt[OMEGA] = 0.0
+    else:
+        dydt[Q] = quaternion.q_dot(q, omega)
+        dydt[OMEGA] = domega_dt
+
     return dydt

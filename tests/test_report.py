@@ -10,10 +10,18 @@ import numpy as np
 import pytest
 
 from apps.sim.engine import aero
-from apps.sim.engine.integrate import run_sim
-from apps.sim.engine.params import Aero, Lengths, Params, Solver, Weight
-from apps.sim.engine.report import _CM_SLOPE_STEP, stability_check, static_margin_cal
+from apps.sim.engine.integrate import run_sim, run_sim_3d
+from apps.sim.engine.params import Aero, Lengths, Params, Solver, Thrust, Weight, with_solver
+from apps.sim.engine.report import (
+    _CM_SLOPE_STEP,
+    flight_summary,
+    flight_summary_3d,
+    stability_check,
+    static_margin_cal,
+)
+from apps.sim.engine.quaternion import from_euler
 from apps.sim.engine.state import State
+from apps.sim.engine.state3d import State3D, to_vector as to_vector_3d
 from tests.datadir import AERO_DIR as _AERO_DIR
 
 
@@ -116,3 +124,67 @@ def test_negative_geometric_margin_warns():
         with pytest.warns(UserWarning, match="margin"):
             out = stability_check(r, p)
         assert out["min_margin_cal"] < 0.0
+
+
+# ----------------------------------------------------------------------
+# Step 32 (Phase 3; architecture-37-step32-3d-integration-harness.md
+# SS37.3/D-32.3, option O2): `flight_summary_3d` -- additive, routes
+# every state read through `forces3d._s2d` (the same projection
+# `run_sim_3d`'s own events/Mach diagnostic use). `flight_summary` itself
+# (the 2D function above) is unedited.
+# ----------------------------------------------------------------------
+
+_P32 = Params(
+    weight=Weight(m=0.5, I=0.05),
+    lengths=Lengths(l1=0.3, l2=0.4),
+    thrust=Thrust(motor_curve="placeholder.csv"),
+    aero=Aero(C_x=0.5, C_z=0.0, C_m=0.0),
+)
+_THETA0_32 = math.radians(45.0)
+
+
+def test_flight_summary_3d_matches_flight_summary_on_a_planar_run():
+    """`flight_summary_3d` must agree with the 2D `flight_summary` on the
+    same planar scenario -- both read the same physics through the same
+    `_s2d` projection run_sim_3d's own harness already uses. Tight solver
+    tolerance (same `rtol=1e-11, atol=1e-13` precedent as
+    `tests/test_integrate3d.py`'s own equivalence tests) -- at the
+    DEFAULT solver tolerance the two independent adaptive-step grids
+    land on slightly different dense-output polynomials near apogee
+    (measured directly: ~2.7e-6 relative, just over a naive 1e-6
+    tolerance), a numerical-integration artifact, not a `flight_summary_3d`
+    bug."""
+    tight_p = with_solver(_P32, rtol=1e-11, atol=1e-13)
+    s0_2d = State(x=0.0, z=0.0, vx=10.0, vz=-5.0, theta=_THETA0_32, omega=0.0)
+    result_2d = run_sim(tight_p, s0_2d)
+    summary_2d = flight_summary(result_2d, tight_p)
+
+    q0 = from_euler(0.0, _THETA0_32, 0.0)
+    s0_3d = State3D(r=np.zeros(3), v=np.array([10.0, 0.0, -5.0]), q=q0, omega=np.zeros(3))
+    y0_3d = to_vector_3d(s0_3d)
+    result_3d = run_sim_3d(tight_p, y0_3d)
+    summary_3d = flight_summary_3d(result_3d, tight_p)
+
+    assert math.isclose(summary_3d["apogee_altitude"], summary_2d["apogee_altitude"], rel_tol=1e-6)
+    assert math.isclose(summary_3d["apogee_time"], summary_2d["apogee_time"], rel_tol=1e-6)
+    assert math.isclose(summary_3d["impact_time"], summary_2d["impact_time"], rel_tol=1e-6)
+    assert math.isclose(summary_3d["max_q"], summary_2d["max_q"], rel_tol=1e-6)
+
+
+def test_flight_summary_3d_apogee_altitude_equals_helper_directly():
+    """The 3D analogue of `test_flight_summary_apogee_altitude_equals_
+    helper_directly` (tests/test_plotting.py): `flight_summary_3d`'s
+    `apogee_altitude` equals `altitude_agl(forces3d._s2d(sol(t_apogee)), p)`
+    exactly -- the same projection, called directly."""
+    from apps.sim.engine import forces3d
+    from apps.sim.engine.gravity import altitude_agl
+
+    q0 = from_euler(0.0, _THETA0_32, 0.0)
+    s0_3d = State3D(r=np.zeros(3), v=np.array([10.0, 0.0, -5.0]), q=q0, omega=np.zeros(3))
+    y0_3d = to_vector_3d(s0_3d)
+    result_3d = run_sim_3d(_P32, y0_3d)
+    summary_3d = flight_summary_3d(result_3d, _P32)
+
+    t_apogee = result_3d.events["apogee"]
+    expected = altitude_agl(forces3d._s2d(result_3d.raw.sol(t_apogee)), _P32)
+    assert summary_3d["apogee_altitude"] == expected

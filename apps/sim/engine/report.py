@@ -83,6 +83,51 @@ def flight_summary(result, p) -> dict:
     )
 
 
+def flight_summary_3d(result, p) -> dict:
+    """3D analogue of `flight_summary` (Step 32, D-32.3/O2): same four
+    quantities (apogee altitude/time, max-Q, impact time), for a `Result`
+    from `apps.sim.engine.integrate.run_sim_3d` (13-component state).
+
+    Every state vector this function touches is routed through
+    `forces3d._s2d` first -- the SAME projection `run_sim_3d`'s own
+    events/Mach diagnostic use (D-32.1/C, D-32.7) -- so `altitude_agl`/
+    `flow_state` (both 2D-shaped-state functions) never need a 3D-aware
+    twin of their own. Planar-equivalence only, same standing as
+    `run_sim_3d`'s own docstring note: for a non-planar flight this is an
+    approximation, not yet Step 31's validated 3D aerodynamics.
+
+    The 3D `static_margin_cal`/`cm_slope_series`/`stability_check`/
+    `sweep` functions below are deliberately NOT given 3D twins here --
+    rejected on correctness grounds (SS37.3/O3, SS37.8): they rest on
+    `C_z`/`C_m` slopes and `alpha`, which through `_s2d` would be a
+    planar number wearing a 3D label.
+    """
+    from apps.sim.engine import forces3d
+
+    apogee_time = result.events["apogee"]
+    impact_time = result.events["ground"]
+    apogee_altitude = (
+        altitude_agl(forces3d._s2d(result.raw.sol(apogee_time)), p)
+        if apogee_time is not None else None
+    )
+
+    t_end = impact_time if impact_time is not None else result.t[-1]
+    t_grid = np.linspace(0.0, t_end, 2000)
+    y_grid = result.raw.sol(t_grid)
+
+    q_values = np.array(
+        [flow_state(t, forces3d._s2d(y_grid[:, i]), p).q for i, t in enumerate(t_grid)]
+    )
+    max_q = float(q_values.max())
+
+    return dict(
+        apogee_altitude=apogee_altitude,
+        apogee_time=apogee_time,
+        max_q=max_q,
+        impact_time=impact_time,
+    )
+
+
 _CZ_SLOPE_EPS = 1e-9  # |dC_z/dalpha| below this: no normal-force sensitivity to derive a CP
                        # correction from at this (alpha, M) (e.g. a drag-only test table with
                        # C_N == 0 identically) -- fall back to the raw arm, no correction.

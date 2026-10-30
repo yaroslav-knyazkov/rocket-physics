@@ -97,6 +97,14 @@ from apps.sim.engine.dynamics import derivatives
 from apps.sim.engine.state import State, VZ, Z, to_vector
 from apps.sim.engine import gravity, thrust_curve
 
+# Step 32 (Phase 3; architecture-37-step32-3d-integration-harness.md
+# SS37.7/32.2, D-32.8): the 3D driver's own imports. Verified acyclic
+# (SS37.7/32.2's own note): `forces3d` imports `aero, control, dynamics,
+# forces, quaternion, flow, state3d`; it does NOT import `integrate`, so
+# the new edge `integrate -> forces3d` (and `-> dynamics3d`, `-> state3d`,
+# `-> quaternion`, `-> inertia`) closes no cycle.
+from apps.sim.engine import dynamics3d, forces3d, inertia, quaternion, state3d
+
 
 class Result(NamedTuple):
     t: np.ndarray                     # time samples [s]
@@ -104,6 +112,60 @@ class Result(NamedTuple):
     events: dict[str, Optional[float]]  # {"apogee": t | None, "ground": t | None, "burnout": t | None, "rail_exit": t | None, "parachute_deploy": t | None}
     raw: Any                          # the scipy OdeResult (e.g. for sol.sol(t))
     params: Any                       # the Params that produced this run -- Step 45, architecture.md SS25.5
+
+
+# ----------------------------------------------------------------------
+# Step 32 (Phase 3; architecture-37-step32-3d-integration-harness.md
+# SS37.2/D-32.1, option C -- "projection seam + thin 3D drivers"):
+# `_project_identity`/`_events_for` below are ADDITIVE, placed above the
+# five event functions so the seam is visible as a seam, and touch no
+# pinned function body. The five event predicates below were measured
+# (SS37.1) to read only `y[X]`, `y[Z]`, `y[VZ]` out of the state they are
+# given -- all three also recoverable from a 13-component 3D state via
+# `apps.sim.engine.forces3d._s2d`. Rather than duplicate the five
+# predicates for 3D (option A) or rewrite the whole integration loop
+# behind a generic state-layout abstraction (option B, the deeper but far
+# more expensive end state -- SS37.2), `_events_for(project)` reuses each
+# predicate's BODY verbatim, wrapping it so that the state it receives is
+# first run through `project`. For the 2D path `project` is
+# `_project_identity`, a true no-op (`run_sim`/`_run_rk4`/
+# `_run_segmented_rk45` keep calling the five module-level functions
+# directly -- they never go through this factory; its only 2D-side
+# consumer is this module's own self-test, proving the seam is faithful
+# before any 3D driver exists to use it for real). For the 3D path
+# (sub-step 32.2 on), `project = apps.sim.engine.forces3d._s2d`.
+def _project_identity(y: np.ndarray) -> np.ndarray:
+    """The 2D path's projection: a true no-op, `y` unchanged."""
+    return y
+
+
+def _events_for(project):
+    """Build the five event callables against a state first run through
+    `project` -- D-32.1/C. Each wrapper calls the matching module-level
+    predicate UNCHANGED (`fn(t, project(y), p)`), and carries over that
+    predicate's own `.terminal`/`.direction` attributes, since
+    `scipy.integrate.solve_ivp`'s `events=` protocol reads those
+    attributes off the callable it is given, not off some separate
+    registry. Returns a 5-tuple in the same order `run_sim`'s own
+    `events=[...]` list uses: `(ground, apogee, burnout, rail_exit,
+    parachute_deploy)`.
+    """
+
+    def _wrap(fn):
+        def _wrapped(t, y, p):
+            return fn(t, project(y), p)
+
+        _wrapped.terminal = fn.terminal
+        _wrapped.direction = fn.direction
+        return _wrapped
+
+    return (
+        _wrap(_ground_event),
+        _wrap(_apogee_event),
+        _wrap(_burnout_event),
+        _wrap(_rail_exit_event),
+        _wrap(_parachute_deploy_event),
+    )
 
 
 def _ground_event(t, y, p):
@@ -792,5 +854,289 @@ def _warn_if_mach_blind(result: Result) -> None:
     """Step 92 (D-83): pure diagnostic, never alters `result`. Imported
     lazily -- `sim.mach_warning` pulls in `sim.flow`."""
     from apps.sim.engine.mach_warning import warn_if_mach_blind
+
+    warn_if_mach_blind(result, stacklevel=4)
+
+
+# ----------------------------------------------------------------------
+# Step 32 (Phase 3; architecture-37-step32-3d-integration-harness.md) --
+# the 3D integration harness. D-32.1/C: `run_sim_3d` reuses `Result`,
+# `_LinearInterpolant`, `_pending_events` (not needed here -- see D-32.2)
+# and the five event predicates UNCHANGED, via `_events_for(forces3d.
+# _s2d)`. Nothing above this comment, and nothing inside `run_sim`/
+# `_run_rk4`/`_run_segmented_rk45`/the five event-function bodies, is
+# touched by any of what follows.
+# ----------------------------------------------------------------------
+
+
+def _project_result_for_mach(result: Result) -> Result:
+    """D-32.7: `_warn_if_mach_blind` -> `mach_warning.peak_mach` reads
+    `result.y` through `sim.flow.flow_state`, which is 2D-only. Project
+    every column of a 3D `Result.y` through `forces3d._s2d` first, so
+    `apps/sim/engine/mach_warning.py` itself stays untouched and keeps
+    seeing only 2D-shaped data -- peak Mach of a planar 3D flight is then
+    identical to the 2D answer by construction, not a separate 3D
+    computation."""
+    y2d = np.array([forces3d._s2d(result.y[:, i]) for i in range(result.y.shape[1])]).T
+    return result._replace(y=y2d)
+
+
+def _run_rk4_3d(p, y0: np.ndarray, t_max: float, dt: float) -> Result:
+    """Fixed-step classical RK4 on the 13-component 3D state (Step 32,
+    sub-step 32.3; architecture-37-step32-3d-integration-harness.md
+    SS37.7/32.3). MIRROR of `_run_rk4:364-418`'s crossing-detection block
+    (D-32.1/C): the five event predicates are reused verbatim via the
+    `forces3d._s2d` projection built fresh each half-step below; only
+    this ~55-line crossing arithmetic is duplicated, not the predicates
+    themselves.
+
+    Quaternion renormalisation (D-32.4): once per accepted step, right
+    after the RK4 update produces `y_next` and BEFORE anything below
+    reads it through the projection -- a step boundary is the only point
+    a projection is consistent with a fixed-step method (unlike the RK45
+    path above, which has no accessible accepted-step hook scipy
+    exposes: `derivatives_3d` itself keeps NOT renormalising either way,
+    task-30 SS30.6 reason 1).
+
+    Does NOT support `sample_rate_hz > 0.0` or any `Hold` -- `run_sim_3d`
+    raises eagerly before this function is ever reached with sampling on
+    (D-32.2/S2); there is no 3D hold contract to thread through yet.
+    """
+    ts = [0.0]
+    ys = [y0]
+
+    t_apogee = None
+    t_ground = None
+    t_burnout = None
+    t_rail_exit = None
+    t_parachute_deploy = None
+
+    t = 0.0
+    y = y0
+    while t < t_max:
+        dt_step = min(dt, t_max - t)
+
+        k1 = dynamics3d.derivatives_3d(t, y, p)
+        k2 = dynamics3d.derivatives_3d(t + dt_step / 2, y + dt_step / 2 * k1, p)
+        k3 = dynamics3d.derivatives_3d(t + dt_step / 2, y + dt_step / 2 * k2, p)
+        k4 = dynamics3d.derivatives_3d(t + dt_step, y + dt_step * k3, p)
+        y_next = y + dt_step / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        t_next = t + dt_step
+
+        # D-32.4: renormalise the quaternion of the newly accepted step,
+        # before the crossing-detection block below (which reads y_next
+        # only through the _s2d projection) and before ys.append.
+        y_next[state3d.Q] = quaternion.normalise(y_next[state3d.Q])
+
+        y2d = forces3d._s2d(y)
+        y2d_next = forces3d._s2d(y_next)
+
+        # Apogee: mirrors _run_rk4:364-369, reading the PROJECTED state.
+        if t_apogee is None and t_next >= 0.1 and y2d[VZ] < 0.0 <= y2d_next[VZ]:
+            frac = -y2d[VZ] / (y2d_next[VZ] - y2d[VZ])
+            t_apogee = t + frac * dt_step
+
+        # Ground impact: mirrors _run_rk4:371-387.
+        d_now = gravity.ground_depth(t, y2d, p)
+        d_next = gravity.ground_depth(t_next, y2d_next, p)
+        if t_next >= 0.1 and d_now < 0.0 <= d_next:
+            frac = -d_now / (d_next - d_now)
+            t_ground = t + frac * dt_step
+            y_ground = y + frac * (y_next - y)
+            ts.append(t_ground)
+            ys.append(y_ground)
+            t, y = t_ground, y_ground
+            break
+
+        # Burnout: mirrors _run_rk4:389-398.
+        if t_burnout is None:
+            thrust_now = thrust_curve.thrust(t, y2d, p)
+            thrust_next = thrust_curve.thrust(t_next, y2d_next, p)
+            if thrust_now > 0.0 and thrust_next <= 0.0:
+                frac = -thrust_now / (thrust_next - thrust_now)
+                t_burnout = t + frac * dt_step
+
+        # Rail exit: mirrors _run_rk4:400-408.
+        if t_rail_exit is None and p.site.L_rail > 0.0 and t_next >= 0.1:
+            r_now = dynamics.rail_distance(y2d, p) - p.site.L_rail
+            r_next = dynamics.rail_distance(y2d_next, p) - p.site.L_rail
+            if r_now < 0.0 <= r_next:
+                frac = -r_now / (r_next - r_now)
+                t_rail_exit = t + frac * dt_step
+
+        # Parachute deploy: mirrors _run_rk4:410-418.
+        if t_parachute_deploy is None:
+            dep_now = 1.0 if forces.parachute_deployed(t, y2d, p) else -1.0
+            dep_next = 1.0 if forces.parachute_deployed(t_next, y2d_next, p) else -1.0
+            if dep_now < 0.0 <= dep_next:
+                frac = -dep_now / (dep_next - dep_now)
+                t_parachute_deploy = t + frac * dt_step
+
+        ts.append(t_next)
+        ys.append(y_next)
+        t, y = t_next, y_next
+
+    t_arr = np.array(ts)
+    y_arr = np.array(ys).T  # shape (13, N), matches state3d's flat layout
+
+    return Result(
+        t=t_arr,
+        y=y_arr,
+        events={
+            "apogee": t_apogee, "ground": t_ground, "burnout": t_burnout,
+            "rail_exit": t_rail_exit, "parachute_deploy": t_parachute_deploy,
+        },
+        raw=_RK4Raw(sol=_LinearInterpolant(t_arr, y_arr)),
+        params=p,
+    )
+
+
+def run_sim_3d(p, s0_3d: np.ndarray) -> Result:
+    """3D analogue of `run_sim` (Step 32, Phase 3;
+    architecture-37-step32-3d-integration-harness.md SS37.2/D-32.1 option
+    C, SS37.3/D-32.2 option S2). Integrates the 13-component 3D state
+    (`apps.sim.engine.state3d`) from `s0_3d` until ground impact or
+    `p.solver.t_max`, exactly like `run_sim` does for the 2D `State` --
+    the same five events (ground/apogee/burnout/rail_exit/
+    parachute_deploy), reused VERBATIM via `_events_for(forces3d._s2d)`
+    (D-32.1/C): nothing inside the five event-predicate bodies, or inside
+    `run_sim`/`_run_rk4`/`_run_segmented_rk45`, is touched by this
+    function.
+
+    `s0_3d` is a flat 13-component array
+    (`apps.sim.engine.state3d.to_vector(State3D(...))`), not a `State3D`
+    NamedTuple -- mirrors `run_sim`'s own internal `to_vector(s0, p)`
+    call, just with the flattening left to the caller (the 3D layout has
+    no `p`-dependent width/trim the way the 2D roll block does, so there
+    is nothing for this function itself to do with `p` at that step).
+
+    Supports `p.solver.method in {"rk4", "RK45"}` only (D-32.2/S2); the
+    sampled-data/zero-order-hold paths (`method == "rk45_seg"`, or
+    `sample_rate_hz > 0.0` with any method) are out of scope and rejected
+    EAGERLY below, before any integration starts -- `forces3d` hardcodes
+    `hold = None` in two places (SS37.0.2 point 6), so there is no 3D hold
+    contract to integrate against yet.
+
+    IMPORTANT (D-32.1/C's own boundary, SS37.8): `forces3d._s2d` is valid
+    for a PLANAR 3D attitude only (zero roll, zero yaw about the pitch
+    axis -- that module's own docstring). A non-planar 3D run is RUNNABLE
+    through this function (nothing here checks for it), but the
+    aerodynamic forces it computes are not yet physically meaningful for
+    one; replacing `_s2d` with a true 3D relative-wind model is Step 31's
+    job. Every test this step adds is a planar one -- treat a non-planar
+    result as exploratory, not validated.
+    """
+    method = p.solver.method
+    t_max = p.solver.t_max
+    rtol = p.solver.rtol
+    atol = p.solver.atol
+    dt = p.solver.dt
+    sample_rate_hz = p.solver.sample_rate_hz
+
+    # D-32.6 guard 5: reused verbatim from run_sim (SS35.6).
+    if p.actuator.model not in control.known_actuator_models():
+        raise ValueError(
+            f"p.actuator.model={p.actuator.model!r} is not a registered "
+            f"actuator model (known: {sorted(control.known_actuator_models())}) "
+            "(architecture-35-paper-alignment.md SS35.6)."
+        )
+
+    # D-32.2/S2: only the un-sampled rk4/RK45 paths are supported. Unlike
+    # run_sim's own paired (sample_rate_hz, method) guards -- which allow
+    # the two together for 2D -- run_sim_3d has no hold contract at all
+    # (see docstring), so EITHER condition alone is already out of scope;
+    # the two checks below are therefore independent, not paired.
+    if sample_rate_hz > 0.0:
+        raise ValueError(
+            f"p.solver.sample_rate_hz={sample_rate_hz} is not supported by "
+            "run_sim_3d: the sampled-data/zero-order-hold path has no 3D "
+            "hold contract yet (forces3d.py hardcodes hold=None throughout "
+            "-- architecture-37-step32-3d-integration-harness.md SS37.3/"
+            "D-32.2). Use run_sim (2D) for sampled-data runs, or leave "
+            "sample_rate_hz=0.0 for a 3D run."
+        )
+    if method == "rk45_seg":
+        raise ValueError(
+            "p.solver.method='rk45_seg' is not supported by run_sim_3d "
+            "(architecture-37-step32-3d-integration-harness.md SS37.3/"
+            "D-32.2): run_sim_3d supports only 'rk4' and 'RK45'."
+        )
+
+    # D-32.6 guard 2: the 2D decoupled roll degree of freedom (Step 109)
+    # and the 3D state's own omega[0] are the SAME physical quantity
+    # (the research note's own SS5.1 proof that the roll equation is
+    # identical in both) -- running the 2D roll model alongside a 3D
+    # integration would double-count roll.
+    if p.roll.model != "none":
+        raise ValueError(
+            f"p.roll.model={p.roll.model!r} is not supported by "
+            "run_sim_3d: the 2D decoupled roll degree of freedom "
+            "(task-109-roll-reaction-wheel.md) and the 3D state's own "
+            "omega[0] are the SAME physical degree of freedom, so running "
+            "both at once would double-count roll. The 3D home for roll "
+            "inertia is p.inertia.I_xx, not p.roll."
+        )
+
+    # D-32.6 guard 3: the 13-component layout has no mass slot --
+    # forces3d._s2d always passes M=0.0 through, and weight_inertial only
+    # ever reads s[M] when p.weight.m_d is set, so a set m_d would
+    # silently make weight_inertial read that 0.0 as the vehicle's mass.
+    if p.weight.m_d is not None:
+        raise ValueError(
+            f"p.weight.m_d={p.weight.m_d} is not supported by run_sim_3d: "
+            "there is no 3D variable-mass model yet -- the 13-component "
+            "state has no mass slot, and forces3d._s2d always passes "
+            "M=0.0 through to weight_inertial, which would silently read "
+            "that as the vehicle's true mass. Leave p.weight.m_d=None for "
+            "a 3D run."
+        )
+
+    # D-32.6 guard 1: closes task-30 SS30.15's "call inertia.validate from
+    # a 3D run entry point" -- apps/sim/schema.py's assemble() call does
+    # not reach a hand-built Params (i.e. every test). `p.roll.model` is
+    # always "none" by the time this runs (guard 2 above already raised
+    # otherwise), so the roll cross-check inside inertia.validate is inert
+    # here; passed through anyway for the same call shape
+    # apps/sim/schema.py:407 uses.
+    inertia.validate(p.inertia, roll=p.roll)
+
+    y0 = np.asarray(s0_3d, dtype=float)
+
+    if method == "rk4":
+        result = _run_rk4_3d(p, y0, t_max, dt)
+        _warn_if_mach_blind(_project_result_for_mach(result))
+        return result
+
+    ground3d, apogee3d, burnout3d, rail3d, chute3d = _events_for(forces3d._s2d)
+    sol = solve_ivp(
+        dynamics3d.derivatives_3d,
+        (0.0, t_max),
+        y0,
+        method=method,
+        args=(p,),
+        events=[ground3d, apogee3d, burnout3d, rail3d, chute3d],
+        dense_output=True,
+        rtol=rtol,
+        atol=atol,
+    )
+
+    t_ground = sol.t_events[0][0] if len(sol.t_events[0]) else None
+    t_apogee = sol.t_events[1][0] if len(sol.t_events[1]) else None
+    t_burnout = sol.t_events[2][0] if len(sol.t_events[2]) else None
+    t_rail_exit = sol.t_events[3][0] if len(sol.t_events[3]) else None
+    t_parachute_deploy = sol.t_events[4][0] if len(sol.t_events[4]) else None
+
+    result = Result(
+        t=sol.t,
+        y=sol.y,
+        events={
+            "apogee": t_apogee, "ground": t_ground, "burnout": t_burnout,
+            "rail_exit": t_rail_exit, "parachute_deploy": t_parachute_deploy,
+        },
+        raw=sol,
+        params=p,
+    )
+    _warn_if_mach_blind(_project_result_for_mach(result))
+    return result
 
     warn_if_mach_blind(result, stacklevel=4)

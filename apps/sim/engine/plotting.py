@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from apps.sim.engine.gravity import altitude_agl
 from apps.sim.engine.integrate import Result
 from apps.sim.engine.state import X, VX, VZ, THETA, OMEGA
+from apps.sim.engine.state3d import R as R3D, Q as Q3D
+from apps.sim.engine.quaternion import to_euler
 
 
 def _dense_time_grid(r: Result, n: int = 500) -> np.ndarray:
@@ -141,6 +143,103 @@ def plot_time_histories(r: Result):
     ax_omega.set_ylabel("Pitch rate omega [deg/s]")
     ax_omega.set_title("Pitch rate vs time")
     ax_omega.grid(True)
+
+    fig.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------------
+# Step 32 (Phase 3; architecture-37-step32-3d-integration-harness.md
+# SS37.3/D-32.3, option O2): minimal additive 3D output. ADDITIVE ONLY --
+# every function above is untouched. These three take a `Result` from
+# `apps.sim.engine.integrate.run_sim_3d` (13-component state), never the
+# 2D `run_sim` one; `_dense_time_grid` itself is layout-agnostic (reads
+# only `r.events`/`r.t`/`r.raw.sol`), so it is reused verbatim.
+# ----------------------------------------------------------------------
+
+
+def plot_ground_track_3d(r: Result):
+    """x-y ground track (D-32.3/O2). The acceptance artefact for a
+    PLANAR run is a straight line along x with y exactly 0.0 -- itself a
+    check (`tests/test_plotting3d.py` asserts the data series, not the
+    figure)."""
+    t = _dense_time_grid(r)
+    y = r.raw.sol(t)
+    x = y[R3D][0]
+    y_lateral = y[R3D][1]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(x, y_lateral)
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_title("Ground track")
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.grid(True)
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_trajectory_3d(r: Result):
+    """3D flight path (x, y, altitude AGL) -- the 3D-only twin of
+    `plot_trajectory`. Altitude is `-z` directly, NOT routed through
+    `gravity.altitude_agl` (which expects a 2D-shaped state): under the
+    default `gravity_direction="parallel"` `altitude_agl` is exactly
+    `-y[Z]` anyway (that function's own docstring), and `z` is the same
+    down-positive inertial coordinate in both layouts, so this is exact
+    for "parallel" and NOT attempted for the curved-ground variants --
+    `run_sim_3d` is untested against curved gravity (out of scope, SS37.8:
+    only `M_x = M_z = 0` planar aero is in scope for Step 32)."""
+    t = _dense_time_grid(r)
+    y = r.raw.sol(t)
+    x = y[R3D][0]
+    y_lateral = y[R3D][1]
+    altitude = -y[R3D][2]
+
+    fig = plt.figure(figsize=(9, 7))
+    ax = fig.add_subplot(projection="3d")
+    ax.plot(x, y_lateral, altitude)
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("Altitude [m]")
+    ax.set_title("3D flight trajectory")
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_attitude_history_3d(r: Result):
+    """Yaw/pitch/roll time histories, degrees, from `quaternion.to_euler`
+    (D-32.3/O2) -- the one place `to_euler`'s documented "plotting-style
+    output only" contract (quaternion.py's own docstring, and D-32.9's
+    restored guarantee) is exercised on purpose: this is presentation
+    output, never read back into the integrated state."""
+    t = _dense_time_grid(r)
+    y = r.raw.sol(t)
+    q = y[Q3D]
+
+    n = q.shape[1]
+    yaw = np.empty(n)
+    pitch = np.empty(n)
+    roll = np.empty(n)
+    for i in range(n):
+        yaw[i], pitch[i], roll[i] = to_euler(q[:, i])
+
+    fig, (ax_yaw, ax_pitch, ax_roll) = plt.subplots(3, 1, sharex=True, figsize=(8, 9))
+
+    ax_yaw.plot(t, np.degrees(yaw))
+    ax_yaw.set_ylabel("Yaw [deg]")
+    ax_yaw.set_title("Attitude history")
+    ax_yaw.grid(True)
+
+    ax_pitch.plot(t, np.degrees(pitch))
+    ax_pitch.set_ylabel("Pitch [deg]")
+    ax_pitch.grid(True)
+
+    ax_roll.plot(t, np.degrees(roll))
+    ax_roll.set_xlabel("Time [s]")
+    ax_roll.set_ylabel("Roll [deg]")
+    ax_roll.grid(True)
 
     fig.tight_layout()
     return fig
