@@ -4561,7 +4561,7 @@ relabel, **D-126** `C_m_code` rename, **D-127** axial cos²-shaped hybrid outsid
 (Step 107), the baro sensor plus alpha-beta estimator (Step 108), and 2D roll dynamics with a
 reaction wheel (Step 109). Steps 136-137 (**D-162**) added a point-mass flight-path-angle
 (gravity-turn) paper note and a `flight_stats.py` diagnostic for `theta_v`/`Lambda`; the dependent
-Step 138 (a standalone estimator, Option A) is gated, not started. **Blocked on the user supplying
+Step 143 (a standalone estimator, Option A; renumbered from the originally-reserved 138 once Phase 2.20 claimed that range first, see D-169) is gated, not started. **Blocked on the user supplying
 real vehicle data** — mass/CG/MOI, geometry, aero table, candidate motors, airbrake and mission for
 both configurations (Steps 101/106 wait on the same input). Last known-good full run: 774/774.
 

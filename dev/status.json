@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-10-29",
+  "updated": "2026-10-30",
   "active_modules": [
     "architect",
     "developer",
@@ -563,10 +563,10 @@
         "QA Step 109 (0ca8ea1): PASS, без дефектов. Разрыв #1 (байт-в-байт вывода) закрыт буквально через detached pre-Step-109 worktree — output/trajectory.csv MD5-идентичен. Разрыв #2 (3 устаревших пина) — подтверждено, что все переписаны с сохранением исходного инварианта, не просто подогнаны под прохождение. Физика (momentum exchange 1.7e-18, saturation plateau 6 значащих цифр, rk4-декаплинг бит-в-бит) пересчитана с нуля. Roll-блок подтверждён структурно гейтированным (недостижим при roll.model==\"none\"), не случайным нулём. Чистый прогон с нуля: 780 passed (693.73s). dev/docs/qa-report-2.17-step109.md. LaTeX (other-dynamics.tex's новая SSroll + правки assumptions/appendix/backlog/models.tex) закоммичена отдельно (2729ce9) вместе с интеграцией текста Step 30 — QA Step 109 этот LaTeX-бандл не рецензировала (её вердикт явно ограничен кодом).",
         "C_m LaTeX sync (da11e44, D-126 follow-up, явный запрос пользователя 2026-10-28): закрыт разрыв §117.11 тикета Step 117 — добавлены 2 чисто аддитивных уточняющих предложения (rocket-2d.tex's eq:aero_magnitudes, analysis.tex's \"positive C_m pitches nose down\"), указывающих на внутреннее имя code.C_m_code и свободную границу I/O (cm_convention). Ноль правок уравнений/чисел, ноль пин-риска, developer подтвердил чистый diff (+8/-3 строки, только обёртка предложений).",
         "Step 136 (e16e1df, D-163, TBD-0 тикета task-136-137-point-mass-flight-path-angle.md): новая подсекция analysis.tex \\theta_v (угол наклона траектории) + point-mass gravity turn, вставлена перед Dynamic stability; вывод \\dot\\theta_v=-(g/V)cos(\\theta_v) в конвенции статьи (знак без переворота) и точное тождество \\alpha=\\theta_r-\\theta_v в безветрие. Заменена (не добавлена рядом, D-3) старая голословная фраза \"flight-path angle changes slowly\" точным уравнением \\ddot\\alpha+M_q\\dot\\alpha-M_\\alpha\\alpha=-(\\ddot\\theta_v+M_q\\dot\\theta_v) и критерием \\Lambda=(g/V)/\\omega_n\\ll1. appendix.tex — 3 новые строки в sec:notation + \\Lambda + уточнение про три подзначения \\theta; assumptions.tex — пункт \"analysis-only, никогда не интегрируется\". Независимо перепроверено оркестратором: diff подтверждён ровно в заявленных 3 файлах (+93/-4), все 9 новых \\label разрешаются, все 5 старых \\autoref-целей подтверждены существующими, ре-грep \\theta_v/\\gamma не нашёл коллизий. Ноль кода/тестов.",
-        "Step 137 (c5524b8, D-163, TBD-1/Option B тикета task-136-137-point-mass-flight-path-angle.md): apps/_shared/flight_stats.py::point_mass_flightpath(result, p, t_grid) — диагностика поверх уже посчитанного Result (ноль правок apps/sim/engine/). theta_v(t)=atan2(-vz,vx), точная фактическая скорость (переоценка dynamics.derivatives, идиома max_accel), point-mass предсказание -(g/V)cos(theta_v), Lambda=(g/V)/omega_n (omega_n из combined_stability_slope_series, NaN где M_alpha не имеет действительного корня — DEMO_SCENARIO's constant-aero — настоящая находка, не баг), и точное тождество theta-alpha-theta_v (<1e-9 рад). 7 новых тестов (tdd), включая 2 настоящих оракула: вертикальный подъём/спуск → ровно ±90°, и drag/aero/thrust-free баллистический полёт, где point-mass модель точна (<1% совпадение, не подогнанный толеранс). Независимо перепроверено оркестратором: git diff --stat подтвердил 0 правок apps/sim/engine/; новые тесты 7/7; test_layering.py G1-G3+test_integrate.py+test_analytic.py 41/41; полный прогон пересчитан заново вручную в 9 чанках по всем 52 тестовым файлам — 774/774, 0 упавших (767 бейзлайн + 7 новых, точное совпадение с самоотчётом разработчика). Step 138 (standalone estimator, Option A) остаётся GATED, не начат."
+        "Step 137 (c5524b8, D-163, TBD-1/Option B тикета task-136-137-point-mass-flight-path-angle.md): apps/_shared/flight_stats.py::point_mass_flightpath(result, p, t_grid) — диагностика поверх уже посчитанного Result (ноль правок apps/sim/engine/). theta_v(t)=atan2(-vz,vx), точная фактическая скорость (переоценка dynamics.derivatives, идиома max_accel), point-mass предсказание -(g/V)cos(theta_v), Lambda=(g/V)/omega_n (omega_n из combined_stability_slope_series, NaN где M_alpha не имеет действительного корня — DEMO_SCENARIO's constant-aero — настоящая находка, не баг), и точное тождество theta-alpha-theta_v (<1e-9 рад). 7 новых тестов (tdd), включая 2 настоящих оракула: вертикальный подъём/спуск → ровно ±90°, и drag/aero/thrust-free баллистический полёт, где point-mass модель точна (<1% совпадение, не подогнанный толеранс). Независимо перепроверено оркестратором: git diff --stat подтвердил 0 правок apps/sim/engine/; новые тесты 7/7; test_layering.py G1-G3+test_integrate.py+test_analytic.py 41/41; полный прогон пересчитан заново вручную в 9 чанках по всем 52 тестовым файлам — 774/774, 0 упавших (767 бейзлайн + 7 новых, точное совпадение с самоотчётом разработчика). Step 143 (standalone estimator, Option A, перенумерован с зарезервированного 138 — тот забрала Phase 2.20, D-169) остаётся GATED, не начат."
       ],
       "tests": "774 passed / 0 failed (полный прогон 2026-10-28 после Step 137, пересчитан вручную в 9 чанках; 767 бейзлайн после Phase 2.19 мержа + 7 Step 137; C_m LaTeX sync/Step 136 не трогают код/тесты). Историческая цифра 800/765/35 относится к до-мержевому feature/sim-paper-alignment, см. steps_done выше.",
-      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). Step 136 (paper note) закрыт (e16e1df). Step 137 (flight_stats.py диагностика theta_v/Lambda) закрыт (c5524b8), 774/774. Тикет task-136-137-point-mass-flight-path-angle.md полностью закрыт, кроме GATED Step 138 (standalone estimator, Option A — не начат, требует отдельного запроса пользователя). C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3.",
+      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). Step 136 (paper note) закрыт (e16e1df). Step 137 (flight_stats.py диагностика theta_v/Lambda) закрыт (c5524b8), 774/774. Тикет task-136-137-point-mass-flight-path-angle.md полностью закрыт, кроме GATED Step 143 (standalone estimator, Option A — перенумерован с 138, см. D-169; не начат, требует отдельного запроса пользователя). C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3.",
       "open_items": [
         "QA-9 (test quality, minor) частично закрыт Step 115 (таблица eta Jorgensen теперь запинена против первоисточника); остаётся: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
       ],
@@ -630,12 +630,12 @@
     {
       "id": "2.20",
       "name": "Phase 2.20 — пивот: projects/ workspace (examples/+data/ -> projects/), output/ удаляется, корневые run_*.py удаляются без замены",
-      "status": "in_progress",
+      "status": "done",
       "design_doc": "dev/docs/architecture-36-projects-pivot.md",
-      "steps": "138-142, план и F1-развилка одобрены пользователем D-167 (2026-10-30)",
-      "branch": "feature/projects-pivot (от develop, как 2.16/2.18/2.19 — полноценная Phase, не ad-hoc тикет)",
-      "next": "Step 138 (data/ -> projects/data/) в работе у developer.",
-      "pending_user": []
+      "steps": "138-142 + doc-sync, все закрыты",
+      "merged": "2026-10-30, merge commit в develop (feature/projects-pivot --no-ff, 2dbd14c, 32 файла), пользователь одобрил merge явным «да». Ветка feature/projects-pivot не удалена.",
+      "result": "Step 140 (examples/data/ -> projects/examples/data/): 774/774 независимо перепроверено оркестратором. Step 141 (удаление run_*.py): 773/773 (точная ожидаемая разница — 1 тест корректно удалён). Steps 138/139/142 — целевые прогоны, зелёные. Финальная проверка на develop после мержа: 18/18 (test_layering.py+test_schema.py), output/+run.py+examples/ подтверждённо отсутствуют, projects/{data,examples}/ на месте.",
+      "archived": true
     }
   ],
   "decisions": [
@@ -1856,6 +1856,23 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.20"
+    },
+    {
+      "id": "D-168",
+      "date": "2026-10-30",
+      "question": "Merge-гейт: Phase 2.20 (Steps 138-142 + doc-sync) закрыта на feature/projects-pivot (3 коммита, 32 файла), независимо перепроверена на каждом тикетном гейте (774/774 Step 140, 773/773 Step 141). Мержить сейчас?",
+      "choice": "Да, мержить сейчас. Выполнено: checkout develop, merge --no-ff feature/projects-pivot (2dbd14c, чисто, без конфликтов), push. Финальная проверка на develop после мержа: output/+run.py+examples/ подтверждённо отсутствуют, projects/{data,examples}/ на месте, 18/18 (test_layering.py+test_schema.py). Ветка feature/projects-pivot не удалена.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.20"
+    },
+    {
+      "id": "D-169",
+      "date": "2026-10-30",
+      "question": "Self-caught numbering collision: Step 138 was already reserved (status.json/journal.md/architecture.md/roadmap.md) for the GATED standalone point-mass estimator (Option A, task-136-137 ticket's TBD-2, never implemented/never assigned a real commit) before the orchestrator had architect assign Steps 138-142 to the new Phase 2.20 pivot without checking the reservation first. Phase 2.20's 138-142 are now fully implemented, committed, merged (2dbd14c) -- renumbering those is not realistic (commit messages, docstrings, test comments, tracker/journal/ticket text all already bake in 138-142 across dozens of files). TBD-2 was never consumed by any real work (zero commits, zero code) and has no cost to renumber.",
+      "choice": "TBD-2 (standalone point-mass estimator, Option A) renumbered from the reserved-but-never-used 138 to the next free number, 143. Fixed every live mention: status.json (steps_done text + stage 2.17's next field), journal.md (append-only correction note, not a rewrite), dev/docs/architecture.md (SS31b), dev/docs/roadmap.md (Phase 2.17 heading + Steps 136-137 prose). dev/docs/task-136-137-point-mass-flight-path-angle.md needed no fix -- it only ever used the TBD-2 placeholder, never a concrete step number. Orchestrator-caught, no user approval needed (pure bookkeeping, zero work affected either way) -- logged for the numbering-discipline record per CLAUDE.md's \"Нумерация сквозная\".",
+      "author": "orchestrator",
+      "stage": "2.17"
     }
   ],
   "deferred_decisions": [

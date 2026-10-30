@@ -2269,7 +2269,7 @@ not yet reflected in `dev/docs/latex/`.
 
 ---
 
-## Phase 2.17 — bring the simulator in line with the approved report ("paper-alignment") — IN PROGRESS (Steps 97-119, 136-137 done; Step 138 gated; Steps 101/106 blocked on user data)
+## Phase 2.17 — bring the simulator in line with the approved report ("paper-alignment") — IN PROGRESS (Steps 97-119, 136-137 done; Step 143 gated; Steps 101/106 blocked on user data)
 
 Design: `docs/architecture-35-paper-alignment.md` (§35, decision forks **D-109 … D-118**), plus one
 ticket per step (`docs/task-104-segmented-rk45.md`, `task-107-sampled-laws-registry.md`,
@@ -2364,8 +2364,9 @@ bit-for-bit.
 ### Steps 136-137 — point-mass flight-path-angle paper note + diagnostic — done (D-162)
 A LaTeX paper note plus a `flight_stats.py` diagnostic for the classical point-mass gravity-turn rate
 `dθ_v/dt = −g·cos(γ)/V` (flight-path angle, not the body-pitch/roll/azimuth angles already in use).
-Step 138 (a standalone estimator built on this note, Option A) is gated — not started, pending a
-separate user request.
+Step 143 (a standalone estimator built on this note, Option A; renumbered from the originally-reserved
+138 once Phase 2.20 claimed that range first, see D-169) is gated — not started, pending a separate
+user request.
 
 ### Steps 101, 106 — second vehicle configuration, maximum airbrake spec — not started
 **Blocked on the user supplying real vehicle data** for both configurations (mass/CG/MOI, geometry,
