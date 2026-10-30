@@ -30,29 +30,46 @@ pip install -r requirements.txt
 
 ## Быстрый старт
 
-```bash
-python run.py
+Пред-собранных входных скриптов в репозитории нет: `apps/` — библиотека/
+тулкит, которую вы либо запускаете как модуль
+(`python -m apps.<тип>.<имя>.<модуль>`), либо импортируете из своего
+скрипта. Минимальный пример — прогнать демо-сценарий (реальный мотор
+Cesaroni K570 на 54-мм корпусе) из короткого скрипта в своей `projects/`
+(тот же паттерн, что в `tests/test_worked_scenario_example.py`):
+
+```python
+from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.sim.schema import assemble
+from apps.sim.engine.integrate import run_sim
+from apps.sim.engine import report
+
+cfg = assemble(DEMO_SCENARIO)
+result = run_sim(cfg.params, cfg.s0)
+report.print_run_summary(result, cfg.params, cfg.s0)
 ```
 
-Прогоняет демо-сценарий (`apps/input/demo_scenario.py` — реальный мотор
-Cesaroni K570 на 54-мм корпусе), печатает сводку полёта и сохраняет
-график/CSV в `output/`, затем гоняет пару сравнительных sweep'ов (модели
-гравитации, ISA против реального зондирования) с оверлейным графиком.
+Печатает сводку полёта (апогея, время работы мотора и т.п.) в консоль.
 
-Остальные скрипты в корне — тонкие обёртки над приложениями из `apps/`
-(каждое само запускается и как `python -m apps.<тип>.<имя>.<модуль>`):
+Остальные утилиты из `apps/` запускаются так же — отдельными модулями, без
+готовых обёрток:
 
-- **`python run_motor_sweep.py`** — подбор мотора. Без флагов — старый
-  одиночный прогон сравнения моторов; с `--motors a,b,c [--target M]` —
-  sweep демо-сценария по списку моторов относительно целевой апогеи.
-- **`python run_airbrake.py`** — подбор площади аэротормоза (`C_dA`) под
-  целевую апогею.
-- **`python run_cfd_conditions.py`** — выбор условий (скорость/число Маха,
-  высота) для постановки CFD-расчёта по траектории демо-сценария.
-- **`python run_trade.py [--mode surface|compare]`** — компромисс
-  масса-аэродинамика: `surface` (по умолчанию) строит 2D поверхность
-  обмена массы на аэродинамику с изо-апогейными линиями; `compare` сравнивает
-  именованные сценарии друг с другом.
+- **`python -m apps.optimization.motor_selection.compare_motors`** —
+  сравнение набора моторов из `apps/optimization/motor_selection/motors.py`;
+  **`...scenario_sweep --motors a,b,c [--target M]`** — sweep демо-сценария
+  по списку RASP-моторов относительно целевой апогеи.
+- **`python -m apps.optimization.airbrake_sizing.solve_cda [--spec NAME]`**
+  — подбор площади аэротормоза (`C_dA`) под целевую апогею именованного
+  спека из `apps/optimization/airbrake_sizing/targets.py`.
+- **`python -m apps.analysis.cfd_conditions.select_conditions`** — выбор
+  условий (скорость/число Маха, высота) для постановки CFD-расчёта по
+  траектории демо-сценария.
+- **`python -m apps.analysis.weight_aero_tradeoff.trade_surface`** /
+  **`...compare_configs`** — компромисс масса-аэродинамика: поверхность
+  обмена массы на аэродинамику с изо-апогейными линиями / сравнение
+  именованных сценариев друг с другом.
+
+Каждая из этих команд пишет PNG/CSV в `output/` текущей рабочей директории
+(создаётся на лету при первом запуске, гитигнор).
 
 ## Построить свою ракету
 
@@ -97,11 +114,11 @@ apps/                      — корень продукта
   optimization/             — подбор мотора, подбор аэротормоза
   control/                  — законы управления (flight_software)
   _shared/                  — общие утилиты (artifacts, flight_stats)
-examples/data/              — бандловые read-only фикстуры (демо-моторы, аэро, зондирования)
-data/                       — (гитигнор) ваши личные данные, создаётся пустой
+projects/                  — ваша рабочая область: входные скрипты, свои ракеты
+  examples/data/            — бандловые read-only фикстуры (демо-моторы, аэро, зондирования)
+  data/                     — (гитигнор) ваши личные данные, создаётся пустой
 tests/                      — pytest-сьют
 dev/                        — трекер проекта и документация команды агентов (не нужен конечному пользователю)
-output/                     — (гитигнор) PNG/CSV результатов запуска скриптов
 ```
 
 ## Деплой и сеть
