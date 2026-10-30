@@ -574,12 +574,13 @@
         {
           "step": 32,
           "title": "3D интеграционный harness (+ минимальный 3D-вывод)",
-          "status": "in_progress — scoped by architect, dev/docs/architecture-37-step32-3d-integration-harness.md; D-170 (D-32.1=C проекционный шов, D-32.2=S2 rk4+RK45, D-32.3=O2 harness+аддитивный вывод) одобрено пользователем. Sub-steps 32.0-32.5: 32.0 — fix to_euler arcsin-fold bug (forces3d._s2d pitch recovery, atan2, SS37.0.4/D-32.9) ПЕРВЫМ, бесплатно только до появления пинов на 3D-пути."
+          "commit": "fa8d460 (реализация), f4f915a (QA PASS)",
+          "status": "done — тикет dev/docs/architecture-37-step32-3d-integration-harness.md, D-170 (D-32.1=C проекционный шов, D-32.2=S2 rk4+RK45, D-32.3=O2 harness+аддитивный вывод). Sub-steps 32.0-32.5 все закрыты: 32.0 — fix to_euler arcsin-fold бага (forces3d._s2d, atan2, SS37.0.4/D-32.9) первым; 32.1 — проекционный шов + event factory в integrate.py (аддитивно); 32.2 — run_sim_3d RK45-путь + 6 eager ValueError guard'ов; 32.3 — run_sim_3d rk4-путь + первый np.array_equal пин на 3D-пути; 32.4 — заморозка attitude на рельсе/парашюте в 3D; 32.5 — минимальный 3D-вывод (plotting.py/report.py). 801/801 (было 773), 2D-пины (tests/test_integrate.py, 27 тестов/7 np.array_equal) не сдвинулись — независимо перепроверено оркестратором (13 чанков, 801/801) и QA (dev/docs/qa-report-phase3-step32.md, PASS, один некритичный docstring-дефект D-QA-32-1 исправлен напрямую)."
         }
       ],
-      "next": "Step 30 закрыт. Step 31 (3D-аэродинамика) ждёт реальных данных пользователя по геометрии/аэротаблице (ведёт туда же, что Step 101/106). Step 32 одобрен и в работе (D-170) — тикет architecture-37, developer начинает с sub-step 32.0 (bugfix), затем 32.1-32.5 по гейтам тикета.",
+      "next": "Step 30 закрыт. Step 32 закрыт (D-170, QA PASS). Step 31 (3D-аэродинамика) остаётся заблокирован реальными данными пользователя по геометрии/аэротаблице (ведёт туда же, что Step 101/106) — единственный оставшийся незакрытый пункт Phase 3.",
       "pending_user": [],
-      "result": "800/800 тестов на момент Step 30 (полный прогон 2026-10-25)."
+      "result": "801/801 тестов на момент Step 32 (полный прогон, независимо перепроверено оркестратором и QA)."
     },
     {
       "id": "2.19",
