@@ -220,14 +220,23 @@ def test_run_sim_3d_matches_run_sim_near_the_old_singularity(theta0_deg):
 def test_run_sim_3d_matches_run_sim_through_a_descent_that_crosses_vertical():
     """SS37.9 risk 2's second required probe: a run whose attitude
     genuinely rotates (nonzero omega0) through `theta = +-90 deg` one or
-    more times DURING the flight, not just at t=0 -- exactly the
-    situation SS37.0.4 found broken under the old `arcsin` recovery.
+    more times DURING the flight, not just at t=0 -- the same attitude
+    regime SS37.0.4 found broken under the old `arcsin` recovery.
     `omega0 = 0.1 rad/s` over this scenario's ~66 s flight carries theta
-    through multiple multiples of 90 deg (ascent AND descent), so this
-    would have failed hard before sub-step 32.0's fix. Compared via
-    sin/cos of theta (SS37.6.2: 2D's theta is unwrapped, `atan2`'s is
-    wrapped at +-180 deg, so raw-theta equality is not the right
-    assertion once theta leaves one period)."""
+    through multiple multiples of 90 deg (ascent AND descent). Note
+    (D-QA-32-1, filed by QA on this scenario specifically): this
+    particular `_P` fixture has `Aero.S = 0.0`, so aero force/moment are
+    identically zero regardless of the recovered theta -- the old
+    `arcsin` fold has no causal path into THIS test's dynamics, and this
+    test alone would NOT have failed pre-fix. SS37.0.4's actual bug is
+    caught directly by `tests/test_forces3d.py` (which exercises `_s2d`
+    in isolation at folding angles); this test's job is the comparison
+    *methodology* at a multi-period attitude excursion -- sin/cos of
+    theta (SS37.6.2: 2D's theta is unwrapped, `atan2`'s is wrapped at
+    +-180 deg, so raw-theta equality is not the right assertion once
+    theta leaves one period), proving that methodology holds even when
+    theta genuinely leaves the old singular range during a live flight,
+    not just at t=0 like the parametrized probe above."""
     theta0 = math.radians(85.0)
     omega0 = 0.1
     result_2d, result_3d = _assert_run_sim_3d_matches_run_sim(_P, theta0, omega0)
