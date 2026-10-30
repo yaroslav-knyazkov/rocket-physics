@@ -42,10 +42,12 @@ before the first `git mv`, not aspirational.
   G5 -- fixture-root consistency guard (Step 129). `tests/datadir.py`
        (test-side) and `sim/datafiles.py`'s `_BUNDLED` (library-side) are
        two independent constants naming the same bundled-fixture
-       directory (`examples/data/`, since Step 129's `data/` ->
-       `examples/data/` split). Nothing enforces they stay in sync except
-       this guard -- it is the regression test for exactly the kind of
-       drift a future `git mv` of one but not the other would cause.
+       directory (`projects/examples/data/`, since Step 129's `data/` ->
+       `examples/data/` split and Step 140's (Phase 2.20) further move to
+       `projects/examples/data/`). Nothing enforces they stay in sync
+       except this guard -- it is the regression test for exactly the
+       kind of drift a future `git mv` of one but not the other would
+       cause.
   G6 -- no-leftovers guard (Step 128, first instance). As each later step
        deletes a tree this phase retires, this guard grows one assertion
        per deletion -- "the old path is actually gone", not just "the new
@@ -70,8 +72,11 @@ both already anticipated by this docstring and by the architecture doc's
 own G1 spec, not new decisions made here.
 
 Scope note (G3): the walk below covers the project's own source tree --
-`sim/`, `apps/`, `configs/`, `tests/`, `examples/`, and the top-level
-`run_*.py` entry scripts -- not `.claude/`.
+`sim/`, `apps/`, `configs/`, `tests/`, and the top-level `run_*.py` entry
+scripts -- not `.claude/`. (`examples/` was in this scan list through
+Step 139; Step 140 (Phase 2.20) retired the entry entirely once
+`examples/` became pure data under `projects/examples/data/` with no
+`.py` files left to scan -- see `RETIRED_PATHS` above.)
 `.claude/` is Claude Code harness tooling (CLAUDE.md's "Профиль проекта"
 table never lists it as project code), and two of its scripts
 (`.claude/scripts/wt.py`, `.claude/hooks/telegram_notify.py`) legitimately
@@ -119,9 +124,11 @@ BANNED_NETWORK_IMPORT_ROOTS = frozenset({"urllib", "http", "socket", "requests"}
 
 # Project source roots scanned for G3 -- see the "Scope note" in the
 # module docstring for why `.claude/` is not in this list.
-NETWORK_SCAN_ROOTS = ("sim", "apps", "configs", "tests", "examples")
-# Top-level entry scripts, scanned individually (they are files, not dirs).
-NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py", "run_motor_sweep.py", "run_trade.py")
+NETWORK_SCAN_ROOTS = ("sim", "apps", "configs", "tests")
+# Top-level entry scripts, scanned individually (they are files, not
+# dirs). Step 141 (Phase 2.20) deleted all five -- `apps/` stays a
+# library/toolkit, the user writes their own entry scripts in `projects/`.
+NETWORK_SCAN_ROOT_FILES = ()
 
 # --- G6: no-leftovers guard --------------------------------------------
 
@@ -130,8 +137,15 @@ NETWORK_SCAN_ROOT_FILES = ("run.py", "run_airbrake.py", "run_cfd_conditions.py",
 # the root `docs/` directory (LaTeX build junk) -- NOT `dev/docs/`. Step
 # 133: `sim/`, actually deleted by its `git mv` to `apps/sim/engine/`.
 # Step 134: `configs/`, actually deleted once its `schema.py` moved to
-# `apps/sim/schema.py` and its `__init__.py` shim was removed.
-RETIRED_PATHS = ("docs", "apps/common", "controllers", "tools", "sim", "configs")
+# `apps/sim/schema.py` and its `__init__.py` shim was removed. Step 138:
+# `data`, moved to `projects/data/`. Step 140: `examples`, moved to
+# `projects/examples/` (its one `.py` file retired at Step 139, its
+# `data/` subtree relocated at Step 140). Step 141: the 5 root
+# `run_*.py` entry scripts, deleted outright, no replacement.
+RETIRED_PATHS = (
+    "docs", "apps/common", "controllers", "tools", "sim", "configs", "data", "examples",
+    "run.py", "run_airbrake.py", "run_cfd_conditions.py", "run_motor_sweep.py", "run_trade.py",
+)
 
 
 def _iter_py_files(root_dir: Path):
@@ -309,7 +323,7 @@ def test_g5_bundled_data_anchor_matches_sim_datafiles():
     """`tests.datadir.MOTORS_DIR` (test-side) and `sim.datafiles.resolve
     ("placeholder.csv", "motors")` (library-side `_BUNDLED`) must agree on
     where the bundled fixture tree lives, and that tree must sit under
-    `<repo>/examples/data` -- the regression test keeping the two
+    `<repo>/projects/examples/data` -- the regression test keeping the two
     independent "bundled tree" constants this module's docstring
     describes from drifting apart after a future `git mv`."""
     from apps.sim.engine import datafiles
@@ -318,7 +332,7 @@ def test_g5_bundled_data_anchor_matches_sim_datafiles():
     resolved = datafiles.resolve("placeholder.csv", "motors")
 
     assert resolved == os.path.join(MOTORS_DIR, "placeholder.csv")
-    assert Path(resolved).resolve().is_relative_to((REPO_ROOT / "examples" / "data").resolve())
+    assert Path(resolved).resolve().is_relative_to((REPO_ROOT / "projects" / "examples" / "data").resolve())
 
 
 # --- G6 ----------------------------------------------------------------

@@ -29,7 +29,7 @@ Three rules, in priority order:
    time, never cached), not this repo's own location. An external user's
    cwd-relative path.
 3. `given` is a bare name (no separator at all) -> this library's own
-   bundled `examples/data/<kind>/<given>`, preserved byte-for-byte for every name
+   bundled `projects/examples/data/<kind>/<given>`, preserved byte-for-byte for every name
    already registered/tested in this repo -- today's only behaviour,
    now one of three.
 
@@ -47,11 +47,15 @@ loudly here instead of resolving bare data-file names to a silently
 missing directory until some unrelated loader tripped over a
 `FileNotFoundError` far from the actual cause.
 
-Step 129 is that move: `_BUNDLED` now points at `<repo>/examples/data`
+Step 129 is that move: `_BUNDLED` pointed at `<repo>/examples/data`
 (bundled example motors/aero/soundings fixtures, read by the test suite
 and this repo's own example scenarios), not `<repo>/data` (gitignored,
-the user's own personal data -- see `data/README.md`). `tests/datadir.py`
-holds the test-side mirror of this same `examples/data` anchor.
+the user's own personal data). Step 138/140 (Phase 2.20) moved both one
+level further, under a new top-level `projects/` workspace: `_BUNDLED`
+now points at `<repo>/projects/examples/data`, and the user's own
+personal data lives at `<repo>/projects/data` -- see
+`projects/data/README.md`. `tests/datadir.py` holds the test-side
+mirror of this same `projects/examples/data` anchor.
 """
 
 import os
@@ -66,13 +70,13 @@ class BundledDataMissingError(RuntimeError):
     `FileNotFoundError` far from the actual cause."""
 
 
-_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "examples", "data")
+_BUNDLED = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "projects", "examples", "data")
 
 if not os.path.isdir(_BUNDLED):
     raise BundledDataMissingError(
         f"apps/sim/engine/datafiles.py expects its bundled data directory at {_BUNDLED!r} "
         "(bare-name motor/aero/soundings lookups resolve here, rule 3 of this "
-        "module's docstring) -- it does not exist. If `data/` just moved, "
+        "module's docstring) -- it does not exist. If `projects/examples/data/` just moved, "
         "update `_BUNDLED` in apps/sim/engine/datafiles.py to match its new location."
     )
 

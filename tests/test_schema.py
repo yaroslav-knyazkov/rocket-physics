@@ -198,22 +198,12 @@ def test_import_apps_input_demo_scenario_first_has_no_circular_import():
 # one still sitting in the file.
 # ----------------------------------------------------------------------
 
-_RUN_PY = (_PROJECT_ROOT / "run.py").read_text()
 _SELECT_CONDITIONS_PY = (
     _PROJECT_ROOT / "apps" / "analysis" / "cfd_conditions" / "select_conditions.py"
 ).read_text()
 _COMPARE_MOTORS_PY = (
     _PROJECT_ROOT / "apps" / "optimization" / "motor_selection" / "compare_motors.py"
 ).read_text()
-
-
-def test_run_py_sources_its_scenario_from_configs_get_demo():
-    # Step 123 (Phase 2.18, D-139/D-140): `run.py` repointed from the
-    # `configs.get("demo")` registry lookup to `DEMO_SCENARIO` directly.
-    assert "DEMO_SCENARIO" in _RUN_PY
-    # The former in-place literal is gone, not just duplicated.
-    assert "Weight(" not in _RUN_PY
-    assert "math.pi / 2" not in _RUN_PY
 
 
 def test_select_conditions_py_sources_its_scenario_from_configs_get_demo():

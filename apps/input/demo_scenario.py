@@ -49,11 +49,16 @@ of going through the `configs.get("demo")` registry lookup.
 
 Importable as `from apps.input.demo_scenario import DEMO_SCENARIO` (and
 friends -- `rocket`, `motor`, `site`, `weather` are also exported, for
-the callers that want the individual pieces). `examples/worked_scenario.py`
-is the thin, directly-runnable copy of this file's `if __name__ ==
-"__main__":` block -- run `python -m examples.worked_scenario` to
-actually fly this scenario and print a summary; this module itself has
-no `__main__` block.
+the callers that want the individual pieces). There is no pre-built
+runnable copy of this scenario any more (Phase 2.20, Step 139 retired
+`examples/worked_scenario.py` along with every other pre-built entry
+script in the repo -- D-139/D-140's same rationale). This module itself
+has no `__main__` block; to actually fly the demo scenario, write a
+short script of your own under `projects/` -- `from apps.input.
+demo_scenario import DEMO_SCENARIO`, `from apps.sim.schema import
+assemble`, `from apps.sim.engine.integrate import run_sim`, then
+`assemble(DEMO_SCENARIO)` -> `run_sim` -> `apps.sim.engine.report.
+print_run_summary`.
 """
 
 from __future__ import annotations

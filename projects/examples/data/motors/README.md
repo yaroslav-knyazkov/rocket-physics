@@ -1,15 +1,15 @@
-# examples/data/motors/
+# projects/examples/data/motors/
 
 Thrust-curve files, selected through `thrust.motor_curve` (a bare filename
 resolves here via `apps/sim/engine/datafiles.py` rule 3, optionally
 `"<file>#<designation>"`). Loaded by `apps/sim/engine/motor_file.py`. Nothing here is a
 throwaway example: every file is read by code or tests. This is the bundled
 fixture corpus (Phase 2.19, Step 129) -- your own personal motor data goes
-in the gitignored root `data/` instead, see `data/README.md`.
+in the gitignored root `projects/data/` instead, see `projects/data/README.md`.
 
 | file | what it is | who reads it |
 |---|---|---|
-| `Cesaroni_2060K570-17A.eng` | Real vendor RASP data (Cesaroni K570). | `apps/input/demo_scenario.py` (`DEMO_SCENARIO`, runnable via `python -m examples.worked_scenario`), `tests/test_motor_file.py`, `tests/test_motor_pieces.py`, `apps/optimization/motor_selection/scenario_sweep.py` (CLI example in its docstring). Only file exercising the RASP reader, header-derived masses and the `"endpoints"` mass model. |
+| `Cesaroni_2060K570-17A.eng` | Real vendor RASP data (Cesaroni K570). | `apps/input/demo_scenario.py` (`DEMO_SCENARIO`), `tests/test_motor_file.py`, `tests/test_motor_pieces.py`, `apps/optimization/motor_selection/scenario_sweep.py` (CLI example in its docstring). Only file exercising the RASP reader, header-derived masses and the `"endpoints"` mass model. |
 | `placeholder.csv` | Default demo motor (162.75 N*s). | `apps/_shared/study_vehicle.py`, `apps/optimization/motor_selection/compare_motors.py` (comparison set + `_demo_baseline()`), many `tests/test_*.py` (pins the `_demo_baseline()` equality). |
 | `synthetic_small.csv` | Small (E-class) member of the comparison set. | `apps/optimization/motor_selection/{motors,compare_motors}.py`, `tests/test_motor_selection.py`, `tests/test_thrust_curve.py` (impulse pin). |
 | `synthetic_medium_punchy.csv` | H motor, 169.2 N*s, short high-thrust burn. | Same as above. |
