@@ -6,8 +6,8 @@ restructure.md SS4.4/SS5).
 bundled motor/aero/soundings fixtures live (bare-name lookups, rule 3 of
 that module's docstring); this module is the equivalent test-side
 constant, so that no test file hand-rolls its own
-`os.path.join(os.path.dirname(__file__), "..", "data", ...)` relative to
-this repo's test directory. `tests/test_layering.py::
+`os.path.join(os.path.dirname(__file__), "..", "projects", "examples",
+"data", ...)` relative to this repo's test directory. `tests/test_layering.py::
 test_g5_bundled_data_anchor_matches_sim_datafiles` keeps the two from
 drifting apart.
 """
@@ -18,7 +18,7 @@ import os
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 
-DATA = os.path.join(_REPO_ROOT, "examples", "data")
+DATA = os.path.join(_REPO_ROOT, "projects", "examples", "data")
 MOTORS_DIR = os.path.join(DATA, "motors")
 AERO_DIR = os.path.join(DATA, "aero")
 SOUNDINGS_DIR = os.path.join(DATA, "soundings")
