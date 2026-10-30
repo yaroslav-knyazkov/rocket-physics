@@ -1840,6 +1840,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "3"
+    },
+    {
+      "id": "D-171",
+      "date": "2026-10-30",
+      "question": "User asked to port D:\\Projects - Ongoing\\fx27\\simulation (a sibling project, built on the third-party rocketpy library's PointMassRocket+Flight(simulation_mode='3 DOF')) onto rocket-physics's own apps/ library, same real cspace/euroc rocket+motor+site data. architect scoped it (dev/docs/architecture-38-fx27-port.md): no apps/ change needed, no Step/Phase number (projects/fx27/ only). Main fork D-A: how to realize fx27's point-mass physics, since rocket-physics's engine always carries an attitude state. Options were A (frozen-attitude rigid body, zero new code) / B (new true point-mass solver in the pinned engine files, ~2/3 the size of Step 32, does NOT reuse gated Step 143 which is a different, cruder closed-form estimator) / C (A + the already-shipped Step-137 point_mass_flightpath diagnostic as a measured error instrument, validated against 4 numbers fx27 itself hardcoded as solved mass/C_D outputs, fails loudly >5% rather than being tuned to fit). User asked to first check what RocketPy ACTUALLY implements (hypothesis: the classic gravity-turn flight-path-angle ODE dgamma/dt=-g*cos(gamma)/V) before choosing, and to implement that in the engine if missing.",
+      "choice": "Checked RocketPy's installed source directly (fx27/simulation/.venv/Lib/site-packages/rocketpy/simulation/flight.py, function u_dot_generalized_3dof lines 2251-2469, the exact path PointMassRocket+'3 DOF' runs). The hypothesis was wrong: no flight-path-angle state or dgamma/dt equation exists anywhere in rocketpy. What it actually does: attitude quaternion driven only by a 'weathercocking' term gated on rocket.weathercock_coeff, which defaults to 0.0 (point_mass_rocket.py:82) and is never set by any of fx27's ~30 rocket configs -- so e_dot=[0,0,0,0] and w_dot=[0,0,0] ALWAYS, attitude 100% frozen at the launch angle for every fx27 flight. Aero force also has R1=R2=0 hardcoded (line 2315, zero normal/lateral force by construction, not by config) -- only axial drag along the frozen body axis remains, with fx27's constant C_D=0.5. This is structurally the SAME approximation as Option A/C -- rocket-physics already has this model, nothing RocketPy actually uses is missing from it. Reported back to the user with exact file/line citations; user chose to proceed with Option C given this finding. Also approved: D-B euroc table = both fx27-columns and scenario_sweep-columns as two scripts; repo hygiene = commit the 28 vendor motor CSVs + restore projects/data/README.md (done directly, git checkout --, the file was accidentally emptied out while the user was staging projects/fx27/ data themselves); port location = projects/fx27/ in this repo (not a separate package-consumer repo). D-F (promote comparison plots / general apogee-target solver to apps/) backlogged as B40/B41 per architect's recommendation (one consumer isn't enough to justify an apps/ change yet).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "none (projects/-only, no Step/Phase per architecture-38 SS38.8)"
     }
   ],
   "deferred_decisions": [
@@ -2108,6 +2117,18 @@
       "title": "tests/test_configs.py: 2 теста носят устаревшие имена после Step 125 (тело корректно, имя — нет)",
       "status": "open",
       "note": "Найдено финальным независимым QA-проходом Step 125 (dev/docs/qa-report-2.18-step125.md). Косметика, не функциональный баг — оба теста реально проверяют адаптированное поведение (fresh-interpreter import examples.worked_scenario; проверка атрибута нового configs-шима), но имена методов остались от старой registry-эры. Не блокирует мерж."
+    },
+    {
+      "id": "B40",
+      "title": "Promote the fx27-port's two matplotlib comparison plots (displacement z(x)/theta(t)/z(t)/x(t), kinematics |v|/v_body/|a|/a_body, overlaid per rocket with family-colored variant linestyles) into apps/ as a reusable multi-rocket comparison plotting utility",
+      "status": "open",
+      "note": "D-171/architecture-38 §SS38.5.6/D-F — one consumer (projects/fx27/) isn't enough to justify an apps/ change yet. Revisit if a second consumer appears."
+    },
+    {
+      "id": "B41",
+      "title": "Promote a general apogee-target root finder (brentq against an arbitrary Scenario-derived parameter: dry mass, constant C_D, airbrake C_DA) into apps/optimization/, generalizing the per-parameter root-finders written ad hoc in projects/fx27/point/",
+      "status": "open",
+      "note": "D-171/architecture-38 §SS38.5.4/D-F — airbrake C_DA already has apps/optimization/airbrake_sizing/solve_cda.py; mass/C_D root-finders are new in projects/fx27/ only. One consumer isn't enough to justify an apps/ change yet."
     }
   ],
   "artifacts": {
