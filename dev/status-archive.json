@@ -1345,8 +1345,18 @@
     }
    ],
    "next": "ВСЕ 10 шагов (126-135) закрыты (commits 7d9833a, f188987, 884d858, 0e29d6b, 9f69743, 26bbeac, 8834c15, 8b5f794, 83f0b78, 1123835, +CLAUDE.md sync c740d92) — 767/768 (минус 1 намеренно удалённый тест configs-шима), 0 сдвинутых пинов на всей фазе. git tag pre-engine-move стоит на коммите перед Step133 (f79dd6d), не удалять. ЕДИНСТВЕННОЕ, что остаётся — approval-гейт: показать пользователю `git log feature/apps-root-restructure ^develop --oneline` (12 коммитов) и 3 backlog-пункта (нет корневого README.md; нет dev/docs/index.md/log.md/tag.md; architecture.md/roadmap.md пропускают Phases 2.16-2.18) через AskUserQuestion, получить явное «да», затем merge --no-ff в develop (git-flow). НЕ мержить без ответа пользователя."
+  },
+  {
+   "id": "2.20",
+   "name": "Phase 2.20 — пивот: projects/ workspace (examples/+data/ -> projects/), output/ удаляется, корневые run_*.py удаляются без замены",
+   "status": "done",
+   "design_doc": "dev/docs/architecture-36-projects-pivot.md",
+   "steps": "138-142 + doc-sync, все закрыты",
+   "merged": "2026-10-30, merge commit в develop (feature/projects-pivot --no-ff, 2dbd14c, 32 файла), пользователь одобрил merge явным «да». Ветка feature/projects-pivot не удалена.",
+   "result": "Step 140 (examples/data/ -> projects/examples/data/): 774/774 независимо перепроверено оркестратором. Step 141 (удаление run_*.py): 773/773 (точная ожидаемая разница — 1 тест корректно удалён). Steps 138/139/142 — целевые прогоны, зелёные. Финальная проверка на develop после мержа: 18/18 (test_layering.py+test_schema.py), output/+run.py+examples/ подтверждённо отсутствуют, projects/{data,examples}/ на месте.",
+   "archived": true
   }
  ],
  "decisions": [],
- "generated": "2026-10-28"
+ "generated": "2026-10-30"
 }

@@ -631,10 +631,6 @@
       "id": "2.20",
       "name": "Phase 2.20 — пивот: projects/ workspace (examples/+data/ -> projects/), output/ удаляется, корневые run_*.py удаляются без замены",
       "status": "done",
-      "design_doc": "dev/docs/architecture-36-projects-pivot.md",
-      "steps": "138-142 + doc-sync, все закрыты",
-      "merged": "2026-10-30, merge commit в develop (feature/projects-pivot --no-ff, 2dbd14c, 32 файла), пользователь одобрил merge явным «да». Ветка feature/projects-pivot не удалена.",
-      "result": "Step 140 (examples/data/ -> projects/examples/data/): 774/774 независимо перепроверено оркестратором. Step 141 (удаление run_*.py): 773/773 (точная ожидаемая разница — 1 тест корректно удалён). Steps 138/139/142 — целевые прогоны, зелёные. Финальная проверка на develop после мержа: 18/18 (test_layering.py+test_schema.py), output/+run.py+examples/ подтверждённо отсутствуют, projects/{data,examples}/ на месте.",
       "archived": true
     }
   ],
@@ -2176,8 +2172,8 @@
   "archive": {
     "file": "dev/status-archive.json",
     "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
-    "generated": "2026-10-28",
-    "stages_archived": 3,
+    "generated": "2026-10-30",
+    "stages_archived": 4,
     "decisions_archived": 0,
     "legacy_keys_archived": [
       "active_modules",
