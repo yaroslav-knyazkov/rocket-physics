@@ -573,11 +573,11 @@
         },
         {
           "step": 32,
-          "title": "3D вывод и регрессия",
-          "status": "planned — roadmap.md's текущее описание не покрывает интеграционный разрыв 2D/3D (sim/integrate.py — 759 строк, только 2D events/holds; 3D-сценарий пока нельзя провести целиком до земли), см. 3d-readiness-proposal.md §3.2"
+          "title": "3D интеграционный harness (+ минимальный 3D-вывод)",
+          "status": "in_progress — scoped by architect, dev/docs/architecture-37-step32-3d-integration-harness.md; D-170 (D-32.1=C проекционный шов, D-32.2=S2 rk4+RK45, D-32.3=O2 harness+аддитивный вывод) одобрено пользователем. Sub-steps 32.0-32.5: 32.0 — fix to_euler arcsin-fold bug (forces3d._s2d pitch recovery, atan2, SS37.0.4/D-32.9) ПЕРВЫМ, бесплатно только до появления пинов на 3D-пути."
         }
       ],
-      "next": "Step 30 закрыт. Step 31 (3D-аэродинамика) ждёт реальных данных пользователя по геометрии/аэротаблице (ведёт туда же, что Step 101/106). Step 32 требует отдельной работы над sim/integrate.py (не покрыто текущим roadmap.md) прежде, чем 3D-сценарий можно будет провести end-to-end.",
+      "next": "Step 30 закрыт. Step 31 (3D-аэродинамика) ждёт реальных данных пользователя по геометрии/аэротаблице (ведёт туда же, что Step 101/106). Step 32 одобрен и в работе (D-170) — тикет architecture-37, developer начинает с sub-step 32.0 (bugfix), затем 32.1-32.5 по гейтам тикета.",
       "pending_user": [],
       "result": "800/800 тестов на момент Step 30 (полный прогон 2026-10-25)."
     },
@@ -1830,6 +1830,15 @@
       "choice": "TBD-2 (standalone point-mass estimator, Option A) renumbered from the reserved-but-never-used 138 to the next free number, 143. Fixed every live mention: status.json (steps_done text + stage 2.17's next field), journal.md (append-only correction note, not a rewrite), dev/docs/architecture.md (SS31b), dev/docs/roadmap.md (Phase 2.17 heading + Steps 136-137 prose). dev/docs/task-136-137-point-mass-flight-path-angle.md needed no fix -- it only ever used the TBD-2 placeholder, never a concrete step number. Orchestrator-caught, no user approval needed (pure bookkeeping, zero work affected either way) -- logged for the numbering-discipline record per CLAUDE.md's \"Нумерация сквозная\".",
       "author": "orchestrator",
       "stage": "2.17"
+    },
+    {
+      "id": "D-170",
+      "date": "2026-10-30",
+      "question": "Step 32 (Phase 3, 3D integration harness) scoped by architect (dev/docs/architecture-37-step32-3d-integration-harness.md). Three forks put to the user via AskUserQuestion: D-32.1 how integrate.py flies a 3D state without moving the 7 np.array_equal D-77 pins (A parallel run_sim_3d full duplication / B shared state-layout abstraction, rewrites integrate.py's interior, high pin risk / C projection seam + thin 3D drivers, reuses the 5 event predicates via forces3d._s2d verbatim, ~55 duplicated lines, near-zero pin risk); D-32.2 which solvers get a 3D driver (S1 rk4-only / S2 rk4+RK45 / S3 all three incl. rk45_seg, blocked on an undesigned 3D control law); D-32.3 how much 3D output ships with the harness (O1 harness only / O2 harness + minimal additive plotting.py/report.py output / O3 full report.py parity, rejected by architect as producing planar numbers under a 3D label since it needs Step 31's blocked aero data).",
+      "choice": "All three recommended options approved: D-32.1 = C (projection seam), D-32.2 = S2 (rk4 + RK45, run_sim_3d raises ValueError on sample_rate_hz>0 or rk45_seg), D-32.3 = O2 (harness + minimal additive output). Sub-steps 32.0-32.5 per the ticket; 32.0 (forces3d._s2d pitch-recovery arcsin-fold bugfix via atan2, SS37.0.4/D-32.9) goes first since it's free only before any pin exists on the 3D path.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "3"
     }
   ],
   "deferred_decisions": [
