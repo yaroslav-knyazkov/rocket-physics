@@ -626,6 +626,16 @@
       "status": "done",
       "merged": "2026-10-28, merge commit в develop (feature/apps-root-restructure --no-ff, 144 файла, 767/767 после мержа), пользователь одобрил merge явным «да». Ветка feature/apps-root-restructure не удалена (на случай, если понадобится) — удалить по желанию пользователя.",
       "archived": true
+    },
+    {
+      "id": "2.20",
+      "name": "Phase 2.20 — пивот: projects/ workspace (examples/+data/ -> projects/), output/ удаляется, корневые run_*.py удаляются без замены",
+      "status": "in_progress",
+      "design_doc": "dev/docs/architecture-36-projects-pivot.md",
+      "steps": "138-142, план и F1-развилка одобрены пользователем D-167 (2026-10-30)",
+      "branch": "feature/projects-pivot (от develop, как 2.16/2.18/2.19 — полноценная Phase, не ad-hoc тикет)",
+      "next": "Step 138 (data/ -> projects/data/) в работе у developer.",
+      "pending_user": []
     }
   ],
   "decisions": [
@@ -1837,6 +1847,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
+    },
+    {
+      "id": "D-167",
+      "date": "2026-10-30",
+      "question": "User requested a structural pivot: retire temp/ (done separately), keep tests/ as-is, new top-level projects/{examples,data}/ replacing examples/+data/, output/ removed entirely, all 5 root run_*.py deleted with no replacement (apps/ stays a library, user writes own entry scripts in projects/). Orchestrator clarified via AskUserQuestion into these 4 concrete decisions, then had architect (sonnet -- incremental restructuring on an already-approved base, not a stack pivot) scope it as dev/docs/architecture-36-projects-pivot.md, Phase 2.20, Steps 138-142. One genuine fork found: fate of examples/worked_scenario.py (thin runnable wrapper, only consumer is its own smoke test).",
+      "choice": "F1: (b) retire worked_scenario.py outright, rewrite its smoke test in-process (recommended -- same category of thing the user already killed for run_*.py). Plan: approved as scoped, 5 sequential steps, one commit each, full-suite gate at Steps 140/141. LaTeX sync: approved -- introduction.tex's 'soundings under data/' line also gets corrected to projects/data/ as part of this pivot's doc-sync (same path-string-only category as the prior stale-path fix, D-166).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.20"
     }
   ],
   "deferred_decisions": [
