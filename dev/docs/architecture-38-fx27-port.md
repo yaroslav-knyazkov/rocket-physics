@@ -529,7 +529,7 @@ Legend for the **Verdict** column:
 | 13 | `runs/cspace/ideal_mass_estimation.py` (2 rockets) | **(b)** | composes #4 |
 | 14 | `runs/cspace/ideal_drag_estimation.py` (2 rockets) | **(b)** | composes #5 |
 | 15 | `runs/cspace/air_brake_estimation.py` (4 ideal rockets) | **(b)** | composes #6 |
-| 16 | `runs/euroc/point_comparison.py` (26 -> 23 combos) | **(b)** | composes #7; `sweep_scenario` as an optional richer variant |
+| 16 | `runs/euroc/point_comparison.py` (27 -> 24 combos; corrected from an earlier 26/23 miscount, see implementation notes) | **(b)** | composes #7; `sweep_scenario` as an optional richer variant |
 | 17 | cspace / euroc `launch_data.py`, `motors.py`, `rockets.py`, `rockets_ideal.py` | **(b)** | `Scenario`/`Rocket`/`Motor`/`LaunchSite`/`Weather` literals |
 | 18 | `point/` package as a whole | **(b)** | **nothing in it needs to live in `apps/`** — see SS38.5.8 |
 
@@ -579,9 +579,15 @@ The 7 rows are the 3 base rockets + the 4 `rockets_ideal` variants. The 4 ideal 
 and their names must keep fx27's `"<family> (ideal mass)"` / `"<family> (ideal drag)"` suffix
 convention, because that string **is** the plot-styling protocol (#10).
 
-### SS38.5.3 euroc 26-combo comparison table (#16)
+### SS38.5.3 euroc 27-combo comparison table (#16)
 
-23 runnable combos, 3 deferred (SS38.7).
+24 runnable combos, 3 deferred (SS38.7). **Correction, implementation phase:** this section
+originally said 26 total / 23 runnable, an orchestrator miscount against the real fx27 source
+(`data/euroc/rockets.py`'s `ROCKET_CONFIGS`, which lists 27 (config, motor) pairs). The developer
+built against the real on-disk data (27 CSVs under `projects/fx27/data/motors/euroc-sweep/`) and
+flagged the mismatch rather than silently following the wrong prose figure -- `DEFERRED_MOTORS` is
+the same 3 named `-todo` motors either way, so this was a prose-accuracy issue only, not a spec
+conflict.
 
 **Variant A (recommended, primary):** **(b)** the *same* `evaluate_scenarios` loop as cspace, fed a
 dict built by `projects/fx27/euroc/scenarios.py::generate_scenarios()` which produces one `Scenario`
@@ -778,7 +784,7 @@ projects/fx27/
     motors.py                # Motor x26, with DEFERRED_MOTORS = frozenset({...3 names...})
     rockets.py               # Rocket x12: pro54_2G ... pro98_6GXL (dry mass 5.636-7.523 kg)
     scenarios.py             # CANDIDATES: dict[airframe -> tuple[motor, ...]]
-                             # generate_scenarios() -> dict[str, Scenario] (23 runnable)
+                             # generate_scenarios() -> dict[str, Scenario] (24 runnable)
                              # DEFERRED: tuple[str, ...]  (the combos blocked on -todo data)
 
   runs/                      # entry points; `python -m projects.fx27.runs.<name>` from repo root
@@ -853,7 +859,7 @@ them — loud, not silent, which is the right failure mode. Required handling:
 - A test pins that the deferred set is exactly these three and that no generated scenario references
   them.
 
-Nothing else is blocked on them: the remaining 23 combinations run. When the real curves arrive,
+Nothing else is blocked on them: the remaining 24 combinations run. When the real curves arrive,
 removing three names from one frozenset is the entire change.
 
 ### SS38.7.2 `projects/data/README.md` appears to have been moved by accident — FLAG
@@ -925,7 +931,7 @@ dependent Step on top. Numbering continues from the last used value in `dev/stat
 
 | # | Criterion | How checked |
 |---|---|---|
-| AC-1 | All 7 cspace scenarios and all 23 runnable euroc scenarios `assemble()` without raising | `tests/test_fx27_port.py`, no integration needed |
+| AC-1 | All 7 cspace scenarios and all 24 runnable euroc scenarios `assemble()` without raising | `tests/test_fx27_port.py`, no integration needed |
 | AC-2 | Every run script completes and writes its artifacts to `output/` | manual run of all 7 entry points |
 | **AC-3** | **`estimate_airframe_mass` / `estimate_cx` reproduce fx27's four hardcoded solved figures (4.2864 kg, 0.2351, 8.0654 kg, 0.8304 at 3000 m AGL) within 5 %** | `tests/test_fx27_port.py` — **this is the Option A/C validation, the whole physics argument rests on it** |
 | AC-4 | If AC-3 fails by more than 5 %, the work **stops** and returns to the user gate with the measured numbers, rather than being "tuned" to fit | process rule, stated in the ticket |
