@@ -1849,6 +1849,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "none (projects/-only, no Step/Phase per architecture-38 SS38.8)"
+    },
+    {
+      "id": "D-172",
+      "date": "2026-10-30",
+      "question": "fx27 port implemented (FX27-1..FX27-5, commit 59a2610 on feature/fx27-port). AC-3 gate (reproducing fx27's own 4 hardcoded solved mass/C_x figures, target 3000 m AGL, within 5%): 3 of 4 passed (pro54_transition mass +2.28%, pro75 mass +0.68%, pro75 C_x +1.16%); pro54_transition's required C_x measured +7.35%, exceeding the band. Developer diagnosed it (not a bug -- forward-simulating at fx27's own solved values confirmed this project's Option C model already lands at a different apogee than fx27's rocketpy did, 0.5-1.7%, before any solving; that gap amplifies ~1.9-4.4x into the solved quantity, as the ticket's own SS38.3.1 anticipated for a 1-3x range -- pro54_transition is the lightest, highest-T/W, fastest-burning vehicle in the set, exactly the case SS38.10's risk R1 flagged as most exposed) and stopped per the task's explicit instruction, returning 3 options rather than tuning anything to fit.",
+      "choice": "Accept as-is, document the miss, proceed to FX27-4/FX27-5 (developer's own recommendation). Operationalized in tests/test_fx27_port.py as a per-case tolerance: the other 3 oracle figures stay at the original 5% band; pro54_transition's C_x case gets an explicitly documented 10% band plus a second assertion pinning the error still above 5%, so the wider band can never be silently mistaken for an improved result by a future reader. Independently re-verified by the orchestrator: re-ran the solver directly and reproduced the exact 4 measured numbers; full suite 843/843 (801 pre-port baseline + 42 new, matching --collect-only's total exactly) across 13 independently-run chunks plus a standalone tests/test_fx27_port.py run; confirmed zero apps/ or other-test-file changes via git status; one stray test-run artifact (orphaned by the orchestrator's own killed single-call full-suite attempt, unrelated to the port) found and removed before commit. Also self-corrected a prose miscount in architecture-38 (26 motors/23 runnable -> the real figure is 27/24; DEFERRED_MOTORS unaffected either way) -- orchestrator's own error from the original scoping prompt, propagated through the ticket, caught when developer built against the real on-disk CSV count instead of the prose figure.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "none (projects/-only, no Step/Phase per architecture-38 SS38.8)"
     }
   ],
   "deferred_decisions": [
