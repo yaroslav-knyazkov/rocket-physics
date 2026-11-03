@@ -598,10 +598,11 @@
     {
       "id": "2.21",
       "name": "Phase 2.21 — promote fx27-port's apogee-target root-finder into apps/optimization/ (backlog B41)",
-      "status": "in_progress",
+      "status": "done",
       "design_doc": "dev/docs/architecture-39-promote-apogee-target-solver.md",
-      "steps": "Step 144 (tickets AT-1..AT-4), не начат",
-      "next": "AT-1 (new apps/optimization/apogee_targeting/solve.py, generalized solve_for_target_apogee + named wrappers estimate_airframe_mass/estimate_cx, byte-identical signatures) -> AT-2 (projects/fx27/point/estimate.py becomes a thin re-export wrapper, mirroring airbrake.py's existing pattern) + AT-3 (tests/test_apogee_targeting.py, 7 tests) -> AT-4 (verification: tests/test_fx27_port.py's 4 AC-3 oracle tests unchanged outcome, full suite chunked, no pin outside the 2 touched files moved).",
+      "steps": "Step 144 (AT-1..AT-4), все закрыты",
+      "merged": "2026-11-03, прямой коммит в develop (без feature-ветки -- маленький аддитивный шаг, тот же прецедент что Step 32), 97bae52, 6 файлов",
+      "result": "apps/optimization/apogee_targeting/solve.py (новый, общее ядро solve_for_target_apogee + байт-идентичные обёртки estimate_airframe_mass/estimate_cx); projects/fx27/point/estimate.py свёрнут в тонкую re-export обёртку (171 -> 22 строки). tests/test_fx27_port.py правок не потребовал -- все 4 AC-3-оракульных теста измеряют те же самые _pct_error (бит-в-бит независимо перепроверено оркестратором: 4.38402204781832/8.120517330130442/0.8400492016157266/0.2523764135837346, все reachable=True). Новый tests/test_apogee_targeting.py (7 тестов). Полный прогон 850 passed (самоотчёт разработчика); оркестратор независимо подтвердил git diff --stat пустым на всех существующих apps/+tests/ файлах (чисто аддитивно, кроме одной переписанной обёртки) и переповторил 2 затронутых тестовых файла + test_layering.py отдельно (55/55).",
       "pending_user": []
     }
   ],
@@ -1359,8 +1360,8 @@
     {
       "id": "B41",
       "title": "Promote a general apogee-target root finder (brentq against an arbitrary Scenario-derived parameter: dry mass, constant C_D, airbrake C_DA) into apps/optimization/, generalizing the per-parameter root-finders written ad hoc in projects/fx27/point/",
-      "status": "open",
-      "note": "D-171/architecture-38 §SS38.5.4/D-F — airbrake C_DA already has apps/optimization/airbrake_sizing/solve_cda.py; mass/C_D root-finders are new in projects/fx27/ only. One consumer isn't enough to justify an apps/ change yet."
+      "status": "done (Step 144, Phase 2.21, D-173, commit 97bae52)",
+      "note": "apps/optimization/apogee_targeting/solve.py. airbrake C_DA stays on the existing apps/optimization/airbrake_sizing/solve_cda.py (confirmed — nothing to merge, it was already a separate concern). B40 (comparison plots) remains open, out of scope for this promotion."
     }
   ],
   "artifacts": {
