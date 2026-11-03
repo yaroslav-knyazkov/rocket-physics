@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace_ideal_mass.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/cspace/ideal_mass.py -- fx27 `runs/cspace/
 ideal_mass_estimation.py` equivalent (dev/docs/architecture-38-fx27-
 port.md SS38.5.4, #13): `estimate_airframe_mass` for `pro54_transition`
 and `pro75`, target 3000 m AGL.
@@ -11,13 +11,13 @@ this script estimates, but the same underlying divergence): this
 script's own two mass figures both measured within 5% and carry no
 caveat.
 
-Run: `python -m projects.fx27.runs.cspace_ideal_mass`.
+Run: `python -m projects.fx27.runs.cspace.ideal_mass`.
 """
 
 from __future__ import annotations
 
-from projects.fx27.cspace.rockets_ideal import PRO54_TRANSITION_IDEAL_MASS_KG, PRO75_IDEAL_MASS_KG
-from projects.fx27.cspace.scenarios import SCENARIOS
+from projects.fx27.campaigns.cspace.rockets_ideal import PRO54_TRANSITION_IDEAL_MASS_KG, PRO75_IDEAL_MASS_KG
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.estimate import estimate_airframe_mass
 
 TARGET_APOGEE_M = 3000.0

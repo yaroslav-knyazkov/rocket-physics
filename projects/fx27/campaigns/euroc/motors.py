@@ -1,7 +1,7 @@
-"""projects/fx27/euroc/motors.py -- the 27 euroc candidate motors, built
+"""projects/fx27/campaigns/euroc/motors.py -- the 27 euroc candidate motors, built
 from one data table (dev/docs/architecture-38-fx27-port.md SS38.2.8/
 SS38.4.1/SS38.7.1). Provenance for every row: fx27 data/euroc/motors.py
-(masses) + `projects/fx27/data/motors/euroc-sweep/*.csv` (curves, the
+(masses) + `projects/fx27/campaigns/euroc/data/motors/*.csv` (curves, the
 orchestrator's own inventory of the sibling repo, 2026-11).
 
 Zero-geometry recipe (SS38.2.8), applied identically to every motor below,

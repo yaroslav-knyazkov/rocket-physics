@@ -1,14 +1,14 @@
-"""projects/fx27/runs/cspace_airbrake.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/cspace/airbrake.py -- fx27 `runs/cspace/
 air_brake_estimation.py` equivalent (dev/docs/architecture-38-fx27-
 port.md SS38.5.5, #15): brake sizing for the 4 ideal variants only --
 fx27 deliberately excludes the 3 un-ideal-ised base rockets, kept here.
 
-Run: `python -m projects.fx27.runs.cspace_airbrake`.
+Run: `python -m projects.fx27.runs.cspace.airbrake`.
 """
 
 from __future__ import annotations
 
-from projects.fx27.cspace.scenarios import SCENARIOS
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.airbrake import print_brake_report, size_airbrake
 
 TARGET_APOGEE_M = 2500.0

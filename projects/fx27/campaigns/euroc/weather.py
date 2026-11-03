@@ -1,4 +1,4 @@
-"""projects/fx27/euroc/weather.py -- euroc weather (dev/docs/
+"""projects/fx27/campaigns/euroc/weather.py -- euroc weather (dev/docs/
 architecture-38-fx27-port.md SS38.4.1): default rocketpy `Environment`,
 i.e. ISA, dry air, no wind, no sounding case -- same choice as cspace.
 """

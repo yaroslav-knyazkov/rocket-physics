@@ -1,4 +1,4 @@
-"""projects/fx27/euroc/rockets.py -- the 12 euroc airframe configs
+"""projects/fx27/campaigns/euroc/rockets.py -- the 12 euroc airframe configs
 (dev/docs/architecture-38-fx27-port.md SS38.4.1), built from one data
 table, same `_airframe`/`_AERO`/`_LENGTHS`/`_SECTIONS` shape as
 `cspace/rockets.py`.

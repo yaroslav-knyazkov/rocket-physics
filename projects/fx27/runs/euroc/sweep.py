@@ -1,9 +1,9 @@
-"""projects/fx27/runs/euroc_sweep.py -- Variant B (dev/docs/architecture-
+"""projects/fx27/runs/euroc/sweep.py -- Variant B (dev/docs/architecture-
 38-fx27-port.md SS38.5.3): the richer `apps.optimization.motor_selection.
 scenario_sweep.sweep_scenario` view, one call per airframe config (12
 calls), rows concatenated -- `J_total`, `t_burn`, `T/W`, `q_max`,
 `m_burnout` on top of fx27's own column set (Variant A,
-`runs/euroc_comparison.py`).
+`runs/euroc/comparison.py`).
 
 `Constraints(min_tw=0.0, min_margin_cal=-math.inf)`: the default
 `min_margin_cal=1.0` would stamp `INFEASIBLE: static_margin` on a
@@ -18,7 +18,7 @@ rows from several calls are merged (as they are here) -- this repo's own
 euroc data has no actual name collision across configs, but the rename
 is cheap insurance against SS38.5.3's own documented failure mode.
 
-Run: `python -m projects.fx27.runs.euroc_sweep`.
+Run: `python -m projects.fx27.runs.euroc.sweep`.
 """
 
 from __future__ import annotations
@@ -30,11 +30,11 @@ from apps._shared.artifacts import ensure_dir, output_dir
 from apps.optimization.motor_selection.scenario_sweep import Constraints, print_table, save_csv, sweep_scenario
 from apps.sim.schema import Scenario
 
-from projects.fx27.euroc.motors import DEFERRED_MOTORS, MOTORS
-from projects.fx27.euroc.rockets import ROCKETS
-from projects.fx27.euroc.scenarios import CANDIDATES
-from projects.fx27.euroc.site import SITE
-from projects.fx27.euroc.weather import WEATHER
+from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS, MOTORS
+from projects.fx27.campaigns.euroc.rockets import ROCKETS
+from projects.fx27.campaigns.euroc.scenarios import CANDIDATES
+from projects.fx27.campaigns.euroc.site import SITE
+from projects.fx27.campaigns.euroc.weather import WEATHER
 
 _CONSTRAINTS = Constraints(min_tw=0.0, min_margin_cal=-math.inf)
 

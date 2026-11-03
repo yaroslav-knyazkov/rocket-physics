@@ -3,8 +3,10 @@
 **What this is.** A port of the sibling project `fx27/simulation` (built on
 `rocketpy`, a point-mass 3DOF model) onto this repo's own `apps/` library,
 against the same real rocket/motor/launch-site data: two campaigns
-(`cspace`, `euroc`), a generic `point/` comparison/estimation layer, and 7
-runnable entry points under `runs/`.
+(`cspace`, `euroc`), a generic `point/` comparison/estimation layer, and 8
+runnable entry points under `runs/` (7 from the original port plus Part
+B's `runs/cspace/comparison_dc_dm.py`, dev/docs/architecture-40-fx27-
+campaigns-and-dm-drag.md).
 
 Scoped and designed in `dev/docs/architecture-38-fx27-port.md` (SS38, all
 sections). Full diagnosis of the one known numeric caveat, and the
@@ -79,15 +81,32 @@ rather than letting them scatter across the table. Upgrade path:
 `aero.model="table"` with real Mach-dependent `C_A` data, if it is ever
 supplied.
 
+## The dm aero-table range warning (cspace only, harmless but expected)
+
+Every dm scenario (`campaigns/cspace/rockets_dm.py`) emits one `AeroRangeWarning` per flight: Option
+C's frozen-attitude trajectory lets `alpha` grow smoothly from 0 deg near launch, through 90 deg
+around apogee, to roughly 166 deg in tail-first descent (gravity turns the velocity vector while
+body attitude stays fixed at the rail angle) -- no alpha grid width, up to the aero-table format's
+own hard `(-90, +90)` deg bound, can cover that full sweep (SS40.5's grid is `[-89, 89]` deg, as
+wide as the format allows). This is **not an accuracy loss for this port specifically**: the dm
+table's `C_A` is the same single Mach-only value at every alpha by construction (`C_N=C_m=0`
+everywhere, SS40.3), so holding the edge value past the grid's range returns the exact same number
+holding inside it would have. It is the same warning class this codebase already documents
+elsewhere for other tables in tail-first descent (e.g. `example_v2.csv`, `tests/test_scenario_sweep.py`)
+-- not a new defect introduced by this step. Upgrade path, if ever needed: `Aero.table_oob=
+"jorgensen"` (the engine's existing large-alpha extension), which needs real large-alpha
+aerodynamic data to be worth turning on, not just a wider placeholder grid.
+
 ## The 3 deferred motors
 
 Three of the 27 euroc candidate motors have 4-byte `null` CSV stubs
 (data not supplied yet): `pro75-2412K1085`, `pro98-9876M1890`,
-`pro98-14200N3180`. `euroc/motors.py::DEFERRED_MOTORS` names them;
-`euroc/scenarios.py::generate_scenarios()` excludes every `(config,
-motor)` combination using one of them from its runnable set (24 of 27)
-and returns the excluded combos separately -- `runs/euroc_comparison.py`
-prints that list explicitly under the table, so a reader cannot mistake
+`pro98-14200N3180`. `campaigns/euroc/motors.py::DEFERRED_MOTORS` names
+them; `campaigns/euroc/scenarios.py::generate_scenarios()` excludes every
+`(config, motor)` combination using one of them from its runnable set
+(24 of 27) and returns the excluded combos separately --
+`runs/euroc/comparison.py` prints that list explicitly under the table,
+so a reader cannot mistake
 24 rows for the full candidate set. Supplying real data later is a CSV
 swap (replace the `-todo` stub), not a code change.
 
@@ -95,16 +114,20 @@ swap (replace the `-todo` stub), not a code change.
 
 ```
 projects/fx27/
-  _paths.py          absolute anchors for the two motor-CSV directories (SS38.4.3)
-  data/
-    motors/cspace/*.csv            2 motors
-    motors/euroc-sweep/*.csv       27 motors, 3 of them -todo stubs
-  cspace/             3 base rockets x 2 motors, 7-row comparison set (incl. 4 ideal variants)
-  euroc/              12 airframe configs x 27 candidate motors, 24 runnable combos
+  _paths.py          absolute anchors for the motor-CSV/aero-table directories (SS38.4.3/SS40.4.1)
+  campaigns/
+    cspace/           3 base rockets x 2 motors, 7-row dc comparison set (incl. 4 ideal variants),
+                      + rockets_dm.py/scenarios_dm.py (Mach-dependent "dm" variants, SS40.4)
+      data/motors/*.csv           2 motors
+      data/aero/*.csv              3 Mach-dependent C_A(M) tables (generated+committed, SS40.5)
+    euroc/            12 airframe configs x 27 candidate motors, 24 runnable combos
+      data/motors/*.csv           27 motors, 3 of them -todo stubs
   point/              the launch-config-agnostic layer: flight run, metrics, comparison
                       table, mass/drag estimation, airbrake sizing, comparison plots,
-                      Option C's validity diagnostic
-  runs/               the 7 entry points below
+                      Option C's validity diagnostic (unchanged by SS40)
+  runs/
+    cspace/           the 6 cspace entry points below
+    euroc/            the 2 euroc entry points below
 ```
 
 ## How to run
@@ -112,13 +135,14 @@ projects/fx27/
 From the repo root (so the module paths resolve):
 
 ```bash
-python -m projects.fx27.runs.cspace_point [--scenario NAME] [--validity]
-python -m projects.fx27.runs.cspace_comparison [--validity]
-python -m projects.fx27.runs.cspace_ideal_mass
-python -m projects.fx27.runs.cspace_ideal_drag
-python -m projects.fx27.runs.cspace_airbrake
-python -m projects.fx27.runs.euroc_comparison [--validity]
-python -m projects.fx27.runs.euroc_sweep
+python -m projects.fx27.runs.cspace.point [--scenario NAME] [--validity]
+python -m projects.fx27.runs.cspace.comparison [--validity]
+python -m projects.fx27.runs.cspace.ideal_mass
+python -m projects.fx27.runs.cspace.ideal_drag
+python -m projects.fx27.runs.cspace.airbrake
+python -m projects.fx27.runs.euroc.comparison [--validity]
+python -m projects.fx27.runs.euroc.sweep
+python -m projects.fx27.runs.cspace.comparison_dc_dm [--validity]     # new, Part B, SS40.6
 ```
 
 Every script writes its artifacts (CSV, PNG) to `output/`
@@ -129,7 +153,7 @@ diagnostic grid).
 
 ## Provenance
 
-Every number in `cspace/`/`euroc/` cites the fx27 source file it came
+Every number in `campaigns/cspace/`/`campaigns/euroc/` cites the fx27 source file it came
 from in its own module docstring/`notes=` field (site/rail geometry,
 motor masses, airframe dry masses) -- the orchestrator's own inventory of
 `D:\Projects - Ongoing\fx27\simulation`, taken as ground truth per

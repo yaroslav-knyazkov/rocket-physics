@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace_ideal_drag.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/cspace/ideal_drag.py -- fx27 `runs/cspace/
 ideal_drag_estimation.py` equivalent (dev/docs/architecture-38-fx27-
 port.md SS38.5.4, #14): `estimate_cx` for `pro54_transition` and
 `pro75`, target 3000 m AGL.
@@ -11,13 +11,13 @@ measured failure", for the full diagnosis: this is risk R1, SS38.10,
 materialising for the lightest/fastest cspace vehicle, not an
 implementation defect). `pro75`'s own case has no such caveat (+1.16%).
 
-Run: `python -m projects.fx27.runs.cspace_ideal_drag`.
+Run: `python -m projects.fx27.runs.cspace.ideal_drag`.
 """
 
 from __future__ import annotations
 
-from projects.fx27.cspace.rockets_ideal import PRO54_TRANSITION_IDEAL_DRAG_CX, PRO75_IDEAL_DRAG_CX
-from projects.fx27.cspace.scenarios import SCENARIOS
+from projects.fx27.campaigns.cspace.rockets_ideal import PRO54_TRANSITION_IDEAL_DRAG_CX, PRO75_IDEAL_DRAG_CX
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.estimate import estimate_cx
 
 TARGET_APOGEE_M = 3000.0

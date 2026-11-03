@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/site.py -- cspace launch site (dev/docs/
+"""projects/fx27/campaigns/cspace/site.py -- cspace launch site (dev/docs/
 architecture-38-fx27-port.md SS38.4.1), mirroring fx27 data/cspace/
 launch_data.py's `Environment` + rail fields.
 """

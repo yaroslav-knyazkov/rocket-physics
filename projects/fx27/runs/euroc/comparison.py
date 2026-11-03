@@ -1,11 +1,11 @@
-"""projects/fx27/runs/euroc_comparison.py -- fx27 `runs/euroc/
+"""projects/fx27/runs/euroc/comparison.py -- fx27 `runs/euroc/
 point_comparison.py` equivalent, Variant A (dev/docs/architecture-38-
 fx27-port.md SS38.5.3, #16): fx27's own column set over every runnable
 `(config, motor)` combo (24 of 27 -- 3 deferred on not-yet-supplied motor
 data, SS38.7.1), with the deferred list printed explicitly under the
 table (AC-6: never silently absent).
 
-Run: `python -m projects.fx27.runs.euroc_comparison [--validity]`.
+Run: `python -m projects.fx27.runs.euroc.comparison [--validity]`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import warnings
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps.sim.engine.mach_warning import MachRangeWarning
 
-from projects.fx27.euroc.scenarios import generate_scenarios
+from projects.fx27.campaigns.euroc.scenarios import generate_scenarios
 from projects.fx27.point.comparison import print_table, run_many, save_csv
 from projects.fx27.point.metrics import row_from_flight
 from projects.fx27.point.validity import check_validity, print_validity

@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/scenarios.py -- `SCENARIOS`, the 7-row cspace
+"""projects/fx27/campaigns/cspace/scenarios.py -- `SCENARIOS`, the 7-row cspace
 comparison set (dev/docs/architecture-38-fx27-port.md SS38.5.2): the 3
 base rockets + the 4 `rockets_ideal` variants, each paired with its motor,
 site and weather.
@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.cspace import motors, rockets, rockets_ideal
-from projects.fx27.cspace.site import SITE
-from projects.fx27.cspace.weather import WEATHER
+from projects.fx27.campaigns.cspace import motors, rockets, rockets_ideal
+from projects.fx27.campaigns.cspace.site import SITE
+from projects.fx27.campaigns.cspace.weather import WEATHER
 
 SCENARIOS: "dict[str, Scenario]" = {
     "pro54_transition": Scenario(

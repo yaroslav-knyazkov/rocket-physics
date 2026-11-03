@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/rockets_ideal.py -- the 4 "ideal" cspace variants
+"""projects/fx27/campaigns/cspace/rockets_ideal.py -- the 4 "ideal" cspace variants
 (dev/docs/architecture-38-fx27-port.md SS38.3.1/SS38.5.2): fx27's
 `data/cspace/rockets_ideal.py` carries the already-SOLVED outputs of its
 own mass/drag estimators, hardcoded, target apogee 3000 m AGL.
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from projects.fx27.cspace.rockets import PRO54_TRANSITION, PRO75
+from projects.fx27.campaigns.cspace.rockets import PRO54_TRANSITION, PRO75
 
 # fx27 hardcoded solved figures (data/cspace/rockets_ideal.py), target
 # apogee 3000 m AGL -- the AC-3 oracle. Kept here as named constants so

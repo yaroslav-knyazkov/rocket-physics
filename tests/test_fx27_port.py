@@ -23,17 +23,19 @@ matplotlib.use("Agg")  # headless -- must run before pyplot is imported
 import matplotlib.figure
 import pytest
 
+from apps.sim.engine.aero import C_A
 from apps.sim.schema import assemble
 
-from projects.fx27.cspace.rockets_ideal import (
+from projects.fx27.campaigns.cspace.rockets_ideal import (
     PRO54_TRANSITION_IDEAL_DRAG_CX,
     PRO54_TRANSITION_IDEAL_MASS_KG,
     PRO75_IDEAL_DRAG_CX,
     PRO75_IDEAL_MASS_KG,
 )
-from projects.fx27.cspace.scenarios import SCENARIOS as CSPACE_SCENARIOS
-from projects.fx27.euroc.motors import DEFERRED_MOTORS
-from projects.fx27.euroc.scenarios import CANDIDATES, generate_scenarios
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS as CSPACE_SCENARIOS
+from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS
+from projects.fx27.campaigns.euroc.scenarios import CANDIDATES, generate_scenarios
 from projects.fx27.point.airbrake import size_airbrake
 from projects.fx27.point.comparison import evaluate_scenarios, run_many
 from projects.fx27.point.estimate import estimate_airframe_mass, estimate_cx
@@ -193,6 +195,76 @@ def test_airbrake_solve_converges_for_one_ideal_variant():
     assert sizing.area_min_m2 > 0.0
     assert math.isclose(sizing.area_design_m2, sizing.area_min_m2 * 2.0)
     assert math.isclose(sizing.area_per_panel_m2, sizing.area_design_m2 / 3.0)
+
+
+# ----------------------------------------------------------------------
+# Part B (dev/docs/architecture-40-fx27-campaigns-and-dm-drag.md SS40.8):
+# the Mach-dependent ("dm") cspace rockets/scenarios ported from fx27's
+# own "DRAG MACH DEPENDENT" data. No fx27-solved oracle exists for these
+# (unlike AC-3's dc figures) -- sanity-checked, not oracle-validated.
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", sorted(SCENARIOS_DM))
+def test_cspace_dm_scenario_assembles(name):
+    cfg = assemble(SCENARIOS_DM[name])
+    assert cfg.params.weight.m > 0.0
+    assert cfg.params.weight.m_d is not None
+
+
+def test_cspace_dm_has_exactly_the_seven_comparison_rows():
+    assert set(SCENARIOS_DM) == {
+        "pro54_transition_dm", "pro54_equal_dm", "pro75_dm",
+        "pro54_transition_dm (ideal mass)", "pro54_transition_dm (ideal drag)",
+        "pro75_dm (ideal mass)", "pro75_dm (ideal drag)",
+    }
+
+
+# SS40.5's own quoted samples: for each of the 3 generated aero tables,
+# (Mach, expected C_A) pairs read directly off fx27's source Mach,Cd curve
+# (verified byte-for-byte against the sibling repo's own CSVs during this
+# step's research) -- `axial_flow_factor(0.0) == 1.0` exactly (SS40.3.3),
+# so no fudge factor is needed for alpha=0.0.
+_DM_AERO_SAMPLES = {
+    "pro54_transition_dm": [(0.0, 1.245), (3.0, 0.308)],
+    "pro54_equal_dm": [(0.0, 1.472), (3.0, 0.372)],
+    "pro75_dm": [(0.0, 1.466), (3.0, 0.374)],
+}
+
+
+@pytest.mark.parametrize("name", sorted(_DM_AERO_SAMPLES))
+def test_dm_aero_table_matches_fx27_source_curve_at_sample_points(name):
+    cfg = assemble(SCENARIOS_DM[name])
+    for mach, expected_cd in _DM_AERO_SAMPLES[name]:
+        measured = C_A(alpha=0.0, M=mach, p=cfg.params)
+        assert measured == pytest.approx(expected_cd, abs=1e-9)
+
+
+_DM_TO_DC_NAMESAKE = {
+    "pro54_transition_dm": "pro54_transition",
+    "pro54_equal_dm": "pro54_equal",
+    "pro75_dm": "pro75",
+}
+
+
+@pytest.mark.parametrize("dm_name", sorted(_DM_TO_DC_NAMESAKE))
+def test_dm_scenario_apogee_is_plausible_against_its_dc_namesake(dm_name):
+    """Sanity check only, NOT a numeric pin (SS40.4.2/SS40.9: fx27 gives no
+    fresh target-apogee-solved oracle for the dm rockets). A wildly
+    different apogee from the dc namesake (same motor, same approximate
+    mass/drag order of magnitude) would indicate a wiring bug in
+    rockets_dm.py, not a credible physical result."""
+    dc_name = _DM_TO_DC_NAMESAKE[dm_name]
+    runs = run_many({dm_name: SCENARIOS_DM[dm_name], dc_name: CSPACE_SCENARIOS[dc_name]})
+    dm_row = row_from_flight(dm_name, runs[dm_name])
+    dc_row = row_from_flight(dc_name, runs[dc_name])
+
+    assert dm_row.apogee_agl is not None
+    assert math.isfinite(dm_row.apogee_agl)
+    assert dm_row.apogee_agl > 0.0
+    assert 500.0 <= dm_row.apogee_agl <= 10000.0
+    # cross-check band around the dc namesake's own apogee, same order of magnitude
+    assert 0.2 * dc_row.apogee_agl <= dm_row.apogee_agl <= 5.0 * dc_row.apogee_agl
 
 
 # ----------------------------------------------------------------------

@@ -4,7 +4,7 @@ promote-apogee-target-solver.md, backlog B41), mirroring projects/fx27/
 point/airbrake.py's wrapper of apps.optimization.airbrake_sizing.solve_cda.
 
 Re-exports the two names fx27's own runs/ scripts
-(runs/cspace_ideal_mass.py, runs/cspace_ideal_drag.py) and
+(runs/cspace/ideal_mass.py, runs/cspace/ideal_drag.py) and
 tests/test_fx27_port.py import. `EstimateResult` is kept here as the
 fx27-local alias of the promoted `ApogeeTargetResult` -- same shape, same
 fields, SS38.5.4's original name -- not a separate type: nothing in this

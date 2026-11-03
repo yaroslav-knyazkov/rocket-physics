@@ -604,6 +604,17 @@
       "merged": "2026-11-03, прямой коммит в develop (без feature-ветки -- маленький аддитивный шаг, тот же прецедент что Step 32), 97bae52, 6 файлов",
       "result": "apps/optimization/apogee_targeting/solve.py (новый, общее ядро solve_for_target_apogee + байт-идентичные обёртки estimate_airframe_mass/estimate_cx); projects/fx27/point/estimate.py свёрнут в тонкую re-export обёртку (171 -> 22 строки). tests/test_fx27_port.py правок не потребовал -- все 4 AC-3-оракульных теста измеряют те же самые _pct_error (бит-в-бит независимо перепроверено оркестратором: 4.38402204781832/8.120517330130442/0.8400492016157266/0.2523764135837346, все reachable=True). Новый tests/test_apogee_targeting.py (7 тестов). Полный прогон 850 passed (самоотчёт разработчика); оркестратор независимо подтвердил git diff --stat пустым на всех существующих apps/+tests/ файлах (чисто аддитивно, кроме одной переписанной обёртки) и переповторил 2 затронутых тестовых файла + test_layering.py отдельно (55/55).",
       "pending_user": []
+    },
+    {
+      "id": "2.22",
+      "name": "Phase 2.22 — projects/fx27 reorg (campaigns/<name>/ + runs/<competition>/<type>/) combined with porting cspace's missing Mach-dependent (dm) rockets from fx27/simulation",
+      "status": "in_progress",
+      "design_doc": "dev/docs/architecture-40-fx27-campaigns-and-dm-drag.md",
+      "steps": "Step 145 (FX40-1..FX40-6), все закрыты",
+      "scope": "(1) projects/fx27/{cspace,euroc}/ + data/motors/{cspace,euroc-sweep}/ -> campaigns/{cspace,euroc}/ (code+own data colocated); projects/fx27/runs/<competition>_<type>.py -> runs/<competition>/<type>.py; update _paths.py, imports, README.md, tests/test_fx27_port.py import paths. (2) Port cspace-only dm (Mach-dependent) rockets/idealized variants missing from the original port scaffold. No euroc dm work (no source data; user declined speculative work).",
+      "merged": "2026-11-03, прямой коммит в develop (без feature-ветки, тот же прецедент что Step 32/144)",
+      "result": "FX40-1: git mv 13 code files + 29 CSV из cspace/+euroc/+data/ в campaigns/cspace/+campaigns/euroc/; runs/*.py -> runs/cspace/+runs/euroc/ (7 файлов, префикс убран); _paths.py переанкорен; README.md переписан; data/README.md (устаревший дубликат) удалён; 11 файлов правок импортов (grep-verified: 0 оставшихся `projects.fx27.(cspace|euroc).` без `.campaigns.`, независимо перепроверено оркестратором). FX40-2: generate_dm_tables.py (одноразовый) + 3 закоммиченных CSV (242 строки данных каждый, alpha-решётка после ревизии оркестратора расширена с ±1° до ±89° — максимум, допускаемый форматом движка). FX40-3: новые campaigns/cspace/rockets_dm.py (3 ракеты) + scenarios_dm.py (SCENARIOS_DM, отдельный от пин-поверхности AC-3 словарь) + _paths.py::cspace_aero — реализованы бит-в-бит по скелетам architecture-40. FX40-4: новый runs/cspace/comparison_dc_dm.py, прогнан end-to-end (3 выходных файла, dm-апогеи плausible против dc-тёзок, напр. pro75_dm 3554м vs pro75 3732м). FX40-5: 14 новых тест-кейсов в tests/test_fx27_port.py (TDD red->green). FX40-6 + независимая перепроверка оркестратора: tests/test_fx27_port.py изолированно 56 passed (0 failed), 0 изменений в 4 существующих AC-3-оракульных числах (только правка import-строк над ними), grep по всему репо — 0 оставшихся старых путей, `pytest --collect-only` по всей суите — 864 тестов собрано без ошибок (совпадает с самоотчётом разработчика 850->864, 0 failed после полного прогона). Один нюанс сверх архитектурного тикета: dm-сценарии эмитят AeroRangeWarning (alpha уходит от 0° до ~166° в tail-first descent под Option C — физически реальная траектория, не узкий диапазон) -- расширение решётки до ±89° не устраняет его полностью (166° > 90°, предел формата), но безвредно (C_A одна и та же величина на любом alpha по построению, C_N=C_m=0). Задокументировано отдельным разделом в README.md как уже-прецедентный класс предупреждения (та же природа что example_v2.csv/test_scenario_sweep.py), не блокер. Код-ревью разработчика нашёл и исправил дополнительно: устаревшие пути в докстрингах/комментариях 11 перемещённых файлов, не покрытые таблицей правок импортов архитектурного документа (SS40.2.3 покрывала только import-строки).",
+      "pending_user": []
     }
   ],
   "decisions": [
@@ -1082,6 +1093,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.21"
+    },
+    {
+      "id": "D-174",
+      "date": "2026-11-03",
+      "question": "User opened the next fx27 session by asking about reorganizing projects/fx27/: (1) should campaign code dirs cspace/euroc sit inside data/ or elsewhere, and (2) should runs/ (flat, name='<competition>_<type>.py') be split by competition or by type. Orchestrator inspected the tree, proposed campaigns/<name>/ (code+own data colocated, resolving the duplicate 'cspace' naming between the top-level code dir and data/motors/cspace/) and runs/<competition>/<type>/ (matches the existing 5-vs-2 asymmetry between cspace and euroc). Mid-turn, user flagged that the sibling D:\\Projects - Ongoing\\fx27\\simulation had grown new content since the port (59a2610/D-172): Mach-dependent ('dm') rockets. Orchestrator diff'd the sibling and confirmed: the same commit (edb2f4d) that produced the port scaffold also added, to data/cspace/ only (not euroc), 3 dm rockets (pro54_transition_dm/pro54_equal_dm/pro75_dm, each with its own Mach-Cd drag curve CSV, not yet in rocket-physics) and 4 idealized dm variants (rockets_ideal.py) -- but the scaffold itself (what actually got copied into projects/fx27/) was cut before these were added, so none of it is present here. Put to the user: (a) sequence the reorg and the dm port as one combined step vs. two sequential ones (same files either way), (b) scope the dm work to cspace only (matching the source) vs. also speculatively building an euroc dm equivalent with no source data.",
+      "choice": "(a) One combined step (recommended) -- avoids touching cspace/rockets.py and rockets_ideal.py twice. (b) cspace only, matching the source (recommended) -- no speculative euroc dm work without real data. Scoped as Phase 2.22/Step 145, handed to architect (sonnet override, incremental/additive on an already-approved stack, same precedent as D-173/Step 144): design the campaigns/+runs/ layout mechanics AND the Mach-Cd-to-aero-table conversion (apps/sim/engine/aero.py's 'table' model needs a rectangular (M,alpha) grid with mandatory C_A/C_N/C_m columns, not the sibling's bare 2-column Mach,Cd curve) that preserves Option C's C_N=C_m=c_mq=0 invariant (D-A).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.22"
     }
   ],
   "deferred_decisions": [

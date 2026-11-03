@@ -1,10 +1,10 @@
-"""projects/fx27/euroc/scenarios.py -- `CANDIDATES` (config -> candidate
+"""projects/fx27/campaigns/euroc/scenarios.py -- `CANDIDATES` (config -> candidate
 motor ids) and `generate_scenarios()` (dev/docs/architecture-38-fx27-port.md
 SS38.5.3 Variant A, SS38.7.1): one `Scenario` per runnable `(airframe
 config, candidate motor)` pair, named `"<config>/<motor id>"` (SS38.5.3
 condition 2's naming convention, applied here too so the dict key stays
 consistent between Variant A and the renamed `Motor` pieces Variant B
-builds in `runs/euroc_sweep.py`).
+builds in `runs/euroc/sweep.py`).
 
 27 candidate (config, motor) pairs total (fx27 data/euroc/motors.py's own
 candidate table); 3 are excluded here because their motor is in
@@ -17,10 +17,10 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.euroc.motors import DEFERRED_MOTORS, MOTORS
-from projects.fx27.euroc.rockets import ROCKETS
-from projects.fx27.euroc.site import SITE
-from projects.fx27.euroc.weather import WEATHER
+from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS, MOTORS
+from projects.fx27.campaigns.euroc.rockets import ROCKETS
+from projects.fx27.campaigns.euroc.site import SITE
+from projects.fx27.campaigns.euroc.weather import WEATHER
 
 # config name -> candidate motor ids (fx27 data/euroc/motors.py's own
 # per-config candidate list). Where fx27 numbered candidates "<config>_<i+1>"
@@ -54,7 +54,7 @@ def generate_scenarios() -> "tuple[dict[str, Scenario], tuple[str, ...]]":
     `"<config>/<motor id>"`. Returns `(scenarios, deferred)`: `deferred`
     holds the same `"<config>/<motor id>"` names for every pair excluded
     because its motor is in `DEFERRED_MOTORS` (SS38.7.1/AC-6) -- printed
-    by `runs/euroc_comparison.py` under the comparison table.
+    by `runs/euroc/comparison.py` under the comparison table.
     """
     scenarios: "dict[str, Scenario]" = {}
     deferred: "list[str]" = []

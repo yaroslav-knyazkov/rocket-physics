@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/motors.py -- the 2 cspace motors, zero-geometry
+"""projects/fx27/campaigns/cspace/motors.py -- the 2 cspace motors, zero-geometry
 recipe (dev/docs/architecture-38-fx27-port.md SS38.2.8/SS38.4.1).
 
 Both CSVs are bare `time, thrust` rows with no header (confirmed to parse

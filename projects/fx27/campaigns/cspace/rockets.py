@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/rockets.py -- the 3 base cspace airframes
+"""projects/fx27/campaigns/cspace/rockets.py -- the 3 base cspace airframes
 (dev/docs/architecture-38-fx27-port.md SS38.4.1/SS38.5.2), paired with
 motors.py in scenarios.py.
 

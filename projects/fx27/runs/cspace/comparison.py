@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace_comparison.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/cspace/comparison.py -- fx27 `runs/cspace/
 point_comparison.py` equivalent (dev/docs/architecture-38-fx27-port.md
 SS38.5.2, #12): the 7-row comparison table (3 base rockets + 4 ideal
 variants) + both comparison figures.
@@ -8,7 +8,7 @@ rather than letting the 7 raw warnings scatter across the table -- the
 warnings are correct (constant `C_x=0.5` is not credible past Mach 0.8)
 and are surfaced, not suppressed.
 
-Run: `python -m projects.fx27.runs.cspace_comparison [--validity]`.
+Run: `python -m projects.fx27.runs.cspace.comparison [--validity]`.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import warnings
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps.sim.engine.mach_warning import MachRangeWarning
 
-from projects.fx27.cspace.scenarios import SCENARIOS
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.comparison import print_table, run_many, save_csv
 from projects.fx27.point.metrics import row_from_flight
 from projects.fx27.point.plots import plot_displacement_comparison, plot_kinematics_comparison

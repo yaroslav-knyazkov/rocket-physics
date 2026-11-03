@@ -1,4 +1,4 @@
-"""projects/fx27/cspace/weather.py -- cspace weather (dev/docs/
+"""projects/fx27/campaigns/cspace/weather.py -- cspace weather (dev/docs/
 architecture-38-fx27-port.md SS38.4.1): default rocketpy `Environment`,
 i.e. ISA, dry air, no wind, no sounding case.
 """
