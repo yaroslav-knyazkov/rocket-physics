@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-11-01",
+  "updated": "2026-11-03",
   "active_modules": [
     "architect",
     "developer",
@@ -594,6 +594,15 @@
       "name": "Phase 2.20 — пивот: projects/ workspace (examples/+data/ -> projects/), output/ удаляется, корневые run_*.py удаляются без замены",
       "status": "done",
       "archived": true
+    },
+    {
+      "id": "2.21",
+      "name": "Phase 2.21 — promote fx27-port's apogee-target root-finder into apps/optimization/ (backlog B41)",
+      "status": "in_progress",
+      "design_doc": "dev/docs/architecture-39-promote-apogee-target-solver.md",
+      "steps": "Step 144 (tickets AT-1..AT-4), не начат",
+      "next": "AT-1 (new apps/optimization/apogee_targeting/solve.py, generalized solve_for_target_apogee + named wrappers estimate_airframe_mass/estimate_cx, byte-identical signatures) -> AT-2 (projects/fx27/point/estimate.py becomes a thin re-export wrapper, mirroring airbrake.py's existing pattern) + AT-3 (tests/test_apogee_targeting.py, 7 tests) -> AT-4 (verification: tests/test_fx27_port.py's 4 AC-3 oracle tests unchanged outcome, full suite chunked, no pin outside the 2 touched files moved).",
+      "pending_user": []
     }
   ],
   "decisions": [
@@ -1063,6 +1072,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "none (projects/-only, no Step/Phase per architecture-38 SS38.8)"
+    },
+    {
+      "id": "D-173",
+      "date": "2026-11-03",
+      "question": "User asked to copy the new fx27-port code into the sibling D:\\Projects - Ongoing\\fx27\\simulation project, then separately asked whether the port's point/ module (developed as one-off project glue during the fx27 port) should instead be implemented inside rocket-physics's own apps/ library. Orchestrator reviewed each file: estimate.py (mass/C_D apogee-target root-finders) is fully generic, matches backlog B41 exactly; airbrake.py already just wraps the existing apps/optimization/airbrake_sizing/solve_cda.py, nothing to promote there; comparison.py/plots.py is backlog B40, separate; flight.py/metrics.py/validity.py and the cspace/euroc/data content are fx27-specific, stay put. Noted explicitly distinct from the unrelated, still-gated Step 143 (a different, cruder closed-form estimator). Put to the user: promote just estimate.py (B41) now, B41+B40 together, or let architect decide the split.",
+      "choice": "Promote just estimate.py (B41) now (recommended option). Scoped by architect as Phase 2.21, Step 144 (dev/docs/architecture-39-promote-apogee-target-solver.md, sonnet model -- incremental/additive on an already-approved stack, no stack pivot): new apps/optimization/apogee_targeting/solve.py with a generalized solve_for_target_apogee core plus byte-identical named wrappers; projects/fx27/point/estimate.py becomes a thin re-export wrapper (mirroring airbrake.py's existing pattern); tests/test_fx27_port.py needs no edits (its 4 tests were already fx27-data-specific AC-3 oracle checks, nothing generic to move) -- new generic tests go in tests/test_apogee_targeting.py. Architect found and fixed a layering risk pre-emptively: the old estimate.py computed apogee via projects/fx27/point/flight.run, which the new apps/ module must not import (apps/ never depends on projects/) -- the 3 calls are inlined directly instead, no decision fork needed. Architect's own SS39.11: no user-approval gate required (additive-only, same stack); orchestrator concurs and is proceeding to developer for AT-1..AT-4.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.21"
     }
   ],
   "deferred_decisions": [
