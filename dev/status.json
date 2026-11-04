@@ -606,6 +606,13 @@
       "name": "Phase 2.22 — projects/fx27 reorg (campaigns/<name>/ + runs/<competition>/<type>/) combined with porting cspace's missing Mach-dependent (dm) rockets from fx27/simulation",
       "status": "done",
       "archived": true
+    },
+    {
+      "id": "2.23",
+      "name": "Phase 2.23 — fx27 vehicle-dynamics roadmap F2: regenerate-script for this project's own idealized cspace rockets (dc+dm), target 3000 m AGL",
+      "status": "in_progress",
+      "next": "Step 148 handed to architect (sonnet override, incremental/additive) to design: (1) a NEW module (not rockets_ideal.py/rockets_dm.py — those hold fx27's own ported oracle/delta figures, immutable per D-176) holding this project's own solved idealized dc+dm variants for pro54_transition and pro75 (pro54_equal excluded, matching existing convention), computed via apps/optimization/apogee_targeting/solve.py's estimate_airframe_mass/estimate_cx against campaigns/cspace/rockets.py's/rockets_dm.py's current base rockets, target 3000 m AGL default; (2) a one-off regenerate-script (same shape as Step 145's generate_dm_tables.py) that computes and writes the 8 solved constants (2 mass + 2 C_x for dc, 2 mass + 2 cx_scale for dm) into that module, to be re-run manually whenever rockets.py/rockets_dm.py's base figures change (e.g. once real CAD/CFD exports land, per the F1 working-mode note in vehicle-dynamics-roadmap.md). Guardrail: must not alter rockets_ideal.py's 4 AC-3 oracle constants or rockets_dm.py's 4 ported dm-ideal constants under any circumstance.",
+      "pending_user": []
     }
   ],
   "decisions": [
@@ -1102,6 +1109,15 @@
       "author": "user",
       "user_approved": true,
       "stage": 2.17
+    },
+    {
+      "id": "D-176",
+      "date": "2026-11-04",
+      "question": "User said 'go ahead with F2 then' (vehicle-dynamics-roadmap.md's F2, already decided as approach (b), regenerate-script). Before handing off, orchestrator checked rockets_ideal.py/rockets_dm.py directly: both currently hold ONLY fx27-ported figures (rockets_ideal.py's 4 numbers are the AC-3 oracle itself -- fx27's own already-solved numbers, immutable by D-172's own acceptance decision; rockets_dm.py's 4 dm-ideal numbers are likewise ported arithmetic deltas from fx27's own data, not this project's solver output) -- neither is actually 'this project's own idealized rocket, solved by this project's own solver' yet, so F2's regenerate-script has no existing target module to safely regenerate into without corrupting the oracle.",
+      "choice": "Scope as a NEW module (name TBD by architect) holding this project's own solved idealized dc+dm variants, computed via apps/optimization/apogee_targeting/solve.py against the current base rockets, kept strictly separate from rockets_ideal.py/rockets_dm.py's immutable fx27-ported constants. Filed as Phase 2.23/Step 148 (Step 146 already claimed by the parallel controller-track session for its integration harness, Step 147 already earmarked by that same session's D-175 for estimator_beta tuning -- Step 148 is the next actually-free number). Handed to architect (sonnet override, incremental/additive on an already-approved stack, same precedent as D-173/174).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.23"
     }
   ],
   "deferred_decisions": [
