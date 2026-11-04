@@ -19,6 +19,28 @@ the airframe/motor/brake-size, up through full 3D + roll. **F10 below (roll + PI
 co-tuning) is exactly where the two tracks merge** -- see F10's note before scoping it, so the two
 sessions don't design the same merge twice.
 
+## Working mode during the design phase (clarified 2026-11-04)
+
+The project is currently in the design phase: today's mass figures (fx27-ported literals, or this
+project's own `estimate_airframe_mass`/idealized-rocket solve) and aero figures (constant `C_x`, or
+the dm Mach-only table) are **placeholders**, not final data. Two real exports will eventually
+replace them:
+  - **CFD export** -- real Mach-and-alpha-dependent aerodynamics (the long-planned upgrade path for
+    the dm tables' `aero.model="table"`, and the thing F4/F8/F9 are already waiting on in some form).
+  - **ASM export** -- real mass/CoM/MoI from the full CAD assembly, replacing the estimator/idealized
+    numbers.
+
+Until both exports exist, **both cspace configs (`pro54_transition`, `pro75`) are carried in
+parallel, not down-selected** -- F1's config choice is explicitly deferred, not merely open. This
+means every downstream phase that touches cspace (F5's euroc-side shortlist is unaffected, but F6's
+airbrake sizing, F7's 2D/3D flight, F8's CFD-driven trade, F9's stability analysis) should default
+to scoping its work **per config-pair** (run both, report both) rather than assuming a single chosen
+cspace vehicle, until the real exports land and the final pick is made. When CFD/ASM data does
+arrive, swapping it in should be a data update (new CSV / new `Rocket` literal) against the existing
+schema, not a redesign -- same shape as every other "real data replaces placeholder" swap already in
+this project's history (e.g. the 3 deferred euroc motor CSVs, Step 145's dm tables' own upgrade path
+to `table_oob="jorgensen"`).
+
 ## What already exists -- don't rebuild these
 
 - **cspace, constant drag ("dc")**: 3 base rockets (`pro54_transition`, `pro54_equal`, `pro75`) + 4
@@ -58,13 +80,16 @@ sessions don't design the same merge twice.
 
 ## Timeline
 
-### F1 -- cspace dm comparison & configuration choice (in progress, Step 145)
-**Status: landing now.** `comparison_dc_dm.py` gives the dc-vs-dm 14-row table. The user has
-already ruled out `pro54_equal` ("doesn't seem good enough") -- recommend making that explicit in
-the comparison output's default view once dm numbers are in (not a code change yet, just how the
-results get read/reported). The actual pro54_transition-vs-pro75 choice is a weight-vs-aero
-judgment call the user says they're not sure on yet -- not automatable; **[OPEN]** see F8/trade
-surface below, which is exactly the tool for turning "not sure" into a number.
+### F1 -- cspace dm comparison & configuration choice (deferred)
+**Status: tooling done, choice explicitly deferred (2026-11-04).** `comparison_dc_dm.py` gives the
+dc-vs-dm 14-row table. The user has already ruled out `pro54_equal` ("doesn't seem good enough") --
+recommend making that explicit in the comparison output's default view (not a code change yet, just
+how the results get read/reported). The `pro54_transition`-vs-`pro75` pick is **not being made now
+by design**, not merely "undecided" -- see "Working mode during the design phase" above: both
+configs are carried in parallel through every downstream phase until real CFD (aero) + ASM (mass)
+exports replace today's estimated/idealized figures. When those exports land, F8's weight-vs-aero
+trade surface (below) is still the recommended tool for turning the choice into a number, rather
+than an eyeball call.
 
 ### F2 -- automate the "idealized rocket" workflow (new ask)
 **Status: not started.** Today, `rockets_ideal.py`/`rockets_dm.py` hand-type the *solved* mass/C_x
