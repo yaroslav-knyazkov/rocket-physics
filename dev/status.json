@@ -527,7 +527,7 @@
       "goals": "M1 перебор моторов для конфигурации 2 (Steps 97-101); M2 макс. спецификация аэротормоза для обеих конфигураций (Steps 102, 103, 105, 106, 111); M3 старт проектирования регулятора (Steps 107-109, 104 по замеру); Step 110 — таблицы/графики для статьи",
       "steps_done": "archived → dev/status-archive.json stage_subkeys.2.17.steps_done",
       "tests": "774 passed / 0 failed (полный прогон 2026-10-28 после Step 137, пересчитан вручную в 9 чанках; 767 бейзлайн после Phase 2.19 мержа + 7 Step 137; C_m LaTeX sync/Step 136 не трогают код/тесты). Историческая цифра 800/765/35 относится к до-мержевому feature/sim-paper-alignment, см. steps_done выше.",
-      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). Step 136 (paper note) закрыт (e16e1df). Step 137 (flight_stats.py диагностика theta_v/Lambda) закрыт (c5524b8), 774/774. Тикет task-136-137-point-mass-flight-path-angle.md полностью закрыт, кроме GATED Step 143 (standalone estimator, Option A — перенумерован с 138, см. D-169; не начат, требует отдельного запроса пользователя). C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3.",
+      "next": "Milestone M3: Step 108, Step 109 закрыты. C_m LaTeX sync закрыт (da11e44). Step 136 (paper note) закрыт (e16e1df). Step 137 (flight_stats.py диагностика theta_v/Lambda) закрыт (c5524b8), 774/774. Тикет task-136-137-point-mass-flight-path-angle.md полностью закрыт, кроме GATED Step 143 (standalone estimator, Option A — перенумерован с 138, см. D-169; не начат, требует отдельного запроса пользователя). C_x180/eta-таблица (Step 107's Jorgensen research) и Step 106/101 (ждут данных пользователя) — без изменений. Step 30 (Phase 3, не этой стадии) тоже закрыт в этом же ночном прогоне — см. стадию 3. Step 146 (controller integration harness, apps/control/flight_software/harness.py + tests/test_harness.py, D-175/D-177) closed: developer done, QA PASS (dev/docs/qa-report-step146-controller-harness.md), 885/885, no defects. Next candidate: Step 147 (estimator_beta tuning via apps/analysis/ensemble) or a multi-sensor-KF-vs-alpha-beta empirical read-out, both consuming Step 146's harness output -- not yet ticketed.",
       "open_items": [
         "QA-9 (test quality, minor) частично закрыт Step 115 (таблица eta Jorgensen теперь запинена против первоисточника); остаётся: нет пина масс-модели для demo в Step 98, тест 2 Шага 112 ослаблен до rel=1e-5, свободные границы непрерывности/наклона — не блокирует milestones, см. qa-report-2.17-m1.md"
       ],
@@ -1117,6 +1117,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.23"
+    },
+    {
+      "id": "D-177",
+      "date": "2026-11-04",
+      "question": "Step 146 (closed-loop controller integration harness, apps/control/flight_software/harness.py + tests/test_harness.py) implemented by developer and independently QA-verified. Report: dev/docs/qa-report-step146-controller-harness.md.",
+      "choice": "PASS, no defects. 7/7 new tests independently re-run (148.45s); oracle cross-check against test_full_traceability_comparison_table's 513.165/490.870 m re-verified independently. All 5 developer-self-review fixes confirmed present (saturation window [burnout, apogee], ideal-mode docstring, gravity.altitude_agl curved-gravity fix, t_max off-by-one guard, dead-code removal). Boundary held: only harness.py + test_harness.py touched (git status clean otherwise); estimator_beta untouched at 0.1667. Full suite independently re-run: 885 passed, 0 failed (995.67s -- slower than usual 220-800s range, noted as observation only, not a regression; no numeric pins moved). Both developer-flagged risks (ideal-mode saturation-metric semantics; _replay_actuator_trajectory's post-hoc dependency on sim-engine determinism) accepted as documented caveats, not defects -- QA recommends a backlog item (B42) to re-check the replay's fidelity if apps/sim/engine/'s determinism contract ever changes. No security pass run for this step (pure internal library integration/test code, no new external surface, no secrets/paid-API exposure -- consistent with this project's no-deploy profile).",
+      "author": "user",
+      "user_approved": true,
+      "stage": 2.17
     }
   ],
   "deferred_decisions": [
@@ -1397,6 +1406,12 @@
       "title": "Promote a general apogee-target root finder (brentq against an arbitrary Scenario-derived parameter: dry mass, constant C_D, airbrake C_DA) into apps/optimization/, generalizing the per-parameter root-finders written ad hoc in projects/fx27/point/",
       "status": "done (Step 144, Phase 2.21, D-173, commit 97bae52)",
       "note": "apps/optimization/apogee_targeting/solve.py. airbrake C_DA stays on the existing apps/optimization/airbrake_sizing/solve_cda.py (confirmed — nothing to merge, it was already a separate concern). B40 (comparison plots) remains open, out of scope for this promotion."
+    },
+    {
+      "id": "B42",
+      "date": "2026-11-04",
+      "title": "Re-check harness.py's _replay_actuator_trajectory fidelity if apps/sim/engine/'s determinism contract ever changes",
+      "note": "QA Step 146: the harness reconstructs the actuator's per-tick position by replaying sampling.sample/control.airbrake_deploy_fraction post-hoc off the already-computed dense trajectory, keyed on deterministic RNG (seed, tick index) -- faithful today, but would silently drift from the real per-tick hold history if that determinism contract ever changes, with nothing in test_harness.py's own tests positioned to catch it. Non-blocking; revisit only if/when apps/sim/engine/'s sampling/RNG contract changes."
     }
   ],
   "artifacts": {
