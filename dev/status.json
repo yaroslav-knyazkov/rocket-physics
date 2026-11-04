@@ -1093,6 +1093,15 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.22"
+    },
+    {
+      "id": "D-175",
+      "date": "2026-11-04",
+      "question": "User + orchestrator spent two sessions planning an airbrake apogee controller (fidelity ladder, controller-tier taxonomy, sensor/estimator research) in projects/fx27/docs/airbrake-controller-plan.md, before checking for existing code. A parallel session's vehicle-dynamics-roadmap.md flagged that apps/control/flight_software/laws.py already exists. Orchestrator verified directly: Rung 1 (Tier-1 predictive P/PI on apogee-prediction error, laws.py's drag_aware_predicted_apogee + proportional_drag/pi_apogee) is done and tested (Step 107). Rung 2 (rate-limited actuator, Step 103) and Rung 3 (alpha-beta noisy-altitude estimator, Step 108) each exist individually but have never been run together with a Tier-1 law on one flight -- the same wiring gap underlies both, and is also the prerequisite for tuning the explicitly-flagged-UNVERIFIED estimator_beta gain. Handed to architect (sonnet, incremental) for reconciliation: projects/fx27/docs/architecture-controller-reconciliation.md. Architect recommended Step 146 (Phase 2.17 continuation, not a new phase): a scripted closed-loop integration harness/demo running law + alpha-beta estimator + noisy Sensors + rate-limited Actuator together for the first time, TDD, one commit, no sim-engine changes. Left the harness's module location open (apps/ library-level vs. projects/fx27/ vehicle-specific) for the user to decide.",
+      "choice": "Module location: apps/control/flight_software/harness.py (library-level, sibling to laws.py/estimator.py -- it tests generic control-stack integration against the generic demo flight, not fx27-specific numbers). Proceed now: yes, hand Step 146 to developer as scoped in architecture-controller-reconciliation.md S4 (TDD: all-four-pieces-active flight completes with finite apogee; noiseless cross-check against Step 107's own oracle numbers; tight actuator rate produces a visible saturation/lag regression test; metrics: apogee error, saturation fraction, actuator travel). Filed under Phase 2.17 (continuation of Milestone M3, Steps 103/107/108), not a new phase -- no new stack/architecture decision, pure integration. Step 147 (estimator_beta tuning via apps/analysis/ensemble, local linearization + Monte Carlo) and the multi-sensor-KF-vs-alpha-beta decision both consume Step 146's output and are not ticketed yet -- sequence after, not in parallel.",
+      "author": "user",
+      "user_approved": true,
+      "stage": 2.17
     }
   ],
   "deferred_decisions": [
