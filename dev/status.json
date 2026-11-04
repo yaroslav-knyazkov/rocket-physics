@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-11-03",
+  "updated": "2026-11-04",
   "active_modules": [
     "architect",
     "developer",
@@ -611,8 +611,7 @@
       "id": "2.23",
       "name": "Phase 2.23 — fx27 vehicle-dynamics roadmap F2: regenerate-script for this project's own idealized cspace rockets (dc+dm), target 3000 m AGL",
       "status": "done",
-      "next": "Closed. architect designed architecture-41 (new module projects/fx27/campaigns/cspace/rockets_ideal_own.py + one-off generate_rockets_ideal_own.py, kept strictly separate from the AC-3 oracle/ported-dm-arithmetic files, zero existing-file edits). developer implemented RIO-1..RIO-4 (TDD, tests/test_rockets_ideal_own.py). Orchestrator independently re-verified: git status/diff confirms only the 3 new files + the doc changed, rockets_ideal.py/rockets_dm.py zero diff; re-ran the generator for real (python -m ...) and confirmed bit-identical idempotent output; isolated run of test_rockets_ideal_own.py+test_fx27_port.py (70/70 passed); all 4 AC-3 oracle tests individually confirmed passing; full-suite collect-only at 885 (matches developer's self-report). Orchestrator also caught and fixed a real doc/docstring bug missed by code-review: the architecture doc's and both new files' \"Run:\" line showed a bare `python path/to/script.py` invocation, which raises ModuleNotFoundError (script's own dir goes on sys.path[0], not the repo root) -- corrected to `python -m projects.fx27.campaigns.cspace.generate_rockets_ideal_own` in all 3 places, verified working. Committed eb16b0b.",
-      "pending_user": []
+      "archived": true
     }
   ],
   "decisions": [
@@ -1433,8 +1432,8 @@
   "archive": {
     "file": "dev/status-archive.json",
     "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
-    "generated": "2026-11-03",
-    "stages_archived": 6,
+    "generated": "2026-11-04",
+    "stages_archived": 7,
     "decisions_archived": 112,
     "legacy_keys_archived": [
       "active_modules",
