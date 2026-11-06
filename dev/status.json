@@ -1126,6 +1126,20 @@
       "author": "user",
       "user_approved": true,
       "stage": 2.17
+    },
+    {
+      "date": "2026-11-06",
+      "topic": "Public GitHub README language",
+      "choice": "README.md rewritten to English (GitHub public-facing audience; consistent with the English chat-communication decision), replacing the Russian version rather than keeping a translated pair.",
+      "author": "user",
+      "user_approved": true
+    },
+    {
+      "date": "2026-11-06",
+      "topic": "Publishing the compiled LaTeX report PDF for the README link",
+      "choice": "Commit dev/docs/latex/main.pdf directly to the repo (gitignore exception added) instead of a GitHub Release asset; README links to it with a relative repo path. Re-commit by hand after each recompile.",
+      "author": "user",
+      "user_approved": true
     }
   ],
   "deferred_decisions": [

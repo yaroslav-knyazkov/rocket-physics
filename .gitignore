@@ -34,6 +34,10 @@ dev/docs/latex/*.out
 dev/docs/latex/*.pdf
 dev/docs/latex/*.synctex.gz
 dev/docs/latex/*.toc
+# Exception: main.pdf is the one compiled artifact committed on purpose,
+# so the GitHub README can link a working PDF of the report (user decision,
+# 2026-11-06). Re-commit it by hand after recompiling -- not rebuilt by CI.
+!dev/docs/latex/main.pdf
 
 # Generated output -- not source. apps/_shared/artifacts.py::output_dir()
 # and apps/sim/engine/report.py::default_output_dir() both resolve this

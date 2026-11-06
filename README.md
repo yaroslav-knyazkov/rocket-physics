@@ -1,25 +1,32 @@
 # rocket-physics
 
-Симулятор траектории ракеты: 2D-модель полёта (гравитация, тяга по реальной
-кривой, аэродинамика, ветер/атмосфера) с интегратором и построением графиков,
-плюс задел под 3D/6DOF-динамику (кватернионы, вращение, демпфирование по
-тангажу) — частично уже в коде (`apps/sim/engine/dynamics3d.py`,
-`quaternion.py`, `rotation.py`, `forces3d.py`, `state3d.py`), но ещё не
-основной путь симуляции. Физика выведена и задокументирована в LaTeX-отчёте
-(`dev/docs/latex/`) — код сверяется с ним, а не наоборот.
+A Python-based 2D rocket-trajectory simulator with a physics model derived from first principles and documented in a compiled LaTeX report. Includes tools for motor selection, aerodynamic optimization, and trade-space exploration—no server, no UI, pure Python.
 
-Проект для тех, кто хочет прогнать траекторию конкретной ракеты (мотор +
-аэродинамика + стартовые условия) и получить график/CSV, подобрать мотор или
-аэротормоз под целевую апогею, или оценить компромисс масса-аэродинамика —
-без сервера, без UI, напрямую из Python-скриптов.
+**Core features:**
+- **Deterministic 2D flight dynamics**: gravity, realistic motor thrust curves, aerodynamic drag, wind and atmospheric effects, integration via adaptive step-size methods
+- **Physics derived and verified**: all equations documented in [`dev/docs/latex/main.pdf`](dev/docs/latex/main.pdf) (41 pages); code is validated against the report, not the other way around
+- **Tools for mission planning**: compare motors against a target apogee, size airbrakes, sweep parametric studies, analyze weight–aerodynamic trade-offs
+- **Extensible 6DOF groundwork**: quaternion rotation, angular dynamics, and damping for future 3D modes already in the codebase
+- **For practitioners**: run your own vehicle (specific motor, airframe, launch site, weather conditions) and get trajectory plots and CSV export in minutes
 
-## Стек
+Built for rocketry engineers and enthusiasts who want to reason about rocket behavior through simulation, not spreadsheets or online calculators.
 
-- Python 3.12
-- numpy, scipy, matplotlib (`requirements.txt`)
-- pytest (тесты)
+## Quick Links
 
-## Установка
+- **[Complete physics derivation and model documentation](dev/docs/latex/main.pdf)** (LaTeX report, 41 pages)
+- **[Build your own rocket](#build-your-own-rocket)** — no templates, no registry, just copy and edit
+- **[Installation](#installation)** — Python 3.12 + pip
+- **[Examples](#quick-start)** — minimal end-to-end scenario and utility commands
+
+## Stack
+
+- **Python 3.12**
+- **Dependencies**: numpy, scipy, matplotlib (see `requirements.txt`)
+- **Testing**: pytest
+- **Documentation**: LaTeX (`dev/docs/latex/`)
+- **No UI, no server**: command-line tools and importable modules
+
+## Installation
 
 ```bash
 python -m venv .venv
@@ -28,14 +35,15 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Быстрый старт
+## Quick Start
 
-Пред-собранных входных скриптов в репозитории нет: `apps/` — библиотека/
-тулкит, которую вы либо запускаете как модуль
-(`python -m apps.<тип>.<имя>.<модуль>`), либо импортируете из своего
-скрипта. Минимальный пример — прогнать демо-сценарий (реальный мотор
-Cesaroni K570 на 54-мм корпусе) из короткого скрипта в своей `projects/`
-(тот же паттерн, что в `tests/test_worked_scenario_example.py`):
+There are no pre-built entry scripts in the repository. `apps/` is a library and toolkit that you either:
+1. Run as a module: `python -m apps.<type>.<name>.<module>`
+2. Import into your own Python script
+
+### Minimal example: simulate one flight
+
+Run the demo scenario (Cesaroni K570 motor, 54 mm airframe) with a short script (same pattern as `tests/test_worked_scenario_example.py`):
 
 ```python
 from apps.input.demo_scenario import DEMO_SCENARIO
@@ -48,89 +56,91 @@ result = run_sim(cfg.params, cfg.s0)
 report.print_run_summary(result, cfg.params, cfg.s0)
 ```
 
-Печатает сводку полёта (апогея, время работы мотора и т.п.) в консоль.
+This prints a summary of the flight (apogee, motor burn time, landing location, etc.) to the console.
 
-Остальные утилиты из `apps/` запускаются так же — отдельными модулями, без
-готовых обёрток:
+### Utility commands
 
-- **`python -m apps.optimization.motor_selection.compare_motors`** —
-  сравнение набора моторов из `apps/optimization/motor_selection/motors.py`;
-  **`...scenario_sweep --motors a,b,c [--target M]`** — sweep демо-сценария
-  по списку RASP-моторов относительно целевой апогеи.
-- **`python -m apps.optimization.airbrake_sizing.solve_cda [--spec NAME]`**
-  — подбор площади аэротормоза (`C_dA`) под целевую апогею именованного
-  спека из `apps/optimization/airbrake_sizing/targets.py`.
-- **`python -m apps.analysis.cfd_conditions.select_conditions`** — выбор
-  условий (скорость/число Маха, высота) для постановки CFD-расчёта по
-  траектории демо-сценария.
-- **`python -m apps.analysis.weight_aero_tradeoff.trade_surface`** /
-  **`...compare_configs`** — компромисс масса-аэродинамика: поверхность
-  обмена массы на аэродинамику с изо-апогейными линиями / сравнение
-  именованных сценариев друг с другом.
+Other `apps/` modules are run the same way—individually, without wrapper scripts:
 
-Каждая из этих команд пишет PNG/CSV в `output/` текущей рабочей директории
-(создаётся на лету при первом запуске, гитигнор).
+- **`python -m apps.optimization.motor_selection.compare_motors`**  
+  Compare a set of motors from `apps/optimization/motor_selection/motors.py`. Outputs PNG and CSV to `output/`.
 
-## Построить свою ракету
+- **`python -m apps.optimization.motor_selection.scenario_sweep --motors a,b,c [--target M]`**  
+  Sweep the demo scenario across a comma-separated list of RASP motor names, optionally targeting a specific apogee. Outputs plots.
 
-Нет реестра и нет файла-на-конфигурацию — только один файл-образец:
+- **`python -m apps.optimization.airbrake_sizing.solve_cda [--spec NAME]`**  
+  Compute the optimal airbrake area (drag coefficient × area) for a named spec from `apps/optimization/airbrake_sizing/targets.py`, given a target apogee.
 
-1. Скопируйте `apps/input/demo_scenario.py`.
-2. Переименуйте `DEMO_SCENARIO` во что-то своё.
-3. Отредактируйте значения — каждое поле в файле помечено прямо в
-   комментарии `# REQ|OPT, <единица или варианты> -- <пояснение>`: `REQ` —
-   обязательно задать своё значение, `OPT` — можно оставить как есть,
-   это осмысленный умолчальный вариант из `apps/sim/schema.py`.
+- **`python -m apps.analysis.cfd_conditions.select_conditions`**  
+  Extract key points from the demo scenario trajectory (velocity, altitude, Mach number) for CFD setup.
 
-Датаклассы (`Rocket`/`Site`/`Weather`/`Motor`/`Scenario`) и сборка сценария
-(`assemble()`) — всё в `apps/sim/schema.py`.
+- **`python -m apps.analysis.weight_aero_tradeoff.trade_surface`** /  **`...compare_configs`**  
+  Visualize mass–drag trade-offs with isoapogee contours, or compare multiple named scenario configurations side by side.
 
-## Тесты
+All utilities write PNG and CSV outputs to `output/` in your current working directory (created on first run, ignored by git).
 
-Точечный прогон (быстро, в разработке):
+## Build Your Own Rocket
+
+There is no configuration registry and no special file naming. The only reference is a single template:
+
+1. Copy `apps/input/demo_scenario.py`.
+2. Rename `DEMO_SCENARIO` to something meaningful for your vehicle.
+3. Edit the values. **Every field is annotated inline** with:
+   ```python
+   # REQ|OPT, <unit or options> -- <explanation>
+   ```
+   - **`REQ`** = you must supply a real value for your vehicle
+   - **`OPT`** = safe to leave as-is (a sensible library default from `apps/sim/schema.py`)
+
+The dataclasses (`Rocket`, `LaunchSite`, `Weather`, `Motor`, `Scenario`) and the assembly function (`assemble()`) are all in `apps/sim/schema.py`. Once you've created your variant, use it exactly as in the quick-start example above.
+
+## Tests
+
+**Targeted run** (fast, during development):
 
 ```bash
-python -m pytest tests/test_<имя>.py -q
+python -m pytest tests/test_<name>.py -q
 ```
 
-Полный прогон:
+**Full suite**:
 
 ```bash
 python -m pytest -q
 ```
 
-Полный прогон медленный (несколько минут на обычной машине) — не запускайте
-его «по привычке» на каждую мелкую правку в локальной разработке без фоновой
-обвязки, здесь нет CI, который возьмёт это на себя.
+⚠️ The full suite is slow (several minutes on a typical machine). Don't run it as a habit for every small change during local development—this project has no CI to offload it. Run targeted tests while coding; run the full suite before committing.
 
-## Структура каталогов
+## Directory Structure
 
 ```
-apps/                      — корень продукта
-  sim/engine/               — физическая модель, интегратор, отчёты, графики
-  sim/schema.py             — Rocket/Site/Weather/Motor/Scenario датаклассы + assemble()
-  input/                    — демо-сценарий, study_vehicle, сетевой фетчер зондирований
-  analysis/                 — CFD-условия, компромисс масса-аэродинамика, ensemble
-  optimization/             — подбор мотора, подбор аэротормоза
-  control/                  — законы управления (flight_software)
-  _shared/                  — общие утилиты (artifacts, flight_stats)
-projects/                  — ваша рабочая область: входные скрипты, свои ракеты
-  examples/data/            — бандловые read-only фикстуры (демо-моторы, аэро, зондирования)
-  data/                     — (гитигнор) ваши личные данные, создаётся пустой
-tests/                      — pytest-сьют
-dev/                        — трекер проекта и документация команды агентов (не нужен конечному пользователю)
+apps/                          — core library and tools
+  sim/
+    engine/                    — physics model, ODE integrator, plots, report generation
+    schema.py                  — Rocket, LaunchSite, Weather, Motor, Scenario dataclasses + assemble()
+  input/                       — demo scenario, vehicle reference, atmospheric sounding fetcher
+  analysis/                    — CFD condition extraction, mass–drag trade-offs, ensemble analysis
+  optimization/                — motor selection, airbrake sizing, apogee targeting solvers
+  control/                     — flight software and control laws
+  _shared/                     — shared utilities (trajectory artifacts, flight statistics)
+projects/                      — your workspace
+  examples/data/               — bundled fixtures (motors, aerodynamic tables, soundings; read-only)
+  data/                        — (git-ignored) your personal data; created empty on first use
+tests/                         — pytest test suite
+dev/                           — project tracker and team documentation (not needed for users)
 ```
 
-## Деплой и сеть
+## Deployment and Network
 
-Нет сервера и нет деплоя — локальная библиотека + скрипты. Единственный
-сетевой вызов во всём проекте — ручной запуск
-`apps/input/sounding_fetch/fetch_sounding.py` (данные зондирований
-University of Wyoming); сама физическая модель (`apps/sim/engine/`) всегда
-работает офлайн и детерминирована.
+- **No server, no deployment**. This is a pure local library and script toolkit.
+- **Only one network call in the entire codebase**: the manual fetch `apps/input/sounding_fetch/fetch_sounding.py` (University of Wyoming atmospheric soundings). You run it by hand when needed.
+- **The physics engine** (`apps/sim/engine/`) is always offline and fully deterministic.
 
-## Подробнее
+## Learn More
 
-- Физика и вывод уравнений — `dev/docs/latex/`.
-- Процесс разработки, команда агентов, статус проекта — `CLAUDE.md` и
-  `dev/PROJECT-STATUS.md`.
+- **Complete physics derivation**: See [`dev/docs/latex/main.pdf`](dev/docs/latex/main.pdf). Every equation is typeset and cross-checked with the code.
+- **Development and architecture**: See `CLAUDE.md` and `dev/PROJECT-STATUS.md` (internal team documentation).
+- **Contribute**: Reports, forks, and pull requests are welcome. If you find a modeling error or have a feature request, open an issue.
+
+---
+
+Built by a team of agents for practitioners who want to simulate rocket flight with transparency and rigor.
