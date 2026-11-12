@@ -119,7 +119,7 @@ def plot_displacement_comparison(results: "dict[str, Result]", title: str = "Dis
     ax_xt.set_xlabel("Time [s]"); ax_xt.set_ylabel("Downrange [m]"); ax_xt.set_title("x(t)")
     for ax in (ax_zx, ax_theta, ax_zt, ax_xt):
         ax.grid(True)
-    ax_zx.legend(fontsize=7)
+        ax.legend(fontsize=7)
     fig.suptitle(title)
     fig.tight_layout()
     return fig
@@ -154,7 +154,28 @@ def plot_kinematics_comparison(results: "dict[str, Result]", title: str = "Kinem
     for ax in (ax_v, ax_vxb, ax_vzb, ax_a, ax_axb, ax_azb):
         ax.set_xlabel("Time [s]")
         ax.grid(True)
-    ax_v.legend(fontsize=7)
+        ax.legend(fontsize=7)
     fig.suptitle(title)
     fig.tight_layout()
     return fig
+
+
+def show_if_requested(show: bool) -> None:
+    """`plt.show()` iff `show` is True, else a no-op (Step 150, Phase
+    2.25: the `--show` flag shared by every fx27 run script that produces
+    figures).
+
+    Lives here, not duplicated per run script, because every call site
+    needs the exact same one-liner in the exact same place -- AFTER the
+    `savefig()` calls, never before, so the opt-in interactive window
+    never changes the default (save-only) path's behaviour. `plt.show()`
+    with no arguments shows every figure still registered with pyplot's
+    current-figure stack (every `plot_*_comparison`/`plot_trajectory`/
+    `plot_time_histories` call here and in `apps.sim.engine.plotting`
+    goes through `plt.subplots()`, so each new figure registers itself;
+    nothing extra is needed to pick them up). Under the `Agg` backend
+    (`tests/test_plotting.py`, `tests/test_fx27_port.py`) `plt.show()` is
+    already a no-op by matplotlib's own design -- this helper adds no
+    extra guard for that, it only adds the `show` gate itself."""
+    if show:
+        plt.show()

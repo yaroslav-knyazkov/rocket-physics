@@ -21,6 +21,7 @@ matplotlib.use("Agg")  # headless -- must run before pyplot is imported
 # anywhere else in the process, same precedent as tests/test_plotting.py.
 
 import matplotlib.figure
+import matplotlib.pyplot as plt
 import pytest
 
 from apps.sim.engine.aero import C_A
@@ -40,7 +41,11 @@ from projects.fx27.point.airbrake import size_airbrake
 from projects.fx27.point.comparison import evaluate_scenarios, run_many
 from projects.fx27.point.estimate import estimate_airframe_mass, estimate_cx
 from projects.fx27.point.metrics import row_from_flight
-from projects.fx27.point.plots import plot_displacement_comparison, plot_kinematics_comparison
+from projects.fx27.point.plots import (
+    plot_displacement_comparison,
+    plot_kinematics_comparison,
+    show_if_requested,
+)
 
 TARGET_APOGEE_M = 3000.0
 
@@ -291,3 +296,90 @@ def test_comparison_plots_have_the_expected_axes_and_series():
     assert len(fig_kin.axes) == 6
     for ax in fig_kin.axes:
         assert len(ax.lines) == len(names)
+
+
+def test_comparison_plots_have_a_legend_on_every_axis():
+    """Step 150 (Phase 2.25): fx27 calls `ax.legend()` on every axis of
+    both figures; ours used to call it on only one axis per figure
+    (`ax_zx`/`ax_v`), forcing a reader to cross-reference another panel
+    to decode the colours. Every axis now gets its own legend, one entry
+    per plotted scenario, at the project's existing `fontsize=7` (not
+    fx27's default size -- that part was explicitly NOT in scope)."""
+    names = ["pro54_transition", "pro75"]
+    runs = run_many({n: CSPACE_SCENARIOS[n] for n in names})
+    results = {n: fr.result for n, fr in runs.items()}
+
+    fig_disp = plot_displacement_comparison(results)
+    assert len(fig_disp.axes) == 4
+    for ax in fig_disp.axes:
+        legend = ax.get_legend()
+        assert legend is not None
+        assert [t.get_text() for t in legend.get_texts()] == names
+        assert legend.get_texts()[0].get_fontsize() == 7
+
+    fig_kin = plot_kinematics_comparison(results)
+    assert len(fig_kin.axes) == 6
+    for ax in fig_kin.axes:
+        legend = ax.get_legend()
+        assert legend is not None
+        assert [t.get_text() for t in legend.get_texts()] == names
+        assert legend.get_texts()[0].get_fontsize() == 7
+
+
+# ----------------------------------------------------------------------
+# `--show` flag plumbing (Step 150, Phase 2.25) -- the shared
+# `show_if_requested` helper plus one real end-to-end smoke test on the
+# cheapest figure-producing entry point (`runs/cspace/point.py` flies a
+# single scenario by default, no monkeypatched scenario set needed).
+# `comparison.py`/`comparison_dc_dm.py` call the exact same helper in the
+# exact same position, so this is the "smallest entry point that
+# exercises the plumbing" the step asked for, not a claim that every
+# script needs its own copy of this test.
+# ----------------------------------------------------------------------
+
+
+def test_show_if_requested_is_a_noop_by_default(monkeypatch):
+    calls = []
+    monkeypatch.setattr(plt, "show", lambda *a, **k: calls.append((a, k)))
+
+    show_if_requested(False)
+
+    assert calls == []
+
+
+def test_show_if_requested_calls_plt_show_when_true(monkeypatch):
+    calls = []
+    monkeypatch.setattr(plt, "show", lambda *a, **k: calls.append((a, k)))
+
+    show_if_requested(True)
+
+    assert calls == [((), {})]
+
+
+def test_point_cli_default_does_not_show(monkeypatch, tmp_path):
+    import projects.fx27.runs.cspace.point as point_cli
+
+    monkeypatch.setattr(point_cli, "output_dir", lambda: tmp_path)
+    calls = []
+    monkeypatch.setattr(plt, "show", lambda *a, **k: calls.append(1))
+
+    point_cli.main([])
+
+    assert calls == []
+    assert (tmp_path / "fx27_cspace_pro75_trajectory.png").exists()
+    assert (tmp_path / "fx27_cspace_pro75_time_histories.png").exists()
+
+
+def test_point_cli_show_flag_displays_after_saving(monkeypatch, tmp_path):
+    import projects.fx27.runs.cspace.point as point_cli
+
+    monkeypatch.setattr(point_cli, "output_dir", lambda: tmp_path)
+    calls = []
+    monkeypatch.setattr(plt, "show", lambda *a, **k: calls.append(1))
+
+    point_cli.main(["--show"])
+
+    assert calls == [1]
+    # still wrote both files -- --show is additive, not a replacement
+    assert (tmp_path / "fx27_cspace_pro75_trajectory.png").exists()
+    assert (tmp_path / "fx27_cspace_pro75_time_histories.png").exists()

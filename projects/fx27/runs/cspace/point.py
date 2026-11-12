@@ -21,6 +21,7 @@ from apps.sim.engine.report import print_run_summary
 
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.flight import run as run_flight
+from projects.fx27.point.plots import show_if_requested
 from projects.fx27.point.validity import check_validity, print_validity
 
 
@@ -30,6 +31,10 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--validity", action="store_true",
         help="also print Option C's measured error bound (SS38.5.7) -- costs an extra dense pass",
+    )
+    ap.add_argument(
+        "--show", action="store_true",
+        help="also display the figures interactively (in addition to saving them)",
     )
     args = ap.parse_args(argv)
 
@@ -46,6 +51,8 @@ def main(argv=None) -> None:
     plot_time_histories(fr.result).savefig(hist_path)
     print(f"\nSaved {traj_path}")
     print(f"Saved {hist_path}")
+
+    show_if_requested(args.show)
 
 
 if __name__ == "__main__":

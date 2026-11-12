@@ -22,7 +22,11 @@ from apps.sim.engine.mach_warning import MachRangeWarning
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.point.comparison import print_table, run_many, save_csv
 from projects.fx27.point.metrics import row_from_flight
-from projects.fx27.point.plots import plot_displacement_comparison, plot_kinematics_comparison
+from projects.fx27.point.plots import (
+    plot_displacement_comparison,
+    plot_kinematics_comparison,
+    show_if_requested,
+)
 from projects.fx27.point.validity import check_validity, print_validity
 
 
@@ -31,6 +35,10 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--validity", action="store_true",
         help="also print Option C's measured error bound per scenario (SS38.5.7)",
+    )
+    ap.add_argument(
+        "--show", action="store_true",
+        help="also display the figures interactively (in addition to saving them)",
     )
     args = ap.parse_args(argv)
 
@@ -66,6 +74,8 @@ def main(argv=None) -> None:
     print(f"\nSaved {csv_path}")
     print(f"Saved {disp_path}")
     print(f"Saved {kin_path}")
+
+    show_if_requested(args.show)
 
 
 if __name__ == "__main__":
