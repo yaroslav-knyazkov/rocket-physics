@@ -13,15 +13,25 @@ these run in milliseconds and exercise logic branches a real, monotonic
 flight objective can never hit (an interior `None` apogee strictly inside
 an otherwise-valid bracket).
 
-Tier 2 (2 tests) -- real-physics regression, against
+Tier 2 (3 tests) -- real-physics regression, against
 `apps.input.demo_scenario.DEMO_SCENARIO` (mass model ON). No fx27 data
 involved: `apps/optimization/` tests should not need `projects/fx27`
-fixtures.
+fixtures. The third (`estimate_cx_scale`, architecture-42 SS42.5) flies a
+`model="table"` variant of `DEMO_SCENARIO`'s rocket against a synthetic,
+drag-only (`C_N=C_m=0`) Mach table -- same `_temp_table`/cache-clear
+pattern `tests/test_scenario_sweep.py` already uses for its own synthetic
+tables, and the same "drag-only table" invariant `rockets_dm.py` relies
+on (Option C: a nonzero table `C_N`/`C_m` would reintroduce real pitch
+dynamics `DEMO_SCENARIO`'s own aero was deliberately built without --
+confirmed the hard way, see that test's own docstring).
 """
 
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 import math
+import os
 
 import pytest
 
@@ -29,9 +39,13 @@ from apps.optimization.apogee_targeting import solve
 from apps.optimization.apogee_targeting.solve import (
     estimate_airframe_mass,
     estimate_cx,
+    estimate_cx_scale,
     solve_for_target_apogee,
 )
 from apps.input.demo_scenario import DEMO_SCENARIO
+from apps.sim.engine import aero as _aero_module
+from apps.sim.engine.params import Aero
+from tests.datadir import AERO_DIR
 
 # ----------------------------------------------------------------------
 # Tier 1: pure-logic tests via monkeypatch on the one physics-touching seam
@@ -173,6 +187,89 @@ def test_estimate_cx_on_demo_scenario_is_reachable_and_converges():
     """Same shape as the mass regression test, for `estimate_cx`."""
     target_apogee_agl = 3000.0
     res = estimate_cx(DEMO_SCENARIO, target_apogee_agl=target_apogee_agl)
+
+    assert res.reachable is True
+    assert math.isclose(res.achieved_apogee_m, target_apogee_agl, abs_tol=1.0e-2)
+
+
+# A synthetic, DRAG-ONLY Mach table (C_N=C_m=0 at every grid point -- the same
+# Option C invariant `projects/fx27/campaigns/cspace/rockets_dm.py` relies on
+# for its own Mach-dependent variants) for the `estimate_cx_scale` regression
+# below. C_A is held flat at 0.5 (DEMO_SCENARIO's own baseline constant C_x)
+# purely so the table-model flight's apogee timing is the same order as the
+# existing two Tier-2 tests' ~30 s, not because the shape of C_A(M) matters to
+# what this test checks (`estimate_cx_scale` solving for a `cx_scale`
+# multiplier, not the table's own curve).
+#
+# A non-drag-only table (nonzero C_N/C_m) was tried first and found to
+# destabilize DEMO_SCENARIO's rocket almost immediately after leaving the
+# rail (`AeroRangeWarning`, alpha outside the table's covered range within
+# the first ~5 s of a 1200 s flight) -- DEMO_SCENARIO's own aero was
+# deliberately built with C_z=C_m=0 ("keeps flight vertical/1-D", that
+# module's own docstring), so reintroducing a real pitching moment via the
+# table is a second, unrelated instability, not the Mach-table-cx_scale
+# behavior this test means to exercise. Same `_temp_table` pattern as
+# `tests/test_scenario_sweep.py`'s own synthetic tables (`_LOW_M_TABLE`).
+_DRAG_ONLY_TABLE = """# cm_convention: standard
+alpha_deg,M,C_A,C_N,C_m,l_p_m
+-10,0.0,0.50,0.0,0.0,0.0
+0,0.0,0.50,0.0,0.0,0.0
+10,0.0,0.50,0.0,0.0,0.0
+-10,3.0,0.50,0.0,0.0,0.0
+0,3.0,0.50,0.0,0.0,0.0
+10,3.0,0.50,0.0,0.0,0.0
+"""
+
+
+@contextlib.contextmanager
+def _temp_table(name, text):
+    path = os.path.join(AERO_DIR, name)
+    with open(path, "w") as f:
+        f.write(text)
+    _aero_module._load_table.cache_clear()
+    try:
+        yield name
+    finally:
+        _aero_module._load_table.cache_clear()
+        # Tolerate the file already being gone: this repo's data/ tree lives under a
+        # cloud-synced folder (CLAUDE.md "Yandex.Disk" note), and a create-then-remove
+        # this close together was observed, during this step's own testing, to
+        # occasionally race with the sync client and raise FileNotFoundError here even
+        # though nothing in this process removed it early -- the actual goal ("no stray
+        # file left behind") is already satisfied either way, so a missing file at
+        # cleanup time is not a test failure.
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+
+
+def test_estimate_cx_scale_on_table_scenario_is_reachable_and_converges():
+    """`estimate_cx_scale` (architecture-42 SS42.5) mirrors `estimate_cx`
+    but drives `Scenario.overrides["aero.cx_scale"]` instead of
+    `"aero.C_x"` -- the Mach-table analogue, needed because a
+    `model="table"` `Aero` has no single `C_x` to solve for. Built on a
+    `model="table"` variant of `DEMO_SCENARIO`'s own rocket, against the
+    synthetic drag-only table above -- no fx27 fixtures needed,
+    `apps/optimization/` tests should not depend on `projects/fx27`."""
+    with _temp_table("test_apogee_targeting_drag_only.csv", _DRAG_ONLY_TABLE) as tbl:
+        table_rocket = dataclasses.replace(
+            DEMO_SCENARIO.rocket,
+            aero=Aero(model="table", S=DEMO_SCENARIO.rocket.aero.S, d_ref=DEMO_SCENARIO.rocket.aero.d_ref, table=tbl),
+        )
+        # C_N=C_m=0 above keeps this flight exactly vertical (alpha stays 0 throughout,
+        # same invariant `rockets_dm.py` relies on), so -- unlike a nonzero-moment table
+        # -- the full DEMO_SCENARIO solver (t_max=1200 s, canopy descent included) is safe
+        # to fly unmodified; no RK45-stall regime (dev/docs/diagnosis-rk45-v2-table.md) to
+        # avoid here.
+        table_scenario = dataclasses.replace(DEMO_SCENARIO, rocket=table_rocket)
+
+        # 4000 m, not the other two Tier-2 tests' 3000 m: at this table's C_A=0.5,
+        # the default cx_scale_bracket (0.0, 2.0) only reaches apogees in
+        # [~3654 m, ~5947 m] (measured) -- 3000 m falls outside that range, so
+        # this target is chosen to actually be bracketed, not copied by rote.
+        target_apogee_agl = 4000.0
+        res = estimate_cx_scale(table_scenario, target_apogee_agl=target_apogee_agl)
 
     assert res.reachable is True
     assert math.isclose(res.achieved_apogee_m, target_apogee_agl, abs_tol=1.0e-2)

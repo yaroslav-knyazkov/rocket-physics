@@ -11,14 +11,29 @@ measured failure", for the full diagnosis: this is risk R1, SS38.10,
 materialising for the lightest/fastest cspace vehicle, not an
 implementation defect). `pro75`'s own case has no such caveat (+1.16%).
 
+Architecture-42 SS42.8 adds 2 dm rows below the dc oracle rows above, via
+`estimate_cx_scale` (the Mach-table analogue of `estimate_cx`):
+`pro54_transition_dm`/`pro75_dm` against `rockets_ideal.py` Section B1's
+own last regen and Section B2's fx27 measured-delta figure. Same "NOT an
+oracle" framing as `ideal_mass.py`'s dm rows -- SS40.8: no fresh
+target-apogee-solved oracle exists for these dm figures.
+
 Run: `python -m projects.fx27.runs.cspace.ideal_drag`.
 """
 
 from __future__ import annotations
 
-from projects.fx27.campaigns.cspace.rockets_ideal import PRO54_TRANSITION_IDEAL_DRAG_CX, PRO75_IDEAL_DRAG_CX
+from projects.fx27.campaigns.cspace.rockets_ideal import (
+    PRO54_TRANSITION_DM_IDEAL_DRAG_CX_SCALE,
+    PRO54_TRANSITION_DM_IDEAL_OWN_DRAG_CX_SCALE,
+    PRO54_TRANSITION_IDEAL_DRAG_CX,
+    PRO75_DM_IDEAL_DRAG_CX_SCALE,
+    PRO75_DM_IDEAL_OWN_DRAG_CX_SCALE,
+    PRO75_IDEAL_DRAG_CX,
+)
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.point.estimate import estimate_cx
+from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.point.estimate import estimate_cx, estimate_cx_scale
 
 TARGET_APOGEE_M = 3000.0
 
@@ -36,6 +51,17 @@ _CAVEAT: "dict[str, str]" = {
     ),
 }
 
+# name -> (this project's own last regen from rockets_ideal.py B1, fx27's own dm
+# measured-delta figure from rockets_ideal.py B2 -- NOT a target-apogee-solved
+# oracle, SS40.8/architecture-40; kept for provenance only, printed for context,
+# never framed as "error vs" the way the dc rows above are). `_CAVEAT` above is
+# dc-only and untouched -- it keys off scenario names that never collide with
+# these dm names, so no guard is needed to keep it from accidentally firing here.
+_OWN_AND_FX27_DM: "dict[str, tuple[float, float]]" = {
+    "pro54_transition_dm": (PRO54_TRANSITION_DM_IDEAL_OWN_DRAG_CX_SCALE, PRO54_TRANSITION_DM_IDEAL_DRAG_CX_SCALE),
+    "pro75_dm": (PRO75_DM_IDEAL_OWN_DRAG_CX_SCALE, PRO75_DM_IDEAL_DRAG_CX_SCALE),
+}
+
 
 def main(argv=None) -> None:
     for name, fx27_value in _FX27_SOLVED.items():
@@ -48,6 +74,17 @@ def main(argv=None) -> None:
         )
         if name in _CAVEAT:
             print(_CAVEAT[name])
+
+    for name, (own_regen, fx27_measured) in _OWN_AND_FX27_DM.items():
+        res = estimate_cx_scale(SCENARIOS_DM[name], target_apogee_agl=TARGET_APOGEE_M)
+        drift_pct = 100.0 * (res.required - own_regen) / own_regen
+        print(
+            f"{name}: baseline={res.baseline:.4f}, required={res.required:.4f} "
+            f"(this project's own last regen={own_regen:.4f}, drift {drift_pct:+.2f}%), "
+            f"fx27 measured-delta figure={fx27_measured:.4f} [NOT an oracle -- SS40.8: no "
+            "target-apogee solve backs this number, provenance only], "
+            f"achieved apogee={res.achieved_apogee_m:.1f} m, reachable={res.reachable}"
+        )
 
 
 if __name__ == "__main__":

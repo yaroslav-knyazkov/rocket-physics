@@ -174,3 +174,27 @@ def estimate_cx(
         return dataclasses.replace(s, overrides={**s.overrides, "aero.C_x": cx})
 
     return solve_for_target_apogee(scenario, with_cx, scenario.rocket.aero.C_x, cx_bracket, target_apogee_agl, xtol)
+
+
+def estimate_cx_scale(
+    scenario: Scenario,
+    target_apogee_agl: float = 3000.0,
+    cx_scale_bracket: "tuple[float, float]" = (0.0, 2.0),
+    xtol: float = 1.0e-6,
+) -> ApogeeTargetResult:
+    """The `Aero.cx_scale` multiplier (Step 105 dispersion hook, applied after model
+    dispatch regardless of `aero.model` -- `apps/sim/engine/aero.py`'s `coefficients`)
+    that puts this scenario's apogee at `target_apogee_agl` -- the Mach-table analogue
+    of `estimate_cx`'s constant-C_x root-find. On a `model="table"` Aero this scales the
+    WHOLE Mach-dependent drag curve by one factor rather than solving a single coefficient
+    (the distinction architecture-41 SS41.3 first worked out for the one-off
+    `generate_rockets_ideal_own.py` closure this function now replaces). Same bracket/xtol
+    defaults as `estimate_cx`, via `Scenario.overrides` (never a post-hoc `params.replace`
+    -- module docstring)."""
+
+    def with_cx_scale(s: Scenario, x: float) -> Scenario:
+        return dataclasses.replace(s, overrides={**s.overrides, "aero.cx_scale": x})
+
+    return solve_for_target_apogee(
+        scenario, with_cx_scale, scenario.rocket.aero.cx_scale, cx_scale_bracket, target_apogee_agl, xtol
+    )

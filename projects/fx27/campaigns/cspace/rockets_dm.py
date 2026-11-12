@@ -13,12 +13,9 @@ changes: same radius/S/d_ref (same body), same `c_mq=0.0` placeholder
 `sections`/`airframe.I`/`l` (Option C, C_z=C_m=c_mq=0 is still true: the
 table's own C_N/C_m columns are 0.0 at every grid point -- SS40.3).
 
-4 "ideal" dm variants mirror `rockets_ideal.py`'s existing pattern
-exactly (only `pro54_transition`/`pro75` get one, `pro54_equal` never
-does) -- idealized MASS is a plain `airframe.m` override; idealized DRAG
-is `Aero.cx_scale` (Step 105 dispersion hook, applied after the table
-dispatch regardless of model, `apps/sim/engine/aero.py`'s `coefficients`)
-rather than a second, rescaled CSV -- SS40.3's confirmed reading.
+The 4 "ideal" dm variants that used to live at the bottom of this file
+moved to `rockets_ideal.py` Section B2 (architecture-42 SS42.2/SS42.3) --
+see that module, not this one, for them.
 """
 
 from __future__ import annotations
@@ -68,43 +65,4 @@ PRO75_DM = dataclasses.replace(
         "fx27 data/cspace/rockets.py pro75_dm: Mach-dependent C_A(M) table ported from "
         "import/aerodynamics/cspace/pro75-drag.csv (SS40.3/SS40.5)."
     ),
-)
-
-# fx27 hardcoded dm "ideal" figures (data/cspace/rockets_ideal.py's "## DM" half) -- NOT
-# an AC-3-style solved oracle (unlike rockets_ideal.py's 4 dc figures): fx27's own
-# comments ("- 0.9267 kg", "* 0.5843") read as a measured mass/drag delta applied to the
-# dm rocket, not a fresh root-find against a stated target apogee -- no apples-to-apples
-# oracle number exists to test these against (SS40.8). Kept as named constants for
-# provenance/traceability only, same style as rockets_ideal.py's own constants.
-PRO54_TRANSITION_DM_IDEAL_MASS_KG = 4.9083          # 5.835 - 0.9267
-PRO54_TRANSITION_DM_IDEAL_DRAG_CX_SCALE = 0.5843
-PRO75_DM_IDEAL_MASS_KG = 7.8663                     # 6.225 + 1.6413
-PRO75_DM_IDEAL_DRAG_CX_SCALE = 1.4954
-
-PRO54_TRANSITION_DM_IDEAL_MASS = dataclasses.replace(
-    PRO54_TRANSITION_DM,
-    name="pro54_transition_dm_ideal_mass",
-    airframe=dataclasses.replace(PRO54_TRANSITION_DM.airframe, m=PRO54_TRANSITION_DM_IDEAL_MASS_KG),
-    notes="fx27 data/cspace/rockets_ideal.py pro54_transition_dm_im: dry mass 5.835 - 0.9267 kg.",
-)
-
-PRO54_TRANSITION_DM_IDEAL_DRAG = dataclasses.replace(
-    PRO54_TRANSITION_DM,
-    name="pro54_transition_dm_ideal_drag",
-    aero=dataclasses.replace(PRO54_TRANSITION_DM.aero, cx_scale=PRO54_TRANSITION_DM_IDEAL_DRAG_CX_SCALE),
-    notes="fx27 data/cspace/rockets_ideal.py pro54_transition_dm_id: whole drag curve * 0.5843.",
-)
-
-PRO75_DM_IDEAL_MASS = dataclasses.replace(
-    PRO75_DM,
-    name="pro75_dm_ideal_mass",
-    airframe=dataclasses.replace(PRO75_DM.airframe, m=PRO75_DM_IDEAL_MASS_KG),
-    notes="fx27 data/cspace/rockets_ideal.py pro75_dm_im: dry mass 6.225 + 1.6413 kg.",
-)
-
-PRO75_DM_IDEAL_DRAG = dataclasses.replace(
-    PRO75_DM,
-    name="pro75_dm_ideal_drag",
-    aero=dataclasses.replace(PRO75_DM.aero, cx_scale=PRO75_DM_IDEAL_DRAG_CX_SCALE),
-    notes="fx27 data/cspace/rockets_ideal.py pro75_dm_id: whole drag curve * 1.4954.",
 )

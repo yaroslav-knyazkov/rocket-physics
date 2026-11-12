@@ -1,13 +1,14 @@
-"""tests/test_rockets_ideal_own.py -- tests for projects/fx27/campaigns/
-cspace/rockets_ideal_own.py and generate_rockets_ideal_own.py
-(dev/docs/architecture-41-fx27-idealized-regenerate.md SS41.8, Phase 2.23,
-Step 148, D-176).
+"""tests/test_regenerate_ideal_own.py -- tests for projects/fx27/campaigns/
+cspace/rockets_ideal.py's Section B1 and regenerate_ideal_own.py
+(dev/docs/architecture-41-fx27-idealized-regenerate.md SS41.8,
+dev/docs/architecture-42-fx27-ideal-consolidation.md SS42.7, Phase 2.23,
+Step 148, D-176; renamed/retargeted Phase 2.26, Step 151).
 
 Does NOT touch tests/test_fx27_port.py (that file's own "ONLY test file
 this port touches" boundary note) -- a new, separate step's test surface.
 
-No numeric pin/oracle here. The 8 constants in rockets_ideal_own.py are
-THIS project's own solver output, re-derived against rockets.py/
+No numeric pin/oracle here. The 8 constants in rockets_ideal.py's Section
+B1 are THIS project's own solver output, re-derived against rockets.py/
 rockets_dm.py's current base figures -- they are EXPECTED TO DRIFT
 whenever those base figures change (that drift is the entire point of
 roadmap F2). Asserting a specific decimal value against any of them
@@ -15,10 +16,10 @@ would be a false pin; this file only checks assembly/wiring and the
 write mechanism in isolation.
 
 Hard constraint (repeated from the architecture doc): no test below may
-call generate_rockets_ideal_own._solved_values() or .main() against the
+call regenerate_ideal_own._solved_values() or .main() against the
 real committed module -- every write-mechanism test targets a tmp_path
 file or a synthetic in-memory string, never the real solver or the real
-rockets_ideal_own.py path.
+rockets_ideal.py path.
 
 Same house style as test_fx27_port.py/test_apogee_targeting.py: plain
 `assert`, no fixtures, no conftest.py.
@@ -32,8 +33,8 @@ import pytest
 
 from apps.sim.schema import Scenario, assemble
 
-from projects.fx27.campaigns.cspace import motors, rockets_ideal_own
-from projects.fx27.campaigns.cspace.generate_rockets_ideal_own import (
+from projects.fx27.campaigns.cspace import motors, rockets_ideal
+from projects.fx27.campaigns.cspace.regenerate_ideal_own import (
     _rewrite_file,
     _substitute_constant,
 )
@@ -58,28 +59,28 @@ from projects.fx27.point.metrics import row_from_flight
 
 _VARIANTS: "dict[str, tuple]" = {
     "pro54_transition_ideal_own_mass": (
-        rockets_ideal_own.PRO54_TRANSITION_IDEAL_OWN_MASS, motors.PRO54_2060K570,
+        rockets_ideal.PRO54_TRANSITION_IDEAL_OWN_MASS, motors.PRO54_2060K570,
     ),
     "pro54_transition_ideal_own_drag": (
-        rockets_ideal_own.PRO54_TRANSITION_IDEAL_OWN_DRAG, motors.PRO54_2060K570,
+        rockets_ideal.PRO54_TRANSITION_IDEAL_OWN_DRAG, motors.PRO54_2060K570,
     ),
     "pro75_ideal_own_mass": (
-        rockets_ideal_own.PRO75_IDEAL_OWN_MASS, motors.PRO75_3419L645,
+        rockets_ideal.PRO75_IDEAL_OWN_MASS, motors.PRO75_3419L645,
     ),
     "pro75_ideal_own_drag": (
-        rockets_ideal_own.PRO75_IDEAL_OWN_DRAG, motors.PRO75_3419L645,
+        rockets_ideal.PRO75_IDEAL_OWN_DRAG, motors.PRO75_3419L645,
     ),
     "pro54_transition_dm_ideal_own_mass": (
-        rockets_ideal_own.PRO54_TRANSITION_DM_IDEAL_OWN_MASS, motors.PRO54_2060K570,
+        rockets_ideal.PRO54_TRANSITION_DM_IDEAL_OWN_MASS, motors.PRO54_2060K570,
     ),
     "pro54_transition_dm_ideal_own_drag": (
-        rockets_ideal_own.PRO54_TRANSITION_DM_IDEAL_OWN_DRAG, motors.PRO54_2060K570,
+        rockets_ideal.PRO54_TRANSITION_DM_IDEAL_OWN_DRAG, motors.PRO54_2060K570,
     ),
     "pro75_dm_ideal_own_mass": (
-        rockets_ideal_own.PRO75_DM_IDEAL_OWN_MASS, motors.PRO75_3419L645,
+        rockets_ideal.PRO75_DM_IDEAL_OWN_MASS, motors.PRO75_3419L645,
     ),
     "pro75_dm_ideal_own_drag": (
-        rockets_ideal_own.PRO75_DM_IDEAL_OWN_DRAG, motors.PRO75_3419L645,
+        rockets_ideal.PRO75_DM_IDEAL_OWN_DRAG, motors.PRO75_3419L645,
     ),
 }
 
@@ -225,7 +226,7 @@ def test_committed_variant_apogee_is_plausible(rocket_name):
 #    oracle values previously wired in, which overshoot by 15-50 m
 #    (fx27's own solver target differs slightly from this port's).
 #
-#    NOT a numeric pin: the 8 values in rockets_ideal_own.py are
+#    NOT a numeric pin: the 8 values in rockets_ideal.py are
 #    re-derived (drift whenever rockets.py/rockets_dm.py's base figures
 #    change, see that module's own docstring); this test asserts the
 #    3000 m *target property* survives a re-solve, not a decimal

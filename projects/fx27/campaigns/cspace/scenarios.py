@@ -4,12 +4,16 @@ base rockets + 4 idealized variants, each paired with its motor,
 site and weather.
 
 The 4 idealized rows (Phase 2.24, Step 149, architecture-41 SS41.7
-addendum) fly THIS project's OWN `apps/optimization/apogee_targeting`
-solve (`rockets_ideal_own.py`), not fx27's own already-solved figures
-(`rockets_ideal.py`) -- those stay reserved as the frozen AC-3 oracle
-`tests/test_fx27_port.py` grades this project's solver against, and must
-never be re-used as a flown scenario. The dict's 7 keys are unchanged;
-only the `rocket=` each of the last 4 keys points at moved.
+addendum; re-sourced Phase 2.26, Step 151, architecture-42 SS42.6) fly
+THIS project's OWN `apps/optimization/apogee_targeting` solve
+(`rockets_ideal.py` Section B1), not fx27's own already-solved figures
+(`rockets_ideal.py` Section A) -- that Section A stays reserved as the
+frozen AC-3 oracle `tests/test_fx27_port.py` grades this project's
+solver against, and must never be re-used as a flown scenario. Both
+sections now live in the one `rockets_ideal.py` module (architecture-42
+SS42.2) -- the import below pulls Section B1's names, never Section A's.
+The dict's 7 keys are unchanged; only the `rocket=` each of the last 4
+keys points at moved.
 
 Naming convention (SS38.5.2, LOAD-BEARING for plot styling,
 `projects/fx27/point/plots.py`'s `_family_colors`/`_variant_style`):
@@ -28,7 +32,7 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.campaigns.cspace import motors, rockets, rockets_ideal_own
+from projects.fx27.campaigns.cspace import motors, rockets, rockets_ideal
 from projects.fx27.campaigns.cspace.site import SITE
 from projects.fx27.campaigns.cspace.weather import WEATHER
 
@@ -39,7 +43,7 @@ _IDEAL_OWN_NOTE = (
     "This project's own apps/optimization/apogee_targeting solve "
     "against the 3000 m AGL target (NOT fx27's rockets_ideal.py "
     "oracle) -- re-derive via "
-    "`python -m projects.fx27.campaigns.cspace.generate_rockets_ideal_own`."
+    "`python -m projects.fx27.campaigns.cspace.regenerate_ideal_own`."
 )
 
 SCENARIOS: "dict[str, Scenario]" = {
@@ -69,7 +73,7 @@ SCENARIOS: "dict[str, Scenario]" = {
     ),
     "pro54_transition (ideal mass)": Scenario(
         name="pro54_transition (ideal mass)",
-        rocket=rockets_ideal_own.PRO54_TRANSITION_IDEAL_OWN_MASS,
+        rocket=rockets_ideal.PRO54_TRANSITION_IDEAL_OWN_MASS,
         motor=motors.PRO54_2060K570,
         site=SITE,
         weather=WEATHER,
@@ -77,7 +81,7 @@ SCENARIOS: "dict[str, Scenario]" = {
     ),
     "pro54_transition (ideal drag)": Scenario(
         name="pro54_transition (ideal drag)",
-        rocket=rockets_ideal_own.PRO54_TRANSITION_IDEAL_OWN_DRAG,
+        rocket=rockets_ideal.PRO54_TRANSITION_IDEAL_OWN_DRAG,
         motor=motors.PRO54_2060K570,
         site=SITE,
         weather=WEATHER,
@@ -85,7 +89,7 @@ SCENARIOS: "dict[str, Scenario]" = {
     ),
     "pro75 (ideal mass)": Scenario(
         name="pro75 (ideal mass)",
-        rocket=rockets_ideal_own.PRO75_IDEAL_OWN_MASS,
+        rocket=rockets_ideal.PRO75_IDEAL_OWN_MASS,
         motor=motors.PRO75_3419L645,
         site=SITE,
         weather=WEATHER,
@@ -93,7 +97,7 @@ SCENARIOS: "dict[str, Scenario]" = {
     ),
     "pro75 (ideal drag)": Scenario(
         name="pro75 (ideal drag)",
-        rocket=rockets_ideal_own.PRO75_IDEAL_OWN_DRAG,
+        rocket=rockets_ideal.PRO75_IDEAL_OWN_DRAG,
         motor=motors.PRO75_3419L645,
         site=SITE,
         weather=WEATHER,
