@@ -624,6 +624,15 @@
       "name": "Phase 2.25 — fx27 comparison-графики: выборочный паритет с fx27/simulation (легенды на каждой оси + флаг --show)",
       "status": "done",
       "archived": true
+    },
+    {
+      "id": "2.26",
+      "name": "Phase 2.26 — консолидация идеализированных данных cspace в rockets_ideal.py (roadmap F2) + dc/dm паритет ideal_mass/ideal_drag/airbrake",
+      "status": "in_progress",
+      "design_doc": "dev/docs/architecture-42-fx27-ideal-consolidation.md",
+      "goals": "Пользователь заметил, что comparison.py использует constant-drag (dc) модель, и спросил, почему — выяснилось, что Mach-dependent (dm) инструмент УЖЕ существует (comparison_dc_dm.py, Part B/architecture-40), но ideal_mass.py/ideal_drag.py/airbrake.py паритета с dm не имеют (у fx27/simulation есть dm-версии первых двух нативно). Параллельно пользователь спросил, почему rockets_ideal_own.py — отдельный файл, а не часть rockets_ideal.py; это сразу открыло roadmap F2 (projects/fx27/docs/vehicle-dynamics-roadmap.md, решено 2026-11-03: regenerate-script, но оракул AC-3 трогать нельзя никогда). Два раунда AskUserQuestion подтвердили: (1) rockets_ideal.py — ОДИН файл с Section A (4 оракульные константы fx27, байт-в-байт, AC-3 продолжает по ним проверять) + Section B (всё, что считает/хранит сам проект — B1: 8 констант собственного dc+dm решения, мигрируют из rockets_ideal_own.py; B2: 4 константы измеренной fx27-дельты для dm, мигрируют из хвоста rockets_dm.py, НЕ оракул); (2) \"Extend all three\" — ideal_mass.py/ideal_drag.py/airbrake.py получают dm-строки.",
+      "next": "architect (sonnet override, инкрементальный шаг, без grilling — обоснование в самом документе SS42.12) выдал dev/docs/architecture-42-fx27-ideal-consolidation.md: 7 тикетов FX27C-1..7, строго последовательных (кроме FX27C-1), с чек-листом верификации AC-3-границы (SS42.11). Передаю developer'у по порядку.",
+      "pending_user": []
     }
   ],
   "decisions": [
@@ -1172,6 +1181,16 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.25"
+    },
+    {
+      "id": "D-180",
+      "date": "2026-11-12",
+      "topic": "Phase 2.26/Step 151: консолидация rockets_ideal.py (roadmap F2) + dc/dm паритет трёх run-скриптов",
+      "question": "Два отдельных вопроса пользователя. (1) «why is comparison using constant drag model... I've already implemented mach dependent comparison tool (and all other tools like ideal_drag, mass, air brake)» — выяснилось: Mach-dependent comparison УЖЕ есть (comparison_dc_dm.py), но ideal_mass.py/ideal_drag.py/airbrake.py паритета с dm не имеют. (2) «why have u created rocket_ideal_own.py. it should be stored within rocket_ideal_own» → после уточнения выяснилось, что пользователь хочет ОДИН файл rockets_ideal.py на все данные идеализированной ракеты (constant drag, mach-dependent, idealized mass, idealized drag), а не три файла/хвоста, но явно подтвердил через AskUserQuestion, что оракул AC-3 (4 константы fx27) трогать нельзя.",
+      "choice": "Подтверждено двумя раундами AskUserQuestion: (1) «One file, two sections» — Section A (оракул fx27, не трогается) + Section B (всё, что считает/хранит сам проект: B1 собственное решение dc+dm, мигрирует из rockets_ideal_own.py; B2 измеренная fx27-дельта для dm, мигрирует из хвоста rockets_dm.py) — НЕ «Replace the oracle constants» (это убило бы смысл AC-3). (2) «Extend all three (recommended)» — ideal_mass.py/ideal_drag.py/airbrake.py получают dm-строки, а не только первые два.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.26"
     }
   ],
   "deferred_decisions": [
