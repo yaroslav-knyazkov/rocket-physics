@@ -27,6 +27,9 @@
 - 4 тикета (RIO-1..RIO-4), последовательные (каждый зависит от предыдущего) — маленький,
   плотно связанный шаг, параллельный запуск не даёт выгоды. Approval-гейта пользователя не
   требуется (additive, уже одобренный стек, без новых зависимостей).
+- **Addendum, Step 149**: 4 "ideal"-строки в каждом словаре (`SCENARIOS`/`SCENARIOS_DM`)
+  перенаправлены с оракула fx27 на `rockets_ideal_own.py` — теперь они реально ложатся на 3000 м,
+  а не перелетают на 15-50 м; ключи словарей и пины SS41.7 не изменились.
 
 ## Table of contents
 
@@ -420,6 +423,32 @@ constants; any test or future run-script that wants a `Scenario` wrapping one of
 locally (same literal shape `scenarios.py`'s own rows already use — `Scenario(name=..., rocket=...,
 motor=..., site=SITE, weather=WEATHER)`), the same way `tests/test_rockets_ideal_own.py` does
 (SS41.8).
+
+**Addendum, Phase 2.24, Step 149:** the "not extended" reasoning above is about *key count* and
+still holds unchanged — no row was added or renamed in either dict, and the exact-7-key pins
+(`test_cspace_has_exactly_the_seven_comparison_rows` / `::test_cspace_dm_has_exactly_the_seven_
+comparison_rows`) are untouched by this step. What changed in Step 149: each dict's 4 existing
+*ideal* rows' `rocket=` field was re-pointed from the fx27 oracle (`rockets_ideal.PRO54_
+TRANSITION_IDEAL_MASS`/etc. in `scenarios.py`, `rockets_dm.PRO54_TRANSITION_DM_IDEAL_MASS`/etc. in
+`scenarios_dm.py`) to this step's own `rockets_ideal_own.py` variants — fixing the 15-50 m apogee
+overshoot the oracle values produced when flown through this project's own `apps/sim/engine`
+(user decision, Option A, this session: re-point the scenario wiring rather than touch the
+oracle). `rockets_ideal.py`/`rockets_dm.py` themselves, and `tests/test_fx27_port.py`'s 4 AC-3
+tests, remain untouched — they still compare the solver's `estimate_airframe_mass`/`estimate_cx`
+output against the frozen fx27 oracle via `SCENARIOS["pro54_transition"]`/`SCENARIOS["pro75"]`
+(the *base* rows, not the ideal rows those two AC-3 run-scripts never touch). Test coverage for the
+on-target property lives in `tests/test_rockets_ideal_own.py` (not `test_fx27_port.py`), parametrized
+over all 8 re-pointed rows, asserting `abs(apogee - 3000.0) <= 1.0` m (measured max error across all
+8 rows: 0.078 m) — a target-property check, not a new numeric pin, consistent with this doc's own
+SS41.8 "no new numeric pin" rule.
+
+Two OTHER consumers of the 4 re-pointed dc rows do change their *input* (though not their
+pass/fail outcome, verified): `tests/test_fx27_port.py::test_airbrake_solve_converges_for_one_
+ideal_variant` (AC-5, not AC-3) reads `CSPACE_SCENARIOS["pro75 (ideal mass)"].config` and still
+converges; `runs/cspace/airbrake.py` sizes brakes for all 4 dc ideal rows by name and still
+converges for all 4. Both were run manually as part of this step's verification and still pass/
+converge — listed here so a future reader diagnosing a drift in either does not overlook this
+step as a candidate cause.
 
 ## SS41.8 Test plan
 

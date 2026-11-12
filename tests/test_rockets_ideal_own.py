@@ -37,15 +37,23 @@ from projects.fx27.campaigns.cspace.generate_rockets_ideal_own import (
     _rewrite_file,
     _substitute_constant,
 )
+from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
+from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
 from projects.fx27.campaigns.cspace.site import SITE
 from projects.fx27.campaigns.cspace.weather import WEATHER
 from projects.fx27.point.comparison import run_many
+from projects.fx27.point.flight import run as fly
 from projects.fx27.point.metrics import row_from_flight
 
 # ----------------------------------------------------------------------
 # 1. Assembly smoke tests -- mirrors test_fx27_port.py::test_cspace_
-#    scenario_assembles, locally-built Scenario wrappers (SS41.7: the 8
-#    new Rocket variants are NOT wired into SCENARIOS/SCENARIOS_DM).
+#    scenario_assembles, locally-built Scenario wrappers. (SS41.7's
+#    reasoning still stands for the dict *keys*: no new rows were added
+#    to SCENARIOS/SCENARIOS_DM. As of Step 149/architecture-41 SS41.7
+#    addendum, 4 of each dict's EXISTING ideal rows now point at these
+#    variants -- see section 4 below -- but these locally-built wrappers
+#    are kept too, since they cover all 8 variants, not just the 4 dc +
+#    4 dm ones wired into the scenario sets.)
 # ----------------------------------------------------------------------
 
 _VARIANTS: "dict[str, tuple]" = {
@@ -206,3 +214,56 @@ def test_committed_variant_apogee_is_plausible(rocket_name):
     assert math.isfinite(row.apogee_agl)
     lo, hi = _PLAUSIBILITY_BAND_M
     assert lo <= row.apogee_agl <= hi
+
+
+# ----------------------------------------------------------------------
+# 4. On-target check (Phase 2.24, Step 149) -- the 4 ideal rows in each
+#    of SCENARIOS/SCENARIOS_DM are now wired to THIS project's own
+#    rockets_ideal_own variants (scenarios.py/scenarios_dm.py), so flying
+#    them should land on the 3000 m AGL apogee target the solver in
+#    apps/optimization/apogee_targeting aimed at -- unlike the fx27
+#    oracle values previously wired in, which overshoot by 15-50 m
+#    (fx27's own solver target differs slightly from this port's).
+#
+#    NOT a numeric pin: the 8 values in rockets_ideal_own.py are
+#    re-derived (drift whenever rockets.py/rockets_dm.py's base figures
+#    change, see that module's own docstring); this test asserts the
+#    3000 m *target property* survives a re-solve, not a decimal
+#    literal. Tolerance of 1.0 m chosen from measured error, Step 149
+#    (max observed |error| across all 8 rows was 0.078 m).
+# ----------------------------------------------------------------------
+
+_IDEAL_TARGET_M = 3000.0
+_IDEAL_TOLERANCE_M = 1.0
+
+_IDEAL_DC_ROWS = [
+    "pro54_transition (ideal mass)",
+    "pro54_transition (ideal drag)",
+    "pro75 (ideal mass)",
+    "pro75 (ideal drag)",
+]
+
+_IDEAL_DM_ROWS = [
+    "pro54_transition_dm (ideal mass)",
+    "pro54_transition_dm (ideal drag)",
+    "pro75_dm (ideal mass)",
+    "pro75_dm (ideal drag)",
+]
+
+
+@pytest.mark.parametrize("row_name", _IDEAL_DC_ROWS)
+def test_ideal_dc_row_reaches_apogee_target(row_name):
+    scenario = SCENARIOS[row_name]
+    fr = fly(scenario)
+    apogee = fr.stats.apogee_altitude
+    assert apogee is not None and math.isfinite(apogee)
+    assert abs(apogee - _IDEAL_TARGET_M) <= _IDEAL_TOLERANCE_M
+
+
+@pytest.mark.parametrize("row_name", _IDEAL_DM_ROWS)
+def test_ideal_dm_row_reaches_apogee_target(row_name):
+    scenario = SCENARIOS_DM[row_name]
+    fr = fly(scenario)
+    apogee = fr.stats.apogee_altitude
+    assert apogee is not None and math.isfinite(apogee)
+    assert abs(apogee - _IDEAL_TARGET_M) <= _IDEAL_TOLERANCE_M
