@@ -36,6 +36,36 @@ has zero normal/lateral component by construction). See
 `dev/docs/architecture-38-fx27-port.md` SS38.2.1/SS38.2.2 for the full
 verification.
 
+## Current cspace baseline simulations (initial, design-phase)
+
+**The mission ceiling is a 3000 m AGL maximum apogee.** The numbers below
+are *initial* simulations only -- the vehicles are not yet trimmed to that
+ceiling. Bringing each configuration into the proper range is downstream
+design work (it happens once real mass and aerodynamic data replace
+today's placeholder figures -- see `projects/fx27/docs/vehicle-dynamics-
+roadmap.md`), not a property of the numbers as they stand today.
+
+`python -m projects.fx27.runs.cspace.comparison` (dc set; the 7-row table
+it prints also includes `pro54_equal`, omitted here):
+
+| name | m_dry [kg] | m_wet [kg] | apogee [m] | t_apo [s] | vmax [m/s] | amax [m/s²] | Mmax | vrail [m/s] |
+|---|---|---|---|---|---|---|---|---|
+| `pro54_transition` | 6.530 | 7.520 | 2460.2 | 22.12 | 242.6 | 109.2 | 0.72 | 32.5 |
+| `pro75` | 7.905 | 9.977 | 3731.6 | 27.74 | 304.1 | 71.6 | 0.91 | 24.2 |
+| `pro54_transition` (ideal mass) | 4.981 | 5.971 | 3035.3 | 23.37 | 305.7 | 140.1 | 0.91 | 37.0 |
+| `pro54_transition` (ideal drag) | 6.530 | 7.520 | 3049.7 | 25.30 | 252.5 | 109.2 | 0.75 | 32.5 |
+| `pro75` (ideal mass) | 9.745 | 11.817 | 3019.9 | 25.91 | 251.4 | 58.6 | 0.75 | 21.9 |
+| `pro75` (ideal drag) | 7.905 | 9.977 | 3015.8 | 24.39 | 287.3 | 69.9 | 0.86 | 24.2 |
+
+**The four "ideal" rows are not vehicles** -- they are *estimated apogee
+under a variation in mass or in drag*: the same base rocket re-flown with
+one quantity (airframe dry mass, or `C_x`) swapped for the value that
+would put it at the 3000 m target, everything else untouched. They show
+how much apogee responds to each lever, nothing more. Their apogees sit
+slightly above 3000 m rather than exactly on it for a known, documented
+reason -- the swapped-in values are fx27's own solved figures, solved
+under fx27's model, not this one; see the next section.
+
 ## The acceptance oracle (AC-3) and its one documented caveat
 
 fx27's own `cspace/rockets_ideal.py` hardcodes the already-solved outputs
