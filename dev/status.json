@@ -629,10 +629,7 @@
       "id": "2.26",
       "name": "Phase 2.26 — консолидация идеализированных данных cspace в rockets_ideal.py (roadmap F2) + dc/dm паритет ideal_mass/ideal_drag/airbrake",
       "status": "done",
-      "design_doc": "dev/docs/architecture-42-fx27-ideal-consolidation.md",
-      "goals": "Пользователь заметил, что comparison.py использует constant-drag (dc) модель, и спросил, почему — выяснилось, что Mach-dependent (dm) инструмент УЖЕ существует (comparison_dc_dm.py, Part B/architecture-40), но ideal_mass.py/ideal_drag.py/airbrake.py паритета с dm не имеют (у fx27/simulation есть dm-версии первых двух нативно). Параллельно пользователь спросил, почему rockets_ideal_own.py — отдельный файл, а не часть rockets_ideal.py; это сразу открыло roadmap F2 (projects/fx27/docs/vehicle-dynamics-roadmap.md, решено 2026-11-03: regenerate-script, но оракул AC-3 трогать нельзя никогда). Два раунда AskUserQuestion подтвердили: (1) rockets_ideal.py — ОДИН файл с Section A (4 оракульные константы fx27, байт-в-байт, AC-3 продолжает по ним проверять) + Section B (всё, что считает/хранит сам проект — B1: 8 констант собственного dc+dm решения, мигрируют из rockets_ideal_own.py; B2: 4 константы измеренной fx27-дельты для dm, мигрируют из хвоста rockets_dm.py, НЕ оракул); (2) \"Extend all three\" — ideal_mass.py/ideal_drag.py/airbrake.py получают dm-строки.",
-      "next": "ЗАКРЫТО, коммит 1a3588d. architect (sonnet override, инкрементальный шаг, без grilling) выдал dev/docs/architecture-42-fx27-ideal-consolidation.md: 7 тикетов FX27C-1..7. developer реализовал все 7 по порядку (новая публичная apps/optimization/apogee_targeting/solve.py::estimate_cx_scale; rockets_ideal.py получил Section B; rockets_dm.py обрезан; regenerate_ideal_own.py — переименование+перенацеливание; scenarios.py/scenarios_dm.py — обновлён импорт; tests/test_regenerate_ideal_own.py — переименован; ideal_mass.py/ideal_drag.py/airbrake.py — dm-строки с явной пометкой «NOT an oracle»; rockets_ideal_own.py/generate_rockets_ideal_own.py удалены). По ходу developer сам поймал реальную ловушку (нестабильный тест из-за таблицы с ненулевым моментом — 20+ минут зависания, переписал на synthetic drag-only) и через code-review нашёл и исправил гонку в tmp-файле синхронизируемой папки + 2 устаревших докстринга. Я перепроверил САМ, не поверив отчёту на слово: git diff на rockets_ideal.py — только добавления (139 insertions, 0 deletions), Section A байт-в-байт; целевые тесты (test_fx27_port.py + test_regenerate_ideal_own.py + test_apogee_targeting.py) — 91 passed сам прогнал; AC-3 + пины отдельно — 44 passed; все три новых run-скрипта запустил вручную — вывод совпадает со спекой слово в слово (включая NOT an oracle framing, 0.00% drift на собственном решении); полный прогон запустил и опросил сам с нуля (блокирующий poll ~985 с) — 899 passed, 0 failed (ровно +1 над базой 898, новый тест estimate_cx_scale). Исключил из коммита 2 файла другой параллельной сессии (projects/fx27/docs/airbrake-controller-plan.md, campaigns/cspace/data/motors.zip) — явными путями, не -A.",
-      "pending_user": []
+      "archived": true
     }
   ],
   "decisions": [
@@ -1513,7 +1510,7 @@
     "file": "dev/status-archive.json",
     "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
     "generated": "2026-11-12",
-    "stages_archived": 9,
+    "stages_archived": 10,
     "decisions_archived": 112,
     "legacy_keys_archived": [
       "active_modules",
