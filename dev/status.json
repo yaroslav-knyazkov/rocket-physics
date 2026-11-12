@@ -612,6 +612,13 @@
       "name": "Phase 2.23 — fx27 vehicle-dynamics roadmap F2: regenerate-script for this project's own idealized cspace rockets (dc+dm), target 3000 m AGL",
       "status": "done",
       "archived": true
+    },
+    {
+      "id": "2.24",
+      "name": "Phase 2.24 — cspace comparison: ideal-строки летают на СОБСТВЕННЫХ решённых значениях (попадание в 3000 м), fx27-оракул остаётся нетронутым",
+      "status": "in_progress",
+      "next": "Step 149 (единственный шаг фазы) у developer. Суть: пользователь увидел в выводе `runs/cspace/comparison.py` овершут ideal-строк на 15-50 м над целью 3000 м и спросил, не баг ли это в core. Разобрано: не баг — таблица летает на fx27-ских решённых значениях (rockets_ideal.py, AC-3-оракул), решённых под моделью fx27/rocketpy, а core этого проекта считает по Option C (frozen-attitude, тяга/сопротивление вдоль оси корпуса); расхождение 0.5-1.7% по apogee измерено и задокументировано ещё на этапе порта (fx27-port-progress-notes.md, 'STOP: AC-3 measured failure'). Собственные решённые значения уже существуют с Step 148 (rockets_ideal_own.py) — я проверил их форвард-симом: dc-строки попадают в 3000 м с точностью +0.011/-0.069/+0.003/+0.078 м, то есть точнее, чем ~1 м у rocketpy-аппа пользователя. Пользователь выбрал вариант A из двух (AskUserQuestion, D-178): пере-навести scenarios.py/scenarios_dm.py на rockets_ideal_own, НЕ перезаписывая rockets_ideal.py. Developer: (a)+(b) 4 ideal-строки в каждом из двух наборов меняют rocket= на *_IDEAL_OWN_*, с переписыванием notes=/докстрингов (прежние утверждают 'the AC-3 oracle' — становится ложью); (c) правка стальных докстрингов в rockets_ideal_own.py при нужде; (d) одна строка-пометка в architecture-41 SS41.7; (e) тест в tests/test_rockets_ideal_own.py: все 8 ideal-строк (dc+dm) при прогоне через point/flight.py::run попадают в 3000.0 м с допуском <=1.0 м (dm-числа developer измеряет сам — при промахе шире допуска не расширять молча, а докладывать). Жёсткие запреты: rockets_ideal.py, rockets_dm.py, tests/test_fx27_port.py не трогать вообще; ключи SCENARIOS/SCENARIOS_DM остаются байт-идентичными (запинены в test_fx27_port.py ~74-75 и ~218-219); runs/cspace/ideal_mass.py и ideal_drag.py продолжают сравнивать с fx27-значениями (это AC-3-паритетный дисплей). Гейт — полный прогон pytest. Детали developer'а — dev/docs/step-149-notes.md.",
+      "pending_approvals": []
     }
   ],
   "decisions": [
@@ -1140,6 +1147,16 @@
       "choice": "Commit dev/docs/latex/main.pdf directly to the repo (gitignore exception added) instead of a GitHub Release asset; README links to it with a relative repo path. Re-commit by hand after each recompile.",
       "author": "user",
       "user_approved": true
+    },
+    {
+      "id": "D-178",
+      "date": "2026-11-12",
+      "topic": "Phase 2.24/Step 149: куда положить СОБСТВЕННЫЕ решённые значения idealized-ракет, чтобы `runs/cspace/comparison.py` печатал попадание в 3000 м",
+      "question": "Пользователь заметил овершут ideal-строк в выводе comparison.py (до +49.7 м над целью 3000 м) и спросил, причина ли в rocketpy-происхождении ideal_rocket-данных или в core. Ответ: в данных — таблица летает на fx27-ских решённых значениях (rockets_ideal.py), решённых под моделью fx27/rocketpy, а не под Option C этого проекта; расхождение 0.5-1.7% по apogee измерено ещё на этапе порта. Собственные значения уже есть (rockets_ideal_own.py, Step 148) и дают попадание ±0.08 м. Пользователь: «replace the values found into rocket_ideal, and i can just run comparison». Блокер, озвученный пользователю: rockets_ideal.py — это AC-3-ОРАКУЛ, его 4 константы импортирует tests/test_fx27_port.py как ожидаемые значения 4 тестов, которые оценивают солверы этого проекта против fx27; перезапись оракула своими же числами заставила бы солвер сравниваться сам с собой (0.00% ошибки навсегда). Предложено 2 варианта.",
+      "choice": "Вариант A (рекомендованный оркестратором, выбран пользователем через AskUserQuestion): rockets_ideal.py остаётся нетронутым замороженным fx27-оракулом; пере-наводятся scenarios.py и scenarios_dm.py — их 4 ideal-строки берут rocket= из rockets_ideal_own вместо rockets_ideal/rockets_dm. Тогда обычный `python -m projects.fx27.runs.cspace.comparison` без флагов печатает ideal-строки на 3000 м. Ключи наборов не меняются, пины на 7 ключей держатся, 4 AC-3-теста не трогаются. Отклонён вариант B (перезаписать rockets_ideal.py генератором, а 4 fx27-числа перенести литералами в tests/test_fx27_port.py, удалив rockets_ideal_own.py): концептуально чище «один ideal-модуль вместо двух близнецов» и ровно то, о чём просил пользователь буквально, но больше движущихся частей и инвертирует guardrail «никогда не писать в rockets_ideal.py», сознательно встроенный на Step 148.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.24"
     }
   ],
   "deferred_decisions": [
