@@ -640,8 +640,8 @@
     {
       "id": "2.28",
       "name": "Phase 2.28 — fx27 campaigns/cspace reorg round 2: campaigns/ -> data/ (inner data/{aero,motors,airbrake}/ flattened out), rockets.py+rockets_dm.py merged (rockets_ideal.py untouched), regenerate_ideal_own.py -> runs/point/, airbrake.py -> ideal_open_airbrake.py (solvers+runs)",
-      "status": "in_progress",
-      "next": "dev/docs/architecture-44-fx27-campaigns-reorg.md done (D-186/D-187 — scoped, then re-scoped after a live cross-session collision materialized mid-design: the controller-track session's own solvers/point/controller.py, runs/point/controller.py, campaigns/cspace/airbrake_data.py, campaigns/cspace/data/airbrake/*.csv and a _paths.py edit landed uncommitted while architect worked; user confirmed twice to proceed and absorb them into the rename plan rather than wait for that session to commit). 6 sequential tickets FX27E-1..6 handed to developer: FX27E-1 campaigns/->data/ rename + flatten + _paths.py update (incl. the other session's cspace_airbrake()/AIRBRAKE_CSPACE), FX27E-2 rockets.py+rockets_dm.py merge, FX27E-3 regenerate_ideal_own.py -> runs/point/, FX27E-4 airbrake.py->ideal_open_airbrake.py (solvers+runs), FX27E-5 test import sweep (D-181: paths only, no new coverage), FX27E-6 full-suite verification (899 baseline). Developer instructed to re-check git status on the 4 live-collision paths immediately before touching them and escalate needs_input only on a genuinely new unaccounted path, not on ordinary content churn from the other session."
+      "status": "done",
+      "archived": true
     }
   ],
   "decisions": [
@@ -1582,7 +1582,7 @@
     "file": "dev/status-archive.json",
     "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
     "generated": "2026-11-17",
-    "stages_archived": 11,
+    "stages_archived": 12,
     "decisions_archived": 112,
     "legacy_keys_archived": [
       "active_modules",
