@@ -1244,6 +1244,16 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.28"
+    },
+    {
+      "id": "D-187",
+      "date": "2026-11-17",
+      "topic": "Phase 2.28: collision materialized mid-scoping -- proceed and absorb the other session's new files into the rename plan",
+      "question": "architect started scoping, re-checked git status per its own instructions, and found the collision was no longer hypothetical: the other session's projects/fx27/solvers/point/controller.py had landed (uncommitted), plus NEW projects/fx27/campaigns/cspace/airbrake_data.py + campaigns/cspace/data/airbrake/{pro54-transition,pro75}-airbrake.csv + a modified projects/fx27/_paths.py (new cspace_airbrake()/AIRBRAKE_CSPACE). One piece of good news: controller.py does NOT import solvers/point/airbrake.py (it imports campaigns.cspace.airbrake_data.AirbrakeHardware instead), so that specific rename's risk is lower than feared. But airbrake_data.py + its CSVs sit directly inside campaigns/, colliding with item 3's campaigns/->data/ rename. architect stopped without writing the doc (per its own instructions) and returned needs_input. Orchestrator re-escalated to the user with the concrete updated facts rather than deciding unilaterally.",
+      "choice": "User: proceed now, and have architect's plan explicitly include moving the other session's new airbrake_data.py + CSVs (and the _paths.py additions) along with everything else in the campaigns/->data/ rename, updating their one import line if the rename touches it. Accepts the other session may still be concurrently editing those exact files.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.28"
     }
   ],
   "deferred_decisions": [
