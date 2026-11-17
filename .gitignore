@@ -53,6 +53,7 @@ dev/docs/latex-v2/*.synctex.gz
 dev/docs/latex-v2/*.toc
 dev/docs/latex-v2/*.nlo
 dev/docs/latex-v2/*.nls
+dev/docs/latex-v2/*.ilg
 
 # Generated output -- not source. apps/_shared/artifacts.py::output_dir()
 # and apps/sim/engine/report.py::default_output_dir() both resolve this
