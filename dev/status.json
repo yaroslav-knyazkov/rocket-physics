@@ -634,8 +634,8 @@
     {
       "id": "2.27",
       "name": "Phase 2.27 — fx27 directory restructuring: point/ -> solvers/point/, runs/cspace+euroc merged into runs/point/ (per-campaign analysis cases folded into one file each, unused cases commented out, not separate files), comparison_dc_dm.py merged into comparison.py",
-      "status": "planned",
-      "next": "architect (sonnet override — incremental reorg on already-approved stack, no architectural fork) to turn user's explicit directive into a concrete ticket: exact file moves/renames, import-path updates across projects/fx27 + tests/test_fx27_port.py + tests/test_regenerate_ideal_own.py + any other test referencing old paths, how comparison.py selects dc/cspace vs dm vs euroc cases in one file. developer implements; per D-181 test policy, update existing test import paths only, do not add new test coverage for this purely-organizational move. Orchestrator re-verifies full suite green (899 baseline, no count change expected) before commit. After this stage closes, roadmap F7 (single 2D/3D flight) is next per vehicle-dynamics-roadmap.md — F1/F4/F5/F6 remain deferred/blocked by design."
+      "status": "in_progress",
+      "next": "architecture-43-fx27-restructure.md done, D-183 case-selector fork resolved (--case CLI flag, option A). developer implements FX27D-1..6 strictly sequential: FX27D-1 move point/->solvers/point/, FX27D-2 move 5 single-campaign run scripts into runs/point/, FX27D-3 build merged runs/point/comparison.py (--case flag per SS43.5), FX27D-4 delete old runs/cspace+euroc dirs, FX27D-5 update test import paths, FX27D-6 full-suite verification (899 baseline, no count change expected, campaigns/** and rockets_ideal.py AC-3 oracle untouched). Per D-181 test policy: update existing test import paths only, no new test coverage for this purely-organizational move. After this stage closes, roadmap F7 (single 2D/3D flight) is next per vehicle-dynamics-roadmap.md — F1/F4/F5/F6 remain deferred/blocked by design."
     }
   ],
   "decisions": [
@@ -1211,6 +1211,16 @@
       "topic": "Phase 2.27 scoping: fx27 directory restructuring, user-dictated",
       "question": "User asked, in one message: (1) move projects/fx27/point/ -> projects/fx27/solvers/point/; (2) in projects/fx27/runs/, remove cspace/ and euroc/ subfolders, replace with a single point/ folder holding all run-scripts, with per-campaign (cspace/euroc) analysis cases folded into one file each (unused cases commented out, not separate files); (3) why is everything under projects/fx27 a package (__init__.py everywhere) -- user finds the sidebar cluttered (pycache, __init__, file count); (4) merge runs/cspace/comparison_dc_dm.py into comparison.py (one file, selectable dc/dm).",
       "choice": "User dictated the target shape directly (not a developer-side decision_required) -- orchestrator answered (3) directly (package structure is required by `python -m projects.fx27...` execution style and by this project's existing import conventions, not a navigation choice; __pycache__ is gitignored bytecode cache, not a real file-count contributor, safe to ignore/hide in the editor's sidebar settings) and routed (1)/(2)/(4) to architect as Phase 2.27 for a concrete ticket, rather than orchestrator or developer guessing file-by-file.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.27"
+    },
+    {
+      "id": "D-183",
+      "date": "2026-11-17",
+      "topic": "Phase 2.27/architecture-43: case-selector mechanism for merged runs/point/comparison.py",
+      "question": "architect's SS43.6 fork: how should the merged comparison.py (absorbing cspace/comparison.py + cspace/comparison_dc_dm.py + euroc/comparison.py) let the user pick which case runs -- CLI flag, comment-out tuple, or hybrid?",
+      "choice": "Option A: --case {cspace,cspace_dc_dm,euroc} CLI flag, default cspace (no-flag behaviour unchanged from today). Architect's SS43.5 already designed this shape in full, so FX27D-3 proceeds as written, no doc edit needed.",
       "author": "user",
       "user_approved": true,
       "stage": "2.27"
