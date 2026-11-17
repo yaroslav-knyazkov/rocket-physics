@@ -47,6 +47,16 @@
 % ---------- Equation numbering ----------
 \numberwithin{equation}{subsection}
 
+% ---------- Nomenclature ----------
+% \nomenclature{symbol}{description} calls live next to each symbol's definition in the section
+% files; \printnomenclature below collects and prints them. Needs one extra build step beyond
+% pdflatex/latexmk's default pass: run `makeindex main.nlo -s nomencl.ist -o main.nls` once (or
+% configure your latexmk to do it automatically), then recompile -- otherwise the list prints
+% empty/stale. No sort keys or \nomgroup categories (Roman/Greek/Abbreviations) are set up yet --
+% entries sort by makeindex's default, which can look odd for \vec{}-wrapped symbols; add
+% \nomenclature[sortkey]{...}{...} keys later if that becomes annoying.
+\makenomenclature
+
 % ---------- Custom commands (carried over from v1; drop any you don't need) ----------
 \newcommand{\todo}[1]{%
     \textcolor{red}{(#1)}%
@@ -84,36 +94,17 @@
 
 \tableofcontents
 
+\newpage
+\printnomenclature
+
 % ---------- Section scaffold (v2 draft) ----------
 % Mirrors v1's section breakdown as a starting point only -- rename, merge, split or drop freely.
 % Each \input target below is an empty stub in sections/; fill them in, or delete the \input line
 % and the stub file if a section does not apply to v2.
 
 \newpage
-\input{sections/introduction}
-
-\newpage
-\input{sections/rocket-2d}
-
-\newpage
-\input{sections/models}
-
-\input{sections/other-dynamics}
-
-\newpage
-\input{sections/rocket-3d}
-
-\newpage
-\input{sections/analysis}
-
-\newpage
-\input{sections/assumptions}
-
-\newpage
-\input{sections/backlog}
-
-\newpage
-\input{sections/appendix}
+\section{Systems}
+\input{sections/systems/flight.tex}
 
 % ---------- Bibliography ----------
 % Left out for now -- v1's full bibliography lives in ../latex/main.tex (lines ~127-186).

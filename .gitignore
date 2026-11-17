@@ -39,6 +39,21 @@ dev/docs/latex/*.toc
 # 2026-11-06). Re-commit it by hand after recompiling -- not rebuilt by CI.
 !dev/docs/latex/main.pdf
 
+# LaTeX build artifacts (local compile of dev/docs/latex-v2/main.tex -- the
+# v2 report draft, started 2026-11-17). Unlike v1, main.pdf stays ignored
+# too: v2 is an unfinished draft, nothing links its PDF yet. .nlo/.nls are
+# nomencl's (nomenclature list) intermediate/output files.
+dev/docs/latex-v2/*.aux
+dev/docs/latex-v2/*.fdb_latexmk
+dev/docs/latex-v2/*.fls
+dev/docs/latex-v2/*.log
+dev/docs/latex-v2/*.out
+dev/docs/latex-v2/*.pdf
+dev/docs/latex-v2/*.synctex.gz
+dev/docs/latex-v2/*.toc
+dev/docs/latex-v2/*.nlo
+dev/docs/latex-v2/*.nls
+
 # Generated output -- not source. apps/_shared/artifacts.py::output_dir()
 # and apps/sim/engine/report.py::default_output_dir() both resolve this
 # as Path.cwd() / "output", recreated wherever an app's cwd happens to be

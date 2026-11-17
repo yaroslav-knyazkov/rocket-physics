@@ -1,0 +1,77 @@
+\subsection{Flight}
+Flight of the rocket can be divided into an atmospheric and a space part. The equations of motion
+for the two are the same; only the magnitudes of the forces differ.
+
+\subsubsection{Forces \& Moments - Atmospheric flight}
+\paragraph{Weight} is the main force to overcome when lifting something off the ground. It acts at
+the centre of gravity (CoG), not the centre of mass (CoM); the two coincide unless gravity varies
+appreciably over the body, an effect called the gravity gradient, which only matters in space. For
+atmospheric flight the two points can therefore usually be assumed to be one and the same. The
+weight force acts in the direction of the gravity field $\hat{z}_g$ and has magnitude $mg$. It can
+therefore be written as
+\begin{equation}
+    \vec{W} = mg\hat{z}_g.
+\end{equation}
+\nomenclature{CoG}{centre of gravity}
+\nomenclature{CoM}{centre of mass}
+\nomenclature{$m$}{total mass of the rocket}
+\nomenclature{$g$}{gravitational acceleration}
+\nomenclature{$\hat{z}_g$}{direction of the local gravity field}
+\nomenclature{$\vec{W}$}{weight force}
+More on these variables in \autoref{sec:mod_mass} (mass) and \autoref{sec:mod_gravity} (gravity).
+% total mass
+
+% gravity models - direction and magnitude
+
+\paragraph{Thrust} is what overcomes the weight, by ``brute force''. Thrust comes from ejecting
+propellant at high velocity, plus the pressure difference across the nozzle exit. It acts at the
+centre of thrust (CoT) and is usually given as a thrust magnitude (over time) $T$ and a thrust
+direction $\hat{x}_t$, either constant or varying over time. The thrust force is given as
+\begin{equation}
+    \vec{T} = T\hat{x}_t.
+\end{equation}
+\nomenclature{CoT}{centre of thrust}
+\nomenclature{$T$}{thrust magnitude}
+\nomenclature{$\hat{x}_t$}{thrust direction unit vector}
+\nomenclature{$\vec{T}$}{thrust force vector}
+It is worth noting that a rocket can have multiple thrust application points, e.g.\ for higher
+thrust or for vehicle attitude control. These give an equivalent total force and moment:
+\begin{equation}
+    \vec{T}_{t, f} = \sum_i \vec{T}_i,\quad \vec{T}_{t, m}(a) = \sum_i \vec{aT_i}\times\vec{T}_i.
+\end{equation}
+\nomenclature{$\vec{T}_i$}{thrust force vector at the $i$-th application point}
+\nomenclature{$\vec{T}_{t,f}$}{total thrust force, summed over application points}
+\nomenclature{$\vec{T}_{t,m}(a)$}{total thrust moment about reference point $a$, summed over application points}
+More on these variables in \autoref{sec:mod_thrust}.
+% linintrp
+% pressure variable
+% liquid motor
+% solid motor
+
+\paragraph{Aerodynamics} is the outcome of flying within the atmosphere. Aerodynamic loads arise
+from the pressure and shear-stress distributions over the airframe's surface. The force components
+along the rocket's own axes are called drag, lift and side force; by convention each acts opposite
+to the (positive) axis it is projected onto. The net force acts at the centre of pressure (CoP),
+about which the moment of these forces is zero by definition. In practice it is more convenient to
+use a fixed reference point instead of the true, state-dependent CoP, and compute moments about
+that reference point instead. The force and moment can be written as
+\begin{equation}
+    \vec{A}_f = -A_{x,f}\hat{x}_r -A_{y,f}\hat{y}_r -A_{z,f}\hat{z}_r,\quad
+    \vec{A}_m = -A_{x,m}\hat{x}_r -A_{y,m}\hat{y}_r -A_{z,m}\hat{z}_r.
+\end{equation}
+\nomenclature{CoP}{centre of pressure}
+\nomenclature{$\hat{x}_r,\hat{y}_r,\hat{z}_r$}{rocket body-frame unit vectors (forward, right, down)}
+\nomenclature{$\vec{A}_f$}{aerodynamic force vector}
+\nomenclature{$\vec{A}_m$}{aerodynamic moment vector}
+\nomenclature{$A_{x,f},A_{y,f},A_{z,f}$}{aerodynamic force components along the body axes}
+\nomenclature{$A_{x,m},A_{y,m},A_{z,m}$}{aerodynamic moment components along the body axes}
+More on these force magnitudes in \autoref{sec:mod_aerodynamics}.
+% Derivation of reference center of pressure
+% Variables - Constant, Linearization,
+% Wing body
+
+\subsubsection{Forces - Space flight}
+\todo{Add }
+\subsubsection{Equations of motion - Point mass}
+\subsubsection{Equations of motion - 2D}
+\subsubsection{Equations of motion - 3D}
