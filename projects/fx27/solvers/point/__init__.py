@@ -1,4 +1,4 @@
-"""projects/fx27/point/ -- the launch-config-agnostic layer, fx27's own
+"""projects/fx27/solvers/point/ -- the launch-config-agnostic layer, fx27's own
 `point/` package re-expressed over `apps/` (dev/docs/architecture-38-fx27-
 port.md SS38.5.1-SS38.5.8, ticket FX27-3).
 

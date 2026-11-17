@@ -1,4 +1,4 @@
-"""projects/fx27/point/comparison.py -- fx27's `point_comparison.
+"""projects/fx27/solvers/point/comparison.py -- fx27's `point_comparison.
 evaluate_rockets` + `print_table` (dev/docs/architecture-38-fx27-port.md
 SS38.5.2/SS38.5.3 Variant A): one loop over `flight.run` + `metrics.
 row_from_flight`, reused verbatim by both the cspace 7-row table and the

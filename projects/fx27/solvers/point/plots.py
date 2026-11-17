@@ -1,4 +1,4 @@
-"""projects/fx27/point/plots.py -- fx27's `point_comparison.
+"""projects/fx27/solvers/point/plots.py -- fx27's `point_comparison.
 plot_displacement_comparison` (2x2) and `plot_kinematics_comparison`
 (2x3), assembled entirely from public `apps/` helpers (dev/docs/
 architecture-38-fx27-port.md SS38.5.6). No `apps/` change: `flight_path_

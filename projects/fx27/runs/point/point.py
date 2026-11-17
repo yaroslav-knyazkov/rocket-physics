@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace/point.py -- fx27 `runs/cspace/point.py`
+"""projects/fx27/runs/point/point.py -- fx27 `runs/cspace/point.py`
 equivalent (dev/docs/architecture-38-fx27-port.md SS38.5.1, #11): one
 flight, summary + trajectory + time-history plots.
 
@@ -7,7 +7,7 @@ with no wind the fx27 flight was planar anyway, so the 3D figure there
 carried no information `plot_trajectory` doesn't already have
 (SS38.5.1/SS38.13's rejected-options table).
 
-Run: `python -m projects.fx27.runs.cspace.point [--scenario NAME]
+Run: `python -m projects.fx27.runs.point.point [--scenario NAME]
 [--validity]`.
 """
 
@@ -20,9 +20,9 @@ from apps.sim.engine.plotting import plot_time_histories, plot_trajectory
 from apps.sim.engine.report import print_run_summary
 
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.point.flight import run as run_flight
-from projects.fx27.point.plots import show_if_requested
-from projects.fx27.point.validity import check_validity, print_validity
+from projects.fx27.solvers.point.flight import run as run_flight
+from projects.fx27.solvers.point.plots import show_if_requested
+from projects.fx27.solvers.point.validity import check_validity, print_validity
 
 
 def main(argv=None) -> None:

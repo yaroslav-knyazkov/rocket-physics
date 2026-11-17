@@ -37,11 +37,11 @@ from projects.fx27.campaigns.cspace.scenarios import SCENARIOS as CSPACE_SCENARI
 from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
 from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS
 from projects.fx27.campaigns.euroc.scenarios import CANDIDATES, generate_scenarios
-from projects.fx27.point.airbrake import size_airbrake
-from projects.fx27.point.comparison import evaluate_scenarios, run_many
-from projects.fx27.point.estimate import estimate_airframe_mass, estimate_cx
-from projects.fx27.point.metrics import row_from_flight
-from projects.fx27.point.plots import (
+from projects.fx27.solvers.point.airbrake import size_airbrake
+from projects.fx27.solvers.point.comparison import evaluate_scenarios, run_many
+from projects.fx27.solvers.point.estimate import estimate_airframe_mass, estimate_cx
+from projects.fx27.solvers.point.metrics import row_from_flight
+from projects.fx27.solvers.point.plots import (
     plot_displacement_comparison,
     plot_kinematics_comparison,
     show_if_requested,
@@ -357,7 +357,7 @@ def test_show_if_requested_calls_plt_show_when_true(monkeypatch):
 
 
 def test_point_cli_default_does_not_show(monkeypatch, tmp_path):
-    import projects.fx27.runs.cspace.point as point_cli
+    import projects.fx27.runs.point.point as point_cli
 
     monkeypatch.setattr(point_cli, "output_dir", lambda: tmp_path)
     calls = []
@@ -371,7 +371,7 @@ def test_point_cli_default_does_not_show(monkeypatch, tmp_path):
 
 
 def test_point_cli_show_flag_displays_after_saving(monkeypatch, tmp_path):
-    import projects.fx27.runs.cspace.point as point_cli
+    import projects.fx27.runs.point.point as point_cli
 
     monkeypatch.setattr(point_cli, "output_dir", lambda: tmp_path)
     calls = []

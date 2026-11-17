@@ -1,4 +1,4 @@
-"""projects/fx27/point/estimate.py -- thin fx27-local wrapper around
+"""projects/fx27/solvers/point/estimate.py -- thin fx27-local wrapper around
 apps.optimization.apogee_targeting.solve (promoted dev/docs/architecture-39-
 promote-apogee-target-solver.md, backlog B41), mirroring projects/fx27/
 point/airbrake.py's wrapper of apps.optimization.airbrake_sizing.solve_cda.

@@ -1,4 +1,4 @@
-"""projects/fx27/point/metrics.py -- `Row`, fx27's 9-key
+"""projects/fx27/solvers/point/metrics.py -- `Row`, fx27's 9-key
 `flight_metrics` column set reduced from a `FlightRun` (dev/docs/
 architecture-38-fx27-port.md SS38.5.1/SS38.5.2/SS38.2.9).
 

@@ -1,4 +1,4 @@
-"""projects/fx27/point/flight.py -- one flight: assemble + run_sim + stats
+"""projects/fx27/solvers/point/flight.py -- one flight: assemble + run_sim + stats
 (fx27's `point/core.build_flight` + `flight_metrics`, dev/docs/
 architecture-38-fx27-port.md SS38.5.1).
 

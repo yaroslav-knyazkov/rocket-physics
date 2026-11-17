@@ -42,9 +42,9 @@ from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
 from projects.fx27.campaigns.cspace.site import SITE
 from projects.fx27.campaigns.cspace.weather import WEATHER
-from projects.fx27.point.comparison import run_many
-from projects.fx27.point.flight import run as fly
-from projects.fx27.point.metrics import row_from_flight
+from projects.fx27.solvers.point.comparison import run_many
+from projects.fx27.solvers.point.flight import run as fly
+from projects.fx27.solvers.point.metrics import row_from_flight
 
 # ----------------------------------------------------------------------
 # 1. Assembly smoke tests -- mirrors test_fx27_port.py::test_cspace_

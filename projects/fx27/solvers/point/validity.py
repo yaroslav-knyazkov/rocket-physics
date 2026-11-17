@@ -1,4 +1,4 @@
-"""projects/fx27/point/validity.py -- Option C's measured error bound
+"""projects/fx27/solvers/point/validity.py -- Option C's measured error bound
 (dev/docs/architecture-38-fx27-port.md SS38.3.2/SS38.5.7): reduce
 `apps._shared.flight_stats.point_mass_flightpath` to the three printable
 numbers per scenario fx27 users actually need.

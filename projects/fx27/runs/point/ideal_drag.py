@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace/ideal_drag.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/point/ideal_drag.py -- fx27 `runs/cspace/
 ideal_drag_estimation.py` equivalent (dev/docs/architecture-38-fx27-
 port.md SS38.5.4, #14): `estimate_cx` for `pro54_transition` and
 `pro75`, target 3000 m AGL.
@@ -18,7 +18,7 @@ own last regen and Section B2's fx27 measured-delta figure. Same "NOT an
 oracle" framing as `ideal_mass.py`'s dm rows -- SS40.8: no fresh
 target-apogee-solved oracle exists for these dm figures.
 
-Run: `python -m projects.fx27.runs.cspace.ideal_drag`.
+Run: `python -m projects.fx27.runs.point.ideal_drag`.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from projects.fx27.campaigns.cspace.rockets_ideal import (
 )
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
-from projects.fx27.point.estimate import estimate_cx, estimate_cx_scale
+from projects.fx27.solvers.point.estimate import estimate_cx, estimate_cx_scale
 
 TARGET_APOGEE_M = 3000.0
 

@@ -1,4 +1,4 @@
-"""projects/fx27/runs/cspace/ideal_mass.py -- fx27 `runs/cspace/
+"""projects/fx27/runs/point/ideal_mass.py -- fx27 `runs/cspace/
 ideal_mass_estimation.py` equivalent (dev/docs/architecture-38-fx27-
 port.md SS38.5.4, #13): `estimate_airframe_mass` for `pro54_transition`
 and `pro75`, target 3000 m AGL.
@@ -21,7 +21,7 @@ rocket, not a root-find against a stated target, so there is no
 apples-to-apples "error vs fx27 solved" to report the way the dc rows
 above do.
 
-Run: `python -m projects.fx27.runs.cspace.ideal_mass`.
+Run: `python -m projects.fx27.runs.point.ideal_mass`.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from projects.fx27.campaigns.cspace.rockets_ideal import (
 )
 from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
 from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
-from projects.fx27.point.estimate import estimate_airframe_mass
+from projects.fx27.solvers.point.estimate import estimate_airframe_mass
 
 TARGET_APOGEE_M = 3000.0
 
