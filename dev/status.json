@@ -2,7 +2,7 @@
   "project": "Rocket-physics",
   "description": "Симулятор траектории ракеты (2D, задел под 3D): физическая модель на Python (sim/), конфигурации ракеты/площадки/погоды/мотора (configs/), прикладные утилиты подбора мотора, аэротормоза, условий CFD и компромисса масса-аэродинамика (apps/), отчёт с выводом уравнений в LaTeX.",
   "created": "2026-09-19",
-  "updated": "2026-11-12",
+  "updated": "2026-11-17",
   "active_modules": [
     "architect",
     "developer",
@@ -630,6 +630,12 @@
       "name": "Phase 2.26 — консолидация идеализированных данных cspace в rockets_ideal.py (roadmap F2) + dc/dm паритет ideal_mass/ideal_drag/airbrake",
       "status": "done",
       "archived": true
+    },
+    {
+      "id": "2.27",
+      "name": "Phase 2.27 — fx27 directory restructuring: point/ -> solvers/point/, runs/cspace+euroc merged into runs/point/ (per-campaign analysis cases folded into one file each, unused cases commented out, not separate files), comparison_dc_dm.py merged into comparison.py",
+      "status": "planned",
+      "next": "architect (sonnet override — incremental reorg on already-approved stack, no architectural fork) to turn user's explicit directive into a concrete ticket: exact file moves/renames, import-path updates across projects/fx27 + tests/test_fx27_port.py + tests/test_regenerate_ideal_own.py + any other test referencing old paths, how comparison.py selects dc/cspace vs dm vs euroc cases in one file. developer implements; per D-181 test policy, update existing test import paths only, do not add new test coverage for this purely-organizational move. Orchestrator re-verifies full suite green (899 baseline, no count change expected) before commit. After this stage closes, roadmap F7 (single 2D/3D flight) is next per vehicle-dynamics-roadmap.md — F1/F4/F5/F6 remain deferred/blocked by design."
     }
   ],
   "decisions": [
@@ -1188,6 +1194,26 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.26"
+    },
+    {
+      "id": "D-181",
+      "date": "2026-11-17",
+      "topic": "Test-authoring policy going forward: don't grow tests/ for every run-script/analysis change",
+      "question": "User, unprompted, while asking what's next after F2 closed: \"while developing the project dont add up to /tests (cause it takes a lot of time from developement); do it only if u updated core code.\"",
+      "choice": "Convention for developer/qa going forward: new test files/cases are added only when apps/ core code (physics/engine/solver/optimization/control logic) changes. Purely organizational moves (file/directory renames, import-path updates, merging run-scripts) and new fx27 campaign literals/run-scripts get existing tests UPDATED (import paths) but not NEW coverage added. Does not relax the hard tdd-skill binding for actual apps/ core-code changes -- only narrows what counts as \"new module requiring new tests\" for projects/fx27 run-script/config work. Orchestrator to restate this in every developer/qa delegation prompt touching projects/fx27 until it's load-bearing habit.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.27"
+    },
+    {
+      "id": "D-182",
+      "date": "2026-11-17",
+      "topic": "Phase 2.27 scoping: fx27 directory restructuring, user-dictated",
+      "question": "User asked, in one message: (1) move projects/fx27/point/ -> projects/fx27/solvers/point/; (2) in projects/fx27/runs/, remove cspace/ and euroc/ subfolders, replace with a single point/ folder holding all run-scripts, with per-campaign (cspace/euroc) analysis cases folded into one file each (unused cases commented out, not separate files); (3) why is everything under projects/fx27 a package (__init__.py everywhere) -- user finds the sidebar cluttered (pycache, __init__, file count); (4) merge runs/cspace/comparison_dc_dm.py into comparison.py (one file, selectable dc/dm).",
+      "choice": "User dictated the target shape directly (not a developer-side decision_required) -- orchestrator answered (3) directly (package structure is required by `python -m projects.fx27...` execution style and by this project's existing import conventions, not a navigation choice; __pycache__ is gitignored bytecode cache, not a real file-count contributor, safe to ignore/hide in the editor's sidebar settings) and routed (1)/(2)/(4) to architect as Phase 2.27 for a concrete ticket, rather than orchestrator or developer guessing file-by-file.",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.27"
     }
   ],
   "deferred_decisions": [
