@@ -634,8 +634,8 @@
     {
       "id": "2.27",
       "name": "Phase 2.27 — fx27 directory restructuring: point/ -> solvers/point/, runs/cspace+euroc merged into runs/point/ (per-campaign analysis cases folded into one file each, unused cases commented out, not separate files), comparison_dc_dm.py merged into comparison.py",
-      "status": "in_progress",
-      "next": "architecture-43-fx27-restructure.md done, D-183 case-selector fork resolved (--case CLI flag, option A). developer implements FX27D-1..6 strictly sequential: FX27D-1 move point/->solvers/point/, FX27D-2 move 5 single-campaign run scripts into runs/point/, FX27D-3 build merged runs/point/comparison.py (--case flag per SS43.5), FX27D-4 delete old runs/cspace+euroc dirs, FX27D-5 update test import paths, FX27D-6 full-suite verification (899 baseline, no count change expected, campaigns/** and rockets_ideal.py AC-3 oracle untouched). Per D-181 test policy: update existing test import paths only, no new test coverage for this purely-organizational move. After this stage closes, roadmap F7 (single 2D/3D flight) is next per vehicle-dynamics-roadmap.md — F1/F4/F5/F6 remain deferred/blocked by design."
+      "status": "done",
+      "archived": true
     }
   ],
   "decisions": [
@@ -1545,8 +1545,8 @@
   "archive": {
     "file": "dev/status-archive.json",
     "note": "Закрытые стадии и старые решения переносятся туда скриптом .claude/scripts/archive_status.py (dry-run по умолчанию, --apply для записи, бэкап в dev/.status-backup/).",
-    "generated": "2026-11-12",
-    "stages_archived": 10,
+    "generated": "2026-11-17",
+    "stages_archived": 11,
     "decisions_archived": 112,
     "legacy_keys_archived": [
       "active_modules",
