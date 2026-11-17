@@ -20,8 +20,8 @@ fixtures. The third (`estimate_cx_scale`, architecture-42 SS42.5) flies a
 `model="table"` variant of `DEMO_SCENARIO`'s rocket against a synthetic,
 drag-only (`C_N=C_m=0`) Mach table -- same `_temp_table`/cache-clear
 pattern `tests/test_scenario_sweep.py` already uses for its own synthetic
-tables, and the same "drag-only table" invariant `rockets_dm.py` relies
-on (Option C: a nonzero table `C_N`/`C_m` would reintroduce real pitch
+tables, and the same "drag-only table" invariant `rockets.py`'s dm
+section relies on (Option C: a nonzero table `C_N`/`C_m` would reintroduce real pitch
 dynamics `DEMO_SCENARIO`'s own aero was deliberately built without --
 confirmed the hard way, see that test's own docstring).
 """
@@ -193,7 +193,7 @@ def test_estimate_cx_on_demo_scenario_is_reachable_and_converges():
 
 
 # A synthetic, DRAG-ONLY Mach table (C_N=C_m=0 at every grid point -- the same
-# Option C invariant `projects/fx27/campaigns/cspace/rockets_dm.py` relies on
+# Option C invariant `projects/fx27/data/cspace/rockets.py`'s dm section relies on
 # for its own Mach-dependent variants) for the `estimate_cx_scale` regression
 # below. C_A is held flat at 0.5 (DEMO_SCENARIO's own baseline constant C_x)
 # purely so the table-model flight's apogee timing is the same order as the
@@ -258,7 +258,7 @@ def test_estimate_cx_scale_on_table_scenario_is_reachable_and_converges():
             aero=Aero(model="table", S=DEMO_SCENARIO.rocket.aero.S, d_ref=DEMO_SCENARIO.rocket.aero.d_ref, table=tbl),
         )
         # C_N=C_m=0 above keeps this flight exactly vertical (alpha stays 0 throughout,
-        # same invariant `rockets_dm.py` relies on), so -- unlike a nonzero-moment table
+        # same invariant `rockets.py`'s dm section relies on), so -- unlike a nonzero-moment table
         # -- the full DEMO_SCENARIO solver (t_max=1200 s, canopy descent included) is safe
         # to fly unmodified; no RK45-stall regime (dev/docs/diagnosis-rk45-v2-table.md) to
         # avoid here.

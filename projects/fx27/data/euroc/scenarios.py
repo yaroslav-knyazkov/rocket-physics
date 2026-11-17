@@ -1,4 +1,4 @@
-"""projects/fx27/campaigns/euroc/scenarios.py -- `CANDIDATES` (config -> candidate
+"""projects/fx27/data/euroc/scenarios.py -- `CANDIDATES` (config -> candidate
 motor ids) and `generate_scenarios()` (dev/docs/architecture-38-fx27-port.md
 SS38.5.3 Variant A, SS38.7.1): one `Scenario` per runnable `(airframe
 config, candidate motor)` pair, named `"<config>/<motor id>"` (SS38.5.3
@@ -17,10 +17,10 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS, MOTORS
-from projects.fx27.campaigns.euroc.rockets import ROCKETS
-from projects.fx27.campaigns.euroc.site import SITE
-from projects.fx27.campaigns.euroc.weather import WEATHER
+from projects.fx27.data.euroc.motors import DEFERRED_MOTORS, MOTORS
+from projects.fx27.data.euroc.rockets import ROCKETS
+from projects.fx27.data.euroc.site import SITE
+from projects.fx27.data.euroc.weather import WEATHER
 
 # config name -> candidate motor ids (fx27 data/euroc/motors.py's own
 # per-config candidate list). Where fx27 numbered candidates "<config>_<i+1>"

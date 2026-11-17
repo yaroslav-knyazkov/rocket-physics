@@ -23,7 +23,7 @@ Run: `python -m projects.fx27.runs.point.ideal_drag`.
 
 from __future__ import annotations
 
-from projects.fx27.campaigns.cspace.rockets_ideal import (
+from projects.fx27.data.cspace.rockets_ideal import (
     PRO54_TRANSITION_DM_IDEAL_DRAG_CX_SCALE,
     PRO54_TRANSITION_DM_IDEAL_OWN_DRAG_CX_SCALE,
     PRO54_TRANSITION_IDEAL_DRAG_CX,
@@ -31,8 +31,8 @@ from projects.fx27.campaigns.cspace.rockets_ideal import (
     PRO75_DM_IDEAL_OWN_DRAG_CX_SCALE,
     PRO75_IDEAL_DRAG_CX,
 )
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.data.cspace.scenarios import SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM
 from projects.fx27.solvers.point.estimate import estimate_cx, estimate_cx_scale
 
 TARGET_APOGEE_M = 3000.0

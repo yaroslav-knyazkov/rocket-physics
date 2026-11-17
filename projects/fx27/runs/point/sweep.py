@@ -30,11 +30,11 @@ from apps._shared.artifacts import ensure_dir, output_dir
 from apps.optimization.motor_selection.scenario_sweep import Constraints, print_table, save_csv, sweep_scenario
 from apps.sim.schema import Scenario
 
-from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS, MOTORS
-from projects.fx27.campaigns.euroc.rockets import ROCKETS
-from projects.fx27.campaigns.euroc.scenarios import CANDIDATES
-from projects.fx27.campaigns.euroc.site import SITE
-from projects.fx27.campaigns.euroc.weather import WEATHER
+from projects.fx27.data.euroc.motors import DEFERRED_MOTORS, MOTORS
+from projects.fx27.data.euroc.rockets import ROCKETS
+from projects.fx27.data.euroc.scenarios import CANDIDATES
+from projects.fx27.data.euroc.site import SITE
+from projects.fx27.data.euroc.weather import WEATHER
 
 _CONSTRAINTS = Constraints(min_tw=0.0, min_margin_cal=-math.inf)
 

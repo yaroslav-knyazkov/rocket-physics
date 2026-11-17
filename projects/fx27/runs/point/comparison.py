@@ -15,9 +15,9 @@ import warnings
 from apps._shared.artifacts import ensure_dir, output_dir
 from apps.sim.engine.mach_warning import MachRangeWarning, peak_mach
 
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS as _CSPACE_SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM as _CSPACE_SCENARIOS_DM
-from projects.fx27.campaigns.euroc.scenarios import generate_scenarios as _euroc_generate_scenarios
+from projects.fx27.data.cspace.scenarios import SCENARIOS as _CSPACE_SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM as _CSPACE_SCENARIOS_DM
+from projects.fx27.data.euroc.scenarios import generate_scenarios as _euroc_generate_scenarios
 from projects.fx27.solvers.point.comparison import print_table, run_many, save_csv
 from projects.fx27.solvers.point.metrics import row_from_flight
 from projects.fx27.solvers.point.plots import (

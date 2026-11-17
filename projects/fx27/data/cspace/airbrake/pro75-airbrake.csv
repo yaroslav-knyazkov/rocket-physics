@@ -1,0 +1,15 @@
+# pro75 airbrake hardware data (dev/docs/task-152-fx27-controller-
+# rung1.md S4). HAND-ENTERED, not generated: area_design_m2 below is
+# <solvers/point/airbrake.py::size_airbrake>'s own printed "area, design"
+# figure for this rocket at a 2500 m target (default margin=2.0,
+# brake_count=3, cd_brake=1.0) as of 2026-11-17, via
+# `python -m projects.fx27.runs.point.airbrake` -- the LARGER of the two
+# "pro75 (ideal mass)" (0.005996 m^2) / "pro75 (ideal drag)" (0.006538
+# m^2) config rows, since one physical hardware file serves both
+# idealized representations of the same airframe/brake (S4) and the
+# larger figure covers both targets with margin to spare. Re-run the
+# command above and overwrite this row if a different margin/target/
+# variant choice is wanted. PLACEHOLDER until a human reviews/accepts
+# this number -- do not treat as a verified hardware spec.
+M,cd_brake,area_design_m2
+0.0,1.0,0.006538

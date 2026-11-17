@@ -1,37 +1,40 @@
 #!/usr/bin/env python
-"""projects/fx27/campaigns/cspace/regenerate_ideal_own.py -- ONE-OFF
+"""projects/fx27/runs/point/regenerate_ideal_own.py -- ONE-OFF
 regenerate script (architecture-42 SS42.4, renamed/retargeted from
 generate_rockets_ideal_own.py, architecture-41 SS41.5, roadmap F2
-approach (b)). Run manually whenever rockets.py/rockets_dm.py's base dry
-mass or C_x change (e.g. once real CAD/CFD data lands). NOT imported at
-runtime; NOT exercised by pytest's collection (its pure string-substitution
-helper is unit-tested directly in tests/test_regenerate_ideal_own.py --
-the solver calls themselves are not re-run under pytest, see that file's
-own docstring).
+approach (b); moved out of the data tree into runs/point/ by
+architecture-44 SS44.3, since campaigns/data/ should hold only data, not
+one-off tools). Run manually whenever rockets.py's base dry mass or C_x
+change (e.g. once real CAD/CFD data lands). NOT imported at runtime; NOT
+exercised by pytest's collection (its pure string-substitution helper is
+unit-tested directly in tests/test_regenerate_ideal_own.py -- the solver
+calls themselves are not re-run under pytest, see that file's own
+docstring).
 
 Computes the 8 solved constants rockets_ideal.py's Section B1 hand-types
 (2 configs [pro54_transition, pro75] x 2 base-types [dc, dm] x 2
 quantities [mass, drag]), target apogee 3000 m AGL, via
 apps/optimization/apogee_targeting/solve.py against this project's own
-SCENARIOS/SCENARIOS_DM (campaigns/cspace/scenarios.py,
-campaigns/cspace/scenarios_dm.py), then rewrites rockets_ideal.py's own
+SCENARIOS/SCENARIOS_DM (data/cspace/scenarios.py,
+data/cspace/scenarios_dm.py), then rewrites rockets_ideal.py's own
 8 named Section-B1 constant lines in place (regex-anchored by name) --
 nothing else in that file is touched.
 
 GUARDRAIL (explicit, not just by convention): this script's only write
 target is _TARGET below, hardcoded to rockets_ideal.py -- there is no
 code path, flag, or argument that points it anywhere else. It does
-import rockets_dm.py (via scenarios_dm.SCENARIOS_DM) to build its dm
-solver INPUTS -- that is a read of the dm BASE rockets' current dry
-mass/C_x, which still lives in rockets_dm.py after SS42.3's trim (now the
-*only* thing left in that file), never of rockets_ideal.py's own Section
-A oracle or Section B2 fx27-dm provenance constants, and never produces a
-write back to rockets_dm.py. It never writes a byte outside its own
-8-key Section-B1 slice, by construction (SS42.4): `_rewrite_file` only
-ever calls `_substitute_constant(source, name, value)` for `name` drawn
-from `_solved_values()`'s 8 keys -- Section A's 4 oracle names and
-Section B2's 4 fx27-dm provenance names are never in that dict, so they
-are structurally unreachable by this script, not merely "written not to
+import rockets.py's dm section (via scenarios_dm.SCENARIOS_DM) to build
+its dm solver INPUTS -- that is a read of the dm BASE rockets' current dry
+mass/C_x, which lives in rockets.py's dm section after architecture-44
+SS44.6's merge (previously the only thing left in the now-deleted
+rockets_dm.py), never of rockets_ideal.py's own Section A oracle or
+Section B2 fx27-dm provenance constants, and never produces a write back
+to rockets.py. It never writes a byte outside its own 8-key Section-B1
+slice, by construction (SS42.4): `_rewrite_file` only ever calls
+`_substitute_constant(source, name, value)` for `name` drawn from
+`_solved_values()`'s 8 keys -- Section A's 4 oracle names and Section
+B2's 4 fx27-dm provenance names are never in that dict, so they are
+structurally unreachable by this script, not merely "written not to
 touch them". `_substitute_constant`'s own `n != 1` guard (raises if a
 name's line isn't found exactly once) is unchanged and still the second
 line of defense if rockets_ideal.py ever drifts out of the expected
@@ -42,7 +45,7 @@ script's own directory on sys.path[0] instead of the repo root, which
 breaks the `apps.*`/`projects.*` absolute imports above with
 ModuleNotFoundError; `-m` is required, same convention as every runs/*
 entry point):
-    python -m projects.fx27.campaigns.cspace.regenerate_ideal_own
+    python -m projects.fx27.runs.point.regenerate_ideal_own
 """
 
 from __future__ import annotations
@@ -51,11 +54,11 @@ import re
 from pathlib import Path
 
 from apps.optimization.apogee_targeting.solve import estimate_airframe_mass, estimate_cx, estimate_cx_scale
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.data.cspace.scenarios import SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM
 
 TARGET_APOGEE_M = 3000.0
-_TARGET = Path(__file__).resolve().parent / "rockets_ideal.py"
+_TARGET = Path(__file__).resolve().parent.parent.parent / "data" / "cspace" / "rockets_ideal.py"
 
 
 def _solved_values() -> "dict[str, float]":

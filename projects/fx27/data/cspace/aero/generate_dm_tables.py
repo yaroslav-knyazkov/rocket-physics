@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""projects/fx27/campaigns/cspace/data/aero/generate_dm_tables.py -- ONE-OFF
+"""projects/fx27/data/cspace/aero/generate_dm_tables.py -- ONE-OFF
 generator (dev/docs/architecture-40-fx27-campaigns-and-dm-drag.md SS40.5).
 Run manually once; NOT imported at runtime; NOT exercised by pytest.
 
@@ -19,7 +19,7 @@ carried through unedited from its dc sibling by dataclasses.replace,
 already gives the same answer a c_mq column full of zeros would.
 
 Run once, from anywhere (paths below are absolute):
-    python projects/fx27/campaigns/cspace/data/aero/generate_dm_tables.py
+    python projects/fx27/data/cspace/aero/generate_dm_tables.py
 Output is committed -- SS40.3.3's rationale for a generated static file,
 not a runtime transform.
 """

@@ -26,7 +26,7 @@ Run: `python -m projects.fx27.runs.point.ideal_mass`.
 
 from __future__ import annotations
 
-from projects.fx27.campaigns.cspace.rockets_ideal import (
+from projects.fx27.data.cspace.rockets_ideal import (
     PRO54_TRANSITION_DM_IDEAL_MASS_KG,
     PRO54_TRANSITION_DM_IDEAL_OWN_MASS_KG,
     PRO54_TRANSITION_IDEAL_MASS_KG,
@@ -34,8 +34,8 @@ from projects.fx27.campaigns.cspace.rockets_ideal import (
     PRO75_DM_IDEAL_OWN_MASS_KG,
     PRO75_IDEAL_MASS_KG,
 )
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.data.cspace.scenarios import SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM
 from projects.fx27.solvers.point.estimate import estimate_airframe_mass
 
 TARGET_APOGEE_M = 3000.0

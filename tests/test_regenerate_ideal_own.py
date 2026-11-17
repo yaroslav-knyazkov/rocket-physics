@@ -1,15 +1,16 @@
-"""tests/test_regenerate_ideal_own.py -- tests for projects/fx27/campaigns/
-cspace/rockets_ideal.py's Section B1 and regenerate_ideal_own.py
+"""tests/test_regenerate_ideal_own.py -- tests for projects/fx27/data/
+cspace/rockets_ideal.py's Section B1 and runs/point/regenerate_ideal_own.py
 (dev/docs/architecture-41-fx27-idealized-regenerate.md SS41.8,
 dev/docs/architecture-42-fx27-ideal-consolidation.md SS42.7, Phase 2.23,
-Step 148, D-176; renamed/retargeted Phase 2.26, Step 151).
+Step 148, D-176; renamed/retargeted Phase 2.26, Step 151; moved to
+runs/point/ Phase 2.28, Step 152, architecture-44 SS44.3).
 
 Does NOT touch tests/test_fx27_port.py (that file's own "ONLY test file
 this port touches" boundary note) -- a new, separate step's test surface.
 
 No numeric pin/oracle here. The 8 constants in rockets_ideal.py's Section
-B1 are THIS project's own solver output, re-derived against rockets.py/
-rockets_dm.py's current base figures -- they are EXPECTED TO DRIFT
+B1 are THIS project's own solver output, re-derived against rockets.py's
+current base figures -- they are EXPECTED TO DRIFT
 whenever those base figures change (that drift is the entire point of
 roadmap F2). Asserting a specific decimal value against any of them
 would be a false pin; this file only checks assembly/wiring and the
@@ -33,15 +34,15 @@ import pytest
 
 from apps.sim.schema import Scenario, assemble
 
-from projects.fx27.campaigns.cspace import motors, rockets_ideal
-from projects.fx27.campaigns.cspace.regenerate_ideal_own import (
+from projects.fx27.data.cspace import motors, rockets_ideal
+from projects.fx27.data.cspace.scenarios import SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.data.cspace.site import SITE
+from projects.fx27.data.cspace.weather import WEATHER
+from projects.fx27.runs.point.regenerate_ideal_own import (
     _rewrite_file,
     _substitute_constant,
 )
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
-from projects.fx27.campaigns.cspace.site import SITE
-from projects.fx27.campaigns.cspace.weather import WEATHER
 from projects.fx27.solvers.point.comparison import run_many
 from projects.fx27.solvers.point.flight import run as fly
 from projects.fx27.solvers.point.metrics import row_from_flight
@@ -227,7 +228,7 @@ def test_committed_variant_apogee_is_plausible(rocket_name):
 #    (fx27's own solver target differs slightly from this port's).
 #
 #    NOT a numeric pin: the 8 values in rockets_ideal.py are
-#    re-derived (drift whenever rockets.py/rockets_dm.py's base figures
+#    re-derived (drift whenever rockets.py's base figures
 #    change, see that module's own docstring); this test asserts the
 #    3000 m *target property* survives a re-solve, not a decimal
 #    literal. Tolerance of 1.0 m chosen from measured error, Step 149

@@ -19,7 +19,7 @@ from apps._shared.artifacts import ensure_dir, output_dir
 from apps.sim.engine.plotting import plot_time_histories, plot_trajectory
 from apps.sim.engine.report import print_run_summary
 
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS
+from projects.fx27.data.cspace.scenarios import SCENARIOS
 from projects.fx27.solvers.point.flight import run as run_flight
 from projects.fx27.solvers.point.plots import show_if_requested
 from projects.fx27.solvers.point.validity import check_validity, print_validity

@@ -1,4 +1,4 @@
-"""projects/fx27/campaigns/cspace/scenarios_dm.py -- `SCENARIOS_DM`, the
+"""projects/fx27/data/cspace/scenarios_dm.py -- `SCENARIOS_DM`, the
 7-row Mach-dependent ("dm") cspace comparison set (dev/docs/architecture-
 40-fx27-campaigns-and-dm-drag.md SS40.4): the dm mirror of `scenarios.py`'s
 existing 7-row `SCENARIOS` (3 base dm rockets + 4 ideal-dm variants), same
@@ -30,9 +30,9 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.campaigns.cspace import motors, rockets_dm, rockets_ideal
-from projects.fx27.campaigns.cspace.site import SITE
-from projects.fx27.campaigns.cspace.weather import WEATHER
+from projects.fx27.data.cspace import motors, rockets, rockets_ideal
+from projects.fx27.data.cspace.site import SITE
+from projects.fx27.data.cspace.weather import WEATHER
 
 # Shared `notes=` text for the 4 idealized-dm rows below (Step 149) -- hoisted
 # to one constant, same pattern as rockets_ideal_own.py's own `_NOTE` and
@@ -41,22 +41,22 @@ _IDEAL_OWN_NOTE = (
     "This project's own apps/optimization/apogee_targeting solve "
     "against the 3000 m AGL target (NOT fx27's rockets_dm.py "
     "oracle) -- re-derive via "
-    "`python -m projects.fx27.campaigns.cspace.regenerate_ideal_own`."
+    "`python -m projects.fx27.runs.point.regenerate_ideal_own`."
 )
 
 SCENARIOS_DM: "dict[str, Scenario]" = {
     "pro54_transition_dm": Scenario(
-        name="pro54_transition_dm", rocket=rockets_dm.PRO54_TRANSITION_DM,
+        name="pro54_transition_dm", rocket=rockets.PRO54_TRANSITION_DM,
         motor=motors.PRO54_2060K570, site=SITE, weather=WEATHER,
         notes="fx27 data/cspace/rockets.py pro54_transition_dm + pro54_2060K570.",
     ),
     "pro54_equal_dm": Scenario(
-        name="pro54_equal_dm", rocket=rockets_dm.PRO54_EQUAL_DM,
+        name="pro54_equal_dm", rocket=rockets.PRO54_EQUAL_DM,
         motor=motors.PRO54_2060K570, site=SITE, weather=WEATHER,
         notes="fx27 data/cspace/rockets.py pro54_equal_dm + pro54_2060K570.",
     ),
     "pro75_dm": Scenario(
-        name="pro75_dm", rocket=rockets_dm.PRO75_DM,
+        name="pro75_dm", rocket=rockets.PRO75_DM,
         motor=motors.PRO75_3419L645, site=SITE, weather=WEATHER,
         notes="fx27 data/cspace/rockets.py pro75_dm + pro75_3419L645.",
     ),

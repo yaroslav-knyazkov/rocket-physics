@@ -29,30 +29,40 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 
-MOTORS_CSPACE = _HERE / "campaigns" / "cspace" / "data" / "motors"
-MOTORS_EUROC = _HERE / "campaigns" / "euroc" / "data" / "motors"
-AERO_CSPACE = _HERE / "campaigns" / "cspace" / "data" / "aero"
+MOTORS_CSPACE = _HERE / "data" / "cspace" / "motors"
+MOTORS_EUROC = _HERE / "data" / "euroc" / "motors"
+AERO_CSPACE = _HERE / "data" / "cspace" / "aero"
+AIRBRAKE_CSPACE = _HERE / "data" / "cspace" / "airbrake"
 
 
 def cspace_motor(filename: str) -> str:
     """Absolute path (as a `str`, what `Thrust.motor_curve` wants) to a
-    cspace motor CSV under `campaigns/cspace/data/motors/`."""
+    cspace motor CSV under `data/cspace/motors/`."""
     return str(MOTORS_CSPACE / filename)
 
 
 def euroc_motor(filename: str) -> str:
     """Absolute path to a euroc motor CSV under
-    `campaigns/euroc/data/motors/` (includes the 3 `-todo` stub files --
+    `data/euroc/motors/` (includes the 3 `-todo` stub files --
     callers decide whether to ever actually load one, see
-    `campaigns/euroc/motors.py`'s `DEFERRED_MOTORS`)."""
+    `data/euroc/motors.py`'s `DEFERRED_MOTORS`)."""
     return str(MOTORS_EUROC / filename)
 
 
 def cspace_aero(filename: str) -> str:
     """Absolute path to a cspace aero-table CSV under
-    `campaigns/cspace/data/aero/` (dev/docs/architecture-40-fx27-
+    `data/cspace/aero/` (dev/docs/architecture-40-fx27-
     campaigns-and-dm-drag.md SS40.4/SS40.5) -- same rationale as
     `cspace_motor`: an absolute path sidesteps `datafiles.resolve`'s
     cwd-relative rule 2, which is a silent foot-gun for a config literal
     imported from anywhere but the repo root."""
     return str(AERO_CSPACE / filename)
+
+
+def cspace_airbrake(filename: str) -> str:
+    """Absolute path to a cspace airbrake-hardware CSV under
+    `data/cspace/airbrake/` (dev/docs/task-152-fx27-point-
+    controller-rung1.md S4) -- same rationale as `cspace_motor`/
+    `cspace_aero`: an absolute path sidesteps `datafiles.resolve`'s
+    cwd-relative rule 2."""
+    return str(AIRBRAKE_CSPACE / filename)

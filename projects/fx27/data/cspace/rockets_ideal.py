@@ -1,4 +1,4 @@
-"""projects/fx27/campaigns/cspace/rockets_ideal.py -- the 4 "ideal" cspace variants
+"""projects/fx27/data/cspace/rockets_ideal.py -- the 4 "ideal" cspace variants
 (dev/docs/architecture-38-fx27-port.md SS38.3.1/SS38.5.2): fx27's
 `data/cspace/rockets_ideal.py` carries the already-SOLVED outputs of its
 own mass/drag estimators, hardcoded, target apogee 3000 m AGL.
@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import dataclasses
 
-from projects.fx27.campaigns.cspace.rockets import PRO54_TRANSITION, PRO75
-from projects.fx27.campaigns.cspace.rockets_dm import PRO54_TRANSITION_DM, PRO75_DM  # Section B only
+from projects.fx27.data.cspace.rockets import (
+    PRO54_TRANSITION, PRO75, PRO54_TRANSITION_DM, PRO75_DM,  # Section B only
+)
 
 # fx27 hardcoded solved figures (data/cspace/rockets_ideal.py), target
 # apogee 3000 m AGL -- the AC-3 oracle. Kept here as named constants so
@@ -67,13 +68,14 @@ PRO75_IDEAL_DRAG = dataclasses.replace(
 
 # ----------------------------------------------------------------------------
 # B1 -- THIS PROJECT'S OWN apps/optimization/apogee_targeting solve, target
-# 3000 m AGL, re-derived against rockets.py/rockets_dm.py's current base
-# figures. EXPECTED TO DRIFT whenever those base figures change (roadmap F2's
+# 3000 m AGL, re-derived against rockets.py's current base figures (dc and
+# dm sections both live there post-merge, architecture-44 SS44.6).
+# EXPECTED TO DRIFT whenever those base figures change (roadmap F2's
 # whole motivation) -- not a pin, not an oracle, not fx27 data. Migrated
 # verbatim (same 8 names) from the now-retired rockets_ideal_own.py.
-# Re-run after any rockets.py/rockets_dm.py base mass/C_x edit (from the repo
+# Re-run after any rockets.py base mass/C_x edit (from the repo
 # root, `-m` required -- see regenerate_ideal_own.py's own docstring):
-#     python -m projects.fx27.campaigns.cspace.regenerate_ideal_own
+#     python -m projects.fx27.runs.point.regenerate_ideal_own
 # ----------------------------------------------------------------------------
 
 # >>> GENERATED -- do not hand-edit the 8 lines below. Run

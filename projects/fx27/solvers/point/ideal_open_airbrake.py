@@ -1,4 +1,4 @@
-"""projects/fx27/solvers/point/airbrake.py -- fx27's `air_brake_size_estimation`
+"""projects/fx27/solvers/point/ideal_open_airbrake.py -- fx27's `air_brake_size_estimation`
 (dev/docs/architecture-38-fx27-port.md SS38.5.5): a thin wrapper around
 `apps.optimization.airbrake_sizing.solve_cda.solve_airbrake` plus the
 three bits of margin/panel arithmetic `apps/` does not do.

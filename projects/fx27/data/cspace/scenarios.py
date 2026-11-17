@@ -1,4 +1,4 @@
-"""projects/fx27/campaigns/cspace/scenarios.py -- `SCENARIOS`, the 7-row cspace
+"""projects/fx27/data/cspace/scenarios.py -- `SCENARIOS`, the 7-row cspace
 comparison set (dev/docs/architecture-38-fx27-port.md SS38.5.2): the 3
 base rockets + 4 idealized variants, each paired with its motor,
 site and weather.
@@ -32,9 +32,9 @@ from __future__ import annotations
 
 from apps.sim.schema import Scenario
 
-from projects.fx27.campaigns.cspace import motors, rockets, rockets_ideal
-from projects.fx27.campaigns.cspace.site import SITE
-from projects.fx27.campaigns.cspace.weather import WEATHER
+from projects.fx27.data.cspace import motors, rockets, rockets_ideal
+from projects.fx27.data.cspace.site import SITE
+from projects.fx27.data.cspace.weather import WEATHER
 
 # Shared `notes=` text for the 4 idealized rows below (Step 149) -- hoisted to
 # one constant, same pattern as rockets_ideal_own.py's own `_NOTE`, so a
@@ -43,7 +43,7 @@ _IDEAL_OWN_NOTE = (
     "This project's own apps/optimization/apogee_targeting solve "
     "against the 3000 m AGL target (NOT fx27's rockets_ideal.py "
     "oracle) -- re-derive via "
-    "`python -m projects.fx27.campaigns.cspace.regenerate_ideal_own`."
+    "`python -m projects.fx27.runs.point.regenerate_ideal_own`."
 )
 
 SCENARIOS: "dict[str, Scenario]" = {

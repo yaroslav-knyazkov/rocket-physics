@@ -27,17 +27,17 @@ import pytest
 from apps.sim.engine.aero import C_A
 from apps.sim.schema import assemble
 
-from projects.fx27.campaigns.cspace.rockets_ideal import (
+from projects.fx27.data.cspace.rockets_ideal import (
     PRO54_TRANSITION_IDEAL_DRAG_CX,
     PRO54_TRANSITION_IDEAL_MASS_KG,
     PRO75_IDEAL_DRAG_CX,
     PRO75_IDEAL_MASS_KG,
 )
-from projects.fx27.campaigns.cspace.scenarios import SCENARIOS as CSPACE_SCENARIOS
-from projects.fx27.campaigns.cspace.scenarios_dm import SCENARIOS_DM
-from projects.fx27.campaigns.euroc.motors import DEFERRED_MOTORS
-from projects.fx27.campaigns.euroc.scenarios import CANDIDATES, generate_scenarios
-from projects.fx27.solvers.point.airbrake import size_airbrake
+from projects.fx27.data.cspace.scenarios import SCENARIOS as CSPACE_SCENARIOS
+from projects.fx27.data.cspace.scenarios_dm import SCENARIOS_DM
+from projects.fx27.data.euroc.motors import DEFERRED_MOTORS
+from projects.fx27.data.euroc.scenarios import CANDIDATES, generate_scenarios
+from projects.fx27.solvers.point.ideal_open_airbrake import size_airbrake
 from projects.fx27.solvers.point.comparison import evaluate_scenarios, run_many
 from projects.fx27.solvers.point.estimate import estimate_airframe_mass, estimate_cx
 from projects.fx27.solvers.point.metrics import row_from_flight
@@ -258,7 +258,7 @@ def test_dm_scenario_apogee_is_plausible_against_its_dc_namesake(dm_name):
     fresh target-apogee-solved oracle for the dm rockets). A wildly
     different apogee from the dc namesake (same motor, same approximate
     mass/drag order of magnitude) would indicate a wiring bug in
-    rockets_dm.py, not a credible physical result."""
+    rockets.py's dm section, not a credible physical result."""
     dc_name = _DM_TO_DC_NAMESAKE[dm_name]
     runs = run_many({dm_name: SCENARIOS_DM[dm_name], dc_name: CSPACE_SCENARIOS[dc_name]})
     dm_row = row_from_flight(dm_name, runs[dm_name])
