@@ -217,9 +217,11 @@ class Control:
     # registered sampled law (sim.control.known_sampled_laws()) -- inert
     # (unreachable) under every memoryless airbrake_model value, zero pin
     # risk. airbrake_kp/airbrake_target_apogee_m above are REUSED by
-    # proportional_drag (same meaning: P gain / target on predicted
-    # apogee error) -- no duplicate field for those two.
+    # proportional_drag/pi_apogee/pd_apogee (same meaning: P gain /
+    # target on predicted apogee error) -- no duplicate field for those
+    # two.
     airbrake_ki: float = 0.0          # pi_apogee's integral gain [1/(m*s)]; 0.0 = inert
+    airbrake_kd: float = 0.0          # pd_apogee's derivative gain [s]; 0.0 = inert
     onboard_mass: float = 0.0         # kg, onboard model's own mass estimate (nominal, not truth)
     onboard_CdA0: float = 0.0         # m^2, onboard model's own baseline drag area (C_x*S, lumped); 0.0 = vacuum-limit predictor
     onboard_CdA_brake: float = 0.0    # m^2, onboard model's own FULLY-OPEN brake drag area increment (C_D,b*S_b, lumped)

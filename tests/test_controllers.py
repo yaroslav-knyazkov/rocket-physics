@@ -1,11 +1,12 @@
 """Tests for apps/control/flight_software/ -- the flight-software package
 (Phase 2.17 Milestone M3, architecture-35-paper-alignment.md SS35.4.4,
-task-107-sampled-laws-registry.md): the drag-aware predicted-apogee
-closed form, the estimator stub, and the two registered sampled laws
-(`proportional_drag`/`pi_apogee`).
+task-107-sampled-laws-registry.md, task-153-pd-apogee-law.md): the
+drag-aware predicted-apogee closed form, the estimator stub, and the
+three registered sampled laws (`proportional_drag`/`pi_apogee`/
+`pd_apogee`).
 
 `import apps.control.flight_software` (below) is REQUIRED before
-`"proportional_drag"`/`"pi_apogee"` are resolvable through `run_sim` --
+`"proportional_drag"`/`"pi_apogee"`/`"pd_apogee"` are resolvable through `run_sim` --
 see apps/control/flight_software/__init__.py's own docstring. Reuses
 tests.test_control's shared launch scenario (`_launch_params`/
 `_launch_state`/`_LAUNCH_WEIGHT`/`_LAUNCH_AERO`) via a plain
@@ -294,6 +295,79 @@ def test_pi_apogee_anti_windup_freezes_integral_while_saturated_in_the_same_dire
     p_reversed = dataclasses.replace(p, control=dataclasses.replace(p.control, airbrake_target_apogee_m=1.0e6))
     _, state = laws.pi_apogee(4.0, control.Measurement(h_baro=0.0), p_reversed, state)
     assert state.integral != frozen  # integration resumed once error flipped sign
+
+
+# ----------------------------------------------------------------------
+# apps/control/flight_software/laws.py -- pd_apogee (Step 153, task-153-
+# pd-apogee-law.md), called directly, same style as the proportional_drag/
+# pi_apogee unit tests immediately above.
+# ----------------------------------------------------------------------
+
+
+def test_pd_apogee_zero_kd_matches_proportional_drag():
+    """`airbrake_kd=0.0` reduces `pd_apogee`'s `cmd` output to
+    `proportional_drag`'s own `cmd` output tick-for-tick (same P
+    structure, inert D term) -- same spirit as
+    test_proportional_drag_matches_proportional_structure_at_zero_k."""
+    kp, target = 0.0005, 100.0
+    p_pd = _launch_params(airbrake_model="pd_apogee", airbrake_kp=kp, airbrake_kd=0.0, airbrake_target_apogee_m=target)
+    p_p = _launch_params(airbrake_model="proportional_drag", airbrake_kp=kp, airbrake_target_apogee_m=target)
+    state_pd = state_p = None
+    for t, h in ((0.0, 100.0), (1.0, 110.0), (2.0, 95.0)):
+        cmd_pd, state_pd = laws.pd_apogee(t, control.Measurement(h_baro=h), p_pd, state_pd)
+        cmd_p, state_p = laws.proportional_drag(t, control.Measurement(h_baro=h), p_p, state_p)
+        assert cmd_pd == pytest.approx(cmd_p, rel=1e-12)
+
+
+def test_pd_apogee_derivative_term_changes_command_on_a_two_tick_sequence():
+    """A changing `h_baro` between the first and second tick makes
+    `d_error != 0.0` on tick 2; `cmd` there differs from the P-only
+    (`kd=0.0`) value by exactly `kd * d_error` (hand-computed, same style
+    as test_proportional_drag_matches_proportional_structure_at_zero_k)."""
+    kp, kd, target, g0 = 0.0001, 0.001, 0.0, 9.80665
+    p = _launch_params(airbrake_model="pd_apogee", airbrake_kp=kp, airbrake_kd=kd, airbrake_target_apogee_m=target)
+    state = None
+    cmd1, state = laws.pd_apogee(0.0, control.Measurement(h_baro=0.0), p, state)
+    error1 = 0.0 - target  # h_a == h_baro == 0.0 on the first tick (v_hat == 0.0, k == 0)
+    assert cmd1 == pytest.approx(float(np.clip(kp * error1, 0.0, 1.0)), rel=1e-12)
+
+    cmd2, state = laws.pd_apogee(1.0, control.Measurement(h_baro=10.0), p, state)
+    v_hat = 10.0  # (10.0 - 0.0) / 1.0
+    h_a2 = 10.0 + v_hat**2 / (2.0 * g0)
+    error2 = h_a2 - target
+    d_error = (error2 - error1) / 1.0
+    p_only_cmd2 = float(np.clip(kp * error2, 0.0, 1.0))
+    full_cmd2 = float(np.clip(kp * error2 + kd * d_error, 0.0, 1.0))
+    assert cmd2 == pytest.approx(full_cmd2, rel=1e-12)
+    assert cmd2 != pytest.approx(p_only_cmd2, rel=1e-12)
+    assert cmd2 - p_only_cmd2 == pytest.approx(kd * d_error, rel=1e-9)
+
+
+def test_pd_apogee_first_tick_has_zero_derivative_contribution():
+    """First call (`state=None`): `cmd == clip(kp*error, 0, 1)` exactly
+    (no D contribution, SS153.2 Option A's `dt<=0.0` first-tick
+    convention); `state.error_prev` is threaded forward to the first
+    tick's own `error` for use on tick 2."""
+    kp, kd, target = 0.0005, 0.01, 100.0
+    p = _launch_params(airbrake_model="pd_apogee", airbrake_kp=kp, airbrake_kd=kd, airbrake_target_apogee_m=target)
+    cmd, state = laws.pd_apogee(0.0, control.Measurement(h_baro=120.0), p, None)
+    error = 120.0 - target  # h_a == h_baro == 120.0 on the first tick (v_hat == 0.0, k == 0)
+    assert cmd == pytest.approx(float(np.clip(kp * error, 0.0, 1.0)), rel=1e-12)
+    assert state.error_prev == pytest.approx(error, rel=1e-12)
+
+
+def test_pd_apogee_saturates_combined_pd_signal():
+    """Large `kp`/`kd` driving `unsat = kp*error + kd*d_error` well past
+    `1.0`: `cmd` clips to `1.0` exactly (mirrors
+    test_pi_apogee_anti_windup_freezes_integral_while_saturated_in_the_same_direction's
+    saturation setup, minus the anti-windup part -- `pd_apogee` has no
+    integral state to freeze, just confirm the clip itself fires)."""
+    kp, kd, target = 1.0, 1.0, 0.0
+    p = _launch_params(airbrake_model="pd_apogee", airbrake_kp=kp, airbrake_kd=kd, airbrake_target_apogee_m=target)
+    state = None
+    _, state = laws.pd_apogee(0.0, control.Measurement(h_baro=100.0), p, state)
+    cmd, state = laws.pd_apogee(1.0, control.Measurement(h_baro=1000.0), p, state)
+    assert cmd == 1.0
 
 
 # ----------------------------------------------------------------------

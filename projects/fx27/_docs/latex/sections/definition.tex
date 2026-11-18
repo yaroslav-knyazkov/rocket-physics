@@ -1,0 +1,86 @@
+\subsection{Defnition}
+The idea of the trajectory controller is to minimize the error between target height and real max height.
+To do so we try to minimize following error throghout the flight
+\begin{equation}
+    e = h_f - h,
+\end{equation}
+where $h_f$ is target height and $h$ is the predicted final (apogee) altitude from the current state --
+NOT the altitude reached so far.
+
+The idea is that controller input is the final height error and output the air brake extension percentage,
+writing it as
+\begin{equation}
+    \frac{\text{ext}(s)}{e(s)} = C_1(s).
+\end{equation}
+
+The loop then consists of air brake extension controller $C_2(s)$, plant $P(s)$\footnote{The $s$-domain
+notation used throughout this section is block-diagram/signal-flow shorthand, not literal LTI transfer
+functions: the predictor ($R(s)$ below) and the plant ($P(s)$) are both nonlinear (the predictor through
+$\log$/$v^2$, the plant through quadratic drag and, later, attitude dynamics), and the real system is
+sampled (fixed \texttt{sample\_rate\_hz}, zero-order hold), so $z$-domain would be the more honest notation
+once past this purely structural diagram. A constant gain like $C_1(s)=k_p$ happens to be trivially valid
+as written; $R(s)$ and $P(s)$ are not.}, which gives the current
+state of the rocket, which then is fed into height prediction alogirthm
+
+\subsubsection{P/PD - Burnout - 1}
+At the begining we will assume that air brake drag is linear, of form
+\begin{equation}
+    C_d = C_{d,f}\cdot f,
+\end{equation}
+there is no intertia and controller of the air brake extension, i.e. the movement is instatanous, and
+the point mass plant is used.
+
+The system's logic is that using the results from plant, the predictor can estimate final altitude, which
+can then be fed into error calculation $e = h_f - h$, which then is being used by controller, which
+controls the extension $f$, which is fed into the plant and the loop closes. The system can be seen on
+\ref{fig:1}
+
+Starting with predictor at the beggining the analytical derivation of after burnout dynamics is used,
+it follows that 
+\begin{equation}
+    m \frac{dv}{dt} = -mg - kv^2.
+\end{equation}
+By applying approximation
+\begin{equation}
+    \frac{dv}{dt} = \frac{dv}{dt}\frac{dh}{dh} = \frac{dh}{dt}\frac{dv}{dh} = v \frac{dv}{dh}
+\end{equation}
+and $u = v^2$. One gets
+\begin{equation}
+    \frac{du}{dh} = -2g -\frac{2k}{m}u.
+\end{equation}
+This intern can be integrated
+\begin{equation}
+    \int_{u}^{u_f} \frac{du}{-2g -\frac{2k}{m}u} = \int_{h}^{h_f}dh
+\end{equation}
+where $u = v^2$ at $h$ and $u_f = 0$ and $h_f$, gives sollution of error
+\begin{equation}
+    e = h_f - h = \frac{m}{2k}\ln\left(1 + \frac{k v^2}{mg}\right),
+\end{equation}
+which as output gives the error. 
+
+This predictor transfer function is of form
+\begin{equation}
+    R(s) = \frac{e(s)}{x^*(s)},
+\end{equation}
+where it takes vector of chosen states (for now $h, v, f$) and outputs the error. 
+It's worth noting that for this case the boundary conditions ($h_t, v_t$) are a side input.
+\todo{write about how such system can be translatet into velocity based trajectory; idk the reason
+but for example not to reach a transonic region or smn}
+
+The error is then fed up to the P controller, which by definition is given as
+\begin{equation}
+    C_1(s) = \frac{f(s)}{e(s)} = k_p.
+\end{equation}
+
+The brake extension is then, given to a plant
+\begin{equation}
+    P(s) = \frac{x(s)}{f(s)},
+\end{equation}
+which returns a vector of states. This vector of state is then fed back in the predictor and the loop closes.
+
+\todo{results}
+
+
+
+
+

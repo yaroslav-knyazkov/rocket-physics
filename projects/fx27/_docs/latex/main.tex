@@ -1,0 +1,64 @@
+\documentclass[10pt]{extarticle}
+
+% ---------- Packages ----------
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath, amsfonts, bm}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{nomencl}
+\usepackage{array}
+\usepackage{pdflscape}
+\usepackage[export]{adjustbox}
+\usepackage[utf8]{inputenc}
+\usepackage{parskip}
+
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{arrows.meta, arrows}
+
+% ---------- Page setup ----------
+\geometry{
+    a4paper,
+    total={170mm,257mm},
+    left=20mm,
+    top=20mm
+}
+
+% ---------- Headers and footers ----------
+\pagestyle{fancy}
+\pagenumbering{arabic}
+
+\fancyhead[L]{FX27 by Yaroslav Knyazkov}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+
+% ---------- Hyperlinks ----------
+\hypersetup{
+    colorlinks=true,
+    linkcolor={blue!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+% ---------- Equation numbering ----------
+\numberwithin{equation}{subsection}
+
+% ---------- Custom commands ----------
+\newcommand{\todo}[1]{%
+    \textcolor{red}{(#1)}%
+}
+
+\begin{document}
+\tableofcontents
+
+\newpage \section{Air Brake - Trajectory Controller}
+\input{sections/definition.tex}
+% \input{sections/plants.tex} 
+% \input{sections/optimizer.tex}
+% \input{sections/controllers.tex}
+% \input{sections/timeline.tex}
+
+\end{document}

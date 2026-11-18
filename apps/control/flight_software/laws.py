@@ -102,3 +102,29 @@ def pi_apogee(t_k, meas, p, state):
     saturated_low = cmd <= 0.0 and error < 0.0
     new_integral = prev.integral if (saturated_high or saturated_low) else prev.integral + error * dt
     return cmd, PiApogeeState(est=est_new, integral=new_integral, f_b_prev=cmd)
+
+
+class PdApogeeState(NamedTuple):
+    # See ProportionalDragState.est's own comment above -- same honest
+    # either-model type hint, same reason.
+    est: "Optional[estimator.EstimatorState | estimator.AlphaBetaState]" = None
+    error_prev: float = 0.0
+    f_b_prev: float = 0.0
+
+
+def pd_apogee(t_k, meas, p, state):
+    c = p.control
+    prev = state if state is not None else PdApogeeState()
+    dt = 0.0 if prev.est is None or prev.est.t_prev is None else t_k - prev.est.t_prev
+    h_hat, v_hat, est_new = estimator.step(t_k, meas.h_baro, prev.est, model=c.estimator_model, p=p)
+    k = _k(c, prev.f_b_prev)
+    h_a = drag_aware_predicted_apogee(h_hat, v_hat, p.g0, c.onboard_mass, k)
+    error = h_a - c.airbrake_target_apogee_m
+    # Backward difference over consecutive `error` values, same `dt<=0.0`
+    # first-tick/repeated-tick guard pi_apogee's own integral already
+    # uses (SS153.2) -- d_error == 0.0 on the first call regardless of
+    # prev.error_prev's default value.
+    d_error = 0.0 if dt <= 0.0 else (error - prev.error_prev) / dt
+    unsat = c.airbrake_kp * error + c.airbrake_kd * d_error
+    cmd = float(np.clip(unsat, 0.0, 1.0))
+    return cmd, PdApogeeState(est=est_new, error_prev=error, f_b_prev=cmd)

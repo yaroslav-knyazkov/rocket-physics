@@ -6,7 +6,7 @@ touch the physics package or its pins, SS35.4's own layering rule).
 
 Importing this package (`import apps.control.flight_software`, or any of
 its submodules) is what makes `p.control.airbrake_model in
-("proportional_drag", "pi_apogee")` resolvable at all --
+("proportional_drag", "pi_apogee", "pd_apogee")` resolvable at all --
 sim.control.known_sampled_laws() is empty until this module's own
 import-time side effect runs once.
 """
@@ -17,3 +17,4 @@ from apps.control.flight_software import laws
 
 control.register_sampled_law("proportional_drag", laws.proportional_drag)
 control.register_sampled_law("pi_apogee", laws.pi_apogee)
+control.register_sampled_law("pd_apogee", laws.pd_apogee)
