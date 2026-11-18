@@ -1,0 +1,9 @@
+{
+  "files.exclude": {
+    "**/__pycache__": false,
+    "**/*.pyc": false,
+    "**/__init__.py": false,
+    "**/*.md": false
+  },
+  "explorer.compactFolders": true
+}
