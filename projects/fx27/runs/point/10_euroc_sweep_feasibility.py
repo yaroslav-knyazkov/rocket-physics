@@ -1,9 +1,9 @@
-"""projects/fx27/runs/point/sweep.py -- Variant B (dev/docs/architecture-
-38-fx27-port.md SS38.5.3): the richer `apps.optimization.motor_selection.
-scenario_sweep.sweep_scenario` view, one call per airframe config (12
-calls), rows concatenated -- `J_total`, `t_burn`, `T/W`, `q_max`,
-`m_burnout` on top of fx27's own column set (Variant A,
-`runs/point/comparison.py --case euroc`).
+"""projects/fx27/runs/point/10_euroc_sweep_feasibility.py -- Variant B
+(dev/docs/architecture-38-fx27-port.md SS38.5.3): the richer `apps.
+optimization.motor_selection.scenario_sweep.sweep_scenario` view, one
+call per airframe config (12 calls), rows concatenated -- `J_total`,
+`t_burn`, `T/W`, `q_max`, `m_burnout` on top of fx27's own column set
+(Variant A, `runs/point/09_euroc_comparison_fx27_columns.py`).
 
 `Constraints(min_tw=0.0, min_margin_cal=-math.inf)`: the default
 `min_margin_cal=1.0` would stamp `INFEASIBLE: static_margin` on a
@@ -18,7 +18,7 @@ rows from several calls are merged (as they are here) -- this repo's own
 euroc data has no actual name collision across configs, but the rename
 is cheap insurance against SS38.5.3's own documented failure mode.
 
-Run: `python -m projects.fx27.runs.point.sweep`.
+Run: `python -m projects.fx27.runs.point.10_euroc_sweep_feasibility`.
 """
 
 from __future__ import annotations
