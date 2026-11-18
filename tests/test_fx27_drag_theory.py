@@ -1,6 +1,8 @@
 """tests/test_fx27_drag_theory.py -- tests for
-projects/fx27/data/cspace/aero/drag_theory.py (dev/docs/architecture-45-
-fx27-theory-drag-port.md S7, ticket T45-4).
+projects/fx27/data/utils/aero/drag_theory.py (dev/docs/architecture-45-
+fx27-theory-drag-port.md S7, ticket T45-4; module moved from
+`data/cspace/aero/` to `data/utils/aero/` in Step 157 since it is fully
+generic, not cspace-specific).
 
 New physics, not a reorg -- D-181's "no new tests for fx27 reorg-only
 work" exemption does NOT apply (architecture-45 S7). All tests are fast
@@ -26,7 +28,7 @@ import numpy as np
 import pytest
 
 from projects.fx27._paths import cspace_aero
-from projects.fx27.data.cspace.aero import drag_theory as dt
+from projects.fx27.data.utils.aero import drag_theory as dt
 
 _DOCS_DIR = Path(__file__).resolve().parent.parent / "dev" / "docs"
 _DELTA_REPORT_PATH = _DOCS_DIR / "architecture-45-fx27-theory-drag-port-delta.md"

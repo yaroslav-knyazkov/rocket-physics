@@ -1,7 +1,12 @@
-"""projects/fx27/data/cspace/aero/drag_theory.py -- theoretical
+"""projects/fx27/data/utils/aero/drag_theory.py -- theoretical
 (semi-empirical, Niskanen-thesis/OpenRocket method) C_D0(M) port
 (dev/docs/architecture-45-fx27-theory-drag-port.md, "architecture-45"
 below).
+
+Moved here from `data/cspace/aero/` (Step 157): `Geometry`/`compute_cd0`
+are fully generic (not cspace-specific), so the module lives under
+`data/utils/` alongside other campaign-agnostic logic; the CSVs it feeds
+(cspace-specific, ported/generated) stay in `data/cspace/aero/`.
 
 This module ports the physics of `temporary/drive-download-
 20261117T190208Z-1-001/cd_mach_03_increase_D.m` (the CORRECTED source

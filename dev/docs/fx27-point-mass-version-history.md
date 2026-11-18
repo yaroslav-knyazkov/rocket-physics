@@ -152,7 +152,7 @@ This document traces the chronological development of the fx27 point-mass track 
 
 **Scope (cut for now):** Only `PRO54_TRANSITION_DM` geometry implemented; `PRO54_EQUAL_DM` and `PRO75_DM` geometries deferred (user: "implement for 1 configuration for now").
 
-**Current structure:** `projects/fx27/data/cspace/aero/drag_theory.py` (theory module), `generate_theory_drag_tables.py` (one-off generator), output CSV `pro54-transition-drag-theory.csv`.
+**Current structure:** `projects/fx27/data/utils/aero/drag_theory.py` (theory module, moved from `data/cspace/aero/` in Step 157 -- campaign-agnostic), `data/cspace/aero/generate_theory_drag_tables.py` (one-off generator, stays cspace-specific), output CSV `pro54-transition-drag-theory.csv`.
 
 **Key findings:** Theory curve and existing ported dm table diverge; no decision yet on replacement vs. side-by-side. See architecture-45 §5 (CSV replacement strategy decision pending user review).
 

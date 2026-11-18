@@ -13,7 +13,7 @@ Sequence within a stage is plain chronological order of when the work actually h
 
 | id | name | current file | description |
 |----|------|---|---|
-| 0.1 | Theory-based Mach-dependent drag (in progress) | `data/cspace/aero/drag_theory.py`, `generate_theory_drag_tables.py` | Niskanen/OpenRocket-method C_D0(M) from component geometry — a **dependency** feeding the dm rows (1.5-1.8), not a step in the flow itself. Currently `PRO54_TRANSITION_DM` only, side-by-side comparison variant. |
+| 0.1 | Theory-based Mach-dependent drag (in progress) | `data/utils/aero/drag_theory.py`, `data/cspace/aero/generate_theory_drag_tables.py` | Niskanen/OpenRocket-method C_D0(M) from component geometry — a **dependency** feeding the dm rows (1.5-1.8), not a step in the flow itself. Currently `PRO54_TRANSITION_DM` only, side-by-side comparison variant. `drag_theory.py` itself lives under `data/utils/aero/` (Step 157) since it's campaign-agnostic; the generator and its cspace-specific output CSV stay under `data/cspace/aero/`. |
 | 1.1 | Cspace comparison (constant drag) | `runs/point/01_cspace_comparison_dc.py` | Baseline 3-rocket cspace flight comparison, constant-C_x (dc) rockets only. |
 | 1.2 | Cspace ideal mass (constant drag) | `runs/point/02_cspace_ideal_mass_dc.py` | Solves the minimum airframe mass that hits the 2500 m target apogee, per dc rocket. |
 | 1.3 | Cspace ideal drag (constant drag) | `runs/point/03_cspace_ideal_drag_dc.py` | Solves the C_x scale factor that hits the target apogee, per dc rocket. |

@@ -16,6 +16,10 @@ together in one file (architecture-45 SS3) -- the same reasoning this
 codebase already applies to keeping `regenerate_ideal_own.py` and
 `generate_dm_tables.py` as two separate one-off scripts.
 
+`drag_theory.py` itself moved to `data/utils/aero/` (Step 157) -- it is
+fully generic, not cspace-specific; this generator script and its
+cspace-specific output CSV stay here under `data/cspace/aero/`.
+
 Writes the existing `apps/sim/engine/aero.py` v1 table format
 (`alpha_deg,M,C_A,C_N,C_m,l1_m`, same shape as `generate_dm_tables.py`'s
 own `_convert_one`): two bogus alpha_deg rows per Mach value (-89, +89
@@ -45,7 +49,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from projects.fx27.data.cspace.aero import drag_theory
+from projects.fx27.data.utils.aero import drag_theory
 
 _HERE = Path(__file__).resolve().parent
 
@@ -64,7 +68,7 @@ def _write_one(dst: Path, geo: drag_theory.Geometry) -> None:
             "# Mach-dependent C_A(M), THEORY-derived (Niskanen thesis / OpenRocket\n"
             "# semi-empirical method, M 0.10-1.30, hand-extended supersonic 1.30-3.00) --\n"
             "# ported from temporary/drive-download-20261117T190208Z-1-001/\n"
-            "# cd_mach_03_increase_D.m via projects/fx27/data/cspace/aero/drag_theory.py.\n"
+            "# cd_mach_03_increase_D.m via projects/fx27/data/utils/aero/drag_theory.py.\n"
             "# dev/docs/architecture-45-fx27-theory-drag-port.md SS1/S2/S4/S5. NOT the same\n"
             "# provenance as generate_dm_tables.py's output (that ports an EXTERNAL\n"
             "# sibling-repo inventory CSV, not first-principles theory) -- a side-by-side\n"

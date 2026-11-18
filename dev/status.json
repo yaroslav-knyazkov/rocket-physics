@@ -647,9 +647,11 @@
       "id": "2.29",
       "name": "Phase 2.29 — fx27 theory-based Mach-dependent drag port: user's collaborator derived a Niskanen/OpenRocket-method C_D0(M) model (nose+body+transition+fins+lugs) from component geometry, supplied as 3 MATLAB scripts in temporary/. SCOPE REDUCED (see D-190): only PRO54_TRANSITION_DM is implemented this phase, not all 3 cspace variants. Roadmap id renumbered 1.13 -> 0.1 (dependency, not a flow step) per user request.",
       "status": "in_progress",
-      "next": "T45-1..T45-4 implemented by developer: drag_theory.py, generate_theory_drag_tables.py, pro54-transition-drag-theory.csv, PRO54_TRANSITION_THEORY_DM in rockets.py, tests/test_fx27_drag_theory.py (9/9 passed), tests/test_fx27_port.py re-run clean (61/61), delta report written (max abs delta 0.146, mean 0.085). code-review clean. Developer's own full-suite run (python -m pytest -q) still executing in background as of last check-in -- not yet confirmed complete. Nothing committed yet (uncommitted on disk alongside architecture-46's work, disjoint file sets). Next: get final full-suite count, then commit as Step 154.",
+      "next": "Step 154 (commit 7e13a6b) closed T45-1..T45-4. Step 157 (D-197): drag_theory.py moved data/cspace/aero/ -> data/utils/aero/ -- campaign-agnostic physics module split out from the cspace-specific CSVs/generator (which stay put). Phase stays in_progress: PRO54_EQUAL/PRO75 geometries + the eventual promote-vs-side-by-side decision remain deferred (SS5/SS6 of architecture-45).",
       "pending_approvals": [],
-      "active_modules": ["developer"]
+      "active_modules": [
+        "developer"
+      ]
     },
     {
       "id": "2.30",
@@ -657,7 +659,9 @@
       "status": "in_progress",
       "next": "architecture-46-fx27-runs-simulations-split.md (architect, revised twice: once to drop the simulations/ layer per D-194, once by orchestrator directly for the v1_ prefix removal). developer implemented T1-T4: 11 new/renamed runs/point/*.py files (01-10, 12; id 1.11 skipped not built, id 0.1/ex-1.13 deferred to Phase 2.29), old consolidated comparison.py/ideal_mass.py/ideal_drag.py/ideal_open_airbrake.py deleted, sweep.py renamed to 10_euroc_sweep_feasibility.py. code-review (background) caught and fixed 2 real bugs in the new 12_final_cross_campaign_comparison.py orchestrator (argv not forwarded, causing a crash under --show; stale docstring cross-reference) -- verified working end-to-end (88 [validity] lines, all CSV/PNG artifacts saved). roadmap.md General table 'current file' cells updated for ids 1.1-1.10/1.12; one stale prose cross-reference in General's own Notes section fixed directly by orchestrator. T5 (full-suite regression) deliberately NOT run yet by developer (explicit stop condition, to avoid two concurrent full-suite runs while Phase 2.29's own full suite was still executing) -- queued as soon as Phase 2.29 clears. Two known follow-ups, not blocking: (1) controller.py:14's stale comment referencing deleted ideal_open_airbrake.py -- belongs to the parallel controller-track session, flagged not fixed; (2) roadmap.md's Controller-section note (line ~68) has the same staleness -- also the other session's content, flagged for the user to relay, not touched.",
       "pending_approvals": [],
-      "active_modules": ["developer"]
+      "active_modules": [
+        "developer"
+      ]
     }
   ],
   "decisions": [
@@ -1366,6 +1370,16 @@
       "author": "user",
       "user_approved": true,
       "stage": "2.17"
+    },
+    {
+      "id": "D-197",
+      "date": "2026-11-18",
+      "topic": "Step 157 (Phase 2.29): fx27 drag_theory.py moved out of data/cspace/aero/ into new data/utils/aero/",
+      "question": "User: 'I want you to move drag curve login from data/cspace/aero to data/utils/aero' (drag_theory.py's Geometry/compute_cd0 are fully generic physics, not cspace-specific -- only the CSVs/generator it feeds are campaign-specific).",
+      "choice": "Moved via git mv to data/utils/aero/drag_theory.py; new data/utils/__init__.py (cspace/euroc-style docstring), no aero/__init__.py needed (namespace package, matches cspace/aero's own convention, confirmed by passing imports). generate_theory_drag_tables.py's import line and self-referential docstring/CSV-header path updated and stays in data/cspace/aero/ (cspace-specific output location); same for the committed pro54-transition-drag-theory.csv (regenerated -- only its provenance comment line changed, numeric data byte-identical). tests/test_fx27_drag_theory.py import path updated. roadmap.md's 0.1 row and fx27-point-mass-version-history.md's 'Current structure' line updated to the new path. tests/test_fx27_drag_theory.py + tests/test_fx27_port.py re-run clean (70/70).",
+      "author": "user",
+      "user_approved": true,
+      "stage": "2.29"
     }
   ],
   "deferred_decisions": [

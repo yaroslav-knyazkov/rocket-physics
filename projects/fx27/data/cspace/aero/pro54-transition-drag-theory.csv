@@ -1,7 +1,7 @@
 # Mach-dependent C_A(M), THEORY-derived (Niskanen thesis / OpenRocket
 # semi-empirical method, M 0.10-1.30, hand-extended supersonic 1.30-3.00) --
 # ported from temporary/drive-download-20261117T190208Z-1-001/
-# cd_mach_03_increase_D.m via projects/fx27/data/cspace/aero/drag_theory.py.
+# cd_mach_03_increase_D.m via projects/fx27/data/utils/aero/drag_theory.py.
 # dev/docs/architecture-45-fx27-theory-drag-port.md SS1/S2/S4/S5. NOT the same
 # provenance as generate_dm_tables.py's output (that ports an EXTERNAL
 # sibling-repo inventory CSV, not first-principles theory) -- a side-by-side
