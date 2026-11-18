@@ -1,15 +1,16 @@
-"""projects/fx27/runs/point/controller.py -- Rung-1 closed-loop demo for the
-4 ideal cspace variants (dc only -- see dev/docs/task-152-fx27-point-
-controller-rung1.md S3 for why not the base rockets or the dm set yet).
+"""projects/fx27/runs/controller_pd/01_p_analytical_burnout_linear_drag.py --
+Rung-1 closed-loop demo for the 4 ideal cspace variants (dc only -- see
+dev/docs/task-152-fx27-point-controller-rung1.md S3 for why not the base
+rockets or the dm set yet).
 
-Run: `python -m projects.fx27.runs.point.controller`.
+Run: `python -m projects.fx27.runs.controller_pd.01_p_analytical_burnout_linear_drag`.
 """
 
 from __future__ import annotations
 
 from projects.fx27.data.cspace import airbrake_data
 from projects.fx27.data.cspace.scenarios import SCENARIOS
-from projects.fx27.solvers.point.controller import print_rung1_report, run_rung1_demo
+from projects.fx27.solvers.controller_pd.controller import print_rung1_report, run_rung1_demo
 
 TARGET_APOGEE_M = 2500.0          # matches runs/point/ideal_open_airbrake.py's own target
 # Picked empirically (dev/docs/task-152-fx27-point-controller-rung1.md S1's

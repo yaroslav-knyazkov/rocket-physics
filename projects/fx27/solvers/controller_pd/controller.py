@@ -1,4 +1,4 @@
-"""projects/fx27/solvers/point/controller.py -- fx27's Rung-1 closed-loop
+"""projects/fx27/solvers/controller_pd/controller.py -- fx27's Rung-1 closed-loop
 airbrake demo: ideal actuator, noiseless sensors, one Tier-1 sampled law
 (apps.control.flight_software.laws), assembled on top of one of fx27's own
 cspace scenarios and a HAND-ENTERED airbrake hardware data file
