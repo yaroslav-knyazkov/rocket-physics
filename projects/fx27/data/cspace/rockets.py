@@ -152,3 +152,23 @@ PRO75_DM = dataclasses.replace(
         "import/aerodynamics/cspace/pro75-drag.csv (SS40.3/SS40.5)."
     ),
 )
+
+
+# --- theory-derived ("theory_dm") comparison variant (architecture-45 SS5
+# Option A): side-by-side with PRO54_TRANSITION_DM above, not a replacement
+# -- do NOT add to SCENARIOS_DM (scenarios_dm.py) or any comparison-plot
+# script (would silently expand test_cspace_dm_has_exactly_the_seven_
+# comparison_rows' expected set). PRO54_EQUAL_THEORY_DM / PRO75_THEORY_DM:
+# future additions, same pattern, once drag_theory.py/generate_theory_drag_
+# tables.py ship the corresponding Geometry/CSV (PRO75's own file mapping
+# needs user confirmation first -- architecture-45 SS2).
+
+_TABLE_PRO54_TRANSITION_THEORY = cspace_aero("pro54-transition-drag-theory.csv")
+
+PRO54_TRANSITION_THEORY_DM = dataclasses.replace(
+    PRO54_TRANSITION, name="pro54_transition_theory_dm",
+    aero=_dm_aero(PRO54_TRANSITION.aero, _TABLE_PRO54_TRANSITION_THEORY),
+    notes="... theory-derived (Niskanen/OpenRocket method, ported from cd_mach_03_increase_D.m) "
+          "C_A(M) table, SS5 Option A comparison variant -- NOT a replacement for "
+          "pro54_transition_dm, see architecture-45.",
+)
