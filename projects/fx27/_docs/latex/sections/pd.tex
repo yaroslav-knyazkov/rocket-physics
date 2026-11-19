@@ -1,0 +1,71 @@
+\subsection{P/PD controller}
+This controller is built out of 2 blocks: predictor and traditional controller.
+
+\subsubsection{Controllers}
+The controller takes the error and performs the operations on it depending, what controller this is.
+Here P and PD controllers are going to be defined. The predictors later defined are burnout, point 
+mass and 2D.
+
+\paragraph{P controller} scales the error proportionally giving
+\begin{equation}
+    f = k_P\cdot e
+\end{equation} 
+
+\paragraph{PD controller} scales the error proportionally and introduces damping giving
+\begin{equation}
+    f = k_P\cdot e + k_D \frac{de}{dt}
+\end{equation} 
+
+
+\subsubsection{Predictor}
+The predictor is an algorithm of prediction of the final altitude $h$. The algorithm computes the apogee
+for the flight given the current state of the rocket and assumption of constant air-brake extension and 
+outputs the error $e$.
+
+\paragraph{Burnout} assumes vertical only post burn dynamics. The derivation starts from equations of motion
+\begin{equation}
+    m \frac{dv}{dt} = -mg - kv^2.
+\end{equation}
+
+By applying approximation
+\begin{equation}
+    \frac{dv}{dt} = \frac{dv}{dt}\frac{dh}{dh} = \frac{dh}{dt}\frac{dv}{dh} = v \frac{dv}{dh}
+\end{equation}
+and $u = v^2$. One gets
+\begin{equation}
+    \frac{du}{dh} = -2g -\frac{2k}{m}u.
+\end{equation}
+This in turn can be integrated
+\begin{equation}
+    \int_{u}^{u_f} \frac{du}{-2g -\frac{2k}{m}u} = \int_{h}^{h_f}dh
+\end{equation}
+where $u = v^2$ at $h$ and $u_f = 0$ and $h_f$, gives the equation of error
+\begin{equation}
+    e = h_f - h = \frac{m}{2k}\ln\left(1 + \frac{k v^2}{mg}\right),
+\end{equation}
+where $k$ is a constant, given as
+\begin{equation}
+    k = \frac{\rho C_DA}{2}
+\end{equation}
+with all variables constant, taken as a snapshot from the current rocket state. 
+
+\paragraph{Point mass} dynamics solver is used that is already defined within the simulation.
+The simulation takes current state of the rocket and the defined environment and drag models.
+The advantage of this method is that non-linear behavior can be simulated and accounts for
+ideal rocket attitude change, unlike the method above.
+
+\paragraph{2D} simulation is the improvement of point mass model, adding the real attitude dynamics.
+The model introduces angle of lift and angle of attack dependece, which are going to be affected by
+the brake extension.
+
+\subsubsection{Models}
+By pairing each controller with predictor model the model performances can be assessed. The table \ref{tab:1}
+shows each pair and respective model ID.
+
+\begin{table}[ht]
+    \label{tab:1}
+    \caption{Models made by pairing each controller with a predictor model.}
+\end{table}
+
+In theory one can also see the effect of the performance by changing the environment and drag Models
+\todo{Is this needed?}

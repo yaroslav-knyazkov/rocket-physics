@@ -1,85 +1,36 @@
-\subsection{Defnition}
+\subsection{Definition}
 The idea of the trajectory controller is to minimize the error between target height and real max height.
-To do so we try to minimize following error throghout the flight
+To do so we try to minimize following error throughout the flight
 \begin{equation}
     e = h_f - h,
 \end{equation}
-where $h_f$ is target height and $h$ is the predicted final (apogee) altitude from the current state --
-NOT the altitude reached so far.
+where $h_f$ is target height and $h$ is the predicted final (apogee) altitude from the current state.
 
-The idea is that controller input is the final height error and output the air brake extension percentage,
-writing it as
+The optimization loop consists of controller and plant that is backwired into the controller. Reference
+function, in this case $h_f$ is wired directly into the controller. The controller and plant can be divided
+into two, dynamics of the rocket and air brake actuation. The block diagram can be visible in figure \ref{fig:1}
+In this section the idea is to create a first controller of form
 \begin{equation}
-    \frac{\text{ext}(s)}{e(s)} = C_1(s).
+    f = C_1(x),
 \end{equation}
+where the input is rocket and environment states $x$ and output extension $f$, such that it minimizes final
+error $e$. For that reason the plants have to be as accurate and simulate the dynamics and environment of the
+flight as well as possible.
 
-The loop then consists of air brake extension controller $C_2(s)$, plant $P(s)$\footnote{The $s$-domain
-notation used throughout this section is block-diagram/signal-flow shorthand, not literal LTI transfer
-functions: the predictor ($R(s)$ below) and the plant ($P(s)$) are both nonlinear (the predictor through
-$\log$/$v^2$, the plant through quadratic drag and, later, attitude dynamics), and the real system is
-sampled (fixed \texttt{sample\_rate\_hz}, zero-order hold), so $z$-domain would be the more honest notation
-once past this purely structural diagram. A constant gain like $C_1(s)=k_p$ happens to be trivially valid
-as written; $R(s)$ and $P(s)$ are not.}, which gives the current
-state of the rocket, which then is fed into height prediction alogirthm
+\begin{figure}[ht]
+    \label{fig:1}
+    \caption{Closed loop block diagram.}
+\end{figure}
 
-\subsubsection{P/PD - Burnout - 1}
-At the begining we will assume that air brake drag is linear, of form
-\begin{equation}
-    C_d = C_{d,f}\cdot f,
-\end{equation}
-there is no intertia and controller of the air brake extension, i.e. the movement is instatanous, and
-the point mass plant is used.
+Unlike convention, where $C_1$ usually takes in the $e$, $x$ is used as error is calculated within
+the controller. The controller itself will consist of different algorithms depending on the type chosen.
+This will be described in the following sections.
 
-The system's logic is that using the results from plant, the predictor can estimate final altitude, which
-can then be fed into error calculation $e = h_f - h$, which then is being used by controller, which
-controls the extension $f$, which is fed into the plant and the loop closes. The system can be seen on
-\ref{fig:1}
-
-Starting with predictor at the beggining the analytical derivation of after burnout dynamics is used,
-it follows that 
-\begin{equation}
-    m \frac{dv}{dt} = -mg - kv^2.
-\end{equation}
-By applying approximation
-\begin{equation}
-    \frac{dv}{dt} = \frac{dv}{dt}\frac{dh}{dh} = \frac{dh}{dt}\frac{dv}{dh} = v \frac{dv}{dh}
-\end{equation}
-and $u = v^2$. One gets
-\begin{equation}
-    \frac{du}{dh} = -2g -\frac{2k}{m}u.
-\end{equation}
-This intern can be integrated
-\begin{equation}
-    \int_{u}^{u_f} \frac{du}{-2g -\frac{2k}{m}u} = \int_{h}^{h_f}dh
-\end{equation}
-where $u = v^2$ at $h$ and $u_f = 0$ and $h_f$, gives sollution of error
-\begin{equation}
-    e = h_f - h = \frac{m}{2k}\ln\left(1 + \frac{k v^2}{mg}\right),
-\end{equation}
-which as output gives the error. 
-
-This predictor transfer function is of form
-\begin{equation}
-    R(s) = \frac{e(s)}{x^*(s)},
-\end{equation}
-where it takes vector of chosen states (for now $h, v, f$) and outputs the error. 
-It's worth noting that for this case the boundary conditions ($h_t, v_t$) are a side input.
-\todo{write about how such system can be translatet into velocity based trajectory; idk the reason
-but for example not to reach a transonic region or smn}
-
-The error is then fed up to the P controller, which by definition is given as
-\begin{equation}
-    C_1(s) = \frac{f(s)}{e(s)} = k_p.
-\end{equation}
-
-The brake extension is then, given to a plant
-\begin{equation}
-    P(s) = \frac{x(s)}{f(s)},
-\end{equation}
-which returns a vector of states. This vector of state is then fed back in the predictor and the loop closes.
-
-\todo{results}
-
+At the end the idea is to compare all the controller types and their subtypes in the real scenario with
+3D plant, real environment and disturbances (or as real as it can get), noisy sensors and sensor fusion.
+The goal would be to get as accurate average results, while considering outliers (it's best to have less
+accurate but within range) and constraint them using computational time, such that it doesn't exceed the 
+sampling time of the sensors.
 
 
 
